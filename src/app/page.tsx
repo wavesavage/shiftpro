@@ -1,5 +1,5 @@
 "use client";
-import ShiftProApp from "@/components/ShiftProApp";
+import LandingPage from "@/components/LandingPage";
 export default function Home() {
-  return <ShiftProApp />;
+  return <LandingPage />;
 }
