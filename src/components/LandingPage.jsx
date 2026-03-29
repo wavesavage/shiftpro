@@ -13,6 +13,48 @@ body{background:#05080f;font-family:'Outfit',sans-serif;color:#e2e8f0;overflow-x
 @keyframes pulseG{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.5)}50%{box-shadow:0 0 0 14px rgba(16,185,129,0)}}
 @keyframes slideL{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
 @keyframes slideR{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:none}}
+
+/* ── RESPONSIVE ── */
+.sp-split{display:flex;flex:1;position:relative;min-height:0;margin-top:0;}
+.sp-half{flex:1;display:flex;flex-direction:column;justify-content:center;cursor:pointer;position:relative;overflow:hidden;transition:background 0.5s;}
+.sp-half-l{align-items:flex-end;padding-right:12%;padding-left:60px;padding-top:80px;}
+.sp-half-r{align-items:flex-start;padding-left:12%;padding-right:60px;padding-top:80px;}
+.sp-content-l{position:relative;text-align:right;animation:slideR 0.7s ease;}
+.sp-content-r{position:relative;animation:slideL 0.7s ease;}
+.sp-nav{padding:0 40px;}
+.sp-section-pad{padding:90px 40px;}
+.sp-hero-pad{padding:120px 40px 80px;}
+.sp-footer-pad{padding:24px 40px;}
+.sp-grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:13px;}
+.sp-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.sp-grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;}
+.sp-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0;}
+.sp-pricing{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:13px;}
+.sp-perks{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:13px;}
+
+@media(max-width:768px){
+  .sp-split{flex-direction:column;}
+  .sp-half{flex:none;min-height:50vh;padding-top:20px !important;}
+  .sp-half-l{align-items:center !important;padding-right:24px !important;padding-left:24px !important;text-align:center;}
+  .sp-half-r{align-items:center !important;padding-left:24px !important;padding-right:24px !important;text-align:center;}
+  .sp-content-l{text-align:center !important;}
+  .sp-content-r{text-align:center !important;}
+  .sp-nav{padding:0 20px !important;}
+  .sp-section-pad{padding:60px 20px !important;}
+  .sp-hero-pad{padding:90px 20px 60px !important;}
+  .sp-footer-pad{padding:20px !important;}
+  .sp-grid-2{grid-template-columns:1fr !important;}
+  .sp-grid-4{grid-template-columns:repeat(2,1fr) !important;}
+  .sp-steps{grid-template-columns:1fr 1fr !important;}
+  .sp-pricing{grid-template-columns:1fr !important;}
+  .sp-perks{grid-template-columns:1fr !important;}
+  .sp-hide-mobile{display:none !important;}
+}
+@media(max-width:480px){
+  .sp-steps{grid-template-columns:1fr !important;}
+  .sp-grid-4{grid-template-columns:1fr 1fr !important;}
+  .sp-grid-3{grid-template-columns:1fr !important;}
+}
 `;
 
 const C={
@@ -80,7 +122,7 @@ function Entry({onChoose}){
         position:"absolute",top:0,left:0,right:0,zIndex:30}}>
         <Logo/>
       </div>
-      <div style={{flex:1,display:"flex",position:"relative",minHeight:0,marginTop:0}}>
+      <div className="sp-split">
         {/* Seamless center blend line */}
         <div style={{position:"absolute",top:0,bottom:0,left:"50%",
           transform:"translateX(-50%)",width:1,zIndex:10,pointerEvents:"none",
@@ -89,18 +131,15 @@ function Entry({onChoose}){
         {/* LEFT — EMPLOYER */}
         <div onClick={()=>onChoose("employer")}
           onMouseEnter={()=>setHov("employer")} onMouseLeave={()=>setHov(null)}
-          style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-end",
-            justifyContent:"center",paddingRight:"12%",paddingLeft:60,cursor:"pointer",
-            position:"relative",overflow:"hidden",transition:"background 0.5s",
-            paddingTop:80,
-            background:hov==="employer"?"rgba(245,158,11,0.05)":"transparent"}}>
+          className="sp-half sp-half-l"
+          style={{background:hov==="employer"?"rgba(245,158,11,0.05)":"transparent"}}>
           <div style={{position:"absolute",top:"50%",right:"18%",width:420,height:420,
             borderRadius:"50%",transform:"translateY(-50%)",pointerEvents:"none",
             background:`radial-gradient(ellipse,rgba(245,158,11,${hov==="employer"?0.11:0.04}) 0%,transparent 70%)`,
             transition:"all 0.4s"}}/>
           <div style={{position:"absolute",right:0,top:"8%",bottom:"8%",width:1,
             background:"linear-gradient(to bottom,transparent,rgba(255,255,255,0.07),transparent)"}}/>
-          <div style={{position:"relative",textAlign:"right",animation:"slideR 0.7s ease"}}>
+          <div className="sp-content-l">
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:18}}>
               <Swirl size={76} c1="#f59e0b" c2="#f97316" c3="#b45309" accent="#fde68a"/>
             </div>
@@ -133,16 +172,13 @@ function Entry({onChoose}){
         {/* RIGHT — EMPLOYEE */}
         <div onClick={()=>onChoose("employee")}
           onMouseEnter={()=>setHov("employee")} onMouseLeave={()=>setHov(null)}
-          style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",
-            justifyContent:"center",paddingLeft:"12%",paddingRight:60,cursor:"pointer",
-            position:"relative",overflow:"hidden",transition:"background 0.5s",
-            paddingTop:80,
-            background:hov==="employee"?"rgba(16,185,129,0.05)":"transparent"}}>
+          className="sp-half sp-half-r"
+          style={{background:hov==="employee"?"rgba(16,185,129,0.05)":"transparent"}}>
           <div style={{position:"absolute",top:"50%",left:"18%",width:420,height:420,
             borderRadius:"50%",transform:"translateY(-50%)",pointerEvents:"none",
             background:`radial-gradient(ellipse,rgba(16,185,129,${hov==="employee"?0.11:0.04}) 0%,transparent 70%)`,
             transition:"all 0.4s"}}/>
-          <div style={{position:"relative",animation:"slideL 0.7s ease"}}>
+          <div className="sp-content-r">
             <div style={{marginBottom:18}}>
               <Swirl size={76} c1="#10b981" c2="#059669" c3="#065f46" accent="#6ee7b7"/>
             </div>
@@ -208,11 +244,12 @@ function EmployerPage({onBack,onSignIn}){
         background:navSolid?"rgba(5,8,15,0.97)":"transparent",
         borderBottom:navSolid?`1px solid ${C.border}`:"none",
         backdropFilter:navSolid?"blur(20px)":"none",transition:"all 0.3s",
-        padding:"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        padding:"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
         <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer"}}><Logo/></button>
         <div style={{display:"flex",alignItems:"center",gap:28}}>
           {["Features","Pricing"].map(item=>(
             <a key={item} href={`#el-${item.toLowerCase()}`}
+              className="sp-hide-mobile"
               style={{fontFamily:C.mono,fontSize:11,color:C.textD,textDecoration:"none",
                 letterSpacing:"1.5px",textTransform:"uppercase",transition:"color 0.2s"}}
               onMouseEnter={e=>e.target.style.color=C.amber}
@@ -282,7 +319,7 @@ function EmployerPage({onBack,onSignIn}){
           </div>
           <div style={{display:"flex",justifyContent:"center",gap:0,flexWrap:"wrap",
             border:`1px solid ${C.border}`,borderRadius:14,background:C.bg2,
-            padding:"20px 0",maxWidth:620,margin:"0 auto"}}>
+            padding:"20px 0",maxWidth:620,margin:"0 auto",overflowX:"auto"}}>
             {[["99.7%","Uptime SLA"],["< 2s","Alert Speed"],["Any Camera","RTSP/ONVIF"],["ROI","Day One"]].map(([v,l],i)=>(
               <div key={i} style={{flex:"1 1 130px",textAlign:"center",
                 borderRight:i<3?`1px solid ${C.border}`:"none",padding:"0 18px"}}>
@@ -302,7 +339,7 @@ function EmployerPage({onBack,onSignIn}){
             The intelligence layer your<br/>business has been missing
           </h2>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(310px,1fr))",gap:13}}>
+        <div className="sp-grid-3">
           {FEATS.map((f,i)=>(
             <div key={i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:13,
               padding:"26px 24px",transition:"all 0.25s",animation:`fadeUp 0.5s ease ${i*0.07}s both`}}
@@ -324,7 +361,7 @@ function EmployerPage({onBack,onSignIn}){
             color:"#fff",textAlign:"center",letterSpacing:"-1px",marginBottom:52}}>
             Live in under 10 minutes
           </h2>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:0}}>
+          <div className="sp-steps">
             {[
               {n:"01",t:"Connect Cameras",d:"Any RTSP or ONVIF camera. Zero rip-and-replace."},
               {n:"02",t:"Add Your Team",d:"Employees see a scheduling app. You see everything else."},
@@ -356,7 +393,7 @@ function EmployerPage({onBack,onSignIn}){
             color:"#fff",letterSpacing:"-1px",marginBottom:10}}>Simple, transparent pricing</h2>
           <p style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>14-day free trial. No credit card required.</p>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(295px,1fr))",gap:13}}>
+        <div className="sp-pricing">
           {PLANS.map((plan,i)=>(
             <div key={i} style={{position:"relative",
               background:plan.hot?"rgba(245,158,11,0.05)":C.bg2,
@@ -585,7 +622,7 @@ function EmployeePage({onSignIn}){
           textAlign:"center",marginBottom:44,lineHeight:1.7}}>
           Six ways ShiftPro puts you in control of your work life — starting day one.
         </p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:13}}>
+        <div className="sp-perks">
           {PERKS.map((p,i)=>(
             <div key={i} style={{background:"rgba(255,255,255,0.03)",
               border:"1px solid rgba(16,185,129,0.1)",borderRadius:13,
