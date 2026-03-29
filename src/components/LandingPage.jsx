@@ -462,7 +462,7 @@ function EmployerPage({onBack,onSignIn}){
 }
 
 // ══ EMPLOYEE LANDING ═══════════════════════════
-function EmployeePage({onBack,onSignIn}){
+function EmployeePage({onSignIn}){
   const [showJoin,setShowJoin]=useState(false);
 
   const PERKS=[
@@ -526,7 +526,7 @@ function EmployeePage({onBack,onSignIn}){
   return(
     <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#071428 0%,#0d2137 45%,#071428 100%)"}}>
       <nav style={{padding:"18px 40px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer"}}><Logo/></button>
+        <div><Logo/></div>
         <button onClick={onSignIn} style={{fontFamily:C.sans,fontWeight:700,fontSize:14,
           padding:"9px 22px",background:"linear-gradient(135deg,#10b981,#059669)",
           border:"none",borderRadius:8,color:"#fff",cursor:"pointer",
@@ -633,8 +633,9 @@ function EmployeePage({onBack,onSignIn}){
       <footer style={{background:"rgba(0,0,0,0.25)",borderTop:"1px solid rgba(255,255,255,0.06)",
         padding:"22px 40px",display:"flex",justifyContent:"space-between",
         alignItems:"center",flexWrap:"wrap",gap:12}}>
-        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer"}}><Logo size={30}/></button>
+        <Logo size={30}/>
         <div style={{fontFamily:C.mono,fontSize:9,color:C.textF,letterSpacing:"1.5px"}}>© 2025 SHIFTPRO.AI</div>
+        <div style={{fontFamily:C.mono,fontSize:9,color:C.textF,letterSpacing:"1.5px"}}>Are you an employer? <span onClick={()=>window.location.href="/"} style={{color:C.green,cursor:"pointer",textDecoration:"underline"}}>Visit our business page</span></div>
       </footer>
     </div>
   );
@@ -643,13 +644,14 @@ function EmployeePage({onBack,onSignIn}){
 // ══ ROOT ════════════════════════════════════════
 export default function ShiftProSite(){
   const [screen,setScreen]=useState("entry");
-  const goToApp=()=>{ window.location.href="/login"; };
+  const goToOwnerApp=()=>{ window.location.href="/login"; };
+  const goToEmployeeApp=()=>{ window.location.href="/employee-login"; };
   return(
     <>
       <style>{FONTS}{GCSS}</style>
       {screen==="entry" && <Entry onChoose={setScreen}/>}
-      {screen==="employer" && <EmployerPage onBack={()=>setScreen("entry")} onSignIn={goToApp}/>}
-      {screen==="employee" && <EmployeePage onBack={()=>setScreen("entry")} onSignIn={goToApp}/>}
+      {screen==="employer" && <EmployerPage onBack={()=>setScreen("entry")} onSignIn={goToOwnerApp}/>}
+      {screen==="employee" && <EmployeePage onSignIn={goToEmployeeApp}/>}
     </>
   );
 }
