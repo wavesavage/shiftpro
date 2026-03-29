@@ -583,7 +583,7 @@ function EmpPortal({emp,onLogout}){
             </div>
 
             {/* Quick actions */}
-            <div className="r-cam-grid" style={{marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
               {[
                 {icon:"🔄",label:"Swap Shift",go:()=>setSwapOpen(true),c:E.violet},
                 {icon:"📆",label:"Time Off",go:()=>setToOpen(true),c:E.teal},
@@ -602,7 +602,7 @@ function EmpPortal({emp,onLogout}){
             {/* Earnings preview */}
             <div style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"18px",boxShadow:E.shadow}}>
               <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text,marginBottom:12}}>💰 This Week's Earnings</div>
-              <div className="r-grid-3">
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
                 {[["Hours",`${emp.wkHrs}h`,E.indigo],["Rate",`$${emp.rate}/hr`,E.violet],["Est. Gross",`$${gross}`,E.green]].map(([l,v,c]) => (
                   <div key={l} style={{background:E.bg3,borderRadius:10,padding:"12px",textAlign:"center"}}>
                     <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginBottom:3}}>{l}</div>
@@ -851,7 +851,7 @@ function OwnerCmd({onLogout}){
     {id:"command",l:"Command"},{id:"intelligence",l:"Intelligence"},
     {id:"patterns",l:"Patterns"},{id:"payroll",l:"Payroll Fraud"},
     {id:"feed",l:"Live Feed"},{id:"roi",l:"ROI Report"},
-    {id:"alerts",l:`Alerts${unseen>0?` (${unseen})`:""}`},
+    {id:"alerts",l:unseen>0?`Alerts (${unseen})`:"Alerts"},
     {id:"benchmark",l:"Benchmarks"},{id:"locations",l:"Locations"},
     {id:"staff",l:"Staff"},{id:"schedule",l:"Schedule"},
     {id:"requests",l:"Requests"},
@@ -871,7 +871,7 @@ function OwnerCmd({onLogout}){
             ["GHOST HRS",`${totalGhost.toFixed(1)}h`,O.red],
             ["ALERTS",unseen,unseen>0?O.red:"#3a4a60"],
           ].map(([l,v,c]) => (
-            <div key={l} className={l==="GHOST HRS"?"r-hide-sm":""} style={{textAlign:"center"}}>
+            <div key={l} style={{textAlign:"center"}}>
               <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:2}}>{l}</div>
               <div style={{fontFamily:O.mono,fontSize:13,color:c,fontWeight:500,animation:l==="ALERTS"&&unseen>0?"blink 1.2s infinite":"none"}}>{v}</div>
             </div>
@@ -904,13 +904,13 @@ function OwnerCmd({onLogout}){
         {/* ── COMMAND (overview) ── */}
         {tab==="command" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div className="r-grid-4" style={{marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
               <OStat label="Today's Labor Cost" value={`$${EMPS.reduce((s,e)=>s+e.rate*8,0).toFixed(0)}`} sub="Est. 8hr shifts" color={O.amber}/>
               <OStat label="Ghost Hours (Week)" value={`${totalGhost.toFixed(1)}h`} sub={`$${ghostCost} at risk`} color={O.red}/>
               <OStat label="Avg Reliability" value={`${Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length)}%`} color={O.green}/>
               <OStat label="High Risk Staff" value={EMPS.filter(e=>e.risk==="High").length} sub="Need review" color={O.red}/>
             </div>
-            <div className="r-grid-2" style={{marginBottom:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:12}}>
               {/* Risk board */}
               <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,padding:"16px"}}>
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:12}}>EMPLOYEE RISK BOARD</div>
@@ -1100,13 +1100,13 @@ function OwnerCmd({onLogout}){
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:4}}>PAYROLL INTEGRITY ENGINE — FORENSIC AUDIT</div>
             <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:14}}>Clock vs camera verification. Every hour accounted for.</div>
-            <div className="r-grid-4" style={{marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
               <OStat label="Total Ghost Hrs" value={`${totalGhost.toFixed(1)}h`} sub="Unverified" color={O.red}/>
               <OStat label="Ghost Cost" value={`$${ghostCost}`} sub="Potential overpay" color={O.red}/>
               <OStat label="Payroll Accuracy" value={`${Math.round(100-(totalGhost/EMPS.reduce((s,e)=>s+e.wkHrs,0))*100)}%`} color={O.green}/>
               <OStat label="Staff Flagged" value={EMPS.filter(e=>e.ghost>1).length} sub=">1h unverified" color={O.amber}/>
             </div>
-            <div className="r-table-wrap"><div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",marginBottom:12,minWidth:720}}>
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",marginBottom:12,minWidth:720}}>
               <div style={{display:"grid",gridTemplateColumns:"140px 70px 70px 70px 80px 70px",borderBottom:`1px solid ${O.border}`,padding:"9px 14px",background:O.bg3}}>
                 {["EMPLOYEE","SCHED","CLOCKED","VERIFIED","GHOST","ACCURACY"].map(h => (
                   <div key={h} style={{fontFamily:O.mono,fontSize:7,color:O.amber+"60",letterSpacing:1.5}}>{h}</div>
@@ -1165,7 +1165,7 @@ function OwnerCmd({onLogout}){
                 ))}
               </div>
             </div>
-            <div className="r-table-wrap"><div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",minWidth:600}}>
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",minWidth:600}}>
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:`1px solid ${O.border}`,background:O.bg3}}>
                 <div style={{width:6,height:6,borderRadius:"50%",background:O.green}}/>
                 <span style={{fontFamily:O.mono,fontSize:9,color:O.green,letterSpacing:1.5}}>LIVE — {now.toLocaleTimeString("en-US",{hour12:false})}</span>
@@ -1195,7 +1195,7 @@ function OwnerCmd({onLogout}){
         {tab==="roi" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>WEEKLY BUSINESS INTELLIGENCE REPORT</div>
-            <div className="r-grid-4" style={{marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
               <OStat label="Labor Cost Week" value={`$${MONTHLY[5].cost.toLocaleString()}`} sub="vs $9,620 prior wk" color={O.amber}/>
               <OStat label="Ghost Hrs Caught" value="6.2h" sub="$104 recovered" color={O.green}/>
               <OStat label="Incidents Flagged" value={BFLAGS.length} color={O.red}/>
@@ -1411,7 +1411,7 @@ function OwnerCmd({onLogout}){
         {tab==="staff" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>STAFF REGISTRY — {EMPS.length} EMPLOYEES</div>
-            <div className="r-grid-emp">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
               {EMPS.map(e => (
                 <div key={e.id} onClick={()=>goProfile(e.id)}
                   style={{background:O.bg2,border:`1px solid ${rC(e.risk)}18`,borderRadius:10,padding:"16px",cursor:"pointer",transition:"all 0.2s"}}
