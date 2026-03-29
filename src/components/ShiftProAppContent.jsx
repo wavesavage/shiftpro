@@ -348,7 +348,16 @@ function ELogo(){ return <NavLogoLight/>; }
 //  LOGIN
 // ══════════════════════════════════════════════════
 function Login({onLogin}){
-  const [mode,setMode] = useState(null);
+  // Auto-detect portal from URL param — employees arrive via ?portal=employee
+  const getInitialMode = () => {
+    if(typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if(params.get("portal") === "employee") return "employee";
+    }
+    return null;
+  };
+
+  const [mode,setMode] = useState(getInitialMode);
   const [pass,setPass] = useState("");
   const [pin,setPin] = useState("");
   const [sel,setSel] = useState(null);
