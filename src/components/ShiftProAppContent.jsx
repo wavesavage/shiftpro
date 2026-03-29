@@ -409,7 +409,11 @@ function Login({onLogin}){
               </div>
               <div>
                 <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:17,color:"#fff",marginBottom:6,letterSpacing:0.2}}>I'm an Employee</div>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(16,185,129,0.7)",letterSpacing:"1.5px"}}>MY SCHEDULE & TIME CLOCK</div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(16,185,129,0.7)",letterSpacing:"1.5px",marginBottom:8}}>MY SCHEDULE & TIME CLOCK</div>
+                <div style={{marginTop:10,padding:"8px 12px",background:"rgba(16,185,129,0.12)",border:"1px solid rgba(16,185,129,0.4)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+                  <span style={{fontSize:14}}>👀</span>
+                  <span style={{fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:12,color:"#10b981",letterSpacing:"0.3px"}}>Employers — preview what your team sees</span>
+                </div>
               </div>
             </button>
 
