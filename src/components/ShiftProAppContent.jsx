@@ -837,6 +837,8 @@ function OwnerCmd({onLogout}){
   ]);
   const [addingCam,setAddingCam] = useState(false);
   const [newCam,setNewCam] = useState({name:"",zone:"",url:""});
+  const [expandedRow,setExpandedRow] = useState(null);
+  const [showResolved,setShowResolved] = useState(false);
   const [alerts,setAlerts] = useState([
     {id:1,sev:"critical",msg:"Ghost hours exceeded — Marcus B.",detail:"7.3h unverified this week",time:"Now",seen:false,eId:5},
     {id:2,sev:"critical",msg:"Payroll mismatch — Carlos R.",detail:"4.1h camera discrepancy",time:"14:28",seen:false,eId:3},
@@ -2782,57 +2784,735 @@ function OwnerCmd({onLogout}){
                 {/* ── PAYROLL FRAUD (Prompt 9) ── */}
         {tab==="payroll" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:4}}>PAYROLL INTEGRITY ENGINE — FORENSIC AUDIT</div>
-            <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:14}}>Clock vs camera verification. Every hour accounted for.</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
-              <OStat label="Total Ghost Hrs" value={`${totalGhost.toFixed(1)}h`} sub="Unverified" color={O.red}/>
-              <OStat label="Ghost Cost" value={`$${ghostCost}`} sub="Potential overpay" color={O.red}/>
-              <OStat label="Payroll Accuracy" value={`${Math.round(100-(totalGhost/EMPS.reduce((s,e)=>s+e.wkHrs,0))*100)}%`} color={O.green}/>
-              <OStat label="Staff Flagged" value={EMPS.filter(e=>e.ghost>1).length} sub=">1h unverified" color={O.amber}/>
-            </div>
-            <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",marginBottom:12}}>
-              <div style={{display:"grid",gridTemplateColumns:"140px 70px 70px 70px 80px 70px",borderBottom:`1px solid ${O.border}`,padding:"9px 14px",background:O.bg3}}>
-                {["EMPLOYEE","SCHED","CLOCKED","VERIFIED","GHOST","ACCURACY"].map(h => (
-                  <div key={h} style={{fontFamily:O.mono,fontSize:7,color:O.amber+"60",letterSpacing:1.5}}>{h}</div>
-                ))}
-              </div>
-              {[...EMPS].sort((a,b)=>b.ghost-a.ghost).map((e) => {
-                const acc = Math.round((1-(e.ghost/e.wkHrs))*100);
-                return (
-                  <div key={e.id} style={{display:"grid",gridTemplateColumns:"140px 70px 70px 70px 80px 70px",padding:"11px 14px",borderBottom:`1px solid ${O.border}`,background:e.ghost>3?"rgba(239,68,68,0.03)":"transparent",alignItems:"center"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:7}}>
-                      <Av emp={e} size={24} dark/>
-                      <span style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text}}>{e.name.split(" ")[0]}</span>
-                    </div>
-                    <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{e.wkHrs}h</div>
-                    <div style={{fontFamily:O.mono,fontSize:9,color:O.text}}>{e.wkHrs}h</div>
-                    <div style={{fontFamily:O.mono,fontSize:9,color:O.green}}>{(e.wkHrs-e.ghost).toFixed(1)}h</div>
-                    <div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:e.ghost>3?O.red:e.ghost>1?O.amber:O.textD,fontWeight:e.ghost>3?600:400}}>{e.ghost}h {e.ghost>3&&"⚠"}</div>
-                      {e.ghost>0 && <div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>-${(e.ghost*e.rate).toFixed(0)}</div>}
-                    </div>
-                    <div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:acc>=90?O.green:acc>=80?O.amber:O.red}}>{acc}%</div>
-                      <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden",width:50,marginTop:2}}>
-                        <div style={{height:"100%",width:`${acc}%`,background:acc>=90?O.green:acc>=80?O.amber:O.red,borderRadius:2}}/>
+            {(() => {
+              // ── COMPUTED DATA ──
+              const fraudScore = (e) => Math.min(100, Math.round(
+                (e.ghost*15)+(e.flags*10)+((100-e.cam)*0.4)+(e.risk==="High"?20:e.risk==="Medium"?10:0)
+              ));
+              const monthlyGhostCost = (e) => (e.ghost*4.3*e.rate).toFixed(0);
+              const getStatus = (e) => {
+                const s = fraudScore(e);
+                if(s>=70) return "ESCALATE";
+                if(s>=45) return "INVESTIGATE";
+                if(s>=20) return "FLAG";
+                return "CLEAN";
+              };
+              const statusColor = (st) =>
+                st==="ESCALATE"?O.red:st==="INVESTIGATE"?"#f97316":st==="FLAG"?O.amber:O.green;
+
+              const totalWkHrs = EMPS.reduce((s,e)=>s+e.wkHrs,0);
+              const totalMonthGhost = parseFloat((totalGhost*4.3).toFixed(1));
+              const totalMonthCost  = (totalMonthGhost*
+                (EMPS.reduce((s,e)=>s+e.rate,0)/EMPS.length)).toFixed(0);
+              const discrepCount = EMPS.filter(e=>e.ghost>0).length;
+              const overThresh   = EMPS.filter(e=>fraudScore(e)>=45).length;
+              const payAcc = Math.round((1-(totalGhost/Math.max(totalWkHrs,1)))*100);
+              const headerBg = parseFloat(ghostCost)>200
+                ?"rgba(239,68,68,0.08)":parseFloat(ghostCost)>50?"rgba(245,158,11,0.06)":O.bg2;
+              const headerBorder = parseFloat(ghostCost)>200
+                ?"rgba(239,68,68,0.35)":parseFloat(ghostCost)>50?"rgba(245,158,11,0.3)":O.border;
+
+              const weeklyGhost = MONTHLY.map((m,i)=>({
+                week:m.m,
+                total:parseFloat((EMPS.reduce((s,e)=>s+e.ghost*(0.8+(i*0.05)),0)).toFixed(1)),
+                cost: parseFloat((EMPS.reduce((s,e)=>s+e.ghost*e.rate*(0.8+(i*0.05)),0)).toFixed(0)),
+                emps: EMPS.map(e=>({id:e.id,color:e.color,val:parseFloat((e.ghost*(0.8+(i*0.05))).toFixed(1))}))
+              }));
+              const maxGhost = Math.max(...weeklyGhost.map(w=>w.total),5);
+              const trendUp = weeklyGhost[5]?.total > weeklyGhost[4]?.total;
+              const ghostDiff = ((weeklyGhost[5]?.total||0)-(weeklyGhost[4]?.total||0)).toFixed(1);
+              const costDiff  = ((weeklyGhost[5]?.cost||0)-(weeklyGhost[4]?.cost||0)).toFixed(0);
+
+              const openCases = EMPS.filter(e=>fraudScore(e)>=45).map((e,i)=>({
+                id:"CASE-2025-00"+(i+1),
+                emp:e,
+                type:e.ghost>3?"Ghost Hours":e.cam<75?"Camera Mismatch":"Register Correlation",
+                opened:"Mar "+(15-i*4)+", 2025",
+                updated:"Mar 28, 2025",
+                evidence:""+( (e.ghost*4).toFixed(1))+"h unverified over 4 weeks. Camera gaps consistently 45–90 min after clock-in. Pattern suggests arriving late and clocking in remotely.",
+                amount:(e.ghost*e.rate*4).toFixed(0),
+                stage:i===0?2:1,
+              }));
+              const stages = ["FLAGGED","EVIDENCE","REVIEW","ESCALATED","RESOLVED"];
+
+              const fraudTypes = [
+                {icon:"👻",name:"Ghost Clocking",desc:"Clocked in but not present on camera",
+                 instances:EMPS.filter(e=>e.ghost>1).length,
+                 cost:EMPS.filter(e=>e.ghost>1).reduce((s,e)=>s+(e.ghost*e.rate),0).toFixed(0),
+                 offender:EMPS.sort((a,b)=>b.ghost-a.ghost)[0]?.name.split(" ")[0],
+                 sev:"critical",c:O.red},
+                {icon:"🏃",name:"Early Clock-Out",desc:"Left before scheduled end time",
+                 instances:2,cost:"38",offender:"Marcus",sev:"warning",c:"#f97316"},
+                {icon:"👥",name:"Buddy Punching",desc:"Clock-in pattern before physical arrival",
+                 instances:1,cost:"22",offender:"Carlos",sev:"warning",c:O.amber,conf:"71%"},
+                {icon:"☕",name:"Break Padding",desc:"Break times exceeding policy by 10+ min",
+                 instances:3,cost:"19",offender:"Priya",sev:"info",c:"#38bdf8"},
+                {icon:"📅",name:"Schedule Gaming",desc:"Premium shifts requested, underperformance follows",
+                 instances:1,cost:"44",offender:"Marcus",sev:"warning",c:"#a855f7"},
+                {icon:"🗃️",name:"Register Correlation",desc:"Ghost hours align with register void windows",
+                 instances:EMPS.filter(e=>e.ghost>0&&e.flags>0).length,
+                 cost:EMPS.filter(e=>e.ghost>0&&e.flags>0).reduce((s,e)=>s+(e.ghost*e.rate),0).toFixed(0),
+                 offender:"Priya",sev:"critical",c:O.red},
+              ];
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
+                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
+                </div>
+              );
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: FORENSIC AUDIT HEADER ── */}
+                  <div style={{background:headerBg,border:"1px solid "+headerBorder,
+                    borderRadius:12,padding:"18px 20px",marginBottom:12,
+                    boxShadow:parseFloat(ghostCost)>200?"0 0 30px rgba(239,68,68,0.1)":"none"}}>
+                    <div style={{display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap",marginBottom:14}}>
+                      <div style={{flex:1,minWidth:200}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                          <span style={{fontFamily:O.mono,fontSize:7,color:O.red,letterSpacing:"2px"}}>
+                            ⚖️ PAYROLL INTEGRITY ENGINE — FORENSIC AUDIT
+                          </span>
+                        </div>
+                        <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,lineHeight:1.5}}>
+                          {discrepCount} of {EMPS.length} employees have payroll discrepancies.{" "}
+                          ${ghostCost} unverified this week. {overThresh} case{overThresh!==1?"s":""} exceed investigation threshold.
+                        </div>
+                      </div>
+                      {/* Giant exposure number */}
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                          letterSpacing:"2px",marginBottom:4}}>TOTAL EXPOSURE THIS WEEK</div>
+                        <div style={{fontFamily:O.sans,fontWeight:900,
+                          fontSize:44,lineHeight:1,letterSpacing:"-2px",
+                          color:parseFloat(ghostCost)>200?O.red:parseFloat(ghostCost)>50?"#f97316":O.green,
+                          textShadow:parseFloat(ghostCost)>200?"0 0 20px rgba(239,68,68,0.5)":"none"}}>
+                          ${ghostCost}
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:9,
+                          color:parseFloat(ghostCost)>200?O.red:O.textD,marginTop:3,letterSpacing:1}}>
+                          AT RISK
+                        </div>
                       </div>
                     </div>
+                    {/* Six metric pills */}
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {[
+                        {l:"Ghost Hours",v:totalGhost.toFixed(1)+"h",c:O.red},
+                        {l:"Ghost Cost Wk",v:"$"+ghostCost,c:O.red},
+                        {l:"Ghost Cost Mo",v:"$"+totalMonthCost,c:"#f97316"},
+                        {l:"Discrepancies",v:discrepCount+"/"+EMPS.length,c:O.amber},
+                        {l:"Payroll Accuracy",v:payAcc+"%",c:payAcc>=90?O.green:O.amber},
+                        {l:"Cases Flagged",v:overThresh,c:overThresh>0?O.red:O.green},
+                      ].map(p=>(
+                        <div key={p.l} style={{background:p.c+"12",
+                          border:"1px solid "+p.c+"35",borderRadius:8,
+                          padding:"7px 12px",textAlign:"center"}}>
+                          <div style={{fontFamily:O.sans,fontWeight:700,
+                            fontSize:16,color:p.c,lineHeight:1,marginBottom:2}}>{p.v}</div>
+                          <div style={{fontFamily:O.mono,fontSize:7,
+                            color:O.textF,letterSpacing:1,textTransform:"uppercase"}}>{p.l}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                );
-              })}
-              <div style={{display:"grid",gridTemplateColumns:"140px 70px 70px 70px 80px 70px",padding:"10px 14px",background:O.bg3,borderTop:`1px solid ${O.amberB}`}}>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:1}}>TOTALS</div>
-                <div style={{fontFamily:O.mono,fontSize:9,color:O.amber}}>{EMPS.reduce((s,e)=>s+e.wkHrs,0)}h</div>
-                <div style={{fontFamily:O.mono,fontSize:9,color:O.amber}}>{EMPS.reduce((s,e)=>s+e.wkHrs,0)}h</div>
-                <div style={{fontFamily:O.mono,fontSize:9,color:O.green}}>{(EMPS.reduce((s,e)=>s+e.wkHrs,0)-totalGhost).toFixed(1)}h</div>
-                <div style={{fontFamily:O.mono,fontSize:9,color:O.red,fontWeight:600}}>{totalGhost.toFixed(1)}h · -${ghostCost}</div>
-                <div/>
-              </div>
-            </div>
+
+                  {/* ── ZONES 2 + 3: LEADERBOARD + FORENSICS TABLE ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1.6fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 2: Fraud Risk Leaderboard */}
+                    <Card>
+                      <SL text="Fraud Risk Leaderboard" color={O.red}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                        {[...EMPS].sort((a,b)=>fraudScore(b)-fraudScore(a)).map((e,i)=>{
+                          const fs = fraudScore(e);
+                          const st = getStatus(e);
+                          const sc = statusColor(st);
+                          const trend = e.ghost>1?"+"+e.ghost.toFixed(1)+"h":"-0.3h";
+                          const isUp = e.ghost>1;
+                          return(
+                            <div key={e.id}
+                              style={{padding:"10px 12px",background:O.bg3,
+                                borderRadius:8,borderLeft:"3px solid "+sc,
+                                border:"1px solid "+sc+"20",
+                                borderLeftWidth:3,cursor:"pointer",transition:"all 0.15s"}}
+                              onClick={()=>{setSelEmp(e.id);setTab("intelligence");}}
+                              onMouseEnter={ev=>ev.currentTarget.style.background="rgba(255,255,255,0.04)"}
+                              onMouseLeave={ev=>ev.currentTarget.style.background=O.bg3}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                                <div style={{fontFamily:O.mono,fontSize:11,color:O.textF,
+                                  width:18,flexShrink:0,textAlign:"center"}}>#{i+1}</div>
+                                <Av emp={e} size={26} dark/>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:12,color:"#fff",whiteSpace:"nowrap",
+                                    overflow:"hidden",textOverflow:"ellipsis"}}>{e.name}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{e.role}</div>
+                                </div>
+                                <div style={{textAlign:"right",flexShrink:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:800,
+                                    fontSize:18,color:sc,lineHeight:1}}>{fs}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>RISK</div>
+                                </div>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",
+                                justifyContent:"space-between",gap:6}}>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                  {e.ghost}h ghost ·{" "}
+                                  <span style={{color:O.red}}>${(e.ghost*e.rate).toFixed(0)}</span>
+                                </div>
+                                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                  <span style={{fontFamily:O.mono,fontSize:8,
+                                    color:isUp?O.red:O.green}}>
+                                    {isUp?"↑":"↓"} {trend}
+                                  </span>
+                                  <span style={{fontFamily:O.mono,fontSize:7,color:sc,
+                                    background:sc+"15",border:"1px solid "+sc+"30",
+                                    borderRadius:3,padding:"1px 5px",letterSpacing:1}}>{st}</span>
+                                </div>
+                              </div>
+                              {/* Fraud score bar */}
+                              <div style={{marginTop:6,height:3,
+                                background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                                <div style={{height:"100%",width:fs+"%",
+                                  background:sc,borderRadius:2,transition:"width 0.8s ease"}}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Footer insight */}
+                      <div style={{marginTop:10,fontFamily:O.mono,fontSize:8,
+                        color:O.textD,background:O.bg3,borderRadius:7,
+                        padding:"8px 10px",borderLeft:"3px solid "+O.red,lineHeight:1.5}}>
+                        {EMPS.sort((a,b)=>b.ghost-a.ghost)[0]?.name.split(" ")[0]} accounts for{" "}
+                        {Math.round((EMPS.sort((a,b)=>b.ghost-a.ghost)[0]?.ghost/Math.max(totalGhost,0.1))*100)}%
+                        of all unverified labor costs this week.
+                      </div>
+                    </Card>
+
+                    {/* ZONE 3: Ghost Hour Forensics Table */}
+                    <Card>
+                      <SL text="Ghost Hour Forensics — Full Audit" color={O.red}/>
+                      <div style={{overflowX:"auto"}}>
+                        <div style={{minWidth:560}}>
+                          {/* Header */}
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"120px 50px 52px 68px 52px 54px 60px 70px 24px",
+                            gap:4,padding:"6px 8px",background:O.bg3,
+                            borderRadius:"6px 6px 0 0",marginBottom:1}}>
+                            {["EMPLOYEE","SCHED","LOGGED","CAM VERF","GHOST","COST","ACCURACY","STATUS",""].map(h=>(
+                              <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                                color:O.textF,letterSpacing:1}}>{h}</div>
+                            ))}
+                          </div>
+                          {/* Rows */}
+                          {[...EMPS].sort((a,b)=>b.ghost-a.ghost).map((e,i)=>{
+                            const acc = Math.round((1-(e.ghost/Math.max(e.wkHrs,1)))*100);
+                            const st  = getStatus(e);
+                            const sc  = statusColor(st);
+                            const isExpanded = expandedRow===e.id;
+                            return(
+                              <div key={e.id}>
+                                <div style={{display:"grid",
+                                  gridTemplateColumns:"120px 50px 52px 68px 52px 54px 60px 70px 24px",
+                                  gap:4,padding:"9px 8px",
+                                  borderBottom:"1px solid "+O.border,
+                                  background:e.ghost>3?"rgba(239,68,68,0.04)":i%2===0?"transparent":"rgba(255,255,255,0.01)",
+                                  alignItems:"center"}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                    <Av emp={e} size={20} dark/>
+                                    <span style={{fontFamily:O.sans,fontWeight:600,
+                                      fontSize:11,color:"#fff",whiteSpace:"nowrap",
+                                      overflow:"hidden",textOverflow:"ellipsis"}}>
+                                      {e.name.split(" ")[0]}
+                                    </span>
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{e.wkHrs}h</div>
+                                  <div style={{fontFamily:O.mono,fontSize:9,color:O.text}}>{e.wkHrs}h</div>
+                                  <div style={{fontFamily:O.mono,fontSize:9,color:O.green}}>
+                                    {(e.wkHrs-e.ghost).toFixed(1)}h
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:9,
+                                    color:e.ghost>3?O.red:e.ghost>0?"#f97316":O.textD,
+                                    fontWeight:e.ghost>0?600:400}}>
+                                    {e.ghost>0?e.ghost+"h":"—"}
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:9,
+                                    color:e.ghost>0?O.red:O.textD}}>
+                                    {e.ghost>0?"-$"+(e.ghost*e.rate).toFixed(0):"$0"}
+                                  </div>
+                                  <div>
+                                    <div style={{fontFamily:O.mono,fontSize:8,
+                                      color:acc>=95?O.green:acc>=85?O.amber:O.red,marginBottom:2}}>
+                                      {acc}%
+                                    </div>
+                                    <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2,width:48}}>
+                                      <div style={{height:"100%",width:acc+"%",borderRadius:2,
+                                        background:acc>=95?O.green:acc>=85?O.amber:O.red}}/>
+                                    </div>
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:sc,
+                                    background:sc+"15",border:"1px solid "+sc+"30",
+                                    borderRadius:3,padding:"2px 5px",
+                                    letterSpacing:1,textAlign:"center"}}>{st}</div>
+                                  <button onClick={()=>setExpandedRow(isExpanded?null:e.id)}
+                                    style={{background:"none",border:"none",
+                                      color:O.textF,cursor:"pointer",fontSize:10,
+                                      transform:isExpanded?"rotate(180deg)":"none",
+                                      transition:"transform 0.2s"}}>▾</button>
+                                </div>
+                                {/* Expanded detail */}
+                                {isExpanded&&(
+                                  <div style={{background:"rgba(239,68,68,0.03)",
+                                    border:"1px solid rgba(239,68,68,0.12)",
+                                    borderRadius:6,margin:"4px 0 4px 8px",padding:"10px 12px"}}>
+                                    <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                                      letterSpacing:"2px",marginBottom:8}}>DAILY BREAKDOWN</div>
+                                    <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+                                      {["Mon","Tue","Wed","Thu","Fri"].map((d,di)=>{
+                                        const dGhost = di===2||di===3?e.ghost*0.4:di===0?e.ghost*0.35:0.1;
+                                        const dc = dGhost>1?O.red:dGhost>0.3?"#f97316":O.green;
+                                        return(
+                                          <div key={d} style={{background:O.bg3,borderRadius:5,
+                                            padding:"6px 8px",textAlign:"center",minWidth:50}}>
+                                            <div style={{fontFamily:O.mono,fontSize:7,
+                                              color:O.textF,marginBottom:3}}>{d}</div>
+                                            <div style={{fontFamily:O.mono,fontSize:10,color:dc,fontWeight:600}}>
+                                              {dGhost>0.3?dGhost.toFixed(1)+"h":"✓"}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,lineHeight:1.5}}>
+                                      Largest discrepancy: Wed/Thu.
+                                      Camera gaps: 09:12–10:03, 14:45–15:20.
+                                      Pattern consistent for 3 consecutive weeks.
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {/* Totals row */}
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"120px 50px 52px 68px 52px 54px 60px 70px 24px",
+                            gap:4,padding:"9px 8px",
+                            background:payAcc<80?"rgba(239,68,68,0.08)":payAcc<90?"rgba(245,158,11,0.06)":O.bg3,
+                            borderTop:"1px solid "+( payAcc<80?"rgba(239,68,68,0.3)":"rgba(245,158,11,0.25)"),
+                            borderRadius:"0 0 6px 6px",alignItems:"center"}}>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:1}}>TOTALS</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber}}>{totalWkHrs}h</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber}}>{totalWkHrs}h</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.green}}>
+                              {(totalWkHrs-totalGhost).toFixed(1)}h
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.red,fontWeight:700}}>
+                              {totalGhost.toFixed(1)}h
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.red,fontWeight:700}}>
+                              -${ghostCost}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:9,
+                              color:payAcc>=90?O.green:O.red,fontWeight:700}}>{payAcc}%</div>
+                            <div/>
+                            <div/>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 4: WEEKLY TREND CHART ── */}
+                  <Card style={{marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",
+                      justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+                      <SL text="Ghost Hour Trend — 6 Weeks" color={O.red}/>
+                      <div style={{display:"flex",gap:6}}>
+                        {["THIS WEEK","THIS MONTH","3 MONTHS"].map(t=>(
+                          <button key={t} style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"3px 8px",borderRadius:3,border:"none",cursor:"pointer",
+                            background:t==="THIS WEEK"?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.04)",
+                            color:t==="THIS WEEK"?O.red:O.textF}}>
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{position:"relative",height:80}}>
+                      {/* Threshold line */}
+                      <div style={{position:"absolute",left:0,right:0,
+                        top:(1-(3/maxGhost))*100+"%",
+                        borderTop:"1px dashed rgba(239,68,68,0.4)",
+                        pointerEvents:"none",zIndex:2}}>
+                        <span style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                          position:"absolute",right:0,top:-10,letterSpacing:1}}>3h threshold</span>
+                      </div>
+                      {/* Stacked bars */}
+                      <div style={{display:"flex",alignItems:"flex-end",gap:8,height:"100%"}}>
+                        {weeklyGhost.map((w,wi)=>{
+                          const totalH = Math.round((w.total/maxGhost)*100);
+                          let bottom = 0;
+                          return(
+                            <div key={wi} style={{flex:1,display:"flex",
+                              flexDirection:"column",alignItems:"center",gap:3,height:"100%",
+                              justifyContent:"flex-end"}}>
+                              <div style={{width:"100%",height:totalH+"%",minHeight:3,
+                                display:"flex",flexDirection:"column-reverse",
+                                borderRadius:"3px 3px 0 0",overflow:"hidden",
+                                border:wi===5?"1px solid rgba(239,68,68,0.5)":"none"}}>
+                                {w.emps.filter(ep=>ep.val>0).map(ep=>{
+                                  const empData = byId(ep.id);
+                                  if(!empData) return null;
+                                  const pct = w.total>0?Math.round((ep.val/w.total)*100):0;
+                                  return(
+                                    <div key={ep.id}
+                                      title={empData.name+": "+ep.val+"h"}
+                                      style={{width:"100%",height:pct+"%",
+                                        minHeight:pct>0?2:0,
+                                        background:empData.color+"90",flexShrink:0}}/>
+                                  );
+                                })}
+                              </div>
+                              <span style={{fontFamily:O.mono,fontSize:7,
+                                color:wi===5?O.red:O.textF}}>{w.week}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {/* Legend + trend */}
+                    <div style={{display:"flex",alignItems:"center",
+                      justifyContent:"space-between",marginTop:10,flexWrap:"wrap",gap:8}}>
+                      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                        {EMPS.map(e=>(
+                          <div key={e.id} style={{display:"flex",alignItems:"center",gap:4}}>
+                            <div style={{width:8,height:8,borderRadius:2,background:e.color+"90"}}/>
+                            <span style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                              {e.name.split(" ")[0]}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{fontFamily:O.mono,fontSize:9,
+                        color:trendUp?O.red:O.green,
+                        background:(trendUp?O.red:O.green)+"12",
+                        border:"1px solid "+(trendUp?O.red:O.green)+"30",
+                        borderRadius:6,padding:"5px 10px"}}>
+                        {trendUp?"↑":"↓"} Ghost hours {trendUp?"increased":"decreased"}{" "}
+                        {Math.abs(parseFloat(ghostDiff)).toFixed(1)}h vs last week
+                        {trendUp?" (+$"+costDiff+")":"(-$"+Math.abs(parseFloat(costDiff))+")"}
+                        {trendUp?" — Worst week in 6 weeks":" — Improving trend"}
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 5 + 6: FRAUD TYPOLOGY + ACCURACY ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 5: Fraud Typology */}
+                    <Card>
+                      <SL text="Fraud Typology — Pattern Classification" color={O.red}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        {fraudTypes.map((ft,i)=>(
+                          <div key={i} style={{padding:"10px 12px",background:O.bg3,
+                            borderRadius:8,border:"1px solid "+ft.c+"20",
+                            borderLeft:"3px solid "+ft.c,transition:"all 0.15s"}}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"}
+                            onMouseLeave={e=>e.currentTarget.style.background=O.bg3}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                              <span style={{fontSize:16,flexShrink:0}}>{ft.icon}</span>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:12,color:"#fff",marginBottom:1}}>{ft.name}</div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{ft.desc}</div>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:ft.c,
+                                background:ft.c+"15",border:"1px solid "+ft.c+"30",
+                                borderRadius:3,padding:"2px 6px",letterSpacing:1,
+                                whiteSpace:"nowrap"}}>
+                                {ft.sev.toUpperCase()}
+                              </div>
+                            </div>
+                            <div style={{display:"flex",
+                              alignItems:"center",justifyContent:"space-between",gap:8}}>
+                              <div style={{display:"flex",gap:12}}>
+                                <div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,marginBottom:1}}>INSTANCES</div>
+                                  <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff"}}>{ft.instances}</div>
+                                </div>
+                                <div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,marginBottom:1}}>COST</div>
+                                  <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.red}}>${ft.cost}</div>
+                                </div>
+                                <div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,marginBottom:1}}>TOP</div>
+                                  <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>{ft.offender}</div>
+                                </div>
+                              </div>
+                              <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                padding:"4px 10px",background:ft.c+"12",
+                                border:"1px solid "+ft.c+"30",borderRadius:4,
+                                color:ft.c,cursor:"pointer",whiteSpace:"nowrap"}}>
+                                REVIEW →
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+
+                    {/* ZONE 6: Per-Employee Accuracy */}
+                    <Card>
+                      <SL text="Payroll Accuracy Breakdown — Per Employee" color={"#f97316"}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                        {[...EMPS].sort((a,b)=>
+                          (a.ghost/Math.max(a.wkHrs,1))-(b.ghost/Math.max(b.wkHrs,1))).reverse().map(e=>{
+                          const acc = Math.round((1-(e.ghost/Math.max(e.wkHrs,1)))*100);
+                          const ac  = acc>=95?O.green:acc>=85?O.amber:O.red;
+                          const moGhostCost = parseFloat(monthlyGhostCost(e));
+                          const traj = e.ghost>2?"Getting worse — 3rd consecutive week of increase":
+                            e.ghost>0?"Slight increase — monitor closely":
+                            "Clean — no discrepancies detected";
+                          const trajColor = e.ghost>2?O.red:e.ghost>0?O.amber:O.green;
+                          return(
+                            <div key={e.id} style={{background:O.bg3,borderRadius:8,padding:"12px"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                                <Av emp={e} size={28} dark/>
+                                <div style={{flex:1}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:13,color:"#fff",marginBottom:1}}>{e.name}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{e.role}</div>
+                                </div>
+                                <div style={{textAlign:"right"}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:800,
+                                    fontSize:24,color:ac,lineHeight:1}}>{acc}%</div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>ACCURACY</div>
+                                </div>
+                              </div>
+                              {/* Dual bars */}
+                              <div style={{marginBottom:6}}>
+                                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                                  <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>Scheduled</span>
+                                  <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>Verified</span>
+                                </div>
+                                <div style={{position:"relative",height:6,
+                                  background:"rgba(255,255,255,0.06)",borderRadius:3,marginBottom:3}}>
+                                  <div style={{height:"100%",width:(e.wkHrs/50)*100+"%",
+                                    background:"rgba(255,255,255,0.2)",borderRadius:3}}/>
+                                </div>
+                                <div style={{position:"relative",height:6,
+                                  background:"rgba(255,255,255,0.06)",borderRadius:3}}>
+                                  <div style={{height:"100%",
+                                    width:((e.wkHrs-e.ghost)/50)*100+"%",
+                                    background:ac,borderRadius:3}}/>
+                                </div>
+                              </div>
+                              {/* Mini ghost history bars */}
+                              <div style={{display:"flex",gap:2,height:14,
+                                alignItems:"flex-end",marginBottom:6}}>
+                                {MONTHLY.map((m,mi)=>{
+                                  const wh = e.ghost*(0.7+(mi*0.07));
+                                  const bh = Math.round((wh/5)*100);
+                                  return(
+                                    <div key={mi} title={m.m+": "+wh.toFixed(1)+"h ghost"}
+                                      style={{flex:1,height:Math.max(2,bh)+"%",
+                                        background:wh>3?O.red:wh>1?"#f97316":O.textD+"40",
+                                        borderRadius:"1px 1px 0 0"}}/>
+                                  );
+                                })}
+                              </div>
+                              <div style={{display:"flex",justifyContent:"space-between",
+                                alignItems:"center",gap:8}}>
+                                <div style={{fontFamily:O.mono,fontSize:8,
+                                  color:moGhostCost>50?O.red:O.textD}}>
+                                  {moGhostCost>0?"$"+moGhostCost+" est. overpaid this mo":"Clean this month"}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:trajColor,
+                                  display:"flex",alignItems:"center",gap:3}}>
+                                  <span>{e.ghost>2?"↑":e.ghost>0?"→":"↓"}</span>
+                                  <span style={{color:O.textD}}>{traj.split("—")[0]}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 7: INVESTIGATION CASE FILES ── */}
+                  <Card>
+                    <div style={{display:"flex",alignItems:"center",
+                      justifyContent:"space-between",marginBottom:14}}>
+                      <SL text={"Open Investigation Cases ("+openCases.length+")"} color={O.red}/>
+                      <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                        padding:"6px 14px",background:"rgba(239,68,68,0.1)",
+                        border:"1px solid rgba(239,68,68,0.3)",borderRadius:6,
+                        color:O.red,cursor:"pointer"}}>+ Open New Case</button>
+                    </div>
+
+                    {openCases.length===0 && (
+                      <div style={{fontFamily:O.mono,fontSize:11,color:O.green,
+                        textAlign:"center",padding:"30px 0",letterSpacing:1}}>
+                        ✓ No open investigation cases. Payroll integrity clean.
+                      </div>
+                    )}
+
+                    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                      {openCases.map((c,ci)=>(
+                        <div key={c.id} style={{background:"rgba(239,68,68,0.03)",
+                          border:"1px solid rgba(239,68,68,0.2)",
+                          borderLeft:"4px solid "+O.red,
+                          borderRadius:10,padding:"16px 18px",
+                          boxShadow:"0 0 20px rgba(239,68,68,0.06)"}}>
+
+                          {/* Case header */}
+                          <div style={{display:"flex",gap:12,alignItems:"flex-start",
+                            marginBottom:12,flexWrap:"wrap"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
+                              <Av emp={c.emp} size={36} dark/>
+                              <div>
+                                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                                  <span style={{fontFamily:O.sans,fontWeight:700,
+                                    fontSize:15,color:"#fff"}}>{c.emp.name}</span>
+                                  <span style={{fontFamily:O.mono,fontSize:8,color:O.red,
+                                    background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",
+                                    borderRadius:3,padding:"2px 7px",letterSpacing:1}}>{c.type}</span>
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>
+                                  {c.id} &nbsp;·&nbsp; Opened: {c.opened} &nbsp;·&nbsp; Updated: {c.updated}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginBottom:3}}>
+                                AMOUNT UNDER INVESTIGATION
+                              </div>
+                              <div style={{fontFamily:O.sans,fontWeight:900,
+                                fontSize:24,color:O.red}}>${c.amount}</div>
+                            </div>
+                          </div>
+
+                          {/* Evidence summary */}
+                          <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,
+                            background:"rgba(0,0,0,0.2)",borderRadius:7,
+                            padding:"10px 12px",marginBottom:12,lineHeight:1.6,
+                            borderLeft:"2px solid rgba(239,68,68,0.3)"}}>
+                            📁 {c.evidence}
+                          </div>
+
+                          {/* Stage tracker */}
+                          <div style={{marginBottom:12}}>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                              letterSpacing:"2px",marginBottom:7}}>INVESTIGATION STAGE</div>
+                            <div style={{display:"flex",gap:0,alignItems:"center"}}>
+                              {stages.map((st,si)=>{
+                                const active = si===c.stage;
+                                const done   = si<c.stage;
+                                const sc2 = done?O.green:active?O.amber:O.textF;
+                                return(
+                                  <React.Fragment key={st}>
+                                    <div style={{display:"flex",flexDirection:"column",
+                                      alignItems:"center",flex:1}}>
+                                      <div style={{width:22,height:22,borderRadius:"50%",
+                                        background:done?O.green+"25":active?"rgba(245,158,11,0.2)":"rgba(255,255,255,0.04)",
+                                        border:"2px solid "+(done?O.green:active?O.amber:O.border),
+                                        display:"flex",alignItems:"center",justifyContent:"center",
+                                        marginBottom:4,flexShrink:0}}>
+                                        <span style={{fontSize:8,color:sc2}}>
+                                          {done?"✓":active?"●":"○"}
+                                        </span>
+                                      </div>
+                                      <span style={{fontFamily:O.mono,fontSize:6,color:sc2,
+                                        letterSpacing:0.5,textAlign:"center",
+                                        maxWidth:50,lineHeight:1.2}}>{st}</span>
+                                    </div>
+                                    {si<stages.length-1&&(
+                                      <div style={{flex:1,height:2,
+                                        background:done?O.green+"40":"rgba(255,255,255,0.06)",
+                                        marginBottom:18,transition:"background 0.3s"}}/>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Action buttons */}
+                          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                            {[
+                              {l:"📋 Add Evidence",c:"rgba(0,212,255,0.12)",bc:"rgba(0,212,255,0.25)",tc:"#00d4ff"},
+                              {l:"📧 HR Notification",c:"rgba(168,85,247,0.1)",bc:"rgba(168,85,247,0.25)",tc:"#a855f7"},
+                              {l:"✅ Resolve Case",c:"rgba(16,185,129,0.1)",bc:"rgba(16,185,129,0.25)",tc:O.green},
+                              {l:"⬆️ Escalate",c:"rgba(239,68,68,0.1)",bc:"rgba(239,68,68,0.25)",tc:O.red},
+                            ].map(btn=>(
+                              <button key={btn.l} style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                                padding:"6px 12px",background:btn.c,border:"1px solid "+btn.bc,
+                                borderRadius:5,color:btn.tc,cursor:"pointer",
+                                transition:"all 0.15s"}}
+                                onMouseEnter={e=>e.currentTarget.style.opacity="0.8"}
+                                onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                                {btn.l}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Resolved cases toggle */}
+                    <div style={{marginTop:16,borderTop:"1px solid "+O.border,paddingTop:12}}>
+                      <button onClick={()=>setShowResolved(!showResolved)}
+                        style={{background:"none",border:"none",cursor:"pointer",
+                          fontFamily:O.mono,fontSize:9,color:O.textD,letterSpacing:1,
+                          display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{transform:showResolved?"rotate(90deg)":"none",
+                          transition:"transform 0.2s",display:"inline-block"}}>▶</span>
+                        RESOLVED CASES (3)
+                      </button>
+                      {showResolved&&(
+                        <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
+                          {[
+                            {id:"CASE-2025-002",name:"Jordan Mills",type:"Late Arrival Pattern",
+                             outcome:"Resolved — verbal warning issued",date:"Feb 14"},
+                            {id:"CASE-2025-001",name:"Marcus Bell",type:"Ghost Hours",
+                             outcome:"Resolved — schedule adjustment implemented",date:"Jan 28"},
+                            {id:"CASE-2024-009",name:"Priya Kapoor",type:"Register Void",
+                             outcome:"Escalated to HR — formal written warning",date:"Dec 12"},
+                          ].map((rc,i)=>(
+                            <div key={rc.id} style={{padding:"9px 12px",background:O.bg3,
+                              borderRadius:7,display:"flex",alignItems:"center",
+                              gap:10,borderLeft:"3px solid "+O.green+"60"}}>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                width:90,flexShrink:0}}>{rc.id}</div>
+                              <div style={{fontFamily:O.sans,fontSize:11,
+                                color:O.textD,flex:1}}>{rc.name} — {rc.type}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.green}}>{rc.outcome}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                flexShrink:0}}>{rc.date}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+
+                </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── LIVE FEED (Prompt 10) ── */}
+
+                {/* ── LIVE FEED (Prompt 10) ── */}
         {tab==="feed" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
