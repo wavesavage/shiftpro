@@ -847,6 +847,8 @@ function OwnerCmd({onLogout}){
   const [expandedEmp,setExpandedEmp] = useState(null);
   const [resolvedDisc,setResolvedDisc] = useState({});
   const [locEditMode,setLocEditMode] = useState(false);
+  const [reqFilter,setReqFilter] = useState("all");
+  const [reqHistory,setReqHistory] = useState([]);
   const [schedWeek,setSchedWeek] = useState("Mar 24–30");
   const [schedView,setSchedView] = useState("week");
   const [schedStatus,setSchedStatus] = useState("draft");
@@ -9390,47 +9392,1013 @@ function OwnerCmd({onLogout}){
 
                 {/* ── REQUESTS ── */}
         {tab==="requests" && (
-          <div style={{animation:"fadeUp 0.3s ease",display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            <div>
-              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:10}}>SHIFT SWAP REQUESTS</div>
-              {SWAPS.map(s => (
-                <div key={s.id} style={{background:O.bg2,border:`1px solid ${s.status==="pending"?O.amberB:O.border}`,borderRadius:8,padding:"13px 14px",marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                    <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{s.from} → {s.to}</div>
-                    <OBadge label={s.status} color={s.status==="approved"?O.green:s.status==="denied"?O.red:O.amber} sm/>
-                  </div>
-                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginBottom:s.status==="pending"?10:0}}>{s.day} · {s.shift}</div>
-                  {s.status==="pending" && (
-                    <div style={{display:"flex",gap:7}}>
-                      <button style={{padding:"4px 12px",background:O.greenD,border:`1px solid ${O.green}30`,borderRadius:4,fontFamily:O.mono,fontSize:8,color:O.green,cursor:"pointer",letterSpacing:1}}>APPROVE</button>
-                      <button style={{padding:"4px 12px",background:O.redD,border:`1px solid ${O.red}30`,borderRadius:4,fontFamily:O.mono,fontSize:8,color:O.red,cursor:"pointer",letterSpacing:1}}>DENY</button>
-                    </div>
-                  )}
+          <div style={{animation:"fadeUp 0.3s ease"}}>
+            {(()=>{
+              const amber2 = "#f59e0b";
+
+              // ── CORE CALCULATIONS ──
+              const empWeekHrs = (eId) =>
+                Object.values(SCHED).flat().filter(s=>s.eId===eId)
+                  .reduce((sum,s)=>sum+(s.e-s.s),0);
+
+              const acctScore = (e) => {
+                const showUp  = Math.round((1-e.ghost/Math.max(e.wkHrs,1))*100);
+                const onTime  = Math.round(e.rel*0.95);
+                const confirm = Math.round(e.cam*0.9);
+                const avg = Math.round((showUp+onTime+confirm)/3);
+                const grade = avg>=95?"A+":avg>=90?"A":avg>=80?"B":avg>=70?"C":"D";
+                return {showUp,onTime,confirm,avg,grade};
+              };
+
+              const coverageGaps = DAYS.map(d=>({
+                day:d,
+                staff:(SCHED[d]||[]).length,
+                gap:Math.max(0,2-(SCHED[d]||[]).length),
+              })).filter(g=>g.gap>0);
+
+              const bestMatch = (day) =>
+                EMPS.filter(e=>!(SCHED[day]||[]).find(s=>s.eId===e.id))
+                  .sort((a,b)=>{
+                    const aH=empWeekHrs(a.id), bH=empWeekHrs(b.id);
+                    if(aH>=38&&bH<38) return 1;
+                    if(aH<38&&bH>=38) return -1;
+                    return b.rel-a.rel;
+                  }).slice(0,3);
+
+              const pendingSwaps   = SWAPS.filter(s=>s.status==="pending").length;
+              const pendingTO      = TIMEOFF.filter(t=>t.status==="pending").length;
+              const totalPending   = pendingSwaps+pendingTO;
+
+              const gradeColor = (g) =>
+                g==="A+"?"#FFD700":g==="A"?O.green:g==="B"?O.amber:
+                g==="C"?"#f97316":O.red;
+
+              const noShows = EMPS.filter(e=>e.ghost>3&&e.flags>1);
+              const lateArrivals = EMPS.filter(e=>e.rel<80&&e.flags>0);
+              const earlyDeps = EMPS.filter(e=>e.ghost>1&&e.rel<85&&!noShows.includes(e));
+
+              const attendanceLoss = (
+                noShows.reduce((s,e)=>s+(e.ghost*e.rate),0)+
+                lateArrivals.reduce((s,e)=>s+(e.flags*e.rate*0.5),0)
+              ).toFixed(0);
+
+              // Request history log
+              const historyLog = [
+                {date:"Mar 28",emp:"Priya K.",type:"SWAP",outcome:"Pending",mgr:"—"},
+                {date:"Mar 27",emp:"Marcus B.",type:"SWAP",outcome:"Approved",mgr:"Owner"},
+                {date:"Mar 26",emp:"Carlos R.",type:"TIME OFF",outcome:"Pending",mgr:"—"},
+                {date:"Mar 25",emp:"Carlos R.",type:"SWAP",outcome:"Denied",mgr:"Owner"},
+                {date:"Mar 22",emp:"Priya K.",type:"TIME OFF",outcome:"Approved",mgr:"Owner"},
+                {date:"Mar 20",emp:"Jordan M.",type:"AVAILABILITY",outcome:"Approved",mgr:"Owner"},
+              ];
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
+                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
                 </div>
-              ))}
-            </div>
-            <div>
-              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:10}}>TIME OFF REQUESTS</div>
-              {TIMEOFF.map(t => (
-                <div key={t.id} style={{background:O.bg2,border:`1px solid ${t.status==="pending"?O.amberB:O.border}`,borderRadius:8,padding:"13px 14px",marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                    <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{t.emp}</div>
-                    <OBadge label={t.status} color={t.status==="approved"?O.green:O.amber} sm/>
-                  </div>
-                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginBottom:t.status==="pending"?10:0}}>{t.dates} · {t.reason}</div>
-                  {t.status==="pending" && (
-                    <div style={{display:"flex",gap:7}}>
-                      <button style={{padding:"4px 12px",background:O.greenD,border:`1px solid ${O.green}30`,borderRadius:4,fontFamily:O.mono,fontSize:8,color:O.green,cursor:"pointer",letterSpacing:1}}>APPROVE</button>
-                      <button style={{padding:"4px 12px",background:O.redD,border:`1px solid ${O.red}30`,borderRadius:4,fontFamily:O.mono,fontSize:8,color:O.red,cursor:"pointer",letterSpacing:1}}>DENY</button>
+              );
+              const Toggle = ({on,onToggle}) => (
+                <button onClick={onToggle}
+                  style={{width:42,height:22,borderRadius:11,
+                    background:on?O.amber:"rgba(255,255,255,0.1)",
+                    border:"none",cursor:"pointer",position:"relative",
+                    transition:"all 0.2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,width:16,height:16,
+                    borderRadius:"50%",background:"#fff",transition:"all 0.2s",
+                    left:on?23:3,boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+                </button>
+              );
+              const ActBtn = ({label,c,bg}) => (
+                <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                  padding:"3px 8px",background:bg||c+"12",
+                  border:"1px solid "+c+"30",borderRadius:4,
+                  color:c,cursor:"pointer",whiteSpace:"nowrap"}}>
+                  {label}
+                </button>
+              );
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: COMMAND CENTER HEADER ── */}
+                  <div style={{background:totalPending>0?"rgba(245,158,11,0.06)":O.bg2,
+                    border:"1px solid "+(totalPending>0?"rgba(245,158,11,0.28)":O.border),
+                    borderRadius:12,padding:"14px 18px",marginBottom:12}}>
+                    <div style={{display:"flex",gap:14,alignItems:"center",
+                      flexWrap:"wrap",marginBottom:10}}>
+
+                      {/* Status */}
+                      <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:200}}>
+                        <div style={{width:10,height:10,borderRadius:"50%",
+                          background:totalPending>0?O.red:O.green,
+                          boxShadow:"0 0 7px "+(totalPending>0?O.red:O.green),
+                          flexShrink:0}}/>
+                        <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,
+                          color:totalPending>0?O.amber:"#fff"}}>
+                          {totalPending>0
+                            ? totalPending+" REQUEST"+(totalPending>1?"S":"")+
+                              " NEED YOUR RESPONSE"
+                            : "All requests reviewed — nothing pending"}
+                        </span>
+                      </div>
+
+                      {/* Count badges */}
+                      <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                        {[
+                          {l:"Swaps",     v:pendingSwaps,         c:O.amber},
+                          {l:"Time Off",  v:pendingTO,            c:"#3b82f6"},
+                          {l:"Attendance",v:noShows.length+lateArrivals.length,c:O.red},
+                          {l:"Coverage",  v:coverageGaps.length,  c:O.amber},
+                        ].map(b=>(
+                          <div key={b.l} style={{background:b.c+"14",
+                            border:"1px solid "+b.c+"30",borderRadius:7,
+                            padding:"5px 10px",textAlign:"center",minWidth:56}}>
+                            <div style={{fontFamily:O.sans,fontWeight:800,
+                              fontSize:16,color:b.c,lineHeight:1,marginBottom:2}}>{b.v}</div>
+                            <div style={{fontFamily:O.mono,fontSize:6,
+                              color:O.textF,letterSpacing:1}}>{b.l}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Actions */}
+                      <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
+                        <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                          Avg response: 3.2h
+                        </span>
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          padding:"6px 12px",background:"rgba(16,185,129,0.1)",
+                          border:"1px solid rgba(16,185,129,0.25)",borderRadius:5,
+                          color:O.green,cursor:"pointer"}}>
+                          ✓ Approve Non-Conflicting
+                        </button>
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          padding:"6px 10px",background:"rgba(255,255,255,0.05)",
+                          border:"1px solid "+O.border,borderRadius:5,
+                          color:O.textD,cursor:"pointer"}}>
+                          📋 Export Log
+                        </button>
+                      </div>
                     </div>
-                  )}
+
+                    {/* Policy violation callout */}
+                    <div style={{background:"rgba(245,158,11,0.06)",
+                      border:"1px solid rgba(245,158,11,0.22)",
+                      borderRadius:6,padding:"6px 12px",
+                      fontFamily:O.mono,fontSize:8,color:O.amber}}>
+                      ⚠ Carlos R. has submitted 4 swap requests this month (policy max: 2)
+                      &nbsp;·&nbsp; Marcus B. has 2 unexcused no-shows this period
+                    </div>
+                  </div>
+
+                  {/* ── ZONES 2 + 3: SWAPS + TIME-OFF ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 2: Shift Swap Requests */}
+                    <Card>
+                      <div style={{display:"flex",alignItems:"center",
+                        justifyContent:"space-between",marginBottom:12}}>
+                        <SL text={"Shift Swap Requests ("+pendingSwaps+" Pending)"} color={O.amber}/>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.green,
+                          background:"rgba(16,185,129,0.08)",
+                          border:"1px solid rgba(16,185,129,0.2)",
+                          borderRadius:3,padding:"2px 7px",letterSpacing:1}}>
+                          ✓ CONFLICT CHECK ACTIVE
+                        </div>
+                      </div>
+
+                      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+                        {SWAPS.map(s=>{
+                          const fromEmp = EMPS.find(e=>e.name.split(" ")[0]===s.from.split(" ")[0]);
+                          const toEmp   = EMPS.find(e=>e.name.split(" ")[0]===s.to.split(" ")[0]);
+                          const isPending = s.status==="pending";
+                          const sc = s.status==="approved"?O.green:s.status==="denied"?O.red:O.amber;
+                          const toHrs = toEmp?empWeekHrs(toEmp.id):0;
+                          const otRisk = toHrs>=36;
+                          return(
+                            <div key={s.id}
+                              style={{background:O.bg3,borderRadius:9,
+                                padding:"11px 12px",
+                                border:"1px solid "+(isPending?"rgba(245,158,11,0.22)":O.border),
+                                borderLeft:"3px solid "+sc,
+                                opacity:isPending?1:0.6,
+                                transition:"all 0.2s"}}>
+
+                              {/* Requester → Partner */}
+                              <div style={{display:"flex",alignItems:"center",
+                                gap:8,marginBottom:8}}>
+                                {fromEmp&&<Av emp={fromEmp} size={24} dark/>}
+                                <div>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:12,color:"#fff"}}>{s.from}</div>
+                                  {fromEmp&&<div style={{fontFamily:O.mono,fontSize:7,
+                                    color:O.textD}}>{fromEmp.role}</div>}
+                                </div>
+                                <div style={{fontFamily:O.sans,fontSize:16,
+                                  color:O.textF,margin:"0 4px"}}>→</div>
+                                {toEmp&&<Av emp={toEmp} size={24} dark/>}
+                                <div style={{flex:1}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:12,color:"#fff"}}>{s.to}</div>
+                                  {toEmp&&<div style={{fontFamily:O.mono,fontSize:7,
+                                    color:O.textD}}>{toEmp.role}</div>}
+                                </div>
+                                <OBadge label={s.status} color={sc} sm/>
+                              </div>
+
+                              {/* Details */}
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
+                                marginBottom:isPending?8:0}}>
+                                {s.day} · {s.shift} · Submitted {s.sub}
+                              </div>
+
+                              {isPending&&(
+                                <div>
+                                  {/* Impact analysis */}
+                                  <div style={{display:"flex",flexDirection:"column",
+                                    gap:3,marginBottom:8}}>
+                                    {[
+                                      {ok:!otRisk,t:otRisk?"⚠ "+s.to.split(" ")[0]+" may hit 38h this week":"✓ No OT impact"},
+                                      {ok:true,t:"✓ Coverage maintained for "+s.day},
+                                      {ok:true,t:"✓ Role match confirmed"},
+                                    ].map((item,i)=>(
+                                      <div key={i} style={{fontFamily:O.mono,fontSize:8,
+                                        color:item.ok?O.green:O.amber}}>
+                                        {item.t}
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {/* Actions */}
+                                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                                    <ActBtn label="✓ APPROVE" c={O.green}/>
+                                    <ActBtn label="✕ DENY" c={O.red}/>
+                                    <ActBtn label="↩ REQUEST CHANGE" c={O.amber}/>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Policy box */}
+                      <div style={{background:"rgba(245,158,11,0.05)",
+                        border:"1px solid rgba(245,158,11,0.18)",
+                        borderRadius:7,padding:"10px 12px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.amber,
+                          letterSpacing:"2px",marginBottom:6}}>SWAP POLICY</div>
+                        {[
+                          "Max 2 swaps per employee per month",
+                          "Must submit 24h in advance",
+                          "Both parties must confirm swap",
+                        ].map((rule,i)=>(
+                          <div key={i} style={{fontFamily:O.mono,fontSize:8,
+                            color:O.textD,marginBottom:3}}>
+                            · {rule}
+                          </div>
+                        ))}
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          marginTop:6,padding:"3px 9px",
+                          background:"rgba(245,158,11,0.08)",
+                          border:"1px solid rgba(245,158,11,0.2)",
+                          borderRadius:4,color:O.amber,cursor:"pointer"}}>
+                          EDIT POLICY
+                        </button>
+                      </div>
+                    </Card>
+
+                    {/* ZONE 3: Time-Off + Availability */}
+                    <Card>
+                      <SL text="Time-Off + Availability Requests" color="#3b82f6"/>
+
+                      {/* Time-off requests */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:"#3b82f6",
+                          letterSpacing:"2px",marginBottom:7}}>
+                          TIME-OFF REQUESTS
+                        </div>
+                        {TIMEOFF.map(t=>{
+                          const emp2 = EMPS.find(e=>e.name.split(" ")[0]===t.emp.split(" ")[0])||EMPS[0];
+                          const isPend = t.status==="pending";
+                          const tc = isPend?O.amber:O.green;
+                          const toTypes = {Medical:"SICK",Personal:"PERSONAL",Vacation:"VACATION"};
+                          const typeLabel = toTypes[t.reason]||"PERSONAL";
+                          return(
+                            <div key={t.id} style={{background:O.bg3,borderRadius:8,
+                              padding:"11px 12px",marginBottom:7,
+                              border:"1px solid "+(isPend?"rgba(59,130,246,0.22)":O.border),
+                              borderLeft:"3px solid "+tc,
+                              opacity:isPend?1:0.65}}>
+
+                              <div style={{display:"flex",alignItems:"center",
+                                gap:8,marginBottom:7}}>
+                                <Av emp={emp2} size={24} dark/>
+                                <div style={{flex:1}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:12,color:"#fff",marginBottom:1}}>{t.emp}</div>
+                                  <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                                    <div style={{fontFamily:O.mono,fontSize:7,
+                                      color:"#3b82f6",background:"rgba(59,130,246,0.1)",
+                                      border:"1px solid rgba(59,130,246,0.25)",
+                                      borderRadius:3,padding:"1px 5px",letterSpacing:0.5}}>
+                                      {typeLabel}
+                                    </div>
+                                    <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                      {t.dates}
+                                    </span>
+                                  </div>
+                                </div>
+                                <OBadge label={t.status} color={tc} sm/>
+                              </div>
+
+                              {isPend&&(
+                                <div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
+                                    marginBottom:6}}>
+                                    Vacation balance: <span style={{color:O.green}}>8 days remaining</span>
+                                    &nbsp;· <span style={{color:O.amber}}>2 shifts need coverage</span>
+                                  </div>
+                                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                                    <ActBtn label="✓ APPROVE" c={O.green}/>
+                                    <ActBtn label="✕ DENY" c={O.red}/>
+                                    <ActBtn label="📄 REQUEST DOCS" c={"#3b82f6"}/>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Availability changes */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:7}}>AVAILABILITY CHANGES</div>
+                        <div style={{background:O.bg3,borderRadius:7,padding:"9px 11px",
+                          border:"1px solid rgba(139,92,246,0.18)"}}>
+                          <div style={{display:"flex",alignItems:"center",
+                            gap:8,marginBottom:6}}>
+                            <Av emp={EMPS[1]} size={20} dark/>
+                            <div style={{flex:1}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff",marginBottom:1}}>
+                                {EMPS[1].name.split(" ")[0]} — Availability Update
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                Saturday: Unavailable → Available 10am–6pm
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{display:"flex",gap:6}}>
+                            <ActBtn label="UPDATE SCHEDULE" c={O.green}/>
+                            <ActBtn label="DENY CHANGE" c={O.red}/>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Balance tracker */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:7}}>TIME-OFF BALANCE TRACKER</div>
+                        <div style={{borderRadius:7,overflow:"hidden"}}>
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"80px 50px 40px 55px 50px",
+                            padding:"5px 8px",background:O.bg3,gap:4}}>
+                            {["EMPLOYEE","VACATION","SICK","PERSONAL","USED"].map(h=>(
+                              <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                                color:O.textF,letterSpacing:1}}>{h}</div>
+                            ))}
+                          </div>
+                          {EMPS.map((e,i)=>(
+                            <div key={e.id} style={{display:"grid",
+                              gridTemplateColumns:"80px 50px 40px 55px 50px",
+                              padding:"6px 8px",gap:4,
+                              borderTop:"1px solid "+O.border,
+                              background:i%2===0?"transparent":"rgba(255,255,255,0.01)",
+                              alignItems:"center"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                                <Av emp={e} size={14} dark/>
+                                <span style={{fontFamily:O.mono,fontSize:8,
+                                  color:O.textD,overflow:"hidden",
+                                  textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:52}}>
+                                  {e.name.split(" ")[0]}
+                                </span>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.green}}>10d</div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:"#3b82f6"}}>5d</div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:"#8b5cf6"}}>3d</div>
+                              <div style={{fontFamily:O.mono,fontSize:9,
+                                color:i>2?O.red:O.amber}}>
+                                {i===0?"2d":i===1?"4d":i===2?"1d":i===3?"3d":"0d"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 4: ATTENDANCE ENFORCEMENT CENTER ── */}
+                  <Card style={{marginBottom:12,
+                    background:"rgba(239,68,68,0.03)",
+                    border:"1px solid rgba(239,68,68,0.18)"}}>
+                    <div style={{display:"flex",alignItems:"center",
+                      justifyContent:"space-between",marginBottom:14}}>
+                      <SL text="Attendance Enforcement Center" color={O.red}/>
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                        background:"rgba(239,68,68,0.1)",
+                        border:"1px solid rgba(239,68,68,0.25)",
+                        borderRadius:4,padding:"3px 9px",letterSpacing:1}}>
+                        {noShows.length+lateArrivals.length+earlyDeps.length} ISSUES THIS PERIOD
+                      </div>
+                    </div>
+
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+
+                      {/* No-Show Tracker */}
+                      <div style={{background:O.bg3,borderRadius:9,padding:"12px",
+                        border:"1px solid rgba(239,68,68,0.2)"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                          letterSpacing:"2px",marginBottom:8}}>NO-SHOW TRACKER</div>
+                        {noShows.length===0?(
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.green,
+                            padding:"8px 0"}}>✓ No no-shows this period</div>
+                        ):noShows.map(e=>(
+                          <div key={e.id} style={{marginBottom:10,paddingBottom:10,
+                            borderBottom:"1px solid "+O.border}}>
+                            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6}}>
+                              <Av emp={e} size={22} dark/>
+                              <div style={{flex:1}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:11,color:"#fff",marginBottom:2}}>{e.name}</div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                  Mon Mar 24 · 8am–4pm shift
+                                </div>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                                background:"rgba(239,68,68,0.12)",
+                                border:"1px solid rgba(239,68,68,0.25)",
+                                borderRadius:4,padding:"2px 6px",letterSpacing:0.5,
+                                whiteSpace:"nowrap"}}>
+                                2nd STRIKE
+                              </div>
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.amber,
+                              background:"rgba(245,158,11,0.06)",borderRadius:4,
+                              padding:"4px 7px",marginBottom:7,lineHeight:1.4}}>
+                              System auto-notified at 8:04am when no clock-in detected
+                              &nbsp;·&nbsp; ${(e.ghost*e.rate).toFixed(0)} productivity impact
+                            </div>
+                            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                              <ActBtn label="SEND WARNING" c={O.red}/>
+                              <ActBtn label="EXCUSED" c={O.green}/>
+                              <ActBtn label="→ HR" c={"#8b5cf6"}/>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Late Arrival Enforcement */}
+                      <div style={{background:O.bg3,borderRadius:9,padding:"12px",
+                        border:"1px solid rgba(245,158,11,0.2)"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.amber,
+                          letterSpacing:"2px",marginBottom:8}}>LATE ARRIVAL ENFORCEMENT</div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          background:"rgba(245,158,11,0.06)",borderRadius:4,
+                          padding:"4px 7px",marginBottom:8,letterSpacing:0.5}}>
+                          POLICY: 3 LATES = WRITTEN WARNING
+                        </div>
+                        {lateArrivals.length===0?(
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.green,
+                            padding:"8px 0"}}>✓ No late arrivals this period</div>
+                        ):lateArrivals.slice(0,3).map((e,i)=>(
+                          <div key={e.id} style={{marginBottom:9,paddingBottom:9,
+                            borderBottom:i<lateArrivals.slice(0,3).length-1?"1px solid "+O.border:"none"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                              <Av emp={e} size={20} dark/>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:11,color:"#fff",marginBottom:1}}>{e.name.split(" ")[0]}</div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                  Scheduled 9:00 · Arrived 9:{(e.id*7%30+15).toString().padStart(2,"0")}
+                                </div>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,fontWeight:600}}>
+                                +{e.id*7%30+15}m
+                              </div>
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                              marginBottom:5}}>
+                              ⚠ {i===0?"3rd consecutive Monday late":"2nd late this month"}
+                            </div>
+                            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                              <ActBtn label="VERBAL" c={O.amber}/>
+                              <ActBtn label="WRITTEN" c={O.red}/>
+                              <ActBtn label="DOCK PAY" c={O.red}/>
+                              <ActBtn label="EXCUSED" c={O.green}/>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Early Departure Tracker */}
+                      <div style={{background:O.bg3,borderRadius:9,padding:"12px",
+                        border:"1px solid rgba(245,158,11,0.15)"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:"#f97316",
+                          letterSpacing:"2px",marginBottom:8}}>EARLY DEPARTURE TRACKER</div>
+                        {earlyDeps.length===0?(
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.green,
+                            padding:"8px 0"}}>✓ No early departures this period</div>
+                        ):earlyDeps.slice(0,3).map((e,i)=>(
+                          <div key={e.id} style={{marginBottom:9,paddingBottom:9,
+                            borderBottom:i<earlyDeps.slice(0,3).length-1?"1px solid "+O.border:"none"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                              <Av emp={e} size={20} dark/>
+                              <div style={{flex:1}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:11,color:"#fff",marginBottom:1}}>{e.name.split(" ")[0]}</div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                  Scheduled until 5pm · Left at {3+(e.id%2)}pm
+                                </div>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,
+                                color:"#f97316",fontWeight:600}}>
+                                -{2-e.id%2}h
+                              </div>
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textD,marginBottom:5}}>
+                              ${(2*e.rate).toFixed(0)} in unbilled hours
+                            </div>
+                            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                              <ActBtn label="VERBAL" c={O.amber}/>
+                              <ActBtn label="DOCK PAY" c={O.red}/>
+                              <ActBtn label="EXCUSED" c={O.green}/>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Summary bar */}
+                    <div style={{background:"rgba(239,68,68,0.07)",borderRadius:7,
+                      padding:"9px 12px",
+                      border:"1px solid rgba(239,68,68,0.18)",
+                      display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>This period:</span>
+                      <span style={{fontFamily:O.mono,fontSize:8,color:O.red}}>
+                        {noShows.length} no-shows
+                      </span>
+                      <span style={{fontFamily:O.mono,fontSize:8,color:O.amber}}>
+                        {lateArrivals.length} late arrivals
+                      </span>
+                      <span style={{fontFamily:O.mono,fontSize:8,color:"#f97316"}}>
+                        {earlyDeps.length} early departures
+                      </span>
+                      <span style={{fontFamily:O.mono,fontSize:8,color:O.red,
+                        marginLeft:"auto",fontWeight:600}}>
+                        Total: ${attendanceLoss} in attendance-related losses
+                      </span>
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 5 + 6: COVERAGE + ACCOUNTABILITY ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 5: Open Shift Coverage */}
+                    <Card>
+                      <SL text="Open Shift Coverage Board" color={O.amber}/>
+
+                      {coverageGaps.length===0?(
+                        <div style={{fontFamily:O.mono,fontSize:10,color:O.green,
+                          padding:"16px 0",textAlign:"center"}}>
+                          ✓ All shifts covered — no gaps
+                        </div>
+                      ):(
+                        coverageGaps.map((gap,gi)=>{
+                          const matches = bestMatch(gap.day);
+                          return(
+                            <div key={gi} style={{background:O.bg3,borderRadius:9,
+                              padding:"12px",marginBottom:10,
+                              border:"1px solid rgba(245,158,11,0.22)",
+                              borderLeft:"3px solid "+O.amber}}>
+
+                              {/* Gap info */}
+                              <div style={{display:"flex",justifyContent:"space-between",
+                                alignItems:"flex-start",marginBottom:8}}>
+                                <div>
+                                  <div style={{fontFamily:O.sans,fontWeight:700,
+                                    fontSize:13,color:"#fff",marginBottom:2}}>
+                                    {gap.day} — {gap.gap} staff needed
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                    Floor Associate · {gap.day==="Sun"?"10am–6pm":"9am–5pm"}
+                                  </div>
+                                </div>
+                                <div style={{display:"flex",gap:5,flexDirection:"column",
+                                  alignItems:"flex-end"}}>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                                    background:"rgba(239,68,68,0.1)",
+                                    border:"1px solid rgba(239,68,68,0.2)",
+                                    borderRadius:3,padding:"2px 6px",letterSpacing:0.5}}>
+                                    UNDERSTAFFED
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Best matches */}
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                                letterSpacing:"2px",marginBottom:6}}>BEST MATCHES</div>
+                              {matches.map((e,mi)=>{
+                                const wh = empWeekHrs(e.id);
+                                const ot = wh>=36;
+                                return(
+                                  <div key={e.id} style={{display:"flex",
+                                    alignItems:"center",gap:7,
+                                    padding:"6px 0",
+                                    borderBottom:mi<matches.length-1?"1px solid "+O.border:"none"}}>
+                                    <div style={{fontFamily:O.mono,fontSize:9,
+                                      color:mi===0?"#FFD700":mi===1?"#C0C0C0":"#CD7F32",
+                                      width:12,flexShrink:0}}>{mi+1}</div>
+                                    <Av emp={e} size={20} dark/>
+                                    <div style={{flex:1}}>
+                                      <div style={{fontFamily:O.sans,fontWeight:600,
+                                        fontSize:11,color:"#fff"}}>{e.name.split(" ")[0]}</div>
+                                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                        {wh}h this week
+                                        {ot?" · OT risk":""}
+                                        &nbsp;· {e.rel}% reliability
+                                      </div>
+                                    </div>
+                                    {ot&&(
+                                      <div style={{fontFamily:O.mono,fontSize:6,color:O.amber,
+                                        background:"rgba(245,158,11,0.1)",
+                                        border:"1px solid rgba(245,158,11,0.2)",
+                                        borderRadius:3,padding:"1px 4px"}}>OT</div>
+                                    )}
+                                    <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                      padding:"3px 8px",background:"rgba(16,185,129,0.1)",
+                                      border:"1px solid rgba(16,185,129,0.25)",
+                                      borderRadius:4,color:O.green,cursor:"pointer"}}>
+                                      ASSIGN
+                                    </button>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Posting options */}
+                              <div style={{display:"flex",gap:7,marginTop:8,flexWrap:"wrap"}}>
+                                <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                  padding:"4px 10px",background:"rgba(6,182,212,0.1)",
+                                  border:"1px solid rgba(6,182,212,0.25)",borderRadius:4,
+                                  color:"#06b6d4",cursor:"pointer"}}>
+                                  📢 Post to Team
+                                </button>
+                                <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                  padding:"4px 8px",background:"rgba(239,68,68,0.08)",
+                                  border:"1px solid rgba(239,68,68,0.18)",borderRadius:4,
+                                  color:O.red,cursor:"pointer"}}>
+                                  ⚡ URGENT
+                                </button>
+                                <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                  padding:"4px 8px",background:"rgba(245,158,11,0.08)",
+                                  border:"1px solid rgba(245,158,11,0.18)",borderRadius:4,
+                                  color:O.amber,cursor:"pointer"}}>
+                                  💰 Incentive
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+
+                      {/* If no gaps, show weekend */}
+                      {coverageGaps.length===0&&(
+                        <div style={{background:O.bg3,borderRadius:7,
+                          padding:"10px 12px",
+                          border:"1px solid rgba(6,182,212,0.18)"}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:"#06b6d4",
+                            letterSpacing:"2px",marginBottom:5}}>WEEKEND WATCH</div>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                            Sat/Sun have minimal coverage. Consider posting open shifts.
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+
+                    {/* ZONE 6: Commitment Tracker + Accountability Board */}
+                    <Card>
+                      <SL text="Commitment + Accountability Board" color={O.green}/>
+
+                      {/* Confirmation tracker */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:7}}>SHIFT CONFIRMATION TRACKER</div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          background:"rgba(6,182,212,0.06)",borderRadius:5,
+                          padding:"4px 8px",marginBottom:7,letterSpacing:0.5}}>
+                          Auto-reminder sent 24h before shift if unconfirmed
+                        </div>
+                        {EMPS.map((e,i)=>{
+                          const status = i<2?"confirmed":i<4?"pending":"not_sent";
+                          const sc2 = status==="confirmed"?O.green:status==="pending"?O.amber:"rgba(255,255,255,0.2)";
+                          return(
+                            <div key={e.id} style={{display:"flex",alignItems:"center",
+                              gap:8,padding:"6px 0",borderBottom:"1px solid "+O.border}}>
+                              <Av emp={e} size={20} dark/>
+                              <span style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff",flex:1}}>
+                                {e.name.split(" ")[0]}
+                              </span>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:sc2}}>
+                                {status==="confirmed"?"✅ Confirmed":status==="pending"?"🟡 Awaiting":"⚪ Not sent"}
+                              </div>
+                              {status==="pending"&&(
+                                <button style={{fontFamily:O.mono,fontSize:7,
+                                  padding:"2px 6px",background:"rgba(245,158,11,0.08)",
+                                  border:"1px solid rgba(245,158,11,0.2)",
+                                  borderRadius:3,color:O.amber,cursor:"pointer"}}>
+                                  REMIND
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Accountability scoreboard */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:7}}>
+                          30-DAY ACCOUNTABILITY SCOREBOARD
+                        </div>
+                        <div style={{borderRadius:7,overflow:"hidden"}}>
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"30px 80px 52px 52px 52px 48px",
+                            padding:"5px 8px",background:O.bg3,gap:3}}>
+                            {["","EMPLOYEE","SHOWS UP","ON TIME","CONFIRMS","GRADE"].map(h=>(
+                              <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                                color:O.textF,letterSpacing:1}}>{h}</div>
+                            ))}
+                          </div>
+                          {[...EMPS].sort((a,b)=>acctScore(b).avg-acctScore(a).avg).map((e,i)=>{
+                            const s = acctScore(e);
+                            const gc = gradeColor(s.grade);
+                            return(
+                              <div key={e.id}
+                                style={{display:"grid",
+                                  gridTemplateColumns:"30px 80px 52px 52px 52px 48px",
+                                  padding:"7px 8px",gap:3,
+                                  borderTop:"1px solid "+O.border,
+                                  background:i===0?"rgba(255,215,0,0.03)":"transparent",
+                                  alignItems:"center",cursor:"pointer"}}
+                                onClick={()=>{setSelEmp(e.id);setTab("intelligence");}}>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:i===0?"#FFD700":i===1?"#C0C0C0":O.textF,
+                                  textAlign:"center"}}>{i+1}</div>
+                                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                  <Av emp={e} size={16} dark/>
+                                  <span style={{fontFamily:O.mono,fontSize:8,
+                                    color:O.textD,overflow:"hidden",
+                                    textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:52}}>
+                                    {e.name.split(" ")[0]}
+                                  </span>
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:s.showUp>=90?O.green:s.showUp>=75?O.amber:O.red}}>
+                                  {s.showUp}%
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:s.onTime>=90?O.green:s.onTime>=75?O.amber:O.red}}>
+                                  {s.onTime}%
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:s.confirm>=80?O.green:s.confirm>=65?O.amber:O.red}}>
+                                  {s.confirm}%
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:10,
+                                  color:gc,fontWeight:700,letterSpacing:0.5}}>
+                                  {s.grade}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Progressive discipline */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                          letterSpacing:"2px",marginBottom:7}}>
+                          PROGRESSIVE DISCIPLINE TRACKER
+                        </div>
+                        {EMPS.filter(e=>e.risk==="High").map(e=>{
+                          const steps = ["Verbal","Written","Final","Termination"];
+                          const curStep = e.flags>=2?1:0;
+                          return(
+                            <div key={e.id} style={{background:O.bg3,borderRadius:7,
+                              padding:"10px 12px",marginBottom:6,
+                              border:"1px solid rgba(239,68,68,0.18)"}}>
+                              <div style={{display:"flex",alignItems:"center",
+                                gap:8,marginBottom:8}}>
+                                <Av emp={e} size={22} dark/>
+                                <div style={{flex:1}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:11,color:"#fff",marginBottom:1}}>{e.name}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                    Step {curStep+1} of 4 — {steps[curStep]} Warning
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Step indicators */}
+                              <div style={{display:"flex",gap:3,marginBottom:8}}>
+                                {steps.map((st,si)=>(
+                                  <div key={st} style={{flex:1,padding:"3px 0",
+                                    textAlign:"center",borderRadius:3,
+                                    background:si<=curStep?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.03)",
+                                    border:"1px solid "+(si<=curStep?"rgba(239,68,68,0.3)":O.border)}}>
+                                    <div style={{fontFamily:O.mono,fontSize:6,
+                                      color:si<=curStep?O.red:O.textF,letterSpacing:0.5}}>
+                                      {st}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div style={{display:"flex",gap:5}}>
+                                <ActBtn label="ISSUE NEXT STEP" c={O.red}/>
+                                <ActBtn label="✓ CLEAR" c={O.green}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 7: HISTORY + POLICY MANAGER ── */}
+                  <Card>
+                    <SL text="Request History + Policy Manager"/>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+
+                      {/* History log */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>REQUEST HISTORY LOG — LAST 90 DAYS</div>
+
+                        {/* Filter pills */}
+                        <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
+                          {["all","swap","time off","attendance"].map(f=>(
+                            <button key={f} onClick={()=>setReqFilter(f)}
+                              style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                padding:"3px 8px",borderRadius:4,border:"none",
+                                cursor:"pointer",textTransform:"uppercase",
+                                background:reqFilter===f?"rgba(245,158,11,0.15)":"rgba(255,255,255,0.04)",
+                                color:reqFilter===f?O.amber:O.textF}}>
+                              {f}
+                            </button>
+                          ))}
+                          <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"3px 8px",background:"rgba(6,182,212,0.06)",
+                            border:"1px solid rgba(6,182,212,0.18)",borderRadius:4,
+                            color:"#06b6d4",cursor:"pointer",marginLeft:"auto"}}>
+                            📊 EXPORT CSV
+                          </button>
+                        </div>
+
+                        {/* Log entries */}
+                        <div style={{borderRadius:7,overflow:"hidden"}}>
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"52px 70px 72px 72px 66px",
+                            padding:"5px 8px",background:O.bg3,gap:4}}>
+                            {["DATE","EMPLOYEE","TYPE","OUTCOME","ACTION BY"].map(h=>(
+                              <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                                color:O.textF,letterSpacing:1}}>{h}</div>
+                            ))}
+                          </div>
+                          {historyLog.filter(h=>reqFilter==="all"||h.type.toLowerCase().includes(reqFilter)).map((h,i)=>{
+                            const oc = h.outcome==="Approved"?O.green:h.outcome==="Denied"?O.red:O.amber;
+                            return(
+                              <div key={i} style={{display:"grid",
+                                gridTemplateColumns:"52px 70px 72px 72px 66px",
+                                padding:"7px 8px",gap:4,
+                                borderTop:"1px solid "+O.border,
+                                background:i%2===0?"transparent":"rgba(255,255,255,0.01)",
+                                alignItems:"center"}}>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                  {h.date}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:"#fff",
+                                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  {h.emp}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:O.amber,
+                                  background:"rgba(245,158,11,0.08)",
+                                  borderRadius:3,padding:"1px 4px",letterSpacing:0.5,
+                                  width:"fit-content"}}>
+                                  {h.type}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:oc}}>
+                                  {h.outcome}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                  {h.mgr}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,
+                          marginTop:8,background:"rgba(245,158,11,0.06)",
+                          borderRadius:5,padding:"5px 8px"}}>
+                          ⚠ Carlos R. submitted 4 swap requests this month (policy max: 2)
+                        </div>
+                      </div>
+
+                      {/* Policy manager */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>ATTENDANCE POLICY MANAGER</div>
+
+                        {[
+                          {section:"Tardiness Policy",items:[
+                            {l:"Define late",v:"15 min"},
+                            {l:"Strikes before warning",v:"3"},
+                            {l:"Warning progression",v:"Verbal → Written → Final"},
+                          ]},
+                          {section:"No-Show Policy",items:[
+                            {l:"Auto-notify manager",v:"✓ Enabled",toggle:true,on:true},
+                            {l:"Auto-send warning",v:"✓ Enabled",toggle:true,on:true},
+                            {l:"Strikes before HR",v:"2"},
+                          ]},
+                          {section:"Swap Policy",items:[
+                            {l:"Max swaps/month",v:"2"},
+                            {l:"Advance notice",v:"24h"},
+                            {l:"Both parties confirm",v:"✓ Required",toggle:true,on:true},
+                          ]},
+                          {section:"Time-Off Policy",items:[
+                            {l:"Annual vacation",v:"10 days"},
+                            {l:"Sick days",v:"5 days"},
+                            {l:"Personal days",v:"3 days"},
+                            {l:"Blackout dates",v:"Dec 24, Dec 31, Jul 4"},
+                          ]},
+                        ].map((sect,si)=>(
+                          <div key={si} style={{marginBottom:12}}>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.amber,
+                              letterSpacing:"2px",marginBottom:5,
+                              borderBottom:"1px solid rgba(245,158,11,0.15)",
+                              paddingBottom:4}}>{sect.section.toUpperCase()}</div>
+                            {sect.items.map((item,ii)=>(
+                              <div key={ii} style={{display:"flex",alignItems:"center",
+                                gap:8,padding:"4px 0",
+                                borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                <div style={{fontFamily:O.mono,fontSize:8,
+                                  color:O.textF,flex:1,letterSpacing:0.5}}>
+                                  {item.l}
+                                </div>
+                                {item.toggle?(
+                                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                    <span style={{fontFamily:O.mono,fontSize:7,
+                                      color:item.on?O.green:O.red}}>
+                                      {item.on?"ON":"OFF"}
+                                    </span>
+                                    <Toggle on={item.on} onToggle={()=>{}}/>
+                                  </div>
+                                ):(
+                                  <div style={{fontFamily:O.mono,fontSize:9,
+                                    color:"#fff",background:"rgba(255,255,255,0.05)",
+                                    borderRadius:4,padding:"2px 8px",
+                                    border:"1px solid "+O.border,letterSpacing:0.5}}>
+                                    {item.v}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+
+                        <button style={{width:"100%",fontFamily:O.mono,fontSize:8,
+                          letterSpacing:1,padding:"9px",background:O.green,
+                          border:"none",borderRadius:7,color:"#030c14",
+                          cursor:"pointer",fontWeight:700}}>
+                          SAVE POLICY CHANGES
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── CAMERAS ── */}
+
+                {/* ── CAMERAS ── */}
         {tab==="cameras" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
 
