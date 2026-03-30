@@ -847,6 +847,11 @@ function OwnerCmd({onLogout}){
   const [expandedEmp,setExpandedEmp] = useState(null);
   const [resolvedDisc,setResolvedDisc] = useState({});
   const [locEditMode,setLocEditMode] = useState(false);
+  const [schedWeek,setSchedWeek] = useState("Mar 24–30");
+  const [schedView,setSchedView] = useState("week");
+  const [schedStatus,setSchedStatus] = useState("draft");
+  const [selectedCell,setSelectedCell] = useState(null);
+  const [schedPublished,setSchedPublished] = useState(false);
   const [staffSearch,setStaffSearch] = useState("");
   const [staffView,setStaffView] = useState("table");
   const [staffSort,setStaffSort] = useState("value");
@@ -8431,43 +8436,959 @@ function OwnerCmd({onLogout}){
 
                 {tab==="schedule" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>WEEKLY SCHEDULE — MARCH 24–30</div>
-            <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden"}}>
-              <div style={{display:"grid",gridTemplateColumns:"120px repeat(7,1fr)",borderBottom:`1px solid ${O.border}`}}>
-                <div style={{background:O.bg3,borderRight:`1px solid ${O.border}`,padding:"9px 12px"}}>
-                  <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:2}}>EMPLOYEE</span>
+            {(()=>{
+              const cyan  = "#06b6d4";
+              const cyanD = "rgba(6,182,212,0.08)";
+              const cyanB = "rgba(6,182,212,0.22)";
+
+              // ── CORE CALCULATIONS ──
+              const empWeekHrs = (eId) =>
+                Object.values(SCHED).flat().filter(s=>s.eId===eId)
+                  .reduce((sum,s)=>sum+(s.e-s.s),0);
+              const dayCost = (day) =>
+                (SCHED[day]||[]).reduce((sum,s)=>{
+                  const e=byId(s.eId);
+                  return sum+(e?(s.e-s.s)*e.rate:0);
+                },0);
+              const weekCost = DAYS.reduce((sum,d)=>sum+dayCost(d),0);
+              const coverageAt = (day,hour) =>
+                (SCHED[day]||[]).filter(s=>s.s<=hour&&s.e>hour).length;
+              const otRisk = (eId) => empWeekHrs(eId)>=38;
+              const totalShifts = Object.values(SCHED).flat().length;
+              const unscheduled = EMPS.filter(e=>empWeekHrs(e.id)===0).length;
+              const totalSchedHrs = EMPS.reduce((s,e)=>s+empWeekHrs(e.id),0);
+              const totalOTHrs = EMPS.filter(e=>empWeekHrs(e.id)>40)
+                .reduce((s,e)=>s+(empWeekHrs(e.id)-40),0);
+
+              const SHIFT_TEMPLATES = [
+                {name:"Opening", s:7,  e:15, color:"#6366f1"},
+                {name:"Day",     s:9,  e:17, color:cyan},
+                {name:"Mid",     s:11, e:19, color:"#10b981"},
+                {name:"Closing", s:14, e:22, color:"#f59e0b"},
+                {name:"Weekend", s:10, e:16, color:"#8b5cf6"},
+              ];
+
+              const HOURS = [7,8,9,10,11,12,13,14,15,16,17,18,19,20];
+              const DAY_DATES = {Mon:"24",Tue:"25",Wed:"26",Thu:"27",Fri:"28",Sat:"29",Sun:"30"};
+              const todayDay = "Wed";
+              const maxDayCost = Math.max(...DAYS.map(d=>dayCost(d)),1);
+
+              const confirmStatus = schedPublished
+                ? EMPS.map((e,i)=>({e,status:i<2?"confirmed":i<4?"sent":"sent"}))
+                : EMPS.map(e=>({e,status:"unsent"}));
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
+                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
                 </div>
-                {DAYS.map(d => (
-                  <div key={d} style={{padding:"9px 6px",borderLeft:`1px solid ${O.border}`,textAlign:"center"}}>
-                    <span style={{fontFamily:O.mono,fontSize:8,color:O.amber+"80",letterSpacing:1}}>{d.toUpperCase()}</span>
-                  </div>
-                ))}
-              </div>
-              {EMPS.map(e => (
-                <div key={e.id} style={{display:"grid",gridTemplateColumns:"120px repeat(7,1fr)",borderBottom:`1px solid ${O.border}`}}>
-                  <div style={{background:O.bg3,borderRight:`1px solid ${O.border}`,padding:"9px 12px",display:"flex",alignItems:"center",gap:7}}>
-                    <Av emp={e} size={22} dark/>
-                    <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text}}>{e.name.split(" ")[0]}</div>
-                  </div>
-                  {DAYS.map(d => {
-                    const shifts = (SCHED[d]||[]).filter(s=>s.eId===e.id);
-                    return (
-                      <div key={d} style={{borderLeft:`1px solid ${O.border}`,padding:"5px 4px",minHeight:40,display:"flex",flexDirection:"column",gap:3}}>
-                        {shifts.map((s,i) => (
-                          <div key={i} style={{background:`${e.color}20`,border:`1px solid ${e.color}40`,borderRadius:3,padding:"2px 4px"}}>
-                            <span style={{fontFamily:O.mono,fontSize:7,color:e.color}}>{fH(s.s)}–{fH(s.e)}</span>
+              );
+              const Toggle = ({on,onToggle}) => (
+                <button onClick={onToggle}
+                  style={{width:42,height:22,borderRadius:11,
+                    background:on?O.amber:"rgba(255,255,255,0.1)",
+                    border:"none",cursor:"pointer",position:"relative",
+                    transition:"all 0.2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,width:16,height:16,
+                    borderRadius:"50%",background:"#fff",transition:"all 0.2s",
+                    left:on?23:3,boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+                </button>
+              );
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: SCHEDULE HEADER ── */}
+                  <div style={{background:cyanD,border:"1px solid "+cyanB,
+                    borderRadius:12,padding:"14px 18px",marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",
+                      gap:14,flexWrap:"wrap",marginBottom:10}}>
+
+                      {/* Week navigator */}
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                        <button style={{background:"none",border:"1px solid "+O.border,
+                          borderRadius:4,color:O.textD,cursor:"pointer",
+                          padding:"3px 8px",fontFamily:O.mono,fontSize:11}}>←</button>
+                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,
+                          color:"#fff",whiteSpace:"nowrap"}}>
+                          Week of {schedWeek}, 2025
+                        </div>
+                        <button style={{background:"none",border:"1px solid "+O.border,
+                          borderRadius:4,color:O.textD,cursor:"pointer",
+                          padding:"3px 8px",fontFamily:O.mono,fontSize:11}}>→</button>
+                      </div>
+
+                      {/* Status badge */}
+                      <div style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                        color:schedStatus==="published"?O.green:schedStatus==="draft"?O.amber:"#3b82f6",
+                        background:(schedStatus==="published"?"rgba(16,185,129,0.12)":schedStatus==="draft"?"rgba(245,158,11,0.12)":"rgba(59,130,246,0.12)"),
+                        border:"1px solid "+(schedStatus==="published"?"rgba(16,185,129,0.3)":schedStatus==="draft"?"rgba(245,158,11,0.3)":"rgba(59,130,246,0.3)"),
+                        borderRadius:5,padding:"4px 10px"}}>
+                        {schedStatus==="published"?"✓ PUBLISHED":schedStatus==="draft"?"● DRAFT":"◎ PENDING CHANGES"}
+                      </div>
+
+                      {/* Inline stats */}
+                      <div style={{display:"flex",gap:12,flex:1,flexWrap:"wrap"}}>
+                        {[
+                          {l:"Shifts",v:totalShifts},
+                          {l:"Employees",v:EMPS.length},
+                          {l:"Est. Labor",v:"$"+weekCost.toFixed(0)},
+                          {l:"Total Hrs",v:totalSchedHrs+"h"},
+                        ].map(s=>(
+                          <div key={s.l} style={{textAlign:"center"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,
+                              fontSize:14,color:"#fff",lineHeight:1}}>{s.v}</div>
+                            <div style={{fontFamily:O.mono,fontSize:7,
+                              color:O.textF,letterSpacing:1,marginTop:2}}>{s.l}</div>
                           </div>
                         ))}
                       </div>
-                    );
-                  })}
+
+                      {/* View toggle */}
+                      <div style={{display:"flex",gap:0,background:O.bg3,
+                        borderRadius:6,overflow:"hidden"}}>
+                        {["week","2-week","month"].map(v=>(
+                          <button key={v} onClick={()=>setSchedView(v)}
+                            style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                              padding:"5px 9px",border:"none",cursor:"pointer",
+                              textTransform:"uppercase",
+                              background:schedView===v?cyanD:"transparent",
+                              color:schedView===v?cyan:O.textF}}>
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{display:"flex",gap:7,flexShrink:0}}>
+                        <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                          padding:"7px 12px",background:"rgba(255,255,255,0.05)",
+                          border:"1px solid "+O.border,borderRadius:6,
+                          color:O.textD,cursor:"pointer"}}>
+                          📋 Copy Last Week
+                        </button>
+                        <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                          padding:"7px 12px",background:"rgba(139,92,246,0.1)",
+                          border:"1px solid rgba(139,92,246,0.25)",borderRadius:6,
+                          color:"#8b5cf6",cursor:"pointer"}}>
+                          🤖 Auto-Schedule
+                        </button>
+                        <button onClick={()=>setSchedStatus("published")}
+                          style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                            padding:"7px 16px",
+                            background:schedStatus==="published"?"rgba(16,185,129,0.15)":O.green,
+                            border:"1px solid "+(schedStatus==="published"?"rgba(16,185,129,0.3)":"transparent"),
+                            borderRadius:6,
+                            color:schedStatus==="published"?O.green:"#030c14",
+                            cursor:"pointer",fontWeight:700,
+                            boxShadow:schedStatus==="published"?"none":"0 0 16px rgba(16,185,129,0.35)"}}>
+                          {schedStatus==="published"?"✓ Published":"📤 Publish & Notify"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Coverage status */}
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      <div style={{fontFamily:O.mono,fontSize:8,color:O.green}}>
+                        ✓ Min coverage met Mon/Tue/Thu/Fri
+                      </div>
+                      <div style={{fontFamily:O.mono,fontSize:8,color:O.amber}}>
+                        ⚠ Wed may need +1 staff afternoon
+                      </div>
+                      {unscheduled>0&&(
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.red}}>
+                          ⚠ {unscheduled} employee{unscheduled>1?"s":""} unscheduled this week
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── ZONE 2: SCHEDULE BUILDER GRID ── */}
+                  <Card style={{marginBottom:12,padding:"14px 14px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",
+                      alignItems:"center",marginBottom:10}}>
+                      <SL text="Schedule Builder" color={cyan}/>
+                      <div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>
+                        Click a shift to edit · Click + to add
+                      </div>
+                    </div>
+                    <div style={{overflowX:"auto"}}>
+                      <div style={{minWidth:780}}>
+
+                        {/* Column headers */}
+                        <div style={{display:"grid",
+                          gridTemplateColumns:"130px repeat(7,1fr) 80px",
+                          marginBottom:1}}>
+                          <div style={{background:O.bg3,borderRadius:"6px 0 0 0",
+                            padding:"8px 10px",display:"flex",alignItems:"center"}}>
+                            <span style={{fontFamily:O.mono,fontSize:7,
+                              color:O.textF,letterSpacing:1}}>EMPLOYEE</span>
+                          </div>
+                          {DAYS.map(d=>{
+                            const isToday = d===todayDay;
+                            const dc = dayCost(d);
+                            const staffCt = (SCHED[d]||[]).length;
+                            const covColor = staffCt>=3?O.green:staffCt>=2?O.amber:O.red;
+                            return(
+                              <div key={d} style={{
+                                background:isToday?"rgba(245,158,11,0.06)":O.bg3,
+                                padding:"6px 4px",
+                                borderLeft:"1px solid "+O.border,
+                                textAlign:"center"}}>
+                                <div style={{fontFamily:O.mono,fontSize:9,fontWeight:600,
+                                  color:isToday?O.amber:O.textD,letterSpacing:1}}>
+                                  {d.toUpperCase()} {DAY_DATES[d]}
+                                </div>
+                                <div style={{display:"flex",gap:4,justifyContent:"center",marginTop:3}}>
+                                  <span style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>
+                                    {staffCt} staff
+                                  </span>
+                                  <span style={{fontFamily:O.mono,fontSize:7,color:O.amber}}>
+                                    ${dc.toFixed(0)}
+                                  </span>
+                                  <div style={{width:6,height:6,borderRadius:"50%",
+                                    background:covColor,marginTop:1,
+                                    boxShadow:"0 0 4px "+covColor}}/>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div style={{background:O.bg3,borderLeft:"1px solid "+O.border,
+                            borderRadius:"0 6px 0 0",padding:"8px 4px"}}>
+                            <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:1}}>
+                              WEEKLY
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Employee rows */}
+                        {EMPS.map((e,eIdx)=>{
+                          const wkHrs = empWeekHrs(e.id);
+                          const wkCost = (wkHrs*e.rate).toFixed(0);
+                          const hrPct = Math.min(100,Math.round((wkHrs/40)*100));
+                          const hrColor = wkHrs>=40?O.red:wkHrs>=36?O.amber:O.green;
+                          return(
+                            <div key={e.id} style={{display:"grid",
+                              gridTemplateColumns:"130px repeat(7,1fr) 80px",
+                              borderTop:"1px solid "+O.border,
+                              background:eIdx%2===0?"transparent":"rgba(255,255,255,0.008)"}}>
+
+                              {/* Employee label */}
+                              <div style={{padding:"8px 10px",background:O.bg3,
+                                borderRight:"1px solid "+O.border,
+                                display:"flex",flexDirection:"column",gap:4}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <Av emp={e} size={20} dark/>
+                                  <span style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:11,color:"#fff",whiteSpace:"nowrap",
+                                    overflow:"hidden",textOverflow:"ellipsis",maxWidth:75}}>
+                                    {e.name.split(" ")[0]}
+                                  </span>
+                                </div>
+                                <div style={{height:3,background:"rgba(255,255,255,0.06)",
+                                  borderRadius:2}}>
+                                  <div style={{height:"100%",width:hrPct+"%",
+                                    background:hrColor,borderRadius:2}}/>
+                                </div>
+                                <div style={{display:"flex",justifyContent:"space-between"}}>
+                                  <span style={{fontFamily:O.mono,fontSize:7,
+                                    color:hrColor}}>{wkHrs}h/40h</span>
+                                  <span style={{fontFamily:O.mono,fontSize:7,
+                                    color:O.amber}}>${wkCost}</span>
+                                </div>
+                                {otRisk(e.id)&&(
+                                  <div style={{fontFamily:O.mono,fontSize:6,color:O.red,
+                                    background:"rgba(239,68,68,0.1)",
+                                    borderRadius:3,padding:"1px 4px",letterSpacing:0.5}}>
+                                    ⚠ OT RISK
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Day cells */}
+                              {DAYS.map(d=>{
+                                const shifts = (SCHED[d]||[]).filter(s=>s.eId===e.id);
+                                const isToday = d===todayDay;
+                                const cellKey = d+"-"+e.id;
+                                const isSel = selectedCell===cellKey;
+                                return(
+                                  <div key={d}
+                                    style={{borderLeft:"1px solid "+O.border,
+                                      padding:"4px",minHeight:52,
+                                      background:isToday?"rgba(245,158,11,0.03)":"transparent",
+                                      position:"relative",cursor:"pointer"}}
+                                    onClick={()=>setSelectedCell(isSel?null:cellKey)}>
+
+                                    {shifts.length===0?(
+                                      <div style={{width:"100%",height:"100%",
+                                        minHeight:44,display:"flex",alignItems:"center",
+                                        justifyContent:"center",
+                                        opacity:0.25,
+                                        transition:"opacity 0.15s"}}
+                                        onMouseEnter={ev=>ev.currentTarget.style.opacity="0.7"}
+                                        onMouseLeave={ev=>ev.currentTarget.style.opacity="0.25"}>
+                                        <span style={{fontFamily:O.mono,fontSize:14,
+                                          color:O.textF}}>+</span>
+                                      </div>
+                                    ):(
+                                      shifts.map((s,si)=>{
+                                        const isConflict = (s.e-s.s)>9;
+                                        const bl = isConflict?O.red:schedStatus==="published"?O.green:O.amber;
+                                        return(
+                                          <div key={si}
+                                            style={{background:e.color+"22",
+                                              border:"1px solid "+e.color+"55",
+                                              borderLeft:"2.5px solid "+bl,
+                                              borderRadius:4,padding:"3px 5px",
+                                              marginBottom:si<shifts.length-1?3:0}}>
+                                            <div style={{fontFamily:O.mono,fontSize:8,
+                                              color:e.color,fontWeight:600,whiteSpace:"nowrap"}}>
+                                              {fH(s.s)}–{fH(s.e)}
+                                            </div>
+                                            <div style={{fontFamily:O.mono,fontSize:6,
+                                              color:O.textF}}>
+                                              {s.e-s.s}h
+                                              {schedStatus==="published"?" ✓":""}
+                                            </div>
+                                          </div>
+                                        );
+                                      })
+                                    )}
+
+                                    {/* Inline editor */}
+                                    {isSel&&(
+                                      <div style={{position:"absolute",top:"100%",left:0,
+                                        zIndex:20,background:"#1a2236",
+                                        border:"1px solid "+cyan,borderRadius:8,
+                                        padding:"10px",width:160,
+                                        boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                                        <div style={{fontFamily:O.mono,fontSize:7,
+                                          color:cyan,letterSpacing:1,marginBottom:6}}>
+                                          {shifts.length>0?"EDIT SHIFT":"ADD SHIFT"}
+                                        </div>
+                                        {SHIFT_TEMPLATES.slice(0,3).map(t=>(
+                                          <div key={t.name}
+                                            onClick={ev=>{ev.stopPropagation();setSelectedCell(null);}}
+                                            style={{fontFamily:O.mono,fontSize:8,
+                                              color:t.color,padding:"4px 6px",
+                                              background:t.color+"15",
+                                              borderRadius:4,marginBottom:3,
+                                              cursor:"pointer",letterSpacing:0.5}}>
+                                            {t.name} {fH(t.s)}–{fH(t.e)}
+                                          </div>
+                                        ))}
+                                        {shifts.length>0&&(
+                                          <div style={{fontFamily:O.mono,fontSize:7,
+                                            color:O.red,padding:"4px 6px",
+                                            background:"rgba(239,68,68,0.1)",
+                                            borderRadius:4,cursor:"pointer",
+                                            textAlign:"center",marginTop:4,letterSpacing:0.5}}
+                                            onClick={ev=>ev.stopPropagation()}>
+                                            ✕ REMOVE SHIFT
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+
+                              {/* Weekly summary cell */}
+                              <div style={{borderLeft:"1px solid "+O.border,
+                                padding:"6px 4px",display:"flex",
+                                flexDirection:"column",gap:3,justifyContent:"center",
+                                alignItems:"center"}}>
+                                <div style={{fontFamily:O.sans,fontWeight:700,
+                                  fontSize:13,color:hrColor}}>{wkHrs}h</div>
+                                <div style={{fontFamily:O.mono,fontSize:7,
+                                  color:O.amber}}>${wkCost}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Totals row */}
+                        <div style={{display:"grid",
+                          gridTemplateColumns:"130px repeat(7,1fr) 80px",
+                          borderTop:"2px solid "+cyan+"40",background:O.bg3,
+                          borderRadius:"0 0 6px 6px"}}>
+                          <div style={{padding:"8px 10px",
+                            fontFamily:O.mono,fontSize:8,color:cyan,letterSpacing:1}}>
+                            TOTALS
+                          </div>
+                          {DAYS.map(d=>(
+                            <div key={d} style={{borderLeft:"1px solid "+O.border,
+                              padding:"8px 4px",textAlign:"center"}}>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                {(SCHED[d]||[]).length} shifts
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,
+                                color:O.amber,fontWeight:600}}>
+                                ${dayCost(d).toFixed(0)}
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{borderLeft:"1px solid "+O.border,
+                            padding:"8px 4px",textAlign:"center"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,
+                              fontSize:14,color:O.green}}>${weekCost.toFixed(0)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 3 + 4: HEATMAP + SUMMARY ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 3: Coverage Heatmap */}
+                    <Card>
+                      <SL text="Coverage Heatmap — Staffing by Hour" color={cyan}/>
+                      <div style={{overflowX:"auto"}}>
+                        <div style={{minWidth:360}}>
+                          {/* Day headers */}
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"36px repeat(7,1fr)",
+                            marginBottom:2}}>
+                            <div/>
+                            {DAYS.map(d=>(
+                              <div key={d} style={{fontFamily:O.mono,fontSize:7,
+                                color:d===todayDay?O.amber:O.textF,
+                                textAlign:"center",letterSpacing:0.5}}>
+                                {d.slice(0,2).toUpperCase()}
+                              </div>
+                            ))}
+                          </div>
+                          {/* Hour rows */}
+                          {HOURS.map(hr=>(
+                            <div key={hr} style={{display:"grid",
+                              gridTemplateColumns:"36px repeat(7,1fr)",
+                              marginBottom:2}}>
+                              <div style={{fontFamily:O.mono,fontSize:7,
+                                color:O.textF,paddingTop:2}}>
+                                {fH(hr)}
+                              </div>
+                              {DAYS.map(d=>{
+                                const cnt = coverageAt(d,hr);
+                                const bg = cnt===0?"rgba(239,68,68,0.12)":
+                                  cnt===1?"rgba(239,68,68,0.35)":
+                                  cnt===2?"rgba(245,158,11,0.45)":
+                                  "rgba(16,185,129,0.5)";
+                                const tc = cnt===0?"rgba(239,68,68,0.4)":
+                                  cnt===1?O.red:cnt===2?O.amber:O.green;
+                                return(
+                                  <div key={d} style={{background:bg,
+                                    borderRadius:3,margin:"0 1px",
+                                    height:14,display:"flex",
+                                    alignItems:"center",justifyContent:"center"}}>
+                                    {cnt>0&&(
+                                      <span style={{fontFamily:O.mono,fontSize:7,
+                                        color:tc,fontWeight:600}}>{cnt}</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                          {/* Legend */}
+                          <div style={{display:"flex",gap:10,marginTop:6,flexWrap:"wrap"}}>
+                            {[[O.red,"1 staff"],["rgba(245,158,11,0.8)","2 staff"],[O.green,"3+ staff"],["rgba(239,68,68,0.3)","No coverage"]].map(([c,l])=>(
+                              <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
+                                <div style={{width:10,height:10,borderRadius:2,background:c}}/>
+                                <span style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>{l}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Insights */}
+                      <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:5}}>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.green,
+                          background:"rgba(16,185,129,0.06)",borderRadius:5,padding:"5px 8px"}}>
+                          ✓ Busiest: Friday 12pm–2pm — 3 staff
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,
+                          background:"rgba(245,158,11,0.06)",borderRadius:5,padding:"5px 8px"}}>
+                          ⚠ Understaffed: Mon 7–9am · Wed 3–5pm
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:cyan,
+                          background:cyanD,borderRadius:5,padding:"5px 8px"}}>
+                          💡 Add 1 staff Wed afternoon to meet minimum
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* ZONE 4: Schedule Summary */}
+                    <Card>
+                      <SL text="Schedule Summary + Cost Breakdown" color={cyan}/>
+
+                      {/* Summary cards */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",
+                        gap:7,marginBottom:14}}>
+                        {[
+                          {l:"Scheduled Hrs",v:totalSchedHrs+"h",c:cyan},
+                          {l:"Est. Labor Cost",v:"$"+weekCost.toFixed(0),c:O.amber},
+                          {l:"OT Hours",v:totalOTHrs+"h",c:totalOTHrs>0?O.red:O.green},
+                          {l:"Unscheduled",v:unscheduled,c:unscheduled>0?O.red:O.green},
+                          {l:"Total Shifts",v:totalShifts,c:cyan},
+                          {l:"Coverage",v:Math.round((totalSchedHrs/160)*100)+"%",c:O.green},
+                        ].map(s=>(
+                          <div key={s.l} style={{background:O.bg3,borderRadius:7,
+                            padding:"9px 8px",textAlign:"center"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,
+                              fontSize:16,color:s.c,lineHeight:1,marginBottom:3}}>{s.v}</div>
+                            <div style={{fontFamily:O.mono,fontSize:7,
+                              color:O.textF,letterSpacing:1,textTransform:"uppercase"}}>{s.l}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Daily cost bars */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2px",marginBottom:8}}>DAILY LABOR COST</div>
+                      <div style={{display:"flex",alignItems:"flex-end",
+                        gap:5,height:50,marginBottom:12}}>
+                        {DAYS.map((d,i)=>{
+                          const cost = dayCost(d);
+                          const h = Math.round((cost/maxDayCost)*100);
+                          const isToday = d===todayDay;
+                          const isWknd = i>=5;
+                          return(
+                            <div key={d} style={{flex:1,display:"flex",
+                              flexDirection:"column",alignItems:"center",gap:2,
+                              height:"100%",justifyContent:"flex-end"}}>
+                              <div style={{fontFamily:O.mono,fontSize:7,
+                                color:isToday?O.amber:O.textF}}>${cost.toFixed(0)}</div>
+                              <div style={{width:"100%",height:Math.max(4,h)+"%",
+                                background:isToday?O.amber:isWknd?"rgba(6,182,212,0.35)":cyanD,
+                                borderRadius:"3px 3px 0 0",
+                                border:"1px solid "+(isToday?O.amber:cyan+"40"),
+                                boxShadow:isToday?"0 0 8px rgba(245,158,11,0.3)":"none"}}/>
+                              <span style={{fontFamily:O.mono,fontSize:7,
+                                color:isToday?O.amber:O.textF}}>{d.slice(0,2)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Per-employee summary */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2px",marginBottom:8}}>EMPLOYEE HOURS</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {EMPS.map(e=>{
+                          const wh = empWeekHrs(e.id);
+                          const pct = Math.min(100,Math.round((wh/40)*100));
+                          const hc = wh>=40?O.red:wh>=36?O.amber:O.green;
+                          return(
+                            <div key={e.id} style={{display:"flex",
+                              alignItems:"center",gap:8}}>
+                              <Av emp={e} size={18} dark/>
+                              <span style={{fontFamily:O.mono,fontSize:8,
+                                color:O.textD,width:50,flexShrink:0}}>
+                                {e.name.split(" ")[0]}
+                              </span>
+                              <div style={{flex:1,height:5,
+                                background:"rgba(255,255,255,0.06)",borderRadius:3}}>
+                                <div style={{height:"100%",width:pct+"%",
+                                  background:hc,borderRadius:3,transition:"width 0.8s"}}/>
+                              </div>
+                              <span style={{fontFamily:O.mono,fontSize:8,
+                                color:hc,width:28,textAlign:"right",fontWeight:600}}>
+                                {wh}h
+                              </span>
+                              {otRisk(e.id)&&(
+                                <div style={{fontFamily:O.mono,fontSize:6,
+                                  color:O.red,background:"rgba(239,68,68,0.1)",
+                                  border:"1px solid rgba(239,68,68,0.2)",
+                                  borderRadius:3,padding:"1px 4px",letterSpacing:0.5}}>
+                                  OT
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 5: SHIFT TEMPLATES + QUICK ASSIGN ── */}
+                  <Card style={{marginBottom:12}}>
+                    <SL text="Shift Templates + Quick Assign" color={cyan}/>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+
+                      {/* Templates */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>SAVED TEMPLATES</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+                          {SHIFT_TEMPLATES.map(t=>{
+                            const hrs = t.e-t.s;
+                            const avgCostPerHr = (EMPS.reduce((s,e)=>s+e.rate,0)/EMPS.length);
+                            return(
+                              <div key={t.name}
+                                style={{display:"flex",alignItems:"center",gap:10,
+                                  padding:"9px 12px",background:O.bg3,borderRadius:7,
+                                  border:"1px solid "+t.color+"25",cursor:"pointer",
+                                  transition:"all 0.15s"}}
+                                onMouseEnter={ev=>ev.currentTarget.style.borderColor=t.color+"60"}
+                                onMouseLeave={ev=>ev.currentTarget.style.borderColor=t.color+"25"}>
+                                <div style={{width:4,height:36,borderRadius:2,
+                                  background:t.color,flexShrink:0}}/>
+                                <div style={{flex:1}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:12,color:"#fff",marginBottom:2}}>
+                                    {t.name} Shift
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                    {fH(t.s)} – {fH(t.e)} · {hrs}h · ~${(hrs*avgCostPerHr).toFixed(0)}/avg
+                                  </div>
+                                </div>
+                                <button style={{fontFamily:O.mono,fontSize:7,
+                                  letterSpacing:1,padding:"4px 10px",
+                                  background:t.color+"18",
+                                  border:"1px solid "+t.color+"35",
+                                  borderRadius:4,color:t.color,cursor:"pointer"}}>
+                                  ASSIGN
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          padding:"6px 12px",background:cyanD,
+                          border:"1px solid "+cyanB,borderRadius:5,
+                          color:cyan,cursor:"pointer"}}>
+                          + Save Current as Template
+                        </button>
+                      </div>
+
+                      {/* Quick Assign + Repeat Patterns */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>QUICK ASSIGN</div>
+                        <div style={{background:O.bg3,borderRadius:8,padding:"12px",marginBottom:12}}>
+                          {/* Employee select */}
+                          <div style={{marginBottom:8}}>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                              letterSpacing:1,marginBottom:4}}>EMPLOYEE</div>
+                            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                              {EMPS.map(e=>(
+                                <div key={e.id} style={{display:"flex",alignItems:"center",
+                                  gap:4,padding:"3px 8px",background:O.bg2,
+                                  borderRadius:5,border:"1px solid "+O.border,
+                                  cursor:"pointer",transition:"all 0.15s"}}
+                                  onMouseEnter={ev=>ev.currentTarget.style.borderColor=e.color+"50"}
+                                  onMouseLeave={ev=>ev.currentTarget.style.borderColor=O.border}>
+                                  <Av emp={e} size={14} dark/>
+                                  <span style={{fontFamily:O.mono,fontSize:7,
+                                    color:O.textD}}>{e.name.split(" ")[0]}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Day select */}
+                          <div style={{marginBottom:8}}>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                              letterSpacing:1,marginBottom:4}}>DAYS</div>
+                            <div style={{display:"flex",gap:4}}>
+                              {DAYS.map(d=>(
+                                <div key={d} style={{fontFamily:O.mono,fontSize:8,
+                                  color:O.textD,padding:"3px 6px",
+                                  background:O.bg2,borderRadius:4,
+                                  border:"1px solid "+O.border,cursor:"pointer",
+                                  transition:"all 0.15s"}}
+                                  onMouseEnter={ev=>ev.currentTarget.style.borderColor=cyan+"50"}
+                                  onMouseLeave={ev=>ev.currentTarget.style.borderColor=O.border}>
+                                  {d.slice(0,1)}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Template select */}
+                          <div style={{marginBottom:10}}>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                              letterSpacing:1,marginBottom:4}}>SHIFT TEMPLATE</div>
+                            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                              {SHIFT_TEMPLATES.map(t=>(
+                                <div key={t.name} style={{fontFamily:O.mono,fontSize:7,
+                                  color:t.color,padding:"3px 8px",
+                                  background:t.color+"12",
+                                  border:"1px solid "+t.color+"30",
+                                  borderRadius:4,cursor:"pointer"}}>
+                                  {t.name}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <button style={{width:"100%",fontFamily:O.mono,fontSize:8,
+                            letterSpacing:1,padding:"8px",background:O.green,
+                            border:"none",borderRadius:6,color:"#030c14",
+                            cursor:"pointer",fontWeight:700}}>
+                            + ASSIGN SHIFT
+                          </button>
+                        </div>
+
+                        {/* Repeat patterns */}
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:7}}>REPEAT PATTERNS</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                          {[
+                            {icon:"📋",l:"Apply Last Week's Pattern",c:"rgba(255,255,255,0.05)"},
+                            {icon:"📅",l:"Apply Template Week",c:"rgba(255,255,255,0.05)"},
+                            {icon:"🔄",l:"Rotate Team A/B",c:"rgba(6,182,212,0.06)"},
+                          ].map(p=>(
+                            <button key={p.l}
+                              style={{display:"flex",alignItems:"center",gap:8,
+                                padding:"8px 10px",background:p.c,
+                                border:"1px solid "+O.border,borderRadius:6,
+                                cursor:"pointer",transition:"all 0.15s",textAlign:"left"}}
+                              onMouseEnter={ev=>ev.currentTarget.style.borderColor=cyan+"40"}
+                              onMouseLeave={ev=>ev.currentTarget.style.borderColor=O.border}>
+                              <span style={{fontSize:14}}>{p.icon}</span>
+                              <span style={{fontFamily:O.mono,fontSize:8,
+                                color:O.textD,letterSpacing:0.5}}>{p.l}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 6 + 7: OPEN SHIFTS + DISTRIBUTION ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+
+                    {/* ZONE 6: Open Shifts + Requests */}
+                    <Card>
+                      <SL text="Open Shifts + Requests" color={O.amber}/>
+
+                      {/* Open shifts */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.amber,
+                          letterSpacing:"2px",marginBottom:7}}>OPEN SHIFTS</div>
+                        {[
+                          {day:"Wed",time:"3pm–11pm",role:"Floor Associate",loc:"Portland"},
+                          {day:"Sat",time:"7am–3pm",role:"Stock Clerk",loc:"Los Angeles"},
+                        ].map((os,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",
+                            gap:10,padding:"9px 10px",background:O.bg3,
+                            borderRadius:7,marginBottom:6,
+                            border:"1px solid rgba(245,158,11,0.2)",
+                            borderLeft:"3px solid "+O.amber}}>
+                            <div style={{flex:1}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:12,color:"#fff",marginBottom:2}}>
+                                {os.day} · {os.time}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                {os.role} · {os.loc}
+                              </div>
+                            </div>
+                            <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                              padding:"4px 8px",background:"rgba(245,158,11,0.1)",
+                              border:"1px solid rgba(245,158,11,0.25)",borderRadius:4,
+                              color:O.amber,cursor:"pointer",whiteSpace:"nowrap"}}>
+                              POST TO TEAM
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Swap requests */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:cyan,
+                          letterSpacing:"2px",marginBottom:7}}>
+                          SWAP REQUESTS ({SWAPS.filter(s=>s.status==="pending").length} PENDING)
+                        </div>
+                        {SWAPS.map(swap=>(
+                          <div key={swap.id}
+                            style={{padding:"9px 10px",background:O.bg3,
+                              borderRadius:7,marginBottom:6,
+                              border:"1px solid "+(swap.status==="pending"?cyanB:swap.status==="approved"?"rgba(16,185,129,0.2)":"rgba(239,68,68,0.2)"),
+                              borderLeft:"3px solid "+(swap.status==="pending"?cyan:swap.status==="approved"?O.green:O.red)}}>
+                            <div style={{display:"flex",justifyContent:"space-between",
+                              alignItems:"flex-start",marginBottom:5}}>
+                              <div>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:11,color:"#fff",marginBottom:1}}>
+                                  {swap.from} → {swap.to}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                  {swap.day} · {swap.shift} · {swap.sub}
+                                </div>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,
+                                color:swap.status==="pending"?O.amber:swap.status==="approved"?O.green:O.red,
+                                background:(swap.status==="pending"?"rgba(245,158,11,0.1)":swap.status==="approved"?"rgba(16,185,129,0.1)":"rgba(239,68,68,0.1)"),
+                                border:"1px solid "+(swap.status==="pending"?"rgba(245,158,11,0.25)":swap.status==="approved"?"rgba(16,185,129,0.25)":"rgba(239,68,68,0.25)"),
+                                borderRadius:4,padding:"2px 7px",letterSpacing:0.5}}>
+                                {swap.status.toUpperCase()}
+                              </div>
+                            </div>
+                            {swap.status==="pending"&&(
+                              <div style={{display:"flex",gap:6}}>
+                                <button style={{flex:1,fontFamily:O.mono,fontSize:7,
+                                  letterSpacing:1,padding:"4px",
+                                  background:"rgba(16,185,129,0.1)",
+                                  border:"1px solid rgba(16,185,129,0.25)",
+                                  borderRadius:4,color:O.green,cursor:"pointer"}}>
+                                  ✓ APPROVE
+                                </button>
+                                <button style={{flex:1,fontFamily:O.mono,fontSize:7,
+                                  letterSpacing:1,padding:"4px",
+                                  background:"rgba(239,68,68,0.08)",
+                                  border:"1px solid rgba(239,68,68,0.2)",
+                                  borderRadius:4,color:O.red,cursor:"pointer"}}>
+                                  ✕ DENY
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Time-off */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:"#a855f7",
+                          letterSpacing:"2px",marginBottom:7}}>TIME-OFF REQUESTS</div>
+                        <div style={{background:O.bg3,borderRadius:7,padding:"10px 12px",
+                          border:"1px solid rgba(168,85,247,0.2)"}}>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
+                            marginBottom:6}}>No pending time-off requests</div>
+                          <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"4px 10px",background:"rgba(168,85,247,0.08)",
+                            border:"1px solid rgba(168,85,247,0.2)",borderRadius:4,
+                            color:"#a855f7",cursor:"pointer"}}>
+                            + Block Date for Employee
+                          </button>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* ZONE 7: Distribution Center */}
+                    <Card>
+                      <SL text={"Distribution Center — Week of "+schedWeek} color={O.green}/>
+
+                      {/* Delivery channels */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2px",marginBottom:7}}>DELIVERY CHANNELS</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+                        {[
+                          {icon:"📱",l:"Push Notification",sub:"Instant · 2 devices active",k:"push"},
+                          {icon:"💬",l:"SMS Text",sub:"Summary to each employee's phone",k:"sms"},
+                          {icon:"📧",l:"Email",sub:"Formatted PDF schedule · owner@co.com",k:"email"},
+                          {icon:"🖥️",l:"In-App (Employee Portal)",sub:"Always on — no config needed",k:null},
+                        ].map((ch,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",
+                            gap:9,padding:"8px 10px",background:O.bg3,borderRadius:7,
+                            border:"1px solid "+O.border}}>
+                            <span style={{fontSize:16,flexShrink:0}}>{ch.icon}</span>
+                            <div style={{flex:1}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff",marginBottom:1}}>{ch.l}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                {ch.sub}
+                              </div>
+                            </div>
+                            {ch.k?(
+                              <Toggle on={true} onToggle={()=>{}}/>
+                            ):(
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.green,
+                                background:"rgba(16,185,129,0.1)",
+                                border:"1px solid rgba(16,185,129,0.2)",
+                                borderRadius:3,padding:"2px 6px",letterSpacing:0.5}}>
+                                ALWAYS ON
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Preview */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:7}}>NOTIFICATION PREVIEW</div>
+                        <div style={{background:"#1a2236",borderRadius:8,padding:"12px",
+                          border:"1px solid "+O.border,fontFamily:O.mono,fontSize:9,
+                          color:O.textD,lineHeight:1.9}}>
+                          <div style={{color:O.green,fontWeight:600,marginBottom:4}}>
+                            📅 Your schedule for {schedWeek}:
+                          </div>
+                          <div>Mon 24: 8:00 AM – 4:00 PM (8h)</div>
+                          <div>Wed 26: 9:00 AM – 5:00 PM (8h)</div>
+                          <div>Fri 28: 8:00 AM – 4:00 PM (8h)</div>
+                          <div style={{color:O.amber,marginTop:4}}>Total: 24h this week</div>
+                          <div style={{color:cyan,marginTop:4}}>
+                            Reply CONFIRM to accept ✓
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Confirmation tracker */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:7}}>CONFIRMATION TRACKER</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                          {confirmStatus.map(({e,status})=>(
+                            <div key={e.id} style={{display:"flex",alignItems:"center",
+                              gap:8,padding:"6px 8px",background:O.bg3,borderRadius:6}}>
+                              <Av emp={e} size={20} dark/>
+                              <span style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff",flex:1}}>
+                                {e.name.split(" ")[0]}
+                              </span>
+                              <div style={{fontFamily:O.mono,fontSize:7,
+                                color:status==="confirmed"?O.green:status==="sent"?O.amber:"rgba(255,255,255,0.25)",
+                                letterSpacing:0.5}}>
+                                {status==="confirmed"?"✅ Confirmed":status==="sent"?"🟡 Awaiting":"⚪ Not sent"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                        <button onClick={()=>{setSchedStatus("published");setSchedPublished(true);}}
+                          style={{fontFamily:O.mono,fontSize:9,letterSpacing:1,
+                            padding:"11px",
+                            background:schedPublished?"rgba(16,185,129,0.15)":O.green,
+                            border:"1px solid "+(schedPublished?"rgba(16,185,129,0.3)":"transparent"),
+                            borderRadius:8,
+                            color:schedPublished?O.green:"#030c14",
+                            cursor:"pointer",fontWeight:700,
+                            boxShadow:schedPublished?"none":"0 0 20px rgba(16,185,129,0.4)"}}>
+                          {schedPublished?"✓ Schedule Published + Sent":"📤 Publish + Send to All"}
+                        </button>
+                        <div style={{display:"flex",gap:7}}>
+                          <button style={{flex:1,fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                            padding:"7px",background:"rgba(6,182,212,0.08)",
+                            border:"1px solid "+cyanB,borderRadius:6,
+                            color:cyan,cursor:"pointer"}}>
+                            🔄 Resend to Unconfirmed
+                          </button>
+                          <button style={{flex:1,fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                            padding:"7px",background:"rgba(255,255,255,0.04)",
+                            border:"1px solid "+O.border,borderRadius:6,
+                            color:O.textD,cursor:"pointer"}}>
+                            📊 Download PDF
+                          </button>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── REQUESTS ── */}
+
+                {/* ── REQUESTS ── */}
         {tab==="requests" && (
           <div style={{animation:"fadeUp 0.3s ease",display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <div>
