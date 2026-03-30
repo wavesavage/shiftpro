@@ -847,6 +847,10 @@ function OwnerCmd({onLogout}){
   const [expandedEmp,setExpandedEmp] = useState(null);
   const [resolvedDisc,setResolvedDisc] = useState({});
   const [locEditMode,setLocEditMode] = useState(false);
+  const [staffSearch,setStaffSearch] = useState("");
+  const [staffView,setStaffView] = useState("table");
+  const [staffSort,setStaffSort] = useState("value");
+  const [staffFilter,setStaffFilter] = useState("all");
   const [benchPeriod,setBenchPeriod] = useState("month");
   const [benchIndustry,setBenchIndustry] = useState("retail");
   const [alertFilter,setAlertFilter] = useState("all");
@@ -7493,44 +7497,865 @@ function OwnerCmd({onLogout}){
         )}
 
 
-                {tab==="staff" && (
+                                {tab==="staff" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>STAFF REGISTRY — {EMPS.length} EMPLOYEES</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
-              {EMPS.map(e => (
-                <div key={e.id} onClick={()=>goProfile(e.id)}
-                  style={{background:O.bg2,border:`1px solid ${rC(e.risk)}18`,borderRadius:10,padding:"16px",cursor:"pointer",transition:"all 0.2s"}}
-                  onMouseEnter={ev=>{ev.currentTarget.style.borderColor=rC(e.risk)+"50";ev.currentTarget.style.transform="translateY(-2px)";}}
-                  onMouseLeave={ev=>{ev.currentTarget.style.borderColor=rC(e.risk)+"18";ev.currentTarget.style.transform="none";}}>
-                  <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12}}>
-                    <Av emp={e} size={42} dark/>
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{e.name}</div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginBottom:5}}>{e.role} · {e.dept}</div>
-                      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                        <OBadge label={e.status} color={e.status==="active"?O.green:e.status==="break"?O.amber:O.textD} sm/>
-                        <OBadge label={`${e.risk} Risk`} color={rC(e.risk)} sm/>
-                        {e.ghost>3 && <OBadge label={`${e.ghost}h ghost`} color={O.red} sm/>}
+            {(()=>{
+              const violet  = "#8b5cf6";
+              const violetD = "rgba(139,92,246,0.08)";
+              const violetB = "rgba(139,92,246,0.22)";
+
+              const valueScore = (e) => Math.min(100,Math.max(0,Math.round(
+                (e.rel+e.prod+e.cam+Math.round((1-(e.ghost/Math.max(e.wkHrs,1)))*100))/4
+                -(e.ghost*5)-(e.flags*8)
+              )));
+              const aiSummary = (e) => {
+                if(e.risk==="Low"&&e.streak>7) return "Top performer. "+e.streak+"-day streak. No concerns.";
+                if(e.ghost>3) return "Ghost hour concern flagged. "+e.flags+" active flag"+(e.flags!==1?"s":"+")+". Review recommended.";
+                if(e.risk==="Medium") return "Solid performer with watchlist items. Monitor weekly.";
+                return "Performing within acceptable range. No immediate action required.";
+              };
+              const empLocation = (e) => e.id<=2?"Portland":e.id<=4?"Los Angeles":"Seattle";
+              const locColor2 = (loc) => loc==="Portland"?"#0ea5e9":loc==="Los Angeles"?"#f59e0b":"#10b981";
+              const deptColor = (dept) => ({"Front End":"#6366f1","Floor":"#0ea5e9","Stock":"#f59e0b","Security":"#ef4444","Back of House":"#10b981"})[dept]||"#666";
+
+              const filteredStaff = EMPS.filter(e=>{
+                const ms = staffSearch===""||
+                  e.name.toLowerCase().includes(staffSearch.toLowerCase())||
+                  e.role.toLowerCase().includes(staffSearch.toLowerCase())||
+                  e.dept.toLowerCase().includes(staffSearch.toLowerCase());
+                const mf = staffFilter==="all"||
+                  e.risk.toLowerCase()===staffFilter||
+                  e.status===staffFilter;
+                return ms&&mf;
+              }).sort((a,b)=>{
+                if(staffSort==="value") return valueScore(b)-valueScore(a);
+                if(staffSort==="reliability") return b.rel-a.rel;
+                if(staffSort==="risk") return ({High:0,Medium:1,Low:2})[a.risk]-({High:0,Medium:1,Low:2})[b.risk];
+                if(staffSort==="cost") return (b.wkHrs*b.rate)-(a.wkHrs*a.rate);
+                return a.name.localeCompare(b.name);
+              });
+
+              const avgRel  = Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length);
+              const avgProd = Math.round(EMPS.reduce((s,e)=>s+e.prod,0)/EMPS.length);
+              const totalWkCost = EMPS.reduce((s,e)=>s+(e.wkHrs*e.rate),0).toFixed(0);
+              const avgRate = (EMPS.reduce((s,e)=>s+e.rate,0)/EMPS.length).toFixed(2);
+              const totalWkHrs = EMPS.reduce((s,e)=>s+e.wkHrs,0);
+              const teamHealthScore = Math.round(EMPS.reduce((s,e)=>s+valueScore(e),0)/EMPS.length);
+              const healthColor = teamHealthScore>=75?O.green:teamHealthScore>=55?O.amber:O.red;
+              const highRisk  = EMPS.filter(e=>e.risk==="High").length;
+              const medRisk   = EMPS.filter(e=>e.risk==="Medium").length;
+              const lowRisk   = EMPS.filter(e=>e.risk==="Low").length;
+              const activeNow = EMPS.filter(e=>e.status==="active").length;
+
+              // Dept breakdown for donut
+              const depts = [...new Set(EMPS.map(e=>e.dept))];
+              const deptCounts = depts.map(d=>({d,n:EMPS.filter(e=>e.dept===d).length,c:deptColor(d)}));
+              const totalDepts = EMPS.length;
+              let cumAngle2 = -Math.PI/2;
+              const donutSlices = deptCounts.map(ds=>{
+                const angle = (ds.n/totalDepts)*Math.PI*2;
+                const x1 = 70+55*Math.cos(cumAngle2);
+                const y1 = 70+55*Math.sin(cumAngle2);
+                cumAngle2 += angle;
+                const x2 = 70+55*Math.cos(cumAngle2);
+                const y2 = 70+55*Math.sin(cumAngle2);
+                const large = angle>Math.PI?1:0;
+                return {...ds,d2:"M 70 70 L "+x1.toFixed(1)+" "+y1.toFixed(1)+" A 55 55 0 "+large+" 1 "+x2.toFixed(1)+" "+y2.toFixed(1)+" Z"};
+              });
+
+              // Score distribution buckets
+              const scoreBuckets = [
+                {range:"0–39",n:EMPS.filter(e=>valueScore(e)<40).length},
+                {range:"40–59",n:EMPS.filter(e=>valueScore(e)>=40&&valueScore(e)<60).length},
+                {range:"60–74",n:EMPS.filter(e=>valueScore(e)>=60&&valueScore(e)<75).length},
+                {range:"75–89",n:EMPS.filter(e=>valueScore(e)>=75&&valueScore(e)<90).length},
+                {range:"90+",n:EMPS.filter(e=>valueScore(e)>=90).length},
+              ];
+              const maxBucket = Math.max(...scoreBuckets.map(b=>b.n),1);
+
+              const certs = ["Food Handler","First Aid","Forklift","Manager","Cash Hdlg"];
+              const certMatrix = EMPS.map(e=>({
+                e,
+                certs:[
+                  e.rel>80,
+                  e.streak>5,
+                  e.dept==="Stock",
+                  e.risk==="Low"&&e.flags===0,
+                  e.prod>80,
+                ]
+              }));
+
+              const hrNotes = [
+                {eId:3,date:"Mar 26",cat:"Warning",note:"Ghost hour pattern — 3rd occurrence",c:O.red},
+                {eId:5,date:"Mar 24",cat:"Warning",note:"Repeated late arrivals Mon/Wed",c:O.red},
+                {eId:1,date:"Mar 20",cat:"Commendation",note:"12-day perfect attendance streak",c:O.green},
+                {eId:2,date:"Mar 18",cat:"Attendance",note:"Shift swap pattern — 2 in 2 weeks",c:O.amber},
+              ];
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
+                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
+                </div>
+              );
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: WORKFORCE HEADER ── */}
+                  <div style={{background:violetD,border:"1px solid "+violetB,
+                    borderRadius:12,padding:"16px 20px",marginBottom:12,
+                    boxShadow:"0 0 30px rgba(139,92,246,0.06)"}}>
+                    <div style={{display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap",marginBottom:12}}>
+
+                      {/* Health gauge */}
+                      <div style={{flexShrink:0,textAlign:"center"}}>
+                        <div style={{position:"relative",width:72,height:72,margin:"0 auto 6px"}}>
+                          <svg width="72" height="72" viewBox="0 0 72 72">
+                            <circle cx="36" cy="36" r="30" fill="none"
+                              stroke="rgba(255,255,255,0.06)" strokeWidth="6"/>
+                            <circle cx="36" cy="36" r="30" fill="none"
+                              stroke={healthColor} strokeWidth="6"
+                              strokeDasharray={2*Math.PI*30}
+                              strokeDashoffset={2*Math.PI*30*(1-teamHealthScore/100)}
+                              strokeLinecap="round"
+                              transform="rotate(-90 36 36)"/>
+                          </svg>
+                          <div style={{position:"absolute",inset:0,display:"flex",
+                            flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:900,fontSize:18,
+                              color:healthColor,lineHeight:1}}>{teamHealthScore}</div>
+                          </div>
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:1}}>
+                          TEAM HEALTH
+                        </div>
+                      </div>
+
+                      <div style={{flex:1,minWidth:200}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:violet,
+                          letterSpacing:"2px",marginBottom:4}}>WORKFORCE COMMAND</div>
+                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,
+                          color:"#fff",marginBottom:8}}>
+                          {EMPS.length} Employees · {activeNow} Active Now
+                        </div>
+                        {/* Quick stats */}
+                        <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+                          {[
+                            {l:"Avg Reliability",v:avgRel+"%",c:O.green},
+                            {l:"Avg Productivity",v:avgProd+"%",c:O.green},
+                            {l:"Total Wk Cost",v:"$"+totalWkCost,c:O.amber},
+                            {l:"Ghost Hours",v:totalGhost.toFixed(1)+"h",c:totalGhost>5?O.red:O.amber},
+                          ].map(s=>(
+                            <div key={s.l}>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:1,marginBottom:2}}>
+                                {s.l.toUpperCase()}
+                              </div>
+                              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:s.c}}>
+                                {s.v}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Risk pills + actions */}
+                      <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {[{l:"HIGH",v:highRisk,c:O.red},{l:"MEDIUM",v:medRisk,c:O.amber},{l:"LOW",v:lowRisk,c:O.green}].map(r=>(
+                            <div key={r.l} style={{fontFamily:O.mono,fontSize:8,color:r.c,
+                              background:r.c+"15",border:"1px solid "+r.c+"30",
+                              borderRadius:6,padding:"4px 10px",textAlign:"center"}}>
+                              <div style={{fontWeight:700,fontSize:14,lineHeight:1,marginBottom:2}}>{r.v}</div>
+                              <div style={{fontSize:6,letterSpacing:1}}>{r.l} RISK</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {[
+                            {l:"+ Add Employee",c:violet},
+                            {l:"📋 Export",c:O.textD},
+                            {l:"📧 Message All",c:O.textD},
+                          ].map(b=>(
+                            <button key={b.l} style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                              padding:"5px 10px",background:b.c===violet?violetD:"rgba(255,255,255,0.05)",
+                              border:"1px solid "+(b.c===violet?violetB:O.border),
+                              borderRadius:5,color:b.c,cursor:"pointer"}}>
+                              {b.l}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                    <Ring val={e.rel} size={44}/>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
-                    {[["CAM",`${e.cam}%`,e.cam<80?O.red:O.green],["PROD",`${e.prod}%`,e.prod<70?O.red:O.green],["COST",`$${(e.wkHrs*e.rate).toFixed(0)}`,O.amber]].map(([l,v,c]) => (
-                      <div key={l} style={{background:O.bg3,borderRadius:5,padding:"7px",textAlign:"center"}}>
-                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:1}}>{l}</div>
-                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:c}}>{v}</div>
+
+                  {/* ── ZONE 2: SEARCH + FILTER BAR ── */}
+                  <div style={{background:O.bg2,border:"1px solid "+O.border,
+                    borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+                    <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                      {/* Search */}
+                      <input value={staffSearch}
+                        onChange={e=>setStaffSearch(e.target.value)}
+                        placeholder="Search by name, role, or department..."
+                        style={{flex:1,minWidth:200,padding:"7px 12px",
+                          background:"rgba(255,255,255,0.04)",
+                          border:"1px solid "+O.border,borderRadius:6,
+                          fontFamily:O.mono,fontSize:9,color:"#fff",outline:"none"}}/>
+
+                      {/* Filter pills */}
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                        {["all","active","break","High","Medium","Low"].map(f=>(
+                          <button key={f} onClick={()=>setStaffFilter(f)}
+                            style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                              padding:"4px 9px",borderRadius:4,border:"none",cursor:"pointer",
+                              background:staffFilter===f?violetD:"rgba(255,255,255,0.04)",
+                              color:staffFilter===f?violet:O.textF,textTransform:"uppercase"}}>
+                            {f}
+                          </button>
+                        ))}
                       </div>
-                    ))}
+
+                      {/* Sort */}
+                      <div style={{display:"flex",gap:4}}>
+                        {[["value","VALUE ↓"],["reliability","REL ↓"],["risk","RISK ↑"],["cost","COST ↑"],["name","NAME"]].map(([v,l])=>(
+                          <button key={v} onClick={()=>setStaffSort(v)}
+                            style={{fontFamily:O.mono,fontSize:6,letterSpacing:1,
+                              padding:"4px 7px",borderRadius:4,border:"none",cursor:"pointer",
+                              background:staffSort===v?violetD:"rgba(255,255,255,0.04)",
+                              color:staffSort===v?violet:O.textF}}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* View toggle */}
+                      <div style={{display:"flex",gap:0,background:O.bg3,borderRadius:6,overflow:"hidden"}}>
+                        {[["table","TABLE"],["cards","CARDS"]].map(([v,l])=>(
+                          <button key={v} onClick={()=>setStaffView(v)}
+                            style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                              padding:"5px 10px",border:"none",cursor:"pointer",
+                              background:staffView===v?violetD:"transparent",
+                              color:staffView===v?violet:O.textF}}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* ── ZONE 3: EMPLOYEE ROSTER ── */}
+                  {staffView==="table" ? (
+                    <Card style={{marginBottom:12}}>
+                      <SL text={"Employee Roster — "+filteredStaff.length+" of "+EMPS.length} color={violet}/>
+                      <div style={{overflowX:"auto"}}>
+                        <div style={{minWidth:900}}>
+                          {/* Header */}
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"28px 130px 80px 80px 80px 90px 70px 70px 55px 55px 50px 65px 55px 65px 80px",
+                            padding:"6px 8px",background:O.bg3,
+                            borderRadius:"6px 6px 0 0",gap:4}}>
+                            {["#","EMPLOYEE","ROLE","DEPT","LOCATION","STATUS","REL","PROD","CAM","GHOST","FLAGS","WK COST","VALUE","RISK","ACTION"].map(h=>(
+                              <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                                color:h==="VALUE"?violet:O.textF,letterSpacing:1}}>{h}</div>
+                            ))}
+                          </div>
+
+                          {filteredStaff.map((e,idx)=>{
+                            const vs = valueScore(e);
+                            const vc = vs>=75?O.green:vs>=50?O.amber:O.red;
+                            const loc = empLocation(e);
+                            const lc  = locColor2(loc);
+                            const dc  = deptColor(e.dept);
+                            const stc = e.status==="active"?O.green:e.status==="break"?O.amber:O.textD;
+                            const rowBg = e.risk==="High"?"rgba(239,68,68,0.025)":
+                              vs>=75?"rgba(16,185,129,0.015)":
+                              idx%2===0?"transparent":"rgba(255,255,255,0.01)";
+                            const MiniBar = ({val,c2}) => (
+                              <div style={{height:3,background:"rgba(255,255,255,0.06)",
+                                borderRadius:2,marginTop:2,width:44}}>
+                                <div style={{height:"100%",width:val+"%",
+                                  background:c2,borderRadius:2}}/>
+                              </div>
+                            );
+                            return(
+                              <div key={e.id} style={{display:"grid",
+                                gridTemplateColumns:"28px 130px 80px 80px 80px 90px 70px 70px 55px 55px 50px 65px 55px 65px 80px",
+                                padding:"8px 8px",gap:4,
+                                borderBottom:"1px solid "+O.border,
+                                background:rowBg,alignItems:"center",
+                                transition:"filter 0.15s",cursor:"pointer"}}
+                                onClick={()=>goProfile(e.id)}
+                                onMouseEnter={ev=>ev.currentTarget.style.filter="brightness(1.1)"}
+                                onMouseLeave={ev=>ev.currentTarget.style.filter="none"}>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:O.textF,textAlign:"center"}}>{idx+1}</div>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <Av emp={e} size={22} dark/>
+                                  <div style={{minWidth:0}}>
+                                    <div style={{fontFamily:O.sans,fontWeight:600,
+                                      fontSize:11,color:"#fff",whiteSpace:"nowrap",
+                                      overflow:"hidden",textOverflow:"ellipsis",maxWidth:80}}>
+                                      {e.name}
+                                    </div>
+                                    <div style={{fontFamily:O.mono,fontSize:6,color:O.textF}}>
+                                      {e.hired}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                  {e.role.split(" ")[0]}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:dc,
+                                  background:dc+"18",border:"1px solid "+dc+"30",
+                                  borderRadius:4,padding:"2px 5px",whiteSpace:"nowrap",
+                                  overflow:"hidden",textOverflow:"ellipsis"}}>
+                                  {e.dept}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:lc,
+                                  background:lc+"15",border:"1px solid "+lc+"25",
+                                  borderRadius:4,padding:"2px 5px",whiteSpace:"nowrap"}}>
+                                  {loc}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:stc,
+                                  background:stc+"12",border:"1px solid "+stc+"25",
+                                  borderRadius:4,padding:"2px 5px",letterSpacing:0.5,
+                                  whiteSpace:"nowrap"}}>
+                                  {e.status==="active"?"CLOCKED IN":e.status==="break"?"ON BREAK":"OFF"}
+                                </div>
+                                <div>
+                                  <div style={{fontFamily:O.mono,fontSize:9,fontWeight:600,
+                                    color:e.rel>=80?O.green:e.rel>=60?O.amber:O.red}}>{e.rel}%</div>
+                                  <MiniBar val={e.rel} c2={e.rel>=80?O.green:e.rel>=60?O.amber:O.red}/>
+                                </div>
+                                <div>
+                                  <div style={{fontFamily:O.mono,fontSize:9,fontWeight:600,
+                                    color:e.prod>=80?O.green:e.prod>=60?O.amber:O.red}}>{e.prod}%</div>
+                                  <MiniBar val={e.prod} c2={e.prod>=80?O.green:e.prod>=60?O.amber:O.red}/>
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,
+                                  color:e.cam>=80?O.green:O.amber}}>{e.cam}%</div>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:e.ghost>1?O.red:e.ghost>0?O.amber:O.green,fontWeight:e.ghost>1?600:400}}>
+                                  {e.ghost}h
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:e.flags>0?O.red:O.green}}>
+                                  {e.flags>0?e.flags+" ⚠":"✓"}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:9,color:O.amber}}>
+                                  ${(e.wkHrs*e.rate).toFixed(0)}
+                                </div>
+                                <div style={{fontFamily:O.sans,fontWeight:800,
+                                  fontSize:16,color:vc}}>{vs}</div>
+                                <OBadge label={e.risk} color={rC(e.risk)} sm/>
+                                <button onClick={ev=>{ev.stopPropagation();goProfile(e.id);}}
+                                  style={{fontFamily:O.mono,fontSize:6,letterSpacing:1,
+                                    padding:"4px 7px",background:violetD,
+                                    border:"1px solid "+violetB,borderRadius:4,
+                                    color:violet,cursor:"pointer",whiteSpace:"nowrap"}}>
+                                  PROFILE
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                          {/* Team avg footer */}
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"28px 130px 80px 80px 80px 90px 70px 70px 55px 55px 50px 65px 55px 65px 80px",
+                            padding:"8px 8px",gap:4,
+                            background:O.bg3,borderRadius:"0 0 6px 6px",
+                            borderTop:"2px solid "+violet+"40",alignItems:"center"}}>
+                            <div/>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:violet,letterSpacing:1}}>TEAM AVG</div>
+                            <div/><div/><div/><div/>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.green,fontWeight:600}}>{avgRel}%</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.green,fontWeight:600}}>{avgProd}%</div>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                              {Math.round(EMPS.reduce((s,e)=>s+e.cam,0)/EMPS.length)}%
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber}}>
+                              {(totalGhost/EMPS.length).toFixed(1)}h
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                              {(EMPS.reduce((s,e)=>s+e.flags,0)/EMPS.length).toFixed(1)}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,fontWeight:600}}>
+                              ${(parseFloat(totalWkCost)/EMPS.length).toFixed(0)}
+                            </div>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:violet}}>
+                              {teamHealthScore}
+                            </div>
+                            <div/><div/>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ):(
+                    /* CARD VIEW */
+                    <div style={{display:"grid",
+                      gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",
+                      gap:12,marginBottom:12}}>
+                      {filteredStaff.map(e=>{
+                        const vs = valueScore(e);
+                        const vc = vs>=75?O.green:vs>=50?O.amber:O.red;
+                        const loc = empLocation(e);
+                        const lc  = locColor2(loc);
+                        const rc2  = rC(e.risk);
+                        return(
+                          <div key={e.id}
+                            style={{background:O.bg2,
+                              border:"1px solid "+(e.risk==="High"?O.red+"28":vs>=75?O.green+"20":O.border),
+                              borderRadius:12,padding:"16px",cursor:"pointer",
+                              transition:"all 0.2s",
+                              boxShadow:e.risk==="High"?"0 0 16px rgba(239,68,68,0.07)":""}}
+                            onClick={()=>goProfile(e.id)}
+                            onMouseEnter={ev=>{ev.currentTarget.style.transform="translateY(-2px)";ev.currentTarget.style.borderColor=violet+"50";}}
+                            onMouseLeave={ev=>{ev.currentTarget.style.transform="none";ev.currentTarget.style.borderColor=e.risk==="High"?O.red+"28":vs>=75?O.green+"20":O.border;}}>
+
+                            {/* Header */}
+                            <div style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:10}}>
+                              <div style={{position:"relative",flexShrink:0}}>
+                                <div style={{width:56,height:56,borderRadius:14,
+                                  background:e.color+"25",
+                                  border:"2.5px solid "+rc2,
+                                  display:"flex",alignItems:"center",justifyContent:"center",
+                                  fontFamily:O.mono,fontSize:18,color:e.color,fontWeight:600}}>
+                                  {e.avatar}
+                                </div>
+                                <div style={{position:"absolute",bottom:-2,right:-2,
+                                  width:12,height:12,borderRadius:"50%",
+                                  background:e.status==="active"?O.green:e.status==="break"?O.amber:"#444",
+                                  border:"2px solid "+O.bg2}}/>
+                              </div>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontFamily:O.sans,fontWeight:700,
+                                  fontSize:14,color:"#fff",marginBottom:2}}>{e.name}</div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginBottom:5}}>
+                                  {e.role} · {e.dept}
+                                </div>
+                                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:lc,
+                                    background:lc+"15",border:"1px solid "+lc+"25",
+                                    borderRadius:4,padding:"2px 6px"}}>
+                                    {loc}
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:rc2,
+                                    background:rc2+"15",border:"1px solid "+rc2+"25",
+                                    borderRadius:4,padding:"2px 6px"}}>
+                                    {e.risk} Risk
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{textAlign:"center",flexShrink:0}}>
+                                <div style={{fontFamily:O.sans,fontWeight:900,
+                                  fontSize:20,color:vc,lineHeight:1,marginBottom:2}}>{vs}</div>
+                                <div style={{fontFamily:O.mono,fontSize:6,
+                                  color:O.textF,letterSpacing:1}}>SCORE</div>
+                              </div>
+                            </div>
+
+                            {/* AI Summary */}
+                            <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,
+                              background:O.bg3,borderRadius:6,padding:"7px 9px",
+                              borderLeft:"2px solid "+rc2,marginBottom:10,lineHeight:1.4}}>
+                              🤖 {aiSummary(e)}
+                            </div>
+
+                            {/* Metrics */}
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5,marginBottom:10}}>
+                              {[
+                                {l:"REL",v:e.rel+"%",c:e.rel>=80?O.green:O.amber},
+                                {l:"PROD",v:e.prod+"%",c:e.prod>=80?O.green:O.amber},
+                                {l:"CAM",v:e.cam+"%",c:e.cam>=80?O.green:O.amber},
+                                {l:"GHOST",v:e.ghost+"h",c:e.ghost>1?O.red:O.green},
+                                {l:"FLAGS",v:e.flags,c:e.flags>0?O.red:O.green},
+                                {l:"COST",v:"$"+(e.wkHrs*e.rate).toFixed(0),c:O.amber},
+                              ].map(m=>(
+                                <div key={m.l} style={{background:O.bg3,borderRadius:5,
+                                  padding:"6px",textAlign:"center"}}>
+                                  <div style={{fontFamily:O.mono,fontSize:6,
+                                    color:O.textF,letterSpacing:1,marginBottom:2}}>{m.l}</div>
+                                  <div style={{fontFamily:O.sans,fontWeight:700,
+                                    fontSize:13,color:m.c}}>{m.v}</div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Actions */}
+                            <div style={{display:"flex",gap:6}}>
+                              {[
+                                {l:"Profile",c:violet,fn:()=>goProfile(e.id)},
+                                {l:"Schedule",c:O.textD,fn:()=>setTab("schedule")},
+                                {l:"Message",c:O.textD,fn:()=>{}},
+                              ].map(btn=>(
+                                <button key={btn.l} onClick={ev=>{ev.stopPropagation();btn.fn();}}
+                                  style={{flex:1,fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                    padding:"5px",background:btn.c===violet?violetD:"rgba(255,255,255,0.04)",
+                                    border:"1px solid "+(btn.c===violet?violetB:O.border),
+                                    borderRadius:4,color:btn.c,cursor:"pointer"}}>
+                                  {btn.l}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Risk bar */}
+                            <div style={{marginTop:10,height:3,borderRadius:2,overflow:"hidden",
+                              background:"linear-gradient(90deg,"+O.green+" 0%,"+O.amber+" 50%,"+O.red+" 100%)"}}>
+                              <div style={{height:"100%",width:(100-vs)+"%",
+                                background:O.bg2,float:"right"}}/>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ── ZONES 4 + 5: ANALYTICS + COMPOSITION ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 4: Workforce Analytics */}
+                    <Card>
+                      <SL text="Workforce Analytics" color={violet}/>
+
+                      {/* Dept donut */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2px",marginBottom:8}}>TEAM COMPOSITION</div>
+                      <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:14}}>
+                        <svg width="140" height="140" viewBox="0 0 140 140" style={{flexShrink:0}}>
+                          {donutSlices.map((ds,i)=>(
+                            <path key={i} d={ds.d2} fill={ds.c} opacity="0.85"
+                              stroke={O.bg2} strokeWidth="2"/>
+                          ))}
+                          <circle cx="70" cy="70" r="28" fill={O.bg2}/>
+                          <text x="70" y="66" textAnchor="middle"
+                            fontFamily="'Outfit',sans-serif" fontWeight="800"
+                            fontSize="16" fill="#fff">{EMPS.length}</text>
+                          <text x="70" y="79" textAnchor="middle"
+                            fontFamily="'JetBrains Mono',monospace"
+                            fontSize="7" fill={O.textF}>TOTAL</text>
+                        </svg>
+                        <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
+                          {deptCounts.map(ds=>(
+                            <div key={ds.d} style={{display:"flex",alignItems:"center",gap:6}}>
+                              <div style={{width:8,height:8,borderRadius:2,
+                                background:ds.c,flexShrink:0}}/>
+                              <span style={{fontFamily:O.mono,fontSize:8,
+                                color:O.textD,flex:1}}>{ds.d}</span>
+                              <span style={{fontFamily:O.mono,fontSize:8,
+                                color:ds.c,fontWeight:600}}>{ds.n}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Risk distribution */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:6}}>RISK DISTRIBUTION</div>
+                        <div style={{display:"flex",height:10,borderRadius:5,
+                          overflow:"hidden",marginBottom:5}}>
+                          {[{v:lowRisk,c:O.green},{v:medRisk,c:O.amber},{v:highRisk,c:O.red}].map((r,i)=>(
+                            r.v>0&&<div key={i} style={{width:(r.v/EMPS.length*100)+"%",
+                              background:r.c,opacity:0.8}}/>
+                          ))}
+                        </div>
+                        <div style={{display:"flex",gap:10}}>
+                          {[["Low",lowRisk,O.green],["Med",medRisk,O.amber],["High",highRisk,O.red]].map(([l,v,c])=>(
+                            <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
+                              <div style={{width:6,height:6,borderRadius:1,background:c}}/>
+                              <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                {l}: {v} ({Math.round(v/EMPS.length*100)}%)
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Score distribution */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:6}}>VALUE SCORE DISTRIBUTION</div>
+                        <div style={{display:"flex",alignItems:"flex-end",gap:4,height:40}}>
+                          {scoreBuckets.map((b,i)=>{
+                            const h = Math.round((b.n/maxBucket)*100);
+                            const c = i<2?O.red:i===2?O.amber:O.green;
+                            return(
+                              <div key={b.range} style={{flex:1,display:"flex",
+                                flexDirection:"column",alignItems:"center",gap:2,
+                                height:"100%",justifyContent:"flex-end"}}>
+                                <div style={{width:"100%",height:Math.max(4,h)+"%",
+                                  background:c+"60",borderRadius:"2px 2px 0 0"}}/>
+                                <span style={{fontFamily:O.mono,fontSize:6,color:O.textF}}>
+                                  {b.range}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Payroll breakdown */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:6}}>WEEKLY PAYROLL BY DEPT</div>
+                        {deptCounts.map(ds=>{
+                          const dCost = EMPS.filter(e=>e.dept===ds.d).reduce((s,e)=>s+(e.wkHrs*e.rate),0);
+                          const pct2 = Math.round((dCost/parseFloat(totalWkCost))*100);
+                          return(
+                            <div key={ds.d} style={{marginBottom:5}}>
+                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                                <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{ds.d}</span>
+                                <span style={{fontFamily:O.mono,fontSize:8,color:ds.c,fontWeight:600}}>${dCost.toFixed(0)}</span>
+                              </div>
+                              <div style={{height:5,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                                <div style={{height:"100%",width:pct2+"%",background:ds.c,borderRadius:2}}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div style={{marginTop:8,fontFamily:O.mono,fontSize:8,color:O.amber}}>
+                          Total: ${totalWkCost}/wk ·{" "}
+                          Top earner: {EMPS.sort((a,b)=>(b.wkHrs*b.rate)-(a.wkHrs*a.rate))[0]?.name.split(" ")[0]}
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* ZONE 5: Team Composition + Pipeline */}
+                    <Card>
+                      <SL text="Team Intelligence + Pipeline" color={violet}/>
+
+                      {/* Team stats grid */}
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:14}}>
+                        {[
+                          {l:"Avg Hourly Rate",v:"$"+avgRate},
+                          {l:"Total Weekly Hrs",v:totalWkHrs+"h"},
+                          {l:"OT This Period",v:EMPS.reduce((s,e)=>s+(e.ot||0),0)+"h"},
+                          {l:"Turnover Risk",v:EMPS.filter(e=>e.risk==="High").length+" flagged"},
+                          {l:"Avg Value Score",v:teamHealthScore},
+                          {l:"Active Now",v:activeNow+"/"+EMPS.length},
+                        ].map(s=>(
+                          <div key={s.l} style={{background:O.bg3,borderRadius:7,padding:"9px 10px"}}>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                              letterSpacing:1,marginBottom:3}}>{s.l.toUpperCase()}</div>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff"}}>
+                              {s.v}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Streak leaderboard */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>🔥 ATTENDANCE STREAK LEADERS</div>
+                        {[...EMPS].sort((a,b)=>b.streak-a.streak).slice(0,3).map((e,i)=>(
+                          <div key={e.id} style={{display:"flex",alignItems:"center",
+                            gap:8,padding:"7px 0",
+                            borderBottom:"1px solid "+O.border}}>
+                            <div style={{fontFamily:O.mono,fontSize:11,
+                              color:i===0?"#FFD700":i===1?"#C0C0C0":"#CD7F32",
+                              width:20,textAlign:"center"}}>{i+1}</div>
+                            <Av emp={e} size={22} dark/>
+                            <div style={{flex:1}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:12,color:"#fff"}}>{e.name.split(" ")[0]}</div>
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,
+                              color:O.amber,fontWeight:600}}>
+                              {e.streak}d 🔥
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Cert tracker */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>CERTIFICATION TRACKER</div>
+                        <div style={{overflowX:"auto"}}>
+                          <div style={{minWidth:300}}>
+                            <div style={{display:"grid",
+                              gridTemplateColumns:"80px repeat(5,1fr)",
+                              gap:3,marginBottom:3}}>
+                              <div/>
+                              {certs.map(c=>(
+                                <div key={c} style={{fontFamily:O.mono,fontSize:6,
+                                  color:O.textF,textAlign:"center",lineHeight:1.2,
+                                  letterSpacing:0.5}}>{c.split(" ")[0]}</div>
+                              ))}
+                            </div>
+                            {certMatrix.map(({e,certs:ec})=>(
+                              <div key={e.id} style={{display:"grid",
+                                gridTemplateColumns:"80px repeat(5,1fr)",
+                                gap:3,marginBottom:3,alignItems:"center"}}>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                  {e.name.split(" ")[0]}
+                                </div>
+                                {ec.map((has,ci)=>(
+                                  <div key={ci} style={{textAlign:"center",fontSize:10}}>
+                                    {has?"✅":"➖"}
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,
+                          marginTop:6,background:"rgba(245,158,11,0.06)",
+                          borderRadius:5,padding:"5px 8px"}}>
+                          ⚠ 2 employees need Food Handler renewal by Apr 30
+                        </div>
+                      </div>
+
+                      {/* Hiring pipeline */}
+                      <div style={{background:O.bg3,borderRadius:8,padding:"11px 12px",
+                        border:"1px solid rgba(139,92,246,0.2)"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:violet,
+                          letterSpacing:"2px",marginBottom:6}}>HIRING PIPELINE</div>
+                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,
+                          color:O.green,marginBottom:4}}>0 Open Positions</div>
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          padding:"5px 10px",background:violetD,
+                          border:"1px solid "+violetB,borderRadius:4,
+                          color:violet,cursor:"pointer",marginBottom:6}}>
+                          + Post Job Opening
+                        </button>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,lineHeight:1.5}}>
+                          ShiftPro hiring integration coming Q2 2025
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 6: HR ACTION CENTER ── */}
+                  <Card>
+                    <div style={{display:"flex",alignItems:"center",
+                      justifyContent:"space-between",marginBottom:14}}>
+                      <SL text="HR Action Center — Pending Items (3)" color={O.red}/>
+                      <div style={{display:"flex",gap:7}}>
+                        {["+ Add HR Note","📋 Export HR Report","⚠ Flag for Review"].map(btn=>(
+                          <button key={btn} style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"4px 10px",background:"rgba(255,255,255,0.04)",
+                            border:"1px solid "+O.border,borderRadius:4,
+                            color:O.textD,cursor:"pointer"}}>
+                            {btn}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+
+                      {/* Performance reviews */}
+                      <div style={{background:O.bg3,borderRadius:8,padding:"12px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                          letterSpacing:"2px",marginBottom:8}}>
+                          PERFORMANCE REVIEWS DUE
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
+                          marginBottom:8}}>2 overdue · 1 due this month</div>
+                        {EMPS.filter(e=>e.risk!=="Low").slice(0,3).map((e,i)=>(
+                          <div key={e.id} style={{display:"flex",alignItems:"center",
+                            gap:8,padding:"7px 0",borderBottom:"1px solid "+O.border}}>
+                            <Av emp={e} size={22} dark/>
+                            <div style={{flex:1}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff"}}>{e.name.split(" ")[0]}</div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                {i===0?"OVERDUE — Jan 15":i===1?"OVERDUE — Feb 1":"Due Apr 15"}
+                              </div>
+                            </div>
+                            <button style={{fontFamily:O.mono,fontSize:7,
+                              padding:"3px 7px",background:"rgba(239,68,68,0.1)",
+                              border:"1px solid rgba(239,68,68,0.2)",
+                              borderRadius:3,color:O.red,cursor:"pointer",whiteSpace:"nowrap"}}>
+                              START
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* HR Notes */}
+                      <div style={{background:O.bg3,borderRadius:8,padding:"12px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.amber,
+                          letterSpacing:"2px",marginBottom:8}}>ACTIVE HR NOTES</div>
+                        {hrNotes.map((note,i)=>{
+                          const noteEmp = byId(note.eId);
+                          return noteEmp?(
+                            <div key={i} style={{padding:"6px 0",
+                              borderBottom:"1px solid "+O.border,
+                              borderLeft:"2px solid "+note.c,
+                              paddingLeft:8,marginBottom:4}}>
+                              <div style={{display:"flex",alignItems:"center",
+                                gap:6,marginBottom:3}}>
+                                <Av emp={noteEmp} size={16} dark/>
+                                <span style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:10,color:"#fff"}}>{noteEmp.name.split(" ")[0]}</span>
+                                <span style={{fontFamily:O.mono,fontSize:7,
+                                  color:note.c,background:note.c+"12",
+                                  borderRadius:3,padding:"1px 5px",letterSpacing:0.5}}>
+                                  {note.cat.toUpperCase()}
+                                </span>
+                                <span style={{fontFamily:O.mono,fontSize:7,
+                                  color:O.textF,marginLeft:"auto"}}>{note.date}</span>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,lineHeight:1.4}}>
+                                {note.note}
+                              </div>
+                            </div>
+                          ):null;
+                        })}
+                      </div>
+
+                      {/* Milestones */}
+                      <div style={{background:O.bg3,borderRadius:8,padding:"12px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.green,
+                          letterSpacing:"2px",marginBottom:8}}>
+                          ANNIVERSARIES + MILESTONES
+                        </div>
+                        {[
+                          {e:EMPS[0],text:"12-day perfect attendance streak",icon:"🔥"},
+                          {e:EMPS[1],text:"1-year work anniversary Apr 5",icon:"🎂"},
+                          {e:EMPS[4],text:"0 flags this month — reliability badge unlock",icon:"⭐"},
+                        ].map((m,i)=>(
+                          <div key={i} style={{padding:"7px 0",borderBottom:"1px solid "+O.border}}>
+                            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
+                              <span style={{fontSize:14}}>{m.icon}</span>
+                              <Av emp={m.e} size={18} dark/>
+                              <div style={{flex:1}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:10,color:"#fff",marginBottom:1}}>
+                                  {m.e.name.split(" ")[0]}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,lineHeight:1.3}}>
+                                  {m.text}
+                                </div>
+                              </div>
+                            </div>
+                            <button style={{fontFamily:O.mono,fontSize:7,
+                              padding:"3px 8px",background:"rgba(16,185,129,0.1)",
+                              border:"1px solid rgba(16,185,129,0.2)",
+                              borderRadius:3,color:O.green,cursor:"pointer"}}>
+                              🎉 Send Congrats
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
+
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── SCHEDULE ── */}
-        {tab==="schedule" && (
+
+                {tab==="schedule" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>WEEKLY SCHEDULE — MARCH 24–30</div>
             <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden"}}>
