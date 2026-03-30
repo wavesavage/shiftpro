@@ -493,6 +493,9 @@ function Login({onLogin}){
 function EmpPortal({emp,onLogout}){
   const [tab,setTab] = useState("home");
   const [clocked,setClocked] = useState(false);
+  const [onBreak,setOnBreak] = useState(false);
+  const [breakSecs,setBreakSecs] = useState(0);
+  const [clockedAt,setClockedAt] = useState(null);
   const [secs,setSecs] = useState(0);
   const [now,setNow] = useState(new Date());
   const [swapOpen,setSwapOpen] = useState(false);
@@ -506,10 +509,14 @@ function EmpPortal({emp,onLogout}){
   },[]);
 
   useEffect(()=>{
-    if(!clocked){ setSecs(0); return; }
+    if(!clocked){ setSecs(0); setBreakSecs(0); setOnBreak(false); return; }
+    if(onBreak){
+      const t = setInterval(()=>setBreakSecs(s=>s+1),1000);
+      return ()=>clearInterval(t);
+    }
     const t = setInterval(()=>setSecs(s=>s+1),1000);
     return ()=>clearInterval(t);
-  },[clocked]);
+  },[clocked,onBreak]);
 
   const fmt = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   const h = now.getHours();
@@ -561,60 +568,351 @@ function EmpPortal({emp,onLogout}){
         {/* ── HOME (Prompt 1) ── */}
         {tab==="home" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{background:`linear-gradient(135deg,${E.indigo},${E.violet})`,borderRadius:18,padding:"26px",marginBottom:14,color:"#fff",position:"relative",overflow:"hidden",boxShadow:E.shadowB}}>
-              <div style={{position:"absolute",top:-30,right:-30,width:130,height:130,background:"rgba(255,255,255,0.06)",borderRadius:"50%",pointerEvents:"none"}}/>
-              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:4}}>{greet}, {emp.first}! ✨</div>
-              <div style={{fontFamily:E.sans,fontSize:13,opacity:.8,marginBottom:18}}>
-                {now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+
+            {/* ── GREETING HEADER ── */}
+            <div style={{background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",
+              borderRadius:18,padding:"22px 24px",marginBottom:14,color:"#fff",
+              position:"relative",overflow:"hidden",boxShadow:E.shadowB}}>
+              <div style={{position:"absolute",top:-30,right:-30,width:130,height:130,
+                background:"rgba(255,255,255,0.06)",borderRadius:"50%",pointerEvents:"none"}}/>
+              <div style={{position:"absolute",bottom:-20,left:-20,width:90,height:90,
+                background:"rgba(255,255,255,0.04)",borderRadius:"50%",pointerEvents:"none"}}/>
+              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>
+                {greet}, {emp.first}! ✨
               </div>
-              {myShifts[0] && (
-                <div style={{background:"rgba(255,255,255,0.15)",borderRadius:10,padding:"12px 16px",marginBottom:16}}>
-                  <div style={{fontFamily:E.sans,fontSize:11,opacity:.75,marginBottom:3}}>NEXT SHIFT</div>
-                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:17}}>{myShifts[0].d} · {fH(myShifts[0].ss[0].s)} – {fH(myShifts[0].ss[0].e)}</div>
-                </div>
-              )}
-              <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <button onClick={()=>setClocked(p=>!p)}
-                  style={{padding:"11px 26px",background:clocked?"rgba(239,68,68,0.9)":"rgba(255,255,255,0.95)",border:"none",borderRadius:50,fontFamily:E.sans,fontWeight:700,fontSize:15,color:clocked?"#fff":E.indigo,cursor:"pointer",transition:"all 0.2s",boxShadow:"0 4px 14px rgba(0,0,0,0.2)"}}>
-                  {clocked ? "Clock Out 👋" : "Clock In ✓"}
-                </button>
-                {clocked && <div style={{fontFamily:O.mono,fontSize:20,fontWeight:300,color:"rgba(255,255,255,0.9)"}}>{fmt(secs)}</div>}
+              <div style={{fontFamily:E.sans,fontSize:13,opacity:0.8}}>
+                {now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
               </div>
             </div>
 
-            {/* Quick actions */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+            {/* ── TIME CLOCK ── */}
+            <div style={{background:E.bg2,border:"1.5px solid "+
+              (clocked&&!onBreak?"rgba(99,102,241,0.35)":
+               onBreak?"rgba(245,158,11,0.35)":E.border),
+              borderRadius:20,padding:"22px 24px",marginBottom:14,
+              boxShadow:clocked?"0 4px 24px rgba(99,102,241,0.15)":E.shadow,
+              transition:"all 0.4s ease"}}>
+
+              {/* Status bar */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                marginBottom:18}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",
+                    background:clocked&&!onBreak?E.green:onBreak?E.yellow:"rgba(0,0,0,0.15)",
+                    boxShadow:clocked&&!onBreak?"0 0 8px "+E.green:
+                      onBreak?"0 0 8px "+E.yellow:"none",
+                    animation:clocked&&!onBreak?"blink 2s infinite":"none",
+                    transition:"all 0.3s"}}/>
+                  <div>
+                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,
+                      color:clocked&&!onBreak?E.indigo:onBreak?E.yellow:E.textD}}>
+                      {!clocked?"Not Clocked In":onBreak?"On Break":"Clocked In"}
+                    </div>
+                    {clocked&&(
+                      <div style={{fontFamily:E.mono,fontSize:11,color:E.textF,marginTop:1}}>
+                        {onBreak
+                          ? "Shift paused · Break timer running"
+                          : "Shift timer running · Break not started"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {clocked&&clockedAt&&(
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:E.mono,fontSize:10,color:E.textF}}>
+                      Clocked in at
+                    </div>
+                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:13,color:E.text}}>
+                      {clockedAt.toLocaleTimeString("en-US",
+                        {hour:"2-digit",minute:"2-digit"})}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Timer display */}
+              <div style={{display:"flex",gap:16,alignItems:"center",marginBottom:20,
+                flexWrap:"wrap"}}>
+
+                {/* Shift timer */}
+                <div style={{flex:1,background:clocked&&!onBreak
+                    ?"linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.05))"
+                    :"rgba(0,0,0,0.03)",
+                  border:"1.5px solid "+(clocked&&!onBreak
+                    ?"rgba(99,102,241,0.2)":"rgba(0,0,0,0.06)"),
+                  borderRadius:14,padding:"16px 18px",textAlign:"center",
+                  transition:"all 0.3s",minWidth:140}}>
+                  <div style={{fontFamily:E.mono,fontSize:8,letterSpacing:"2px",
+                    color:clocked&&!onBreak?E.indigo:E.textF,marginBottom:6}}>
+                    SHIFT TIME
+                  </div>
+                  <div style={{fontFamily:E.mono,fontWeight:700,
+                    fontSize:clocked?36:28,
+                    color:clocked&&!onBreak?E.indigo:E.textD,
+                    letterSpacing:2,lineHeight:1,transition:"all 0.3s"}}>
+                    {clocked?fmt(secs):"00:00:00"}
+                  </div>
+                  {clocked&&(
+                    <div style={{fontFamily:E.sans,fontSize:11,color:E.textF,marginTop:5}}>
+                      {onBreak?"paused":"running"}
+                    </div>
+                  )}
+                </div>
+
+                {/* Break timer - only shows when clocked in */}
+                {clocked&&(
+                  <div style={{flex:1,
+                    background:onBreak
+                      ?"linear-gradient(135deg,rgba(245,158,11,0.08),rgba(251,146,60,0.04))"
+                      :"rgba(0,0,0,0.02)",
+                    border:"1.5px solid "+(onBreak
+                      ?"rgba(245,158,11,0.25)":"rgba(0,0,0,0.06)"),
+                    borderRadius:14,padding:"16px 18px",textAlign:"center",
+                    transition:"all 0.3s",minWidth:140}}>
+                    <div style={{fontFamily:E.mono,fontSize:8,letterSpacing:"2px",
+                      color:onBreak?E.yellow:E.textF,marginBottom:6}}>
+                      BREAK TIME
+                    </div>
+                    <div style={{fontFamily:E.mono,fontWeight:700,fontSize:36,
+                      color:onBreak?E.yellow:E.textD,
+                      letterSpacing:2,lineHeight:1,transition:"all 0.3s"}}>
+                      {fmt(breakSecs)}
+                    </div>
+                    <div style={{fontFamily:E.sans,fontSize:11,
+                      color:onBreak?E.yellow:E.textF,marginTop:5}}>
+                      {onBreak?"running":"not started"}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+
+                {/* Clock In / Clock Out */}
+                {!clocked?(
+                  <button
+                    onClick={()=>{setClocked(true);setClockedAt(new Date());}}
+                    style={{flex:1,padding:"14px 20px",
+                      background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",
+                      border:"none",borderRadius:14,
+                      fontFamily:E.sans,fontWeight:700,fontSize:16,
+                      color:"#fff",cursor:"pointer",
+                      boxShadow:"0 4px 18px rgba(99,102,241,0.4)",
+                      transition:"all 0.2s"}}
+                    onMouseEnter={e=>e.currentTarget.style.transform="scale(1.02)"}
+                    onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+                    ✓ Clock In
+                  </button>
+                ):(
+                  <div style={{display:"flex",gap:10,flex:1,flexWrap:"wrap"}}>
+
+                    {/* Break toggle */}
+                    <button
+                      onClick={()=>setOnBreak(b=>!b)}
+                      style={{flex:1,padding:"13px 16px",
+                        background:onBreak
+                          ?"linear-gradient(135deg,rgba(99,102,241,0.9),rgba(139,92,246,0.9))"
+                          :"linear-gradient(135deg,rgba(245,158,11,0.9),rgba(251,146,60,0.8))",
+                        border:"none",borderRadius:14,
+                        fontFamily:E.sans,fontWeight:700,fontSize:14,
+                        color:"#fff",cursor:"pointer",
+                        boxShadow:onBreak
+                          ?"0 4px 14px rgba(99,102,241,0.3)"
+                          :"0 4px 14px rgba(245,158,11,0.3)",
+                        transition:"all 0.2s"}}
+                      onMouseEnter={e=>e.currentTarget.style.transform="scale(1.02)"}
+                      onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+                      {onBreak?"▶ Resume Shift":"⏸ Start Break"}
+                    </button>
+
+                    {/* Clock Out — requires confirmation */}
+                    <button
+                      onClick={()=>{
+                        if(onBreak){
+                          alert("You are currently on break. Please resume your shift before clocking out.");
+                          return;
+                        }
+                        if(window.confirm(
+                          "Clock out now?\n\n"+
+                          "Shift time: "+fmt(secs)+"\n"+
+                          "Break time: "+fmt(breakSecs)+"\n\n"+
+                          "Tap OK to confirm clock-out."
+                        )){
+                          setClocked(false);
+                          setOnBreak(false);
+                          setSecs(0);
+                          setBreakSecs(0);
+                          setClockedAt(null);
+                        }
+                      }}
+                      style={{flex:1,padding:"13px 16px",
+                        background:"rgba(239,68,68,0.08)",
+                        border:"1.5px solid rgba(239,68,68,0.3)",
+                        borderRadius:14,
+                        fontFamily:E.sans,fontWeight:700,fontSize:14,
+                        color:E.red,cursor:"pointer",
+                        transition:"all 0.2s"}}
+                      onMouseEnter={e=>{
+                        e.currentTarget.style.background="rgba(239,68,68,0.15)";
+                        e.currentTarget.style.transform="scale(1.02)";
+                      }}
+                      onMouseLeave={e=>{
+                        e.currentTarget.style.background="rgba(239,68,68,0.08)";
+                        e.currentTarget.style.transform="scale(1)";
+                      }}>
+                      👋 Clock Out
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Break guard warning */}
+              {onBreak&&(
+                <div style={{marginTop:12,background:"rgba(245,158,11,0.07)",
+                  border:"1px solid rgba(245,158,11,0.25)",
+                  borderRadius:9,padding:"9px 13px",
+                  display:"flex",gap:8,alignItems:"flex-start"}}>
+                  <span style={{fontSize:14,flexShrink:0}}>⏸</span>
+                  <div style={{fontFamily:E.sans,fontSize:12,color:E.yellow,lineHeight:1.5}}>
+                    <strong>Shift is paused.</strong> Your break timer is running.
+                    Tap <strong>Resume Shift</strong> when you're back on the floor —
+                    you cannot clock out while on break.
+                  </div>
+                </div>
+              )}
+
+              {/* Shift summary when clocked in */}
+              {clocked&&!onBreak&&secs>0&&(
+                <div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {[
+                    {l:"Shift hrs",v:(secs/3600).toFixed(2)+"h",c:E.indigo},
+                    {l:"Break taken",v:(breakSecs/60).toFixed(0)+" min",c:E.yellow},
+                    {l:"Est. earnings",v:"$"+((secs/3600)*emp.rate).toFixed(2),c:E.green},
+                  ].map(s=>(
+                    <div key={s.l} style={{flex:1,background:E.bg3,borderRadius:9,
+                      padding:"8px 10px",textAlign:"center",minWidth:90}}>
+                      <div style={{fontFamily:E.mono,fontSize:8,
+                        color:E.textF,letterSpacing:1,marginBottom:3}}>
+                        {s.l.toUpperCase()}
+                      </div>
+                      <div style={{fontFamily:E.sans,fontWeight:700,
+                        fontSize:14,color:s.c}}>{s.v}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── NEXT SHIFT CARD ── */}
+            {myShifts[0]&&(
+              <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+                borderRadius:16,padding:"16px 18px",marginBottom:14,
+                boxShadow:E.shadow,display:"flex",
+                alignItems:"center",gap:14}}>
+                <div style={{width:44,height:44,borderRadius:12,flexShrink:0,
+                  background:"linear-gradient(135deg,"+E.indigo+"22,"+E.violet+"18)",
+                  border:"1.5px solid rgba(99,102,241,0.2)",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>
+                  📅
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,
+                    letterSpacing:"2px",marginBottom:3}}>NEXT SHIFT</div>
+                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,
+                    color:E.text,marginBottom:2}}>
+                    {myShifts[0].d} · {fH(myShifts[0].ss[0].s)} – {fH(myShifts[0].ss[0].e)}
+                  </div>
+                  <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>
+                    {myShifts[0].ss[0].e-myShifts[0].ss[0].s} hours · {emp.role}
+                  </div>
+                </div>
+                <EBadge label="Confirmed ✓" color={E.green}/>
+              </div>
+            )}
+
+            {/* ── QUICK ACTIONS ── */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",
+              gap:10,marginBottom:14}}>
               {[
-                {icon:"🔄",label:"Swap Shift",go:()=>setSwapOpen(true),c:E.violet},
-                {icon:"📆",label:"Time Off",go:()=>setToOpen(true),c:E.teal},
-                {icon:"💬",label:"Message Manager",go:()=>setTab("team"),c:E.indigo},
-              ].map(a => (
+                {icon:"🔄",label:"Swap Shift",   go:()=>setSwapOpen(true),  c:E.violet},
+                {icon:"📆",label:"Time Off",      go:()=>setToOpen(true),    c:E.teal},
+                {icon:"💬",label:"Message Manager",go:()=>setTab("team"),   c:E.indigo},
+              ].map(a=>(
                 <button key={a.label} onClick={a.go}
-                  style={{padding:"15px 10px",background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,cursor:"pointer",textAlign:"center",transition:"all 0.2s",boxShadow:E.shadow}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor=a.c+"55";e.currentTarget.style.transform="translateY(-2px)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor=E.border;e.currentTarget.style.transform="none";}}>
-                  <div style={{fontSize:20,marginBottom:5}}>{a.icon}</div>
-                  <div style={{fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.text}}>{a.label}</div>
+                  style={{padding:"15px 10px",background:E.bg2,
+                    border:"1.5px solid "+E.border,
+                    borderRadius:14,cursor:"pointer",textAlign:"center",
+                    transition:"all 0.2s",boxShadow:E.shadow}}
+                  onMouseEnter={e=>{
+                    e.currentTarget.style.borderColor=a.c+"55";
+                    e.currentTarget.style.transform="translateY(-2px)";
+                    e.currentTarget.style.boxShadow="0 6px 20px rgba(99,102,241,0.12)";
+                  }}
+                  onMouseLeave={e=>{
+                    e.currentTarget.style.borderColor=E.border;
+                    e.currentTarget.style.transform="none";
+                    e.currentTarget.style.boxShadow=E.shadow;
+                  }}>
+                  <div style={{fontSize:22,marginBottom:6}}>{a.icon}</div>
+                  <div style={{fontFamily:E.sans,fontWeight:600,
+                    fontSize:12,color:E.text}}>{a.label}</div>
                 </button>
               ))}
             </div>
 
-            {/* Earnings preview */}
-            <div style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"18px",boxShadow:E.shadow}}>
-              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text,marginBottom:12}}>💰 This Week's Earnings</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-                {[["Hours",`${emp.wkHrs}h`,E.indigo],["Rate",`$${emp.rate}/hr`,E.violet],["Est. Gross",`$${gross}`,E.green]].map(([l,v,c]) => (
-                  <div key={l} style={{background:E.bg3,borderRadius:10,padding:"12px",textAlign:"center"}}>
-                    <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginBottom:3}}>{l}</div>
-                    <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:c}}>{v}</div>
+            {/* ── WEEK SUMMARY ── */}
+            <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+              borderRadius:16,padding:"18px",boxShadow:E.shadow}}>
+              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,
+                color:E.text,marginBottom:12}}>
+                📊 This Week at a Glance
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
+                {[
+                  {l:"Hours",    v:emp.wkHrs+"h",              c:E.indigo},
+                  {l:"Rate",     v:"$"+emp.rate+"/hr",          c:E.violet},
+                  {l:"Est. Gross",v:"$"+(emp.wkHrs*emp.rate).toFixed(2), c:E.green},
+                ].map(s=>(
+                  <div key={s.l} style={{background:E.bg3,borderRadius:12,
+                    padding:"12px",textAlign:"center"}}>
+                    <div style={{fontFamily:E.sans,fontSize:11,
+                      color:E.textD,marginBottom:4}}>{s.l}</div>
+                    <div style={{fontFamily:E.sans,fontWeight:800,
+                      fontSize:18,color:s.c}}>{s.v}</div>
                   </div>
                 ))}
               </div>
+              {/* Shift week mini bars */}
+              <div style={{display:"flex",alignItems:"flex-end",gap:5,height:40}}>
+                {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d,i)=>{
+                  const hasShift = myShifts.find(s=>s.d===d);
+                  const h = hasShift?hasShift.ss[0].e-hasShift.ss[0].s:0;
+                  return(
+                    <div key={d} style={{flex:1,display:"flex",
+                      flexDirection:"column",alignItems:"center",gap:2,
+                      height:"100%",justifyContent:"flex-end"}}>
+                      <div style={{width:"100%",
+                        height:h>0?(h/10*100)+"%":"4px",
+                        background:h>0
+                          ?"linear-gradient("+E.indigo+","+E.violet+")"
+                          :"rgba(99,102,241,0.07)",
+                        borderRadius:"3px 3px 0 0",minHeight:4}}/>
+                      <span style={{fontFamily:E.mono,fontSize:7,
+                        color:h>0?E.indigo:E.textF}}>
+                        {d.slice(0,1)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+
           </div>
         )}
 
-        {/* ── SCHEDULE (Prompt 2) ── */}
+
+                {/* ── SCHEDULE (Prompt 2) ── */}
         {tab==="schedule" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
