@@ -848,6 +848,9 @@ function OwnerCmd({onLogout}){
   const [resolvedDisc,setResolvedDisc] = useState({});
   const [locEditMode,setLocEditMode] = useState(false);
   const [reqFilter,setReqFilter] = useState("all");
+  const [empPerms,setEmpPerms] = useState({1:"employee",2:"employee",3:"employee",4:"employee",5:"employee"});
+  const [permConfirm,setPermConfirm] = useState(null);
+  const [permTarget,setPermTarget] = useState(null);
   const [reqHistory,setReqHistory] = useState([]);
   const [camLocation,setCamLocation] = useState(1);
   const [camGridSize,setCamGridSize] = useState(2);
@@ -2097,6 +2100,358 @@ function OwnerCmd({onLogout}){
                         </div>
                       ))}
                     </div>
+
+                  {/* ── APP PERMISSIONS CARD ── */}
+                  <Card style={{border:"1px solid rgba(255,215,0,0.18)",
+                    background:"rgba(255,215,0,0.02)"}}>
+                    {(()=>{
+                      const gold = "#FFD700";
+                      const currentPerm = empPerms[e.id]||"employee";
+
+                      // ── AI SAFETY GUARD ──
+                      // Entry-level title keywords that should NEVER get elevated access
+                      const entryKeywords = [
+                        "cashier","associate","clerk","stock","bagger","crew",
+                        "crew member","team member","part-time","part time","seasonal",
+                        "entry","trainee","helper","assistant"
+                      ];
+                      const titleLower = e.role.toLowerCase();
+                      const isEntryLevel = entryKeywords.some(k=>titleLower.includes(k));
+
+                      const PERM_LEVELS = [
+                        {
+                          id:"employee",
+                          label:"Employee",
+                          icon:"👤",
+                          desc:"Employee portal only — schedule, earnings, messages",
+                          color:O.textD,
+                          bg:"rgba(255,255,255,0.04)",
+                          border:O.border,
+                          safe:true,
+                        },
+                        {
+                          id:"supervisor",
+                          label:"Supervisor",
+                          icon:"👁️",
+                          desc:"View-only camera access + their location staff list",
+                          color:"#3b82f6",
+                          bg:"rgba(59,130,246,0.06)",
+                          border:"rgba(59,130,246,0.2)",
+                          safe:false,
+                        },
+                        {
+                          id:"manager",
+                          label:"Location Manager",
+                          icon:"📍",
+                          desc:"Full access to assigned location — staff, schedule, cameras",
+                          color:O.amber,
+                          bg:"rgba(245,158,11,0.06)",
+                          border:"rgba(245,158,11,0.2)",
+                          safe:false,
+                        },
+                        {
+                          id:"owner",
+                          label:"Administrator",
+                          icon:"👑",
+                          desc:"All locations · All features · Access control · Full owner-level",
+                          color:gold,
+                          bg:"rgba(255,215,0,0.06)",
+                          border:"rgba(255,215,0,0.25)",
+                          safe:false,
+                        },
+                      ];
+
+                      const currentLevel = PERM_LEVELS.find(p=>p.id===currentPerm)||PERM_LEVELS[0];
+
+                      return (
+                        <div>
+                          {/* Header */}
+                          <div style={{display:"flex",alignItems:"center",
+                            justifyContent:"space-between",marginBottom:12}}>
+                            <div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:gold,
+                                letterSpacing:"2.5px",marginBottom:4}}>
+                                APP PERMISSIONS
+                              </div>
+                              <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,
+                                lineHeight:1.4}}>
+                                Controls which areas of ShiftPro this person can access.
+                                Changes take effect on next login.
+                              </div>
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:8,
+                              color:currentLevel.color,
+                              background:currentLevel.bg,
+                              border:"1px solid "+currentLevel.border,
+                              borderRadius:6,padding:"5px 10px",
+                              textAlign:"center",flexShrink:0}}>
+                              <div style={{fontSize:14,marginBottom:2}}>{currentLevel.icon}</div>
+                              <div style={{letterSpacing:1,fontWeight:600}}>
+                                {currentLevel.label.toUpperCase()}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* AI Guard warning for entry-level */}
+                          {isEntryLevel&&(
+                            <div style={{background:"rgba(239,68,68,0.07)",
+                              border:"1px solid rgba(239,68,68,0.22)",
+                              borderRadius:7,padding:"9px 12px",marginBottom:10,
+                              display:"flex",gap:8,alignItems:"flex-start"}}>
+                              <span style={{fontSize:14,flexShrink:0}}>🤖</span>
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                                  letterSpacing:"2px",marginBottom:3}}>
+                                  AI PERMISSION GUARD — ACTIVE
+                                </div>
+                                <div style={{fontFamily:O.sans,fontSize:11,
+                                  color:O.textD,lineHeight:1.5}}>
+                                  <span style={{color:O.red,fontWeight:600}}>{e.name}</span>{" "}
+                                  has an entry-level role ({e.role}). ShiftPro AI has flagged
+                                  this account — elevated permissions are blocked to prevent
+                                  accidental access grants. Contact an Owner to override.
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Permission level selector */}
+                          <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:14}}>
+                            {PERM_LEVELS.map(level=>{
+                              const isCurrent = currentPerm===level.id;
+                              const isBlocked = isEntryLevel&&!level.safe;
+                              return(
+                                <div key={level.id}
+                                  style={{display:"flex",alignItems:"center",gap:10,
+                                    padding:"10px 12px",borderRadius:8,
+                                    background:isCurrent?level.bg:"rgba(255,255,255,0.02)",
+                                    border:"1px solid "+(isCurrent?level.color+"40":O.border),
+                                    opacity:isBlocked?0.35:1,
+                                    cursor:isBlocked?"not-allowed":isCurrent?"default":"pointer",
+                                    transition:"all 0.2s"}}
+                                  onClick={()=>{
+                                    if(isBlocked||isCurrent) return;
+                                    setPermTarget({emp:e,level});
+                                    setPermConfirm("confirm1");
+                                  }}
+                                  onMouseEnter={ev=>{
+                                    if(!isBlocked&&!isCurrent)
+                                      ev.currentTarget.style.borderColor=level.color+"60";
+                                  }}
+                                  onMouseLeave={ev=>{
+                                    ev.currentTarget.style.borderColor=isCurrent?level.color+"40":O.border;
+                                  }}>
+                                  <span style={{fontSize:18,flexShrink:0}}>{level.icon}</span>
+                                  <div style={{flex:1}}>
+                                    <div style={{fontFamily:O.sans,fontWeight:600,
+                                      fontSize:12,color:isCurrent?level.color:"#fff",
+                                      marginBottom:2}}>
+                                      {level.label}
+                                      {isCurrent&&(
+                                        <span style={{fontFamily:O.mono,fontSize:7,
+                                          color:level.color,marginLeft:8,
+                                          background:level.bg,
+                                          border:"1px solid "+level.color+"30",
+                                          borderRadius:3,padding:"1px 5px",
+                                          letterSpacing:0.5}}>
+                                          CURRENT
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                      {level.desc}
+                                    </div>
+                                    {isBlocked&&(
+                                      <div style={{fontFamily:O.mono,fontSize:7,
+                                        color:O.red,marginTop:3}}>
+                                        🤖 AI Guard: blocked for entry-level role
+                                      </div>
+                                    )}
+                                  </div>
+                                  {!isCurrent&&!isBlocked&&(
+                                    <div style={{fontFamily:O.mono,fontSize:7,
+                                      color:level.color,background:level.bg,
+                                      border:"1px solid "+level.color+"25",
+                                      borderRadius:4,padding:"3px 8px",
+                                      letterSpacing:0.5,flexShrink:0}}>
+                                      SELECT
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Permission audit trail */}
+                          <div style={{background:O.bg3,borderRadius:7,
+                            padding:"9px 12px",
+                            border:"1px solid rgba(255,215,0,0.1)"}}>
+                            <div style={{fontFamily:O.mono,fontSize:7,
+                              color:O.textF,letterSpacing:"2px",marginBottom:5}}>
+                              PERMISSION AUDIT LOG
+                            </div>
+                            {[
+                              {date:"Account created",action:"Employee portal access granted",by:"System"},
+                            ].map((entry,i)=>(
+                              <div key={i} style={{display:"flex",gap:8,
+                                fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                <span style={{color:O.textF,flexShrink:0}}>{entry.date}</span>
+                                <span style={{flex:1}}>{entry.action}</span>
+                                <span style={{color:gold,flexShrink:0}}>{entry.by}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* ── CONFIRMATION MODAL STEP 1 ── */}
+                          {permConfirm==="confirm1"&&permTarget&&permTarget.emp.id===e.id&&(
+                            <div style={{position:"fixed",inset:0,
+                              background:"rgba(0,0,0,0.75)",zIndex:1000,
+                              display:"flex",alignItems:"center",justifyContent:"center",
+                              backdropFilter:"blur(4px)"}}>
+                              <div style={{background:"#0d1623",
+                                border:"2px solid rgba(255,215,0,0.35)",
+                                borderRadius:14,padding:"28px 32px",maxWidth:460,
+                                boxShadow:"0 0 60px rgba(255,215,0,0.12)"}}>
+                                <div style={{fontSize:28,marginBottom:10,textAlign:"center"}}>
+                                  ⚠️
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,
+                                  color:gold,letterSpacing:"2px",
+                                  textAlign:"center",marginBottom:8}}>
+                                  PERMISSION CHANGE — CONFIRMATION REQUIRED
+                                </div>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:15,color:"#fff",textAlign:"center",
+                                  marginBottom:10}}>
+                                  Grant {permTarget.level.label} access to {permTarget.emp.name}?
+                                </div>
+                                <div style={{background:permTarget.level.bg,
+                                  border:"1px solid "+permTarget.level.border,
+                                  borderRadius:8,padding:"10px 14px",marginBottom:14}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                    <span style={{fontSize:20}}>{permTarget.level.icon}</span>
+                                    <div>
+                                      <div style={{fontFamily:O.sans,fontWeight:600,
+                                        fontSize:13,color:permTarget.level.color}}>
+                                        {permTarget.level.label}
+                                      </div>
+                                      <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                        {permTarget.level.desc}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{fontFamily:O.sans,fontSize:12,
+                                  color:O.textD,lineHeight:1.6,
+                                  textAlign:"center",marginBottom:16}}>
+                                  This will change {permTarget.emp.name.split(" ")[0]}'s
+                                  app access level from{" "}
+                                  <span style={{color:currentLevel.color,fontWeight:600}}>
+                                    {currentLevel.label}
+                                  </span>{" "}to{" "}
+                                  <span style={{color:permTarget.level.color,fontWeight:600}}>
+                                    {permTarget.level.label}
+                                  </span>.
+                                </div>
+                                <div style={{display:"flex",gap:10}}>
+                                  <button
+                                    onClick={()=>{setPermConfirm(null);setPermTarget(null);}}
+                                    style={{flex:1,fontFamily:O.mono,fontSize:8,
+                                      letterSpacing:1,padding:"10px",
+                                      background:"rgba(255,255,255,0.05)",
+                                      border:"1px solid "+O.border,borderRadius:7,
+                                      color:O.textD,cursor:"pointer"}}>
+                                    CANCEL
+                                  </button>
+                                  <button
+                                    onClick={()=>setPermConfirm("confirm2")}
+                                    style={{flex:2,fontFamily:O.mono,fontSize:8,
+                                      letterSpacing:1,padding:"10px",
+                                      background:"rgba(255,215,0,0.1)",
+                                      border:"1px solid rgba(255,215,0,0.3)",
+                                      borderRadius:7,color:gold,
+                                      cursor:"pointer",fontWeight:700}}>
+                                    YES — CONTINUE TO FINAL CONFIRMATION
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── CONFIRMATION MODAL STEP 2 (Final) ── */}
+                          {permConfirm==="confirm2"&&permTarget&&permTarget.emp.id===e.id&&(
+                            <div style={{position:"fixed",inset:0,
+                              background:"rgba(0,0,0,0.85)",zIndex:1001,
+                              display:"flex",alignItems:"center",justifyContent:"center",
+                              backdropFilter:"blur(6px)"}}>
+                              <div style={{background:"#0d1623",
+                                border:"2px solid "+permTarget.level.color+"50",
+                                borderRadius:14,padding:"28px 32px",maxWidth:440,
+                                boxShadow:"0 0 60px "+permTarget.level.color+"15"}}>
+                                <div style={{fontFamily:O.mono,fontSize:8,
+                                  color:O.red,letterSpacing:"2px",
+                                  textAlign:"center",marginBottom:10}}>
+                                  FINAL CONFIRMATION — CANNOT BE UNDONE WITHOUT OWNER
+                                </div>
+                                <div style={{fontFamily:O.sans,fontWeight:700,
+                                  fontSize:16,color:"#fff",textAlign:"center",
+                                  marginBottom:6}}>
+                                  Are you absolutely sure?
+                                </div>
+                                <div style={{fontFamily:O.sans,fontSize:12,
+                                  color:O.textD,textAlign:"center",
+                                  lineHeight:1.6,marginBottom:16}}>
+                                  You are granting{" "}
+                                  <span style={{color:permTarget.level.color,fontWeight:700}}>
+                                    {permTarget.level.label.toUpperCase()}
+                                  </span>{" "}
+                                  access to{" "}
+                                  <span style={{color:"#fff",fontWeight:600}}>
+                                    {permTarget.emp.name}
+                                  </span>.
+                                  This gives them {permTarget.level.id==="owner"
+                                    ?"full administrative control over your entire ShiftPro account."
+                                    :permTarget.level.id==="manager"
+                                    ?"management access to their assigned location."
+                                    :"supervisor view-only access."}
+                                </div>
+                                <div style={{display:"flex",gap:10}}>
+                                  <button
+                                    onClick={()=>{setPermConfirm(null);setPermTarget(null);}}
+                                    style={{flex:1,fontFamily:O.mono,fontSize:8,
+                                      letterSpacing:1,padding:"10px",
+                                      background:"rgba(255,255,255,0.05)",
+                                      border:"1px solid "+O.border,borderRadius:7,
+                                      color:O.textD,cursor:"pointer"}}>
+                                    NO — GO BACK
+                                  </button>
+                                  <button
+                                    onClick={()=>{
+                                      setEmpPerms(p=>({...p,[permTarget.emp.id]:permTarget.level.id}));
+                                      setPermConfirm(null);
+                                      setPermTarget(null);
+                                    }}
+                                    style={{flex:1,fontFamily:O.mono,fontSize:8,
+                                      letterSpacing:1,padding:"10px",
+                                      background:permTarget.level.id==="owner"
+                                        ?"rgba(255,215,0,0.15)":"rgba(16,185,129,0.15)",
+                                      border:"1px solid "+(permTarget.level.id==="owner"
+                                        ?"rgba(255,215,0,0.35)":"rgba(16,185,129,0.35)"),
+                                      borderRadius:7,
+                                      color:permTarget.level.id==="owner"?gold:O.green,
+                                      cursor:"pointer",fontWeight:700}}>
+                                    ✓ CONFIRM GRANT
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                        </div>
+                      );
+                    })()}
+                  </Card>
+
                   </Card>
 
                 </div>
