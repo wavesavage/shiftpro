@@ -284,9 +284,9 @@ const MONTHLY = [
   {m:"Feb",h:556,cost:8910,ghost:6.1},{m:"Mar",h:578,cost:9260,ghost:13.9},
 ];
 const LOCS = [
-  {id:1,name:"Newport Main",addr:"345 SW Bay Blvd",staff:5,active:3,alerts:2,cameras:"5/6",cost:284,incidents:2},
-  {id:2,name:"Lincoln City",addr:"1201 NW Harbor Dr",staff:4,active:4,alerts:0,cameras:"4/4",cost:231,incidents:0},
-  {id:3,name:"Depoe Bay Kiosk",addr:"70 NE Hwy 101",staff:2,active:1,alerts:1,cameras:"2/2",cost:83,incidents:1},
+  {id:1,name:"Portland, OR",addr:"1234 SW Morrison St, Portland, OR 97205",staff:5,active:3,alerts:2,cameras:"5/6",cost:284,incidents:2},
+  {id:2,name:"Los Angeles, CA",addr:"8800 W Sunset Blvd, Los Angeles, CA 90069",staff:4,active:4,alerts:0,cameras:"4/4",cost:231,incidents:0},
+  {id:3,name:"Seattle, WA",addr:"1400 Pike Place, Seattle, WA 98101",staff:2,active:1,alerts:1,cameras:"2/2",cost:83,incidents:1},
 ];
 
 // ── HELPERS ─────────────────────────────────────────
@@ -846,6 +846,7 @@ function OwnerCmd({onLogout}){
   const [payPeriod,setPayPeriod] = useState("biweekly");
   const [expandedEmp,setExpandedEmp] = useState(null);
   const [resolvedDisc,setResolvedDisc] = useState({});
+  const [locEditMode,setLocEditMode] = useState(false);
   const [benchPeriod,setBenchPeriod] = useState("month");
   const [benchIndustry,setBenchIndustry] = useState("retail");
   const [alertFilter,setAlertFilter] = useState("all");
@@ -6643,60 +6644,856 @@ function OwnerCmd({onLogout}){
         )}
 
 
-                {tab==="locations" && (
+                                {tab==="locations" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>MULTI-LOCATION COMMAND CENTER</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-              {LOCS.map(loc => (
-                <div key={loc.id} onClick={()=>setActiveLoc(loc.id)}
-                  style={{background:activeLoc===loc.id?O.amberD:O.bg2,border:`1px solid ${activeLoc===loc.id?O.amber:O.border}`,borderRadius:10,padding:"16px",cursor:"pointer",transition:"all 0.2s",boxShadow:activeLoc===loc.id?`0 0 18px rgba(245,158,11,0.15)`:""}}
-                  onMouseEnter={e=>{if(activeLoc!==loc.id)e.currentTarget.style.borderColor=O.amberB;}}
-                  onMouseLeave={e=>{if(activeLoc!==loc.id)e.currentTarget.style.borderColor=O.border;}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-                    <div>
-                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>{loc.name}</div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginTop:2}}>{loc.addr}</div>
-                    </div>
-                    {loc.alerts>0 ? <OBadge label={`${loc.alerts} ALERT`} color={O.red} sm/> : <OBadge label="CLEAR" color={O.green} sm/>}
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-                    {[["Staff",`${loc.active}/${loc.staff}`,O.green],["Cameras",loc.cameras,O.amber],["Cost Today",`$${loc.cost}`,O.amber],["Incidents",loc.incidents,loc.incidents>0?O.red:O.green]].map(([l,v,c]) => (
-                      <div key={l} style={{background:O.bg3,borderRadius:5,padding:"7px"}}>
-                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,marginBottom:2}}>{l.toUpperCase()}</div>
-                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:c}}>{v}</div>
+            {(()=>{
+              const sky  = "#0ea5e9";
+              const skyD = "rgba(14,165,233,0.08)";
+              const skyB = "rgba(14,165,233,0.22)";
+
+              const locScore = (loc) => Math.min(100, Math.round(
+                ((loc.active/Math.max(loc.staff,1))*30)+
+                (loc.alerts===0?25:loc.alerts===1?15:5)+
+                (loc.cameras?25:0)+
+                (loc.incidents===0?20:loc.incidents<=2?10:0)
+              ));
+              const locStatus = (loc) => {
+                if(loc.alerts>1||loc.incidents>2) return "ACTION NEEDED";
+                if(loc.alerts>0||loc.incidents>0) return "MONITORING";
+                return "OPERATING";
+              };
+              const locStatusColor = (loc) => {
+                const s = locStatus(loc);
+                return s==="ACTION NEEDED"?O.red:s==="MONITORING"?O.amber:O.green;
+              };
+              const locStaff = (loc) => EMPS.slice(
+                (loc.id-1)*2,
+                Math.min(EMPS.length,(loc.id-1)*2+loc.staff)
+              );
+              const fleetTotals = {
+                totalStaff:  LOCS.reduce((s,l)=>s+l.staff,0),
+                activeStaff: LOCS.reduce((s,l)=>s+l.active,0),
+                totalCost:   LOCS.reduce((s,l)=>s+l.cost,0),
+                totalAlerts: LOCS.reduce((s,l)=>s+l.alerts,0),
+                totalInc:    LOCS.reduce((s,l)=>s+l.incidents,0),
+              };
+
+              const activeLoc2 = LOCS.find(l=>l.id===activeLoc)||LOCS[0];
+              const staff4Loc  = locStaff(activeLoc2);
+              const score4Loc  = locScore(activeLoc2);
+              const fleetAvgScore = Math.round(LOCS.reduce((s,l)=>s+locScore(l),0)/LOCS.length);
+              const rankedLocs = [...LOCS].sort((a,b)=>locScore(b)-locScore(a));
+
+              // Radar for active location
+              const N=6, rcx=110, rcy=110, RR=80;
+              const rang = (i) => (Math.PI*2*i/N)-Math.PI/2;
+              const rpt = (val,i) => {
+                const r=(val/100)*RR;
+                return [rcx+r*Math.cos(rang(i)), rcy+r*Math.sin(rang(i))];
+              };
+              const locDims = [
+                {l:"Reliability",   loc:Math.round(EMPS.filter(e=>staff4Loc.find(s=>s.id===e.id)).reduce((s,e)=>s+e.rel,0)/Math.max(staff4Loc.length,1)), net:74},
+                {l:"Efficiency",    loc:Math.round((activeLoc2.active/Math.max(activeLoc2.staff,1))*100), net:80},
+                {l:"Camera Cov",    loc:activeLoc2.cameras?85:0, net:82},
+                {l:"Low Incidents", loc:Math.max(0,100-activeLoc2.incidents*20), net:90},
+                {l:"Payroll Acc",   loc:Math.round((1-(totalGhost/Math.max(EMPS.reduce((s,e)=>s+e.wkHrs,0),1)))*100), net:89},
+                {l:"Schedule",      loc:88, net:85},
+              ];
+              const locPts  = locDims.map((d,i)=>rpt(d.loc,i));
+              const netPts  = locDims.map((d,i)=>rpt(d.net,i));
+              const toPath  = (pts) => pts.map((p,i)=>(i===0?"M":"L")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")+"Z";
+
+              // Zone layout zones
+              const zones = ["ENTRANCE","REGISTER","FLOOR","STOCK RM","BREAK RM","OFFICE"];
+
+              // Feed events for active location
+              const locFeed = FEED.filter(ev=>{
+                const e = byId(ev.eId);
+                return e && staff4Loc.find(s=>s.id===e.id);
+              }).slice(0,5);
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
+                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
+                </div>
+              );
+              const Toggle = ({on,onToggle}) => (
+                <button onClick={onToggle}
+                  style={{width:42,height:22,borderRadius:11,
+                    background:on?O.amber:"rgba(255,255,255,0.1)",
+                    border:"none",cursor:"pointer",position:"relative",transition:"all 0.2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",
+                    background:"#fff",transition:"all 0.2s",left:on?23:3,
+                    boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+                </button>
+              );
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: FLEET HEADER ── */}
+                  <div style={{background:skyD,border:"1px solid "+skyB,
+                    borderRadius:12,padding:"14px 18px",marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",
+                      justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:10}}>
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:sky,
+                          letterSpacing:"2.5px",marginBottom:4}}>
+                          MULTI-LOCATION COMMAND CENTER
+                        </div>
+                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:"#fff"}}>
+                          {LOCS.length} Active Locations
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {LOCS.filter(l=>l.id===activeLoc).map(loc => (
-              <div key={loc.id} style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,padding:"18px"}}>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:2,marginBottom:12}}>{loc.name.toUpperCase()} — DETAIL</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-                  <OStat label="Active Staff" value={`${loc.active}/${loc.staff}`} color={O.green}/>
-                  <OStat label="Cameras" value={loc.cameras} color={O.amber}/>
-                  <OStat label="Incidents" value={loc.incidents} color={loc.incidents>0?O.red:O.green}/>
-                  <OStat label="Labor Cost" value={`$${loc.cost}`} color={O.amber}/>
-                </div>
-                {EMPS.slice(0,loc.staff).map(e => (
-                  <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:O.bg3,borderRadius:7,marginBottom:6}}>
-                    <Av emp={e} size={28} dark/>
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{e.name}</div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{e.role}</div>
+
+                      {/* Location health dots */}
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        {LOCS.map(loc=>(
+                          <div key={loc.id} style={{display:"flex",alignItems:"center",gap:5,
+                            padding:"5px 10px",background:O.bg3,borderRadius:6,cursor:"pointer",
+                            border:"1px solid "+(activeLoc===loc.id?sky+"50":O.border)}}
+                            onClick={()=>setActiveLoc(loc.id)}>
+                            <div style={{width:8,height:8,borderRadius:"50%",
+                              background:locStatusColor(loc),
+                              boxShadow:"0 0 6px "+locStatusColor(loc)}}/>
+                            <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                              {loc.name.split(" ")[0]}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                        padding:"8px 16px",background:sky,border:"none",borderRadius:7,
+                        color:"#fff",cursor:"pointer",fontWeight:600,
+                        boxShadow:"0 0 14px rgba(14,165,233,0.35)"}}>
+                        + Add Location
+                      </button>
                     </div>
-                    <OBadge label={e.status} color={e.status==="active"?O.green:e.status==="break"?O.amber:O.textD} sm/>
-                    <OBadge label={e.risk} color={rC(e.risk)} sm/>
+
+                    {/* Fleet stats */}
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {[
+                        {l:"Locations",  v:LOCS.length+" active",     c:sky},
+                        {l:"Total Staff",v:fleetTotals.activeStaff+"/"+fleetTotals.totalStaff+" on floor",c:O.green},
+                        {l:"Labor Today",v:"$"+fleetTotals.totalCost,  c:O.amber},
+                        {l:"Open Alerts",v:fleetTotals.totalAlerts,    c:fleetTotals.totalAlerts>0?O.red:O.green},
+                        {l:"Incidents",  v:fleetTotals.totalInc,       c:fleetTotals.totalInc>0?O.red:O.green},
+                      ].map(s=>(
+                        <div key={s.l} style={{background:s.c+"12",
+                          border:"1px solid "+s.c+"30",borderRadius:7,padding:"6px 12px"}}>
+                          <div style={{fontFamily:O.sans,fontWeight:700,
+                            fontSize:15,color:s.c,lineHeight:1,marginBottom:2}}>{s.v}</div>
+                          <div style={{fontFamily:O.mono,fontSize:7,
+                            color:O.textF,letterSpacing:1,textTransform:"uppercase"}}>{s.l}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-            ))}
+
+                  {/* ── ZONE 2: LOCATION SELECTOR CARDS ── */}
+                  <div style={{display:"flex",gap:10,overflowX:"auto",
+                    paddingBottom:8,marginBottom:12,
+                    WebkitOverflowScrolling:"touch"}}>
+                    {LOCS.map(loc=>{
+                      const sc = locScore(loc);
+                      const st = locStatus(loc);
+                      const stc = locStatusColor(loc);
+                      const isActive = activeLoc===loc.id;
+                      return(
+                        <div key={loc.id} onClick={()=>setActiveLoc(loc.id)}
+                          style={{flexShrink:0,width:220,background:isActive?O.amberD:O.bg2,
+                            border:"1px solid "+(isActive?O.amber:O.border),
+                            borderRadius:12,padding:"14px 16px",cursor:"pointer",
+                            transition:"all 0.2s",
+                            boxShadow:isActive?"0 0 20px rgba(245,158,11,0.15)":"none"}}
+                          onMouseEnter={e=>{if(!isActive)e.currentTarget.style.borderColor=sky+"50";}}
+                          onMouseLeave={e=>{if(!isActive)e.currentTarget.style.borderColor=O.border;}}>
+
+                          <div style={{display:"flex",justifyContent:"space-between",
+                            alignItems:"flex-start",marginBottom:8}}>
+                            <div style={{minWidth:0,flex:1}}>
+                              <div style={{fontFamily:O.sans,fontWeight:700,
+                                fontSize:13,color:"#fff",marginBottom:2,
+                                whiteSpace:"nowrap",overflow:"hidden",
+                                textOverflow:"ellipsis"}}>{loc.name}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
+                                whiteSpace:"nowrap",overflow:"hidden",
+                                textOverflow:"ellipsis"}}>{loc.addr}</div>
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:stc,
+                              background:stc+"15",border:"1px solid "+stc+"30",
+                              borderRadius:4,padding:"2px 6px",letterSpacing:0.5,
+                              flexShrink:0,marginLeft:6,whiteSpace:"nowrap"}}>
+                              {st==="OPERATING"?"🟢":st==="MONITORING"?"🟡":"🔴"} {st}
+                            </div>
+                          </div>
+
+                          {/* Health bar */}
+                          <div style={{marginBottom:8}}>
+                            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                              <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:1}}>
+                                HEALTH
+                              </span>
+                              <span style={{fontFamily:O.mono,fontSize:8,
+                                color:sc>=80?O.green:sc>=60?O.amber:O.red,fontWeight:600}}>
+                                {sc}
+                              </span>
+                            </div>
+                            <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                              <div style={{height:"100%",borderRadius:2,
+                                width:sc+"%",
+                                background:sc>=80?O.green:sc>=60?O.amber:O.red,
+                                transition:"width 0.8s ease"}}/>
+                            </div>
+                          </div>
+
+                          {/* Quick stats */}
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+                            {[
+                              {l:"Staff",v:loc.active+"/"+loc.staff,c:O.green},
+                              {l:"Cost",v:"$"+loc.cost,c:O.amber},
+                              {l:"Cameras",v:loc.cameras,c:sky},
+                              {l:"Alerts",v:loc.alerts,c:loc.alerts>0?O.red:O.green},
+                            ].map(s=>(
+                              <div key={s.l} style={{background:O.bg3,borderRadius:5,
+                                padding:"5px 7px"}}>
+                                <div style={{fontFamily:O.mono,fontSize:6,
+                                  color:O.textF,letterSpacing:1,marginBottom:1}}>
+                                  {s.l.toUpperCase()}
+                                </div>
+                                <div style={{fontFamily:O.sans,fontWeight:700,
+                                  fontSize:12,color:s.c}}>{s.v}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Add location slot */}
+                    <div style={{flexShrink:0,width:180,background:"rgba(14,165,233,0.03)",
+                      border:"1px dashed rgba(14,165,233,0.2)",borderRadius:12,
+                      display:"flex",flexDirection:"column",alignItems:"center",
+                      justifyContent:"center",cursor:"pointer",minHeight:160,
+                      transition:"all 0.2s"}}
+                      onMouseEnter={e=>{e.currentTarget.style.background="rgba(14,165,233,0.07)";e.currentTarget.style.borderColor="rgba(14,165,233,0.4)";}}
+                      onMouseLeave={e=>{e.currentTarget.style.background="rgba(14,165,233,0.03)";e.currentTarget.style.borderColor="rgba(14,165,233,0.2)";}}>
+                      <div style={{fontSize:22,color:"rgba(14,165,233,0.4)",marginBottom:6}}>+</div>
+                      <div style={{fontFamily:O.mono,fontSize:9,
+                        color:"rgba(14,165,233,0.5)",letterSpacing:1}}>ADD LOCATION</div>
+                    </div>
+                  </div>
+
+                  {/* ── ZONES 3 + 4: DETAIL + CHART ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 3: Active Location Detail */}
+                    <Card>
+                      {/* Header */}
+                      <div style={{display:"flex",justifyContent:"space-between",
+                        alignItems:"flex-start",marginBottom:14}}>
+                        <div>
+                          <div style={{fontFamily:O.sans,fontWeight:800,
+                            fontSize:18,color:"#fff",marginBottom:3}}>
+                            {activeLoc2.name}
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                            {activeLoc2.addr}
+                          </div>
+                        </div>
+                        <button onClick={()=>setLocEditMode(!locEditMode)}
+                          style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"4px 10px",background:skyD,
+                            border:"1px solid "+skyB,borderRadius:5,
+                            color:sky,cursor:"pointer"}}>
+                          {locEditMode?"✓ SAVE":"✏ EDIT"}
+                        </button>
+                      </div>
+
+                      {/* Stats grid */}
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",
+                        gap:8,marginBottom:12}}>
+                        <div style={{background:O.bg3,borderRadius:8,padding:"12px"}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                            letterSpacing:1,marginBottom:6}}>ACTIVE STAFF</div>
+                          <div style={{fontFamily:O.sans,fontWeight:800,fontSize:20,
+                            color:O.green,marginBottom:5}}>
+                            {activeLoc2.active}/{activeLoc2.staff}
+                          </div>
+                          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                            {staff4Loc.slice(0,activeLoc2.active).map(e=>(
+                              <Av key={e.id} emp={e} size={18} dark/>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{background:O.bg3,borderRadius:8,padding:"12px"}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                            letterSpacing:1,marginBottom:6}}>LABOR COST TODAY</div>
+                          <div style={{fontFamily:O.sans,fontWeight:800,fontSize:20,
+                            color:O.amber,marginBottom:4}}>${activeLoc2.cost}</div>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                            ~${Math.round(activeLoc2.cost/8)}/hr burn rate
+                          </div>
+                        </div>
+                        <div style={{background:O.bg3,borderRadius:8,padding:"12px"}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                            letterSpacing:1,marginBottom:6}}>CAMERAS</div>
+                          <div style={{fontFamily:O.sans,fontWeight:800,fontSize:20,
+                            color:sky,marginBottom:4}}>{activeLoc2.cameras}</div>
+                          <div style={{fontFamily:O.mono,fontSize:8,
+                            color:activeLoc2.cameras&&activeLoc2.cameras.split("/")[0]===activeLoc2.cameras.split("/")[1]?O.green:O.amber}}>
+                            {activeLoc2.cameras&&activeLoc2.cameras.split("/")[0]===activeLoc2.cameras.split("/")[1]?"ALL ONLINE":"CHECK OFFLINE"}
+                          </div>
+                        </div>
+                        <div style={{background:O.bg3,borderRadius:8,padding:"12px"}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                            letterSpacing:1,marginBottom:6}}>INCIDENTS TODAY</div>
+                          <div style={{fontFamily:O.sans,fontWeight:800,fontSize:20,
+                            color:activeLoc2.incidents>0?O.red:O.green,marginBottom:4}}>
+                            {activeLoc2.incidents}
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:8,
+                            color:activeLoc2.incidents>0?O.red:O.green}}>
+                            {activeLoc2.incidents>0?"REVIEW NEEDED":"CLEAR"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Zone map */}
+                      <div style={{marginBottom:12}}>
+                        <SL text="Floor Zone Map" color={sky}/>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",
+                          gap:5,marginBottom:8}}>
+                          {zones.map((z,i)=>(
+                            <div key={z} style={{background:i<3?skyD:O.bg3,
+                              border:"1px solid "+(i<3?skyB:O.border),
+                              borderRadius:6,padding:"6px",textAlign:"center"}}>
+                              <div style={{fontFamily:O.mono,fontSize:7,
+                                color:i<3?sky:O.textD,letterSpacing:0.5}}>{z}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          padding:"4px 10px",background:skyD,border:"1px solid "+skyB,
+                          borderRadius:4,color:sky,cursor:"pointer"}}>
+                          🗺 View on Maps
+                        </button>
+                      </div>
+
+                      {/* Location activity feed */}
+                      <div>
+                        <SL text={"Today's Activity — "+activeLoc2.name} color={sky}/>
+                        {locFeed.length===0&&(
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,
+                            padding:"12px 0",textAlign:"center"}}>No recent activity</div>
+                        )}
+                        {locFeed.map((ev,i)=>{
+                          const e = byId(ev.eId);
+                          const c = sC(ev.type);
+                          return(
+                            <div key={ev.id} style={{display:"flex",alignItems:"center",
+                              gap:8,padding:"7px 0",
+                              borderBottom:i<locFeed.length-1?"1px solid "+O.border:"none"}}>
+                              <div style={{fontFamily:O.mono,fontSize:8,
+                                color:O.textF,width:40,flexShrink:0}}>{ev.time}</div>
+                              {e&&<Av emp={e} size={18} dark/>}
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:11,color:"#fff",whiteSpace:"nowrap",
+                                  overflow:"hidden",textOverflow:"ellipsis"}}>
+                                  {e?e.name.split(" ")[0]+" — ":""}{ev.event}
+                                </div>
+                              </div>
+                              <OBadge label={ev.type} color={c} sm/>
+                            </div>
+                          );
+                        })}
+                        <button onClick={()=>setTab("feed")}
+                          style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            marginTop:8,padding:"4px 10px",background:skyD,
+                            border:"1px solid "+skyB,borderRadius:4,
+                            color:sky,cursor:"pointer"}}>
+                          View Full Feed →
+                        </button>
+                      </div>
+                    </Card>
+
+                    {/* ZONE 4: Performance Chart + Comparison */}
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+
+                      {/* Radar */}
+                      <Card>
+                        <SL text="Location Performance Radar" color={sky}/>
+                        <div style={{display:"flex",justifyContent:"center"}}>
+                          <svg width="220" height="220" viewBox="0 0 220 220">
+                            {[0.25,0.5,0.75,1].map((r,ri)=>(
+                              <polygon key={ri}
+                                points={Array.from({length:N},(_,i)=>{
+                                  const a=rang(i);
+                                  return (rcx+RR*r*Math.cos(a)).toFixed(1)+","+(rcy+RR*r*Math.sin(a)).toFixed(1);
+                                }).join(" ")}
+                                fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                            ))}
+                            {locDims.map((d,i)=>{
+                              const [px,py]=rpt(92,i);
+                              const [lx,ly]=rpt(106,i);
+                              return(
+                                <g key={i}>
+                                  <line x1={rcx} y1={rcy} x2={px} y2={py}
+                                    stroke="rgba(255,255,255,0.08)" strokeWidth="1"/>
+                                  <text x={lx} y={ly}
+                                    fontFamily="'JetBrains Mono',monospace"
+                                    fontSize="6.5" fill="rgba(226,232,240,0.4)"
+                                    textAnchor="middle" dominantBaseline="middle">
+                                    {d.l}
+                                  </text>
+                                </g>
+                              );
+                            })}
+                            <path d={toPath(netPts)} fill="rgba(255,255,255,0.03)"
+                              stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeDasharray="3 3"/>
+                            <path d={toPath(locPts)} fill="rgba(245,158,11,0.14)"
+                              stroke={O.amber} strokeWidth="2"/>
+                            {locPts.map(([px,py],i)=>(
+                              <circle key={i} cx={px} cy={py} r="3"
+                                fill={O.amber} stroke={O.bg2} strokeWidth="1.5"/>
+                            ))}
+                          </svg>
+                        </div>
+                        <div style={{display:"flex",gap:12,justifyContent:"center"}}>
+                          {[[O.amber,"This Location"],["rgba(255,255,255,0.5)","Network Avg",true]].map(([c,l,dash])=>(
+                            <div key={l} style={{display:"flex",alignItems:"center",gap:5}}>
+                              <div style={{width:14,height:2,
+                                background:dash?"transparent":c,
+                                borderTop:dash?"2px dashed "+c:"none"}}/>
+                              <span style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>{l}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+
+                      {/* Cross-location comparison */}
+                      <Card style={{flex:1}}>
+                        <SL text="Cross-Location Comparison" color={sky}/>
+                        {[
+                          {l:"Reliability",vals:LOCS.map(loc=>{
+                            const ls=locStaff(loc);
+                            return {name:loc.name.split(" ")[0],v:ls.length?Math.round(ls.reduce((s,e)=>s+e.rel,0)/ls.length):0};
+                          })},
+                          {l:"Labor Cost",vals:LOCS.map(loc=>({name:loc.name.split(" ")[0],v:loc.cost}))},
+                          {l:"Incidents",vals:LOCS.map(loc=>({name:loc.name.split(" ")[0],v:loc.incidents}))},
+                          {l:"Staff Util",vals:LOCS.map(loc=>({name:loc.name.split(" ")[0],v:Math.round((loc.active/Math.max(loc.staff,1))*100)}))},
+                        ].map(metric=>{
+                          const vals = metric.vals.map(x=>x.v);
+                          const maxV = Math.max(...vals,1);
+                          const minV = Math.min(...vals);
+                          return(
+                            <div key={metric.l} style={{marginBottom:10}}>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                                letterSpacing:1,marginBottom:5}}>{metric.l.toUpperCase()}</div>
+                              {metric.vals.map((item,i)=>{
+                                const isMax = item.v===Math.max(...vals);
+                                const isMin = item.v===Math.min(...vals);
+                                const barColor = isMin&&metric.l!=="Incidents"?O.red:isMax&&metric.l!=="Incidents"?O.green:O.amber;
+                                const barColor2 = metric.l==="Incidents"?(isMin?O.green:isMax?O.red:O.amber):barColor;
+                                const pct2 = Math.round((item.v/maxV)*100);
+                                return(
+                                  <div key={i} style={{display:"flex",alignItems:"center",
+                                    gap:7,marginBottom:3}}>
+                                    <div style={{fontFamily:O.mono,fontSize:8,
+                                      color:O.textD,width:55,flexShrink:0}}>
+                                      {item.name}
+                                    </div>
+                                    <div style={{flex:1,height:6,
+                                      background:"rgba(255,255,255,0.06)",borderRadius:3}}>
+                                      <div style={{height:"100%",width:pct2+"%",
+                                        background:barColor2,borderRadius:3,
+                                        transition:"width 0.8s ease"}}/>
+                                    </div>
+                                    <div style={{fontFamily:O.mono,fontSize:8,
+                                      color:barColor2,width:36,textAlign:"right",
+                                      fontWeight:600,flexShrink:0}}>
+                                      {metric.l==="Reliability"||metric.l==="Staff Util"?item.v+"%":
+                                       metric.l==="Labor Cost"?"$"+item.v:item.v}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </Card>
+                    </div>
+                  </div>
+
+                  {/* ── ZONE 5: STAFF ROSTER ── */}
+                  <Card style={{marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",
+                      justifyContent:"space-between",marginBottom:12}}>
+                      <SL text={"Staff Roster — "+activeLoc2.name} color={sky}/>
+                      <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                        padding:"4px 10px",background:skyD,
+                        border:"1px solid "+skyB,borderRadius:4,
+                        color:sky,cursor:"pointer"}}>
+                        + Assign Employee
+                      </button>
+                    </div>
+                    <div style={{overflowX:"auto"}}>
+                      <div style={{minWidth:680}}>
+                        {/* Header */}
+                        <div style={{display:"grid",
+                          gridTemplateColumns:"130px 100px 100px 80px 70px 80px 70px 70px 100px",
+                          padding:"6px 8px",background:O.bg3,
+                          borderRadius:"6px 6px 0 0",gap:4}}>
+                          {["EMPLOYEE","ROLE","STATUS","ON SHIFT","HRS","CAM","GHOST RISK","COST","ACTION"].map(h=>(
+                            <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                              color:O.textF,letterSpacing:1}}>{h}</div>
+                          ))}
+                        </div>
+                        {staff4Loc.map((e,idx)=>{
+                          const onSince = e.status==="active"?(now.getHours()-9)*60+now.getMinutes():0;
+                          const onHrs = Math.floor(onSince/60);
+                          const onMin = onSince%60;
+                          const dailyCost = ((e.wkHrs/5)*e.rate).toFixed(0);
+                          const ghostRisk = e.ghost>3?"HIGH":e.ghost>1?"MEDIUM":"LOW";
+                          const ghostC = e.ghost>3?O.red:e.ghost>1?O.amber:O.green;
+                          const stColor = e.status==="active"?O.green:e.status==="break"?O.amber:O.textD;
+                          return(
+                            <div key={e.id} style={{display:"grid",
+                              gridTemplateColumns:"130px 100px 100px 80px 70px 80px 70px 70px 100px",
+                              padding:"9px 8px",gap:4,
+                              borderBottom:"1px solid "+O.border,
+                              background:idx%2===0?"transparent":"rgba(255,255,255,0.01)",
+                              alignItems:"center"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                <Av emp={e} size={24} dark/>
+                                <div style={{minWidth:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:11,color:"#fff",whiteSpace:"nowrap",
+                                    overflow:"hidden",textOverflow:"ellipsis",maxWidth:80}}>
+                                    {e.name}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                {e.role.split(" ")[0]}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:stColor,
+                                background:stColor+"15",border:"1px solid "+stColor+"30",
+                                borderRadius:4,padding:"2px 6px",letterSpacing:0.5,
+                                whiteSpace:"nowrap",width:"fit-content"}}>
+                                {e.status==="active"?"CLOCKED IN":e.status==="break"?"ON BREAK":"NOT IN"}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                                {e.status==="active"?onHrs+"h "+onMin+"m":"—"}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.amber}}>
+                                {e.wkHrs}h
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,
+                                color:e.cam>=80?O.green:O.amber}}>
+                                {e.cam>=80?"📷 ✓":"⚠ NO"}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:ghostC,
+                                background:ghostC+"12",border:"1px solid "+ghostC+"25",
+                                borderRadius:3,padding:"2px 5px",letterSpacing:0.5,
+                                width:"fit-content"}}>
+                                {ghostRisk}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                                ${dailyCost}
+                              </div>
+                              <div style={{display:"flex",gap:4}}>
+                                <button onClick={()=>{setSelEmp(e.id);setTab("intelligence");}}
+                                  style={{fontFamily:O.mono,fontSize:7,padding:"3px 7px",
+                                    background:skyD,border:"1px solid "+skyB,
+                                    borderRadius:3,color:sky,cursor:"pointer"}}>
+                                  PROFILE
+                                </button>
+                                <button style={{fontFamily:O.mono,fontSize:7,padding:"3px 7px",
+                                  background:"rgba(168,85,247,0.08)",
+                                  border:"1px solid rgba(168,85,247,0.2)",
+                                  borderRadius:3,color:"#a855f7",cursor:"pointer"}}>
+                                  MSG
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {/* Totals */}
+                        <div style={{display:"grid",
+                          gridTemplateColumns:"130px 100px 100px 80px 70px 80px 70px 70px 100px",
+                          padding:"8px 8px",gap:4,
+                          background:O.bg3,
+                          borderRadius:"0 0 6px 6px",
+                          borderTop:"2px solid "+sky+"40",alignItems:"center"}}>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:sky,letterSpacing:1}}>
+                            TOTALS
+                          </div>
+                          <div/>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.green}}>
+                            {staff4Loc.filter(e=>e.status==="active").length} on floor
+                          </div>
+                          <div/>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,fontWeight:600}}>
+                            {staff4Loc.reduce((s,e)=>s+e.wkHrs,0)}h
+                          </div>
+                          <div/>
+                          <div/>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,fontWeight:600}}>
+                            ${staff4Loc.reduce((s,e)=>s+parseFloat(((e.wkHrs/5)*e.rate).toFixed(0)),0).toFixed(0)}
+                          </div>
+                          <div/>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 6 + 7: SETTINGS + LEADERBOARD ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+
+                    {/* ZONE 6: Location Settings */}
+                    <Card>
+                      <SL text={"Location Settings — "+activeLoc2.name} color={sky}/>
+
+                      {/* Basic info */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:2,marginBottom:8}}>BASIC INFO</div>
+                        {[
+                          {l:"Location Name",v:activeLoc2.name},
+                          {l:"Address",v:activeLoc2.addr},
+                          {l:"Manager",v:"Assign Manager"},
+                          {l:"Hours",v:"Mon–Fri 9am–6pm · Sat 10am–4pm"},
+                          {l:"Time Zone",v:"Pacific Time (PT)"},
+                        ].map(f=>(
+                          <div key={f.l} style={{display:"flex",gap:8,
+                            padding:"6px 0",borderBottom:"1px solid "+O.border,
+                            alignItems:"center"}}>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                              width:100,flexShrink:0}}>{f.l}</div>
+                            {locEditMode?(
+                              <input defaultValue={f.v}
+                                style={{flex:1,padding:"4px 8px",
+                                  background:"rgba(255,255,255,0.04)",
+                                  border:"1px solid "+sky+"40",borderRadius:4,
+                                  fontFamily:O.mono,fontSize:9,color:"#fff",outline:"none"}}/>
+                            ):(
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,flex:1}}>
+                                {f.v}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Staffing settings */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:2,marginBottom:8}}>STAFFING SETTINGS</div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
+                          {[
+                            {l:"Min Per Shift",v:"3"},
+                            {l:"Max Capacity",v:String(activeLoc2.staff)},
+                            {l:"OT Threshold",v:"40h/wk"},
+                          ].map(s=>(
+                            <div key={s.l} style={{background:O.bg3,borderRadius:7,padding:"10px"}}>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                                letterSpacing:1,marginBottom:4}}>{s.l.toUpperCase()}</div>
+                              <div style={{fontFamily:O.sans,fontWeight:700,
+                                fontSize:16,color:sky}}>{s.v}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Alert override */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:2,marginBottom:8}}>ALERT SETTINGS</div>
+                        <div style={{display:"flex",alignItems:"center",
+                          justifyContent:"space-between",padding:"9px 10px",
+                          background:O.bg3,borderRadius:7}}>
+                          <div>
+                            <div style={{fontFamily:O.sans,fontWeight:600,
+                              fontSize:12,color:"#fff",marginBottom:1}}>
+                              Use Global Alert Settings
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                              Override with location-specific thresholds
+                            </div>
+                          </div>
+                          <Toggle on={true} onToggle={()=>{}}/>
+                        </div>
+                      </div>
+
+                      {/* Integration status */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:2,marginBottom:8}}>INTEGRATIONS</div>
+                        {[
+                          {icon:"📷",l:"Camera System",v:"Hikvision · "+activeLoc2.cameras+" feeds",c:O.green},
+                          {icon:"🗃️",l:"POS System",v:"Register 1, 2, 3 · Active",c:O.green},
+                          {icon:"📤",l:"Payroll Export",v:"QuickBooks Online · Synced",c:O.green},
+                        ].map(int=>(
+                          <div key={int.l} style={{display:"flex",alignItems:"center",
+                            gap:8,padding:"7px 0",borderBottom:"1px solid "+O.border}}>
+                            <span style={{fontSize:14}}>{int.icon}</span>
+                            <div style={{flex:1}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff"}}>{int.l}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                {int.v}
+                              </div>
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:int.c,
+                              background:int.c+"12",border:"1px solid "+int.c+"25",
+                              borderRadius:3,padding:"2px 6px",letterSpacing:0.5}}>
+                              ✓ ACTIVE
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+
+                    {/* ZONE 7: Cross-Location Leaderboard */}
+                    <Card>
+                      <SL text="Location Performance Rankings" color={sky}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                        {rankedLocs.map((loc,idx)=>{
+                          const sc2 = locScore(loc);
+                          const sc2Color = sc2>=80?O.green:sc2>=60?O.amber:O.red;
+                          const stc2 = locStatusColor(loc);
+                          const trend = idx===0?"↑ Improving":idx===rankedLocs.length-1?"↓ Declining":"→ Stable";
+                          const trendColor = trend.startsWith("↑")?O.green:trend.startsWith("↓")?O.red:O.textD;
+                          const statusLabel = idx===0?"BEST PERFORMER":idx===rankedLocs.length-1?"NEEDS ATTENTION":"AVERAGE";
+                          const medalColor = idx===0?"#FFD700":idx===1?"#C0C0C0":"#CD7F32";
+                          const fleetAvg2 = Math.round(LOCS.reduce((s,l)=>s+locScore(l),0)/LOCS.length);
+                          return(
+                            <div key={loc.id}
+                              style={{background:O.bg3,borderRadius:10,padding:"12px",
+                                border:"1px solid "+(idx===0?"rgba(255,215,0,0.25)":O.border),
+                                cursor:"pointer",transition:"all 0.15s"}}
+                              onClick={()=>setActiveLoc(loc.id)}
+                              onMouseEnter={e=>e.currentTarget.style.borderColor=sky+"40"}
+                              onMouseLeave={e=>e.currentTarget.style.borderColor=idx===0?"rgba(255,215,0,0.25)":O.border}>
+
+                              <div style={{display:"flex",alignItems:"center",
+                                gap:10,marginBottom:8}}>
+                                <div style={{fontFamily:O.sans,fontWeight:900,
+                                  fontSize:idx<2?20:14,color:medalColor,
+                                  width:24,flexShrink:0,textAlign:"center"}}>
+                                  {idx===0?"🥇":idx===1?"🥈":"🥉"}
+                                </div>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:700,
+                                    fontSize:13,color:"#fff",marginBottom:1}}>{loc.name}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                    {loc.addr}
+                                  </div>
+                                </div>
+                                <div style={{textAlign:"right",flexShrink:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:900,
+                                    fontSize:22,color:sc2Color,lineHeight:1}}>{sc2}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:6,color:O.textF}}>SCORE</div>
+                                </div>
+                              </div>
+
+                              {/* Status + trend */}
+                              <div style={{display:"flex",
+                                justifyContent:"space-between",
+                                alignItems:"center",marginBottom:8}}>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:stc2,
+                                  background:stc2+"12",border:"1px solid "+stc2+"25",
+                                  borderRadius:3,padding:"2px 7px",letterSpacing:0.5}}>
+                                  {statusLabel}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:trendColor}}>
+                                  {trend}
+                                </div>
+                              </div>
+
+                              {/* Micro stats */}
+                              <div style={{display:"flex",gap:6,marginBottom:8}}>
+                                {[
+                                  {l:"Staff",v:loc.active+"/"+loc.staff},
+                                  {l:"Cost",v:"$"+loc.cost},
+                                  {l:"Ghost",v:loc.incidents>0?loc.incidents+"inc":"Clean"},
+                                  {l:"Alerts",v:loc.alerts},
+                                ].map(s=>(
+                                  <div key={s.l} style={{flex:1,background:O.bg2,
+                                    borderRadius:5,padding:"4px 5px",textAlign:"center"}}>
+                                    <div style={{fontFamily:O.mono,fontSize:6,
+                                      color:O.textF,marginBottom:1}}>{s.l.toUpperCase()}</div>
+                                    <div style={{fontFamily:O.mono,fontSize:9,
+                                      color:O.textD,fontWeight:600}}>{s.v}</div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Score vs fleet avg bar */}
+                              <div>
+                                <div style={{display:"flex",
+                                  justifyContent:"space-between",marginBottom:3}}>
+                                  <span style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>
+                                    vs fleet avg {fleetAvg2}
+                                  </span>
+                                  <span style={{fontFamily:O.mono,fontSize:7,color:sc2Color}}>
+                                    {sc2>=fleetAvg2?"+":""}{ sc2-fleetAvg2} pts
+                                  </span>
+                                </div>
+                                <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,position:"relative"}}>
+                                  <div style={{position:"absolute",top:-1,
+                                    left:fleetAvg2+"%",width:2,height:6,
+                                    background:"rgba(255,255,255,0.2)",borderRadius:1}}/>
+                                  <div style={{height:"100%",width:sc2+"%",
+                                    background:sc2Color,borderRadius:2}}/>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Footer insight */}
+                      <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,
+                        background:O.bg3,borderRadius:7,padding:"9px 11px",
+                        borderLeft:"3px solid "+sky,lineHeight:1.6,marginBottom:12}}>
+                        <span style={{color:O.green,fontWeight:600}}>
+                          {rankedLocs[0].name}
+                        </span>{" "}
+                        is your top performer.{" "}
+                        <span style={{color:O.amber,fontWeight:600}}>
+                          {rankedLocs[rankedLocs.length-1].name}
+                        </span>{" "}
+                        has the most improvement opportunity —{" "}
+                        {rankedLocs[rankedLocs.length-1].incidents} open incidents and
+                        highest alert rate.
+                      </div>
+
+                      <button style={{width:"100%",fontFamily:O.mono,fontSize:8,
+                        letterSpacing:1,padding:"9px",background:skyD,
+                        border:"1px solid "+skyB,borderRadius:7,
+                        color:sky,cursor:"pointer"}}>
+                        + Add New Location
+                      </button>
+                    </Card>
+                  </div>
+
+                </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── STAFF ── */}
-        {tab==="staff" && (
+
+                {tab==="staff" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>STAFF REGISTRY — {EMPS.length} EMPLOYEES</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
