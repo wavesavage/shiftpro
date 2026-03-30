@@ -4342,7 +4342,7 @@ function OwnerCmd({onLogout}){
                             borderRadius:"6px 6px 0 0",gap:4}}>
                             {["EMPLOYEE","REG HRS","OT HRS","TOTAL","REG PAY","OT PAY","TIPS","MILEAGE","ADDL","STATUS"].map(h=>(
                               <div key={h} style={{fontFamily:O.mono,fontSize:6,
-                                color:O.textF,letterSpacing:h==="TIPS"||h==="MILEAGE"||h==="ADDL"?"rgba(6,182,212,0.8)":O.textF,
+                                color:h==="TIPS"||h==="MILEAGE"||h==="ADDL"?"rgba(6,182,212,0.8)":O.textF,
                                 letterSpacing:1}}>{h}</div>
                             ))}
                           </div>
