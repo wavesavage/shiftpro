@@ -846,6 +846,8 @@ function OwnerCmd({onLogout}){
   const [payPeriod,setPayPeriod] = useState("biweekly");
   const [expandedEmp,setExpandedEmp] = useState(null);
   const [resolvedDisc,setResolvedDisc] = useState({});
+  const [benchPeriod,setBenchPeriod] = useState("month");
+  const [benchIndustry,setBenchIndustry] = useState("retail");
   const [alertFilter,setAlertFilter] = useState("all");
   const [notifConfig,setNotifConfig] = useState({push:true,sms:true,email:true,quietHours:true});
   const [customRules,setCustomRules] = useState([
@@ -5787,60 +5789,861 @@ function OwnerCmd({onLogout}){
 
                 {tab==="benchmark" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:4}}>COMPARATIVE TEAM INTELLIGENCE</div>
-            <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:14}}>Side-by-side analysis across every performance dimension.</div>
-            <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",marginBottom:12}}>
-              <div style={{display:"grid",gridTemplateColumns:"130px repeat(7,1fr)",borderBottom:`1px solid ${O.border}`,padding:"9px 12px",background:O.bg3}}>
-                {["EMPLOYEE","HRS/WK","RELIABILITY","PRODUCTIVITY","PAYROLL ACC.","INCIDENTS","COST/HR","RISK"].map(h => (
-                  <div key={h} style={{fontFamily:O.mono,fontSize:7,color:O.amber+"65",letterSpacing:1.5}}>{h}</div>
-                ))}
-              </div>
-              {[...EMPS].sort((a,b)=>b.rel-a.rel).map((e,i) => {
-                const pa = Math.round((1-(e.ghost/e.wkHrs))*100);
-                return (
-                  <div key={e.id} style={{display:"grid",gridTemplateColumns:"130px repeat(7,1fr)",padding:"11px 12px",borderBottom:`1px solid ${O.border}`,background:i===0?"rgba(16,185,129,0.03)":e.risk==="High"?"rgba(239,68,68,0.03)":"transparent",alignItems:"center"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:7}}>
-                      <Av emp={e} size={26} dark/>
-                      <span style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text}}>{e.name.split(" ")[0]}</span>
-                    </div>
-                    <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>{e.wkHrs}h</div>
-                    <div style={{fontFamily:O.mono,fontSize:11,fontWeight:600,color:e.rel>=80?O.green:e.rel>=60?O.amber:O.red}}>{e.rel}%</div>
-                    <div style={{fontFamily:O.mono,fontSize:11,fontWeight:600,color:e.prod>=80?O.green:e.prod>=60?O.amber:O.red}}>{e.prod}%</div>
-                    <div style={{fontFamily:O.mono,fontSize:11,fontWeight:600,color:pa>=90?O.green:pa>=80?O.amber:O.red}}>{pa}%</div>
-                    <div style={{fontFamily:O.mono,fontSize:11,color:e.flags>1?O.red:e.flags>0?O.amber:O.textD}}>{e.flags}</div>
-                    <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>${e.rate}</div>
-                    <OBadge label={e.risk} color={rC(e.risk)} sm/>
-                  </div>
-                );
-              })}
-            </div>
-            {/* Cost gap */}
-            <div style={{background:`linear-gradient(135deg,${O.amberD},${O.redD})`,border:`1px solid ${O.amberB}`,borderRadius:10,padding:"18px"}}>
-              <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:2,marginBottom:12}}>COST GAP: TOP vs BOTTOM PERFORMER</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:14,alignItems:"center"}}>
-                {[...EMPS].sort((a,b)=>b.rel-a.rel).slice(0,1).concat([...EMPS].sort((a,b)=>a.rel-b.rel).slice(0,1)).map((e,i) => (
-                  <div key={e.id} style={{background:O.bg3,borderRadius:8,padding:"14px",textAlign:"center"}}>
-                    <Av emp={e} size={38} dark/>
-                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.text,marginTop:7}}>{e.name.split(" ")[0]}</div>
-                    <div style={{fontFamily:O.mono,fontSize:8,color:i===0?O.green:O.red,marginBottom:5}}>{i===0?"TOP PERFORMER":"BOTTOM PERFORMER"}</div>
-                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:i===0?O.green:O.red}}>${(e.wkHrs*e.rate).toFixed(0)}/wk</div>
-                    <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginTop:3}}>{e.ghost}h ghost · {e.rel}% rel.</div>
-                  </div>
-                ))}
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginBottom:4}}>REAL COST GAP</div>
-                  <div style={{fontFamily:O.sans,fontWeight:800,fontSize:28,color:O.red}}>
-                    +${Math.abs(([...EMPS].sort((a,b)=>b.rel-a.rel)[0].wkHrs*[...EMPS].sort((a,b)=>b.rel-a.rel)[0].rate)-([...EMPS].sort((a,b)=>a.rel-b.rel)[0].wkHrs*[...EMPS].sort((a,b)=>a.rel-b.rel)[0].rate)).toFixed(0)}
-                  </div>
-                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginTop:3}}>per week in waste</div>
+            {(()=>{
+              // ── CORE DATA ──
+              const indigo = "#6366f1";
+              const indigoD = "rgba(99,102,241,0.08)";
+              const indigoB = "rgba(99,102,241,0.25)";
+              const gold   = "#FFD700";
+              const silver = "#C0C0C0";
+              const bronze = "#CD7F32";
+
+              const totalHours = EMPS.reduce((s,e)=>s+e.wkHrs,0);
+              const avgRate = EMPS.reduce((s,e)=>s+e.rate,0)/EMPS.length;
+
+              const INDUSTRY = {
+                rel:74, prod:80, cam:82, payAcc:89,
+                ghostRate:4.1, incidents:1.8, costEff:88, schedAdhere:85
+              };
+              const TOP10 = {
+                rel:92, prod:94, cam:95, payAcc:98,
+                ghostRate:1.2, incidents:0.4, costEff:97, schedAdhere:96
+              };
+
+              const teamAvg = {
+                rel:  Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length),
+                prod: Math.round(EMPS.reduce((s,e)=>s+e.prod,0)/EMPS.length),
+                cam:  Math.round(EMPS.reduce((s,e)=>s+e.cam,0)/EMPS.length),
+                payAcc: Math.round((1-(totalGhost/Math.max(totalHours,1)))*100),
+                ghostRate: parseFloat(((totalGhost/Math.max(totalHours,1))*100).toFixed(1)),
+                incidents: parseFloat((BFLAGS.length/EMPS.length).toFixed(1)),
+                costEff: Math.round((1-(totalGhost/Math.max(totalHours,1)))*100),
+                schedAdhere: 88,
+              };
+
+              const pct = (teamVal, industryVal, higherBetter=true) => {
+                const diff = higherBetter ? teamVal-industryVal : industryVal-teamVal;
+                return Math.min(99,Math.max(1,Math.round(50+(diff/industryVal)*100)));
+              };
+
+              const valueScore = (e) => Math.min(100,Math.max(0,Math.round(
+                (e.rel+e.prod+e.cam+Math.round((1-(e.ghost/Math.max(e.wkHrs,1)))*100))/4
+                -(e.ghost*5)-(e.flags*8)
+              )));
+
+              const rankedEmps = [...EMPS].sort((a,b)=>valueScore(b)-valueScore(a));
+              const vsColor = (v,c) => v>=c?O.green:O.red;
+              const annualGhostCost = (totalGhost*52*avgRate).toFixed(0);
+              const overallScore = Math.round(
+                (pct(teamAvg.rel,INDUSTRY.rel)+pct(teamAvg.prod,INDUSTRY.prod)+
+                 pct(teamAvg.cam,INDUSTRY.cam)+pct(teamAvg.payAcc,INDUSTRY.payAcc)+
+                 pct(teamAvg.ghostRate,INDUSTRY.ghostRate,false)+
+                 pct(teamAvg.costEff,INDUSTRY.costEff))/6
+              );
+              const scoreColor = overallScore>=80?O.green:overallScore>=60?O.amber:O.red;
+
+              // Radar chart
+              const N = 8;
+              const cx=140, cy=140, R=100;
+              const angle = (i) => (Math.PI*2*i/N)-Math.PI/2;
+              const radarPt = (val,i,maxR=R) => {
+                const r = (val/100)*maxR;
+                return [cx+r*Math.cos(angle(i)), cy+r*Math.sin(angle(i))];
+              };
+              const radarDims = [
+                {l:"Reliability",  team:teamAvg.rel, ind:INDUSTRY.rel, top:TOP10.rel},
+                {l:"Productivity", team:teamAvg.prod,ind:INDUSTRY.prod,top:TOP10.prod},
+                {l:"Payroll Acc",  team:teamAvg.payAcc,ind:INDUSTRY.payAcc,top:TOP10.payAcc},
+                {l:"Ghost (inv)",  team:Math.max(0,100-teamAvg.ghostRate*10),ind:100-INDUSTRY.ghostRate*10,top:100-TOP10.ghostRate*10},
+                {l:"Camera",       team:teamAvg.cam, ind:INDUSTRY.cam, top:TOP10.cam},
+                {l:"Schedule",     team:teamAvg.schedAdhere,ind:INDUSTRY.schedAdhere,top:TOP10.schedAdhere},
+                {l:"Incidents(inv)",team:Math.max(0,100-teamAvg.incidents*20),ind:100-INDUSTRY.incidents*20,top:100-TOP10.incidents*20},
+                {l:"Cost Eff",     team:teamAvg.costEff,ind:INDUSTRY.costEff,top:TOP10.costEff},
+              ];
+              const toPath = (pts) => pts.map((p,i)=>(i===0?"M":"L")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")+"Z";
+              const teamPts = radarDims.map((d,i)=>radarPt(d.team,i));
+              const indPts  = radarDims.map((d,i)=>radarPt(d.ind,i));
+              const topPts  = radarDims.map((d,i)=>radarPt(d.top,i));
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
+                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
                 </div>
-              </div>
-            </div>
+              );
+
+              const benchRows = [
+                {l:"Reliability",    team:teamAvg.rel+"%",   ind:INDUSTRY.rel+"%",   pctVal:pct(teamAvg.rel,INDUSTRY.rel),      above:teamAvg.rel>=INDUSTRY.rel},
+                {l:"Productivity",   team:teamAvg.prod+"%",  ind:INDUSTRY.prod+"%",  pctVal:pct(teamAvg.prod,INDUSTRY.prod),     above:teamAvg.prod>=INDUSTRY.prod},
+                {l:"Payroll Accuracy",team:teamAvg.payAcc+"%",ind:INDUSTRY.payAcc+"%",pctVal:pct(teamAvg.payAcc,INDUSTRY.payAcc),above:teamAvg.payAcc>=INDUSTRY.payAcc},
+                {l:"Ghost Hour Rate", team:teamAvg.ghostRate+"%",ind:INDUSTRY.ghostRate+"%",pctVal:pct(teamAvg.ghostRate,INDUSTRY.ghostRate,false),above:teamAvg.ghostRate<=INDUSTRY.ghostRate},
+                {l:"Camera Compliance",team:teamAvg.cam+"%", ind:INDUSTRY.cam+"%",   pctVal:pct(teamAvg.cam,INDUSTRY.cam),       above:teamAvg.cam>=INDUSTRY.cam},
+                {l:"Incident Rate",  team:teamAvg.incidents+"/wk",ind:INDUSTRY.incidents+"/wk",pctVal:pct(teamAvg.incidents,INDUSTRY.incidents,false),above:teamAvg.incidents<=INDUSTRY.incidents},
+                {l:"Cost Efficiency",team:teamAvg.costEff+"%",ind:INDUSTRY.costEff+"%",pctVal:pct(teamAvg.costEff,INDUSTRY.costEff),above:teamAvg.costEff>=INDUSTRY.costEff},
+                {l:"Schedule Adherence",team:teamAvg.schedAdhere+"%",ind:INDUSTRY.schedAdhere+"%",pctVal:pct(teamAvg.schedAdhere,INDUSTRY.schedAdhere),above:teamAvg.schedAdhere>=INDUSTRY.schedAdhere},
+              ];
+              const aboveCount = benchRows.filter(r=>r.above).length;
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: BENCHMARK HEADER ── */}
+                  <div style={{background:indigoD,border:"1px solid "+indigoB,
+                    borderRadius:12,padding:"18px 20px",marginBottom:12,
+                    boxShadow:"0 0 30px rgba(99,102,241,0.07)"}}>
+                    <div style={{display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap"}}>
+
+                      {/* Score gauge */}
+                      <div style={{flexShrink:0,textAlign:"center"}}>
+                        <div style={{position:"relative",width:90,height:90,margin:"0 auto 8px"}}>
+                          <svg width="90" height="90" viewBox="0 0 90 90">
+                            <circle cx="45" cy="45" r="38" fill="none"
+                              stroke="rgba(255,255,255,0.06)" strokeWidth="7"/>
+                            <circle cx="45" cy="45" r="38" fill="none"
+                              stroke={scoreColor} strokeWidth="7"
+                              strokeDasharray={2*Math.PI*38}
+                              strokeDashoffset={2*Math.PI*38*(1-overallScore/100)}
+                              strokeLinecap="round"
+                              transform="rotate(-90 45 45)"/>
+                          </svg>
+                          <div style={{position:"absolute",inset:0,display:"flex",
+                            flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:900,
+                              fontSize:26,color:scoreColor,lineHeight:1}}>{overallScore}</div>
+                            <div style={{fontFamily:O.mono,fontSize:6,color:O.textF,letterSpacing:1}}>
+                              /100
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:scoreColor,letterSpacing:1}}>
+                          TOP {100-overallScore}%
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textD,marginTop:2}}>
+                          of ShiftPro businesses
+                        </div>
+                      </div>
+
+                      {/* Main content */}
+                      <div style={{flex:1,minWidth:200}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:indigo,letterSpacing:"2px"}}>
+                            COMPETITIVE INTELLIGENCE ENGINE
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:indigo,
+                            background:indigoD,border:"1px solid "+indigoB,
+                            borderRadius:4,padding:"2px 8px",letterSpacing:1}}>
+                            {benchIndustry.toUpperCase()}
+                          </div>
+                        </div>
+                        <div style={{fontFamily:O.sans,fontSize:13,color:"#fff",
+                          marginBottom:10,lineHeight:1.4}}>
+                          Your team scores <span style={{color:scoreColor,fontWeight:700}}>
+                          {overallScore}/100</span> vs industry benchmark.{" "}
+                          Above average in {aboveCount} of {benchRows.length} metrics.
+                        </div>
+                        {/* Benchmark pills */}
+                        <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:10}}>
+                          {[
+                            {l:"Reliability",team:teamAvg.rel,ind:INDUSTRY.rel,unit:"%"},
+                            {l:"Productivity",team:teamAvg.prod,ind:INDUSTRY.prod,unit:"%"},
+                            {l:"Payroll Acc",team:teamAvg.payAcc,ind:INDUSTRY.payAcc,unit:"%"},
+                            {l:"Incidents",team:teamAvg.incidents,ind:INDUSTRY.incidents,unit:"/wk",inv:true},
+                          ].map(p=>{
+                            const above = p.inv ? p.team<=p.ind : p.team>=p.ind;
+                            const c = above?O.green:O.red;
+                            return(
+                              <div key={p.l} style={{background:c+"12",
+                                border:"1px solid "+c+"30",borderRadius:7,
+                                padding:"6px 10px",textAlign:"center"}}>
+                                <div style={{fontFamily:O.sans,fontWeight:700,
+                                  fontSize:14,color:c,lineHeight:1,marginBottom:2}}>
+                                  {p.team}{p.unit}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:6,
+                                  color:O.textF,letterSpacing:1,marginBottom:2}}>
+                                  {p.l.toUpperCase()}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:c}}>
+                                  {above?"↑ ABOVE":"↓ BELOW"} {p.ind}{p.unit}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Controls */}
+                      <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
+                        <div style={{display:"flex",gap:4}}>
+                          {["week","month","quarter"].map(v=>(
+                            <button key={v} onClick={()=>setBenchPeriod(v)}
+                              style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                padding:"4px 8px",borderRadius:4,border:"none",cursor:"pointer",
+                                textTransform:"uppercase",
+                                background:benchPeriod===v?indigoD:"rgba(255,255,255,0.04)",
+                                color:benchPeriod===v?indigo:O.textF}}>
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                          {["retail","restaurant","hospitality","healthcare"].map(v=>(
+                            <button key={v} onClick={()=>setBenchIndustry(v)}
+                              style={{fontFamily:O.mono,fontSize:6,letterSpacing:0.5,
+                                padding:"3px 7px",borderRadius:4,border:"none",cursor:"pointer",
+                                textTransform:"uppercase",
+                                background:benchIndustry===v?indigoD:"rgba(255,255,255,0.04)",
+                                color:benchIndustry===v?indigo:O.textF}}>
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          padding:"6px 12px",background:indigoD,
+                          border:"1px solid "+indigoB,borderRadius:5,
+                          color:indigo,cursor:"pointer",whiteSpace:"nowrap"}}>
+                          📊 Export Report
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── ZONES 2 + 3: TABLE + RADAR ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 2: Team vs Industry Table */}
+                    <Card>
+                      <SL text="Team vs Industry Benchmarks" color={indigo}/>
+                      <div style={{borderRadius:8,overflow:"hidden",marginBottom:12}}>
+                        <div style={{display:"grid",
+                          gridTemplateColumns:"1fr 60px 65px 55px 65px",
+                          padding:"6px 10px",background:O.bg3,gap:6}}>
+                          {["METRIC","YOUR TEAM","INDUSTRY","PCTILE","STATUS"].map(h=>(
+                            <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                              color:O.textF,letterSpacing:1}}>{h}</div>
+                          ))}
+                        </div>
+                        {benchRows.map((r,i)=>{
+                          const c = r.above?O.green:O.red;
+                          const ordSuffix = r.pctVal===1?"st":r.pctVal===2?"nd":r.pctVal===3?"rd":"th";
+                          return(
+                            <div key={r.l} style={{display:"grid",
+                              gridTemplateColumns:"1fr 60px 65px 55px 65px",
+                              padding:"8px 10px",gap:6,
+                              borderBottom:"1px solid "+O.border,
+                              background:r.above?"rgba(16,185,129,0.02)":"rgba(239,68,68,0.02)",
+                              alignItems:"center"}}>
+                              <div style={{fontFamily:O.sans,fontSize:11,color:O.textD}}>{r.l}</div>
+                              <div style={{fontFamily:O.sans,fontWeight:700,
+                                fontSize:12,color:c}}>{r.team}</div>
+                              <div style={{fontFamily:O.mono,fontSize:10,color:O.textF}}>{r.ind}</div>
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:O.textD,marginBottom:2}}>
+                                  {r.pctVal}{ordSuffix}
+                                </div>
+                                <div style={{height:3,background:"rgba(255,255,255,0.06)",
+                                  borderRadius:2,width:40}}>
+                                  <div style={{height:"100%",width:r.pctVal+"%",
+                                    background:c,borderRadius:2}}/>
+                                </div>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:c,
+                                letterSpacing:0.5,whiteSpace:"nowrap"}}>
+                                {r.above?"↑ ABOVE":"↓ BELOW"}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,
+                        background:O.bg3,borderRadius:7,padding:"9px 11px",
+                        borderLeft:"3px solid "+indigo,lineHeight:1.6}}>
+                        Above industry in <span style={{color:O.green}}>{aboveCount}</span> of {benchRows.length} metrics.
+                        Focus: <span style={{color:O.amber}}>Productivity</span>{" "}
+                        (+{Math.max(0,INDUSTRY.prod-teamAvg.prod)}% to reach avg) and{" "}
+                        <span style={{color:O.amber}}>Ghost Hour Rate</span>{" "}
+                        (-{Math.max(0,teamAvg.ghostRate-INDUSTRY.ghostRate).toFixed(1)}% to reach avg).
+                      </div>
+                    </Card>
+
+                    {/* ZONE 3: Radar Chart */}
+                    <Card>
+                      <SL text="Industry Comparison Radar" color={indigo}/>
+                      <div style={{display:"flex",justifyContent:"center",marginBottom:10}}>
+                        <svg width="280" height="280" viewBox="0 0 280 280">
+                          {/* Grid rings */}
+                          {[0.25,0.5,0.75,1].map((r,ri)=>(
+                            <polygon key={ri}
+                              points={Array.from({length:N},(_,i)=>{
+                                const a=angle(i);
+                                return (cx+R*r*Math.cos(a)).toFixed(1)+","+(cy+R*r*Math.sin(a)).toFixed(1);
+                              }).join(" ")}
+                              fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                          ))}
+                          {/* Axis lines + labels */}
+                          {radarDims.map((d,i)=>{
+                            const [px,py] = radarPt(110,i);
+                            const [lx,ly] = radarPt(128,i);
+                            return(
+                              <g key={i}>
+                                <line x1={cx} y1={cy} x2={px} y2={py}
+                                  stroke="rgba(255,255,255,0.08)" strokeWidth="1"/>
+                                <text x={lx} y={ly}
+                                  fontFamily="'JetBrains Mono',monospace"
+                                  fontSize="7" fill="rgba(226,232,240,0.4)"
+                                  textAnchor="middle" dominantBaseline="middle">
+                                  {d.l}
+                                </text>
+                              </g>
+                            );
+                          })}
+                          {/* Top 10% shape */}
+                          <path d={toPath(topPts)}
+                            fill="rgba(245,158,11,0.06)"
+                            stroke={gold} strokeWidth="1.5"
+                            strokeDasharray="5 3"/>
+                          {/* Industry avg shape */}
+                          <path d={toPath(indPts)}
+                            fill="rgba(255,255,255,0.03)"
+                            stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"
+                            strokeDasharray="3 3"/>
+                          {/* Team shape */}
+                          <path d={toPath(teamPts)}
+                            fill="rgba(99,102,241,0.15)"
+                            stroke={indigo} strokeWidth="2"/>
+                          {teamPts.map(([px,py],i)=>(
+                            <circle key={i} cx={px} cy={py} r="3"
+                              fill={indigo} stroke={O.bg2} strokeWidth="1.5"/>
+                          ))}
+                        </svg>
+                      </div>
+                      {/* Legend */}
+                      <div style={{display:"flex",gap:14,justifyContent:"center",marginBottom:10}}>
+                        {[
+                          {c:indigo,l:"Your Team",dash:false},
+                          {c:"rgba(255,255,255,0.5)",l:"Industry Avg",dash:true},
+                          {c:gold,l:"Top 10%",dash:true},
+                        ].map((leg,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:16,height:2,
+                              background:leg.dash?"transparent":leg.c,
+                              borderTop:leg.dash?"2px dashed "+leg.c:"none"}}/>
+                            <span style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>{leg.l}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Gap analysis */}
+                      <div style={{background:O.bg3,borderRadius:7,padding:"9px 11px",
+                        borderLeft:"3px solid "+gold}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:gold,
+                          letterSpacing:"2px",marginBottom:5}}>GAP TO TOP 10%</div>
+                        <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.6}}>
+                          +{TOP10.rel-teamAvg.rel}pts Reliability &nbsp;·&nbsp;
+                          +{TOP10.prod-teamAvg.prod}pts Productivity &nbsp;·&nbsp;
+                          -{Math.max(0,(teamAvg.ghostRate-TOP10.ghostRate)).toFixed(1)}% Ghost Rate
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 4: EMPLOYEE COMPARISON MATRIX ── */}
+                  <Card style={{marginBottom:12}}>
+                    <SL text="Full Employee Comparison Matrix" color={indigo}/>
+                    <div style={{overflowX:"auto"}}>
+                      <div style={{minWidth:780}}>
+                        {/* Header */}
+                        <div style={{display:"grid",
+                          gridTemplateColumns:"36px 110px 48px 80px 80px 76px 60px 76px 56px 70px 60px",
+                          padding:"6px 8px",background:O.bg3,
+                          borderRadius:"6px 6px 0 0",gap:4}}>
+                          {["#","EMPLOYEE","HRS","RELIABILITY","PRODUCTIVITY","CAM PRESENCE",
+                            "GHOST","PAYROLL ACC","INCIDENTS","WK COST","VALUE"].map(h=>(
+                            <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                              color:h==="VALUE"?indigo:O.textF,letterSpacing:1}}>{h}</div>
+                          ))}
+                        </div>
+                        {rankedEmps.map((e,idx)=>{
+                          const vs = valueScore(e);
+                          const vc = vs>=75?O.green:vs>=50?O.amber:O.red;
+                          const pa = Math.round((1-(e.ghost/Math.max(e.wkHrs,1)))*100);
+                          const medalColor = idx===0?gold:idx===1?silver:idx===2?bronze:"#666";
+                          const rowBg = idx===0?"rgba(255,215,0,0.04)":
+                            idx<Math.ceil(EMPS.length/2)?"rgba(16,185,129,0.02)":"rgba(239,68,68,0.02)";
+                          const MiniBar = ({val,c2}) => (
+                            <div style={{height:4,background:"rgba(255,255,255,0.06)",
+                              borderRadius:2,marginTop:3,width:50}}>
+                              <div style={{height:"100%",width:val+"%",
+                                background:c2,borderRadius:2}}/>
+                            </div>
+                          );
+                          return(
+                            <div key={e.id} onClick={()=>{setSelEmp(e.id);setTab("intelligence");}}
+                              style={{display:"grid",
+                                gridTemplateColumns:"36px 110px 48px 80px 80px 76px 60px 76px 56px 70px 60px",
+                                padding:"9px 8px",gap:4,
+                                borderBottom:"1px solid "+O.border,
+                                background:rowBg,alignItems:"center",
+                                cursor:"pointer",transition:"filter 0.15s"}}
+                              onMouseEnter={ev=>ev.currentTarget.style.filter="brightness(1.15)"}
+                              onMouseLeave={ev=>ev.currentTarget.style.filter="none"}>
+                              {/* Rank */}
+                              <div style={{fontFamily:O.mono,fontSize:idx<3?14:10,
+                                color:medalColor,fontWeight:700,textAlign:"center"}}>
+                                {idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":"#"+(idx+1)}
+                              </div>
+                              {/* Employee */}
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                <Av emp={e} size={22} dark/>
+                                <div>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:11,color:"#fff",whiteSpace:"nowrap",
+                                    overflow:"hidden",textOverflow:"ellipsis",maxWidth:70}}>
+                                    {e.name.split(" ")[0]}
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                    {e.role.split(" ")[0]}
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Hours */}
+                              <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>
+                                {e.wkHrs}h
+                              </div>
+                              {/* Reliability */}
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:10,fontWeight:600,
+                                  color:e.rel>=INDUSTRY.rel?O.green:O.red}}>{e.rel}%</div>
+                                <MiniBar val={e.rel} c2={e.rel>=INDUSTRY.rel?O.green:O.red}/>
+                              </div>
+                              {/* Productivity */}
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:10,fontWeight:600,
+                                  color:e.prod>=INDUSTRY.prod?O.green:O.red}}>{e.prod}%</div>
+                                <MiniBar val={e.prod} c2={e.prod>=INDUSTRY.prod?O.green:O.red}/>
+                              </div>
+                              {/* Camera */}
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:10,fontWeight:600,
+                                  color:e.cam>=INDUSTRY.cam?O.green:O.amber}}>{e.cam}%</div>
+                                <MiniBar val={e.cam} c2={e.cam>=INDUSTRY.cam?O.green:O.amber}/>
+                              </div>
+                              {/* Ghost */}
+                              <div style={{fontFamily:O.mono,fontSize:10,
+                                color:e.ghost>INDUSTRY.ghostRate/10?O.red:O.green,fontWeight:600}}>
+                                {e.ghost}h
+                              </div>
+                              {/* Payroll acc */}
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:10,fontWeight:600,
+                                  color:pa>=INDUSTRY.payAcc?O.green:O.amber}}>{pa}%</div>
+                                <MiniBar val={pa} c2={pa>=INDUSTRY.payAcc?O.green:O.amber}/>
+                              </div>
+                              {/* Incidents */}
+                              <div style={{fontFamily:O.mono,fontSize:10,
+                                color:e.flags>1?O.red:e.flags>0?O.amber:O.green}}>
+                                {e.flags}
+                              </div>
+                              {/* Weekly cost */}
+                              <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>
+                                ${(e.wkHrs*e.rate).toFixed(0)}
+                              </div>
+                              {/* Value score */}
+                              <div style={{fontFamily:O.sans,fontWeight:800,
+                                fontSize:14,color:vc}}>{vs}</div>
+                            </div>
+                          );
+                        })}
+                        {/* Team avg footer */}
+                        <div style={{display:"grid",
+                          gridTemplateColumns:"36px 110px 48px 80px 80px 76px 60px 76px 56px 70px 60px",
+                          padding:"8px 8px",gap:4,
+                          background:O.bg3,borderRadius:"0 0 6px 6px",
+                          borderTop:"2px solid "+indigo+"40",alignItems:"center"}}>
+                          <div/>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:indigo,letterSpacing:1}}>
+                            TEAM AVG
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                            {Math.round(EMPS.reduce((s,e)=>s+e.wkHrs,0)/EMPS.length)}h
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:10,color:vsColor(teamAvg.rel,INDUSTRY.rel),fontWeight:600}}>
+                            {teamAvg.rel}%
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:10,color:vsColor(teamAvg.prod,INDUSTRY.prod),fontWeight:600}}>
+                            {teamAvg.prod}%
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:10,color:vsColor(teamAvg.cam,INDUSTRY.cam),fontWeight:600}}>
+                            {teamAvg.cam}%
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:10,
+                            color:teamAvg.ghostRate>INDUSTRY.ghostRate?O.red:O.green,fontWeight:600}}>
+                            {totalGhost.toFixed(1)}h
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:10,color:vsColor(teamAvg.payAcc,INDUSTRY.payAcc),fontWeight:600}}>
+                            {teamAvg.payAcc}%
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>
+                            {BFLAGS.length}
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:10,color:O.amber}}>
+                            ${Math.round(EMPS.reduce((s,e)=>s+(e.wkHrs*e.rate),0)/EMPS.length)}
+                          </div>
+                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13,color:indigo}}>
+                            {Math.round(rankedEmps.reduce((s,e)=>s+valueScore(e),0)/EMPS.length)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 5 + 6: COST ANALYSIS + LEADERBOARD ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 5: Cost Analysis */}
+                    <Card>
+                      <SL text="Cost Analysis + Waste Calculator" color={O.red}/>
+
+                      {/* Top vs Bottom */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>TOP VS BOTTOM PERFORMER</div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",
+                          gap:10,alignItems:"center",marginBottom:10}}>
+                          {[rankedEmps[0], rankedEmps[rankedEmps.length-1]].map((e,i)=>(
+                            <div key={e.id} style={{background:O.bg3,borderRadius:8,
+                              padding:"12px",textAlign:"center",
+                              border:"1px solid "+(i===0?"rgba(16,185,129,0.2)":"rgba(239,68,68,0.2)")}}>
+                              <Av emp={e} size={32} dark/>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:12,color:"#fff",marginTop:5,marginBottom:2}}>
+                                {e.name.split(" ")[0]}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,
+                                color:i===0?O.green:O.red,marginBottom:5,letterSpacing:1}}>
+                                {i===0?"🏆 TOP":"⚠ LOWEST"}
+                              </div>
+                              <div style={{fontFamily:O.sans,fontWeight:700,
+                                fontSize:16,color:i===0?O.green:O.red}}>
+                                ${(e.wkHrs*e.rate).toFixed(0)}/wk
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textD,marginTop:3}}>
+                                {e.ghost}h ghost · {e.rel}% rel
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,
+                                color:O.textD,marginTop:2}}>
+                                ${(e.wkHrs*e.rate*4).toFixed(0)}/mo · ${(e.wkHrs*e.rate*52).toFixed(0)}/yr
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{textAlign:"center"}}>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,marginBottom:4}}>
+                              REAL COST GAP
+                            </div>
+                            <div style={{fontFamily:O.sans,fontWeight:800,fontSize:26,color:O.red}}>
+                              ${Math.abs((rankedEmps[0].wkHrs*rankedEmps[0].rate)-(rankedEmps[rankedEmps.length-1].wkHrs*rankedEmps[rankedEmps.length-1].rate)).toFixed(0)}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textD,marginTop:2}}>per week in waste</div>
+                            <div style={{fontFamily:O.sans,fontSize:10,color:O.amber,
+                              marginTop:6,lineHeight:1.4}}>
+                              If {rankedEmps[rankedEmps.length-1].name.split(" ")[0]} matched{" "}
+                              {rankedEmps[0].name.split(" ")[0]}:
+                              +${Math.round((rankedEmps[0].rel-rankedEmps[rankedEmps.length-1].rel)*rankedEmps[rankedEmps.length-1].rate*0.3)}/mo recovered
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ghost cost breakdown */}
+                      <div style={{marginBottom:14,background:O.bg3,borderRadius:8,padding:"12px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                          letterSpacing:"2px",marginBottom:8}}>GHOST HOUR ANNUAL PROJECTION</div>
+                        {EMPS.filter(e=>e.ghost>0).map(e=>(
+                          <div key={e.id} style={{display:"flex",alignItems:"center",
+                            gap:8,padding:"5px 0",borderBottom:"1px solid "+O.border}}>
+                            <Av emp={e} size={18} dark/>
+                            <span style={{fontFamily:O.mono,fontSize:9,flex:1,color:O.textD}}>
+                              {e.name.split(" ")[0]}
+                            </span>
+                            <span style={{fontFamily:O.mono,fontSize:8,color:O.red}}>
+                              ${(e.ghost*e.rate*52).toFixed(0)}/yr
+                            </span>
+                          </div>
+                        ))}
+                        <div style={{display:"flex",justifyContent:"space-between",
+                          marginTop:6,paddingTop:5}}>
+                          <span style={{fontFamily:O.mono,fontSize:8,color:O.red,letterSpacing:1}}>
+                            TOTAL ANNUAL EXPOSURE
+                          </span>
+                          <span style={{fontFamily:O.sans,fontWeight:800,fontSize:16,color:O.red}}>
+                            ${annualGhostCost}
+                          </span>
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginTop:5}}>
+                          {teamAvg.ghostRate>INDUSTRY.ghostRate
+                            ? "27% above industry ghost hour average"
+                            : "Below industry ghost hour average ✓"}
+                        </div>
+                      </div>
+
+                      {/* Opportunity calculator */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>OPPORTUNITY CALCULATOR</div>
+                        {[
+                          {text:"If reliability improved +10%",
+                           value:"+$"+Math.round(EMPS.reduce((s,e)=>s+e.rate*e.wkHrs,0)*0.07).toFixed(0)+"/mo"},
+                          {text:"If ghost hours reduced -50%",
+                           value:"+$"+(totalGhost*0.5*avgRate*4).toFixed(0)+"/mo saved"},
+                          {text:"If productivity matched industry",
+                           value:"+$"+Math.round(Math.max(0,INDUSTRY.prod-teamAvg.prod)*avgRate*0.5)+"/mo output"},
+                        ].map((opp,i)=>(
+                          <div key={i} style={{display:"flex",justifyContent:"space-between",
+                            alignItems:"center",padding:"7px 9px",background:O.bg3,
+                            borderRadius:6,marginBottom:5}}>
+                            <span style={{fontFamily:O.sans,fontSize:11,color:O.textD,flex:1}}>
+                              {opp.text}
+                            </span>
+                            <span style={{fontFamily:O.sans,fontWeight:700,
+                              fontSize:13,color:O.green,whiteSpace:"nowrap",marginLeft:8}}>
+                              {opp.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+
+                    {/* ZONE 6: Leaderboard */}
+                    <Card>
+                      <SL text="Performance Rankings — Current Period" color={indigo}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+                        {rankedEmps.map((e,idx)=>{
+                          const vs = valueScore(e);
+                          const vc = vs>=75?O.green:vs>=50?O.amber:O.red;
+                          const medalColor = idx===0?gold:idx===1?silver:idx===2?bronze:"#666";
+                          const trend = idx===0?"+4":idx===1?"+1":idx===2?"-2":"-6";
+                          const trendUp = !trend.startsWith("-");
+                          const awards = idx===0?"⭐ Most Reliable":
+                            idx===rankedEmps.length-1?"⚠ Needs Review":
+                            vs>=70?"💰 Best Value/Hour":"";
+                          return(
+                            <div key={e.id}
+                              style={{background:O.bg3,borderRadius:8,
+                                padding:"11px 12px",
+                                border:"1px solid "+(idx===0?gold+"40":O.border),
+                                cursor:"pointer",transition:"all 0.15s"}}
+                              onClick={()=>{setSelEmp(e.id);setTab("intelligence");}}
+                              onMouseEnter={ev=>ev.currentTarget.style.borderColor=indigo+"50"}
+                              onMouseLeave={ev=>ev.currentTarget.style.borderColor=idx===0?gold+"40":O.border}>
+                              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                                <div style={{fontFamily:O.sans,fontWeight:900,
+                                  fontSize:idx<3?22:16,color:medalColor,
+                                  width:28,textAlign:"center",flexShrink:0}}>
+                                  {idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":"#"+(idx+1)}
+                                </div>
+                                <Av emp={e} size={30} dark/>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:13,color:"#fff",marginBottom:1}}>{e.name}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{e.role}</div>
+                                </div>
+                                <div style={{textAlign:"right",flexShrink:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:900,
+                                    fontSize:24,color:vc,lineHeight:1}}>{vs}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>SCORE</div>
+                                </div>
+                              </div>
+                              {/* Mini metric bars */}
+                              <div style={{display:"flex",gap:8,marginBottom:7}}>
+                                {[
+                                  {l:"REL",v:e.rel,c:e.rel>=INDUSTRY.rel?O.green:O.red},
+                                  {l:"PROD",v:e.prod,c:e.prod>=INDUSTRY.prod?O.green:O.amber},
+                                  {l:"CAM",v:e.cam,c:e.cam>=INDUSTRY.cam?O.green:O.amber},
+                                ].map(m=>(
+                                  <div key={m.l} style={{flex:1}}>
+                                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                                      <span style={{fontFamily:O.mono,fontSize:6,color:O.textF}}>{m.l}</span>
+                                      <span style={{fontFamily:O.mono,fontSize:7,color:m.c,fontWeight:600}}>
+                                        {m.v}%
+                                      </span>
+                                    </div>
+                                    <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                                      <div style={{height:"100%",width:m.v+"%",
+                                        background:m.c,borderRadius:2}}/>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div style={{display:"flex",justifyContent:"space-between",
+                                alignItems:"center"}}>
+                                <div style={{fontFamily:O.mono,fontSize:8,
+                                  color:trendUp?O.green:O.red}}>
+                                  {trendUp?"↑":"↓"} {trend} pts from last month
+                                </div>
+                                {awards&&(
+                                  <div style={{fontFamily:O.mono,fontSize:7,
+                                    color:gold,background:"rgba(255,215,0,0.08)",
+                                    border:"1px solid rgba(255,215,0,0.2)",
+                                    borderRadius:4,padding:"2px 7px"}}>
+                                    {awards}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
+                        textAlign:"center",background:O.bg3,borderRadius:6,padding:"8px"}}>
+                        Your team ranks{" "}
+                        <span style={{color:indigo,fontWeight:700}}>#47 of 312</span>{" "}
+                        similar businesses on ShiftPro
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 7: TREND + GOAL TRACKING ── */}
+                  <Card>
+                    <SL text="Trend Analysis + Goal Tracking" color={indigo}/>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20}}>
+
+                      {/* 6-month trends */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:10}}>6-MONTH TRENDS</div>
+                        {[
+                          {l:"Reliability",  vals:[71,73,74,75,77,teamAvg.rel],    delta:teamAvg.rel-71},
+                          {l:"Productivity", vals:[80,78,77,79,77,teamAvg.prod],   delta:teamAvg.prod-80},
+                          {l:"Payroll Acc",  vals:[90,91,92,93,94,teamAvg.payAcc], delta:teamAvg.payAcc-90},
+                          {l:"Ghost Rate",   vals:[8,7,6,6,5.5,teamAvg.ghostRate], delta:teamAvg.ghostRate-8,inv:true},
+                        ].map(m=>{
+                          const up = m.inv ? m.delta<0 : m.delta>0;
+                          const tc = up?O.green:O.red;
+                          const maxVal = Math.max(...m.vals);
+                          const pts = m.vals.map((v,i)=>
+                            (i*(160/5)).toFixed(1)+","+(30-(v/maxVal)*28).toFixed(1)
+                          ).join(" ");
+                          return(
+                            <div key={m.l} style={{marginBottom:10,
+                              padding:"8px 10px",background:O.bg3,borderRadius:7}}>
+                              <div style={{display:"flex",justifyContent:"space-between",
+                                alignItems:"center",marginBottom:5}}>
+                                <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{m.l}</span>
+                                <span style={{fontFamily:O.mono,fontSize:8,color:tc,fontWeight:600}}>
+                                  {up?"↑ +":"↓ "}{Math.abs(m.delta).toFixed(1)} pts
+                                </span>
+                              </div>
+                              <svg width="160" height="30" viewBox="0 0 160 30">
+                                <polyline points={pts} fill="none"
+                                  stroke={tc} strokeWidth="1.5"
+                                  strokeLinecap="round" strokeLinejoin="round"/>
+                                {m.vals.map((v,i)=>(
+                                  <circle key={i}
+                                    cx={(i*(160/5)).toFixed(1)}
+                                    cy={(30-(v/maxVal)*28).toFixed(1)}
+                                    r={i===5?"3":"1.5"}
+                                    fill={i===5?tc:tc+"80"}/>
+                                ))}
+                              </svg>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Goal tracker */}
+                      <div>
+                        <div style={{display:"flex",alignItems:"center",
+                          justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"2px"}}>
+                            GOAL TRACKER
+                          </div>
+                          <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"2px 8px",background:indigoD,
+                            border:"1px solid "+indigoB,borderRadius:3,
+                            color:indigo,cursor:"pointer"}}>
+                            + Set Goal
+                          </button>
+                        </div>
+                        {[
+                          {goal:"Reliability ≥ 85%",
+                           cur:teamAvg.rel,target:85,unit:"%",due:"Apr 15"},
+                          {goal:"Ghost hrs < 10h/wk",
+                           cur:totalGhost,target:10,unit:"h",due:"May 1",inv:true},
+                          {goal:"Payroll accuracy ≥ 96%",
+                           cur:teamAvg.payAcc,target:96,unit:"%",due:"Apr 30"},
+                        ].map((g,i)=>{
+                          const prog = g.inv
+                            ? Math.min(100,Math.round((1-g.cur/g.target)*100+50))
+                            : Math.min(100,Math.round((g.cur/g.target)*100));
+                          const gc = prog>=80?O.green:prog>=50?O.amber:O.red;
+                          return(
+                            <div key={i} style={{background:O.bg3,borderRadius:7,
+                              padding:"10px",marginBottom:8}}>
+                              <div style={{display:"flex",justifyContent:"space-between",
+                                marginBottom:5}}>
+                                <span style={{fontFamily:O.sans,fontSize:11,
+                                  color:"#fff",fontWeight:600,flex:1}}>{g.goal}</span>
+                                <span style={{fontFamily:O.mono,fontSize:7,
+                                  color:O.textF,flexShrink:0}}>{g.due}</span>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                                <span style={{fontFamily:O.mono,fontSize:9,color:gc,fontWeight:600}}>
+                                  {g.cur}{g.unit}
+                                </span>
+                                <span style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>→</span>
+                                <span style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                                  {g.target}{g.unit}
+                                </span>
+                              </div>
+                              <div style={{height:6,background:"rgba(255,255,255,0.06)",
+                                borderRadius:3,overflow:"hidden"}}>
+                                <div style={{height:"100%",width:prog+"%",
+                                  background:gc,borderRadius:3,transition:"width 1s"}}/>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,
+                                color:gc,marginTop:3}}>{prog}% complete</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Insights feed */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:10}}>BENCHMARK INSIGHTS</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                          {[
+                            {icon:"🔴",text:"Productivity declined 3 pts over 4 weeks — investigate scheduling patterns",c:O.red},
+                            {icon:"🟢",text:"Payroll accuracy improved 4% since camera alerts activated",c:O.green},
+                            {icon:"🟡",text:"Ghost hour rate trending up — +1.2h vs 6 weeks ago",c:O.amber},
+                            {icon:"🟢",text:"Now above industry average in reliability for first time in 3 months",c:O.green},
+                            {icon:"🟡",text:"Camera compliance 3% below industry — "+EMPS.filter(e=>e.cam<INDUSTRY.cam).length+" employees below threshold",c:O.amber},
+                          ].map((ins,i)=>(
+                            <div key={i} style={{display:"flex",gap:7,alignItems:"flex-start",
+                              padding:"8px 10px",background:ins.c+"08",
+                              border:"1px solid "+ins.c+"20",borderRadius:7}}>
+                              <span style={{fontSize:12,flexShrink:0,marginTop:1}}>{ins.icon}</span>
+                              <span style={{fontFamily:O.sans,fontSize:11,
+                                color:O.textD,lineHeight:1.5}}>{ins.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── LOCATIONS (Prompt 14) ── */}
-        {tab==="locations" && (
+
+                {tab==="locations" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>MULTI-LOCATION COMMAND CENTER</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
