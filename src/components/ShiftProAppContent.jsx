@@ -10401,8 +10401,6 @@ function OwnerCmd({onLogout}){
           </div>
         )}
 
-        )}
-
 
         {/* ── CAMERAS ── */}
         {tab==="cameras" && (
