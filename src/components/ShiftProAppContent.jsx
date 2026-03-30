@@ -1106,7 +1106,7 @@ function OwnerCmd({onLogout}){
               <OStat label="Payroll Accuracy" value={`${Math.round(100-(totalGhost/EMPS.reduce((s,e)=>s+e.wkHrs,0))*100)}%`} color={O.green}/>
               <OStat label="Staff Flagged" value={EMPS.filter(e=>e.ghost>1).length} sub=">1h unverified" color={O.amber}/>
             </div>
-            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",marginBottom:12,minWidth:720}}>
+            <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",marginBottom:12}}>
               <div style={{display:"grid",gridTemplateColumns:"140px 70px 70px 70px 80px 70px",borderBottom:`1px solid ${O.border}`,padding:"9px 14px",background:O.bg3}}>
                 {["EMPLOYEE","SCHED","CLOCKED","VERIFIED","GHOST","ACCURACY"].map(h => (
                   <div key={h} style={{fontFamily:O.mono,fontSize:7,color:O.amber+"60",letterSpacing:1.5}}>{h}</div>
@@ -1165,7 +1165,7 @@ function OwnerCmd({onLogout}){
                 ))}
               </div>
             </div>
-            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden",minWidth:600}}>
+            <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,overflow:"hidden"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderBottom:`1px solid ${O.border}`,background:O.bg3}}>
                 <div style={{width:6,height:6,borderRadius:"50%",background:O.green}}/>
                 <span style={{fontFamily:O.mono,fontSize:9,color:O.green,letterSpacing:1.5}}>LIVE — {now.toLocaleTimeString("en-US",{hour12:false})}</span>
@@ -1188,7 +1188,6 @@ function OwnerCmd({onLogout}){
                 );
               })}
             </div>
-            </div>{/* end scroll wrapper */}
           </div>
         )}
 
@@ -1528,7 +1527,6 @@ function OwnerCmd({onLogout}){
 
       </div>
     </div>
-  </div>
   );
 }
 
