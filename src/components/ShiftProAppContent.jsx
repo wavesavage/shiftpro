@@ -524,7 +524,7 @@ function EmpPortal({emp,onLogout}){
     {id:"home",label:"🏠 Home"},
     {id:"schedule",label:"📅 Schedule"},
     {id:"earnings",label:"💰 Earnings"},
-    {id:"team",label:`💬 Messages${unread>0?` (${unread})`:""}`},
+    {id:"team",label:unread>0?"💬 Messages ("+unread+")":"💬 Messages"},
     {id:"recognition",label:"🏆 Achievements"},
   ];
 
@@ -851,7 +851,7 @@ function OwnerCmd({onLogout}){
     {id:"command",l:"Command"},{id:"intelligence",l:"Intelligence"},
     {id:"patterns",l:"Patterns"},{id:"payroll",l:"Payroll Fraud"},
     {id:"feed",l:"Live Feed"},{id:"roi",l:"ROI Report"},
-    {id:"alerts",l:unseen>0?`Alerts (${unseen})`:"Alerts"},
+    {id:"alerts",l:unseen>0?"Alerts ("+unseen+")":"Alerts"},
     {id:"benchmark",l:"Benchmarks"},{id:"locations",l:"Locations"},
     {id:"staff",l:"Staff"},{id:"schedule",l:"Schedule"},
     {id:"requests",l:"Requests"},
@@ -1156,6 +1156,7 @@ function OwnerCmd({onLogout}){
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:2}}>REAL-TIME SHIFT INTELLIGENCE FEED</div>
                 <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>Every meaningful business event, as it happens.</div>
               </div>
+            </div>{/* end scroll wrapper */}
               <div style={{display:"flex",gap:6}}>
                 {["all","critical","warning","good"].map(f => (
                   <button key={f} onClick={()=>setFilter(f)}
@@ -1188,6 +1189,7 @@ function OwnerCmd({onLogout}){
                 );
               })}
             </div>
+            </div>{/* end scroll wrapper */}
           </div>
         )}
 
@@ -1527,6 +1529,7 @@ function OwnerCmd({onLogout}){
 
       </div>
     </div>
+  </div>
   );
 }
 
