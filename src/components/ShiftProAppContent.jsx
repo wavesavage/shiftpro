@@ -8211,21 +8211,95 @@ function OwnerCmd({onLogout}){
                         </div>
                       </div>
 
-                      {/* Hiring pipeline */}
-                      <div style={{background:O.bg3,borderRadius:8,padding:"11px 12px",
+                      {/* Hiring pipeline — full suite */}
+                      <div style={{background:O.bg3,borderRadius:8,padding:"12px",
                         border:"1px solid rgba(139,92,246,0.2)"}}>
-                        <div style={{fontFamily:O.mono,fontSize:7,color:violet,
-                          letterSpacing:"2px",marginBottom:6}}>HIRING PIPELINE</div>
-                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,
-                          color:O.green,marginBottom:4}}>0 Open Positions</div>
-                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
-                          padding:"5px 10px",background:violetD,
-                          border:"1px solid "+violetB,borderRadius:4,
-                          color:violet,cursor:"pointer",marginBottom:6}}>
-                          + Post Job Opening
+
+                        {/* Header */}
+                        <div style={{display:"flex",alignItems:"center",
+                          justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:violet,
+                            letterSpacing:"2px"}}>HIRING PIPELINE</div>
+                          <div style={{fontFamily:O.mono,fontSize:7,
+                            color:O.green,background:"rgba(16,185,129,0.1)",
+                            border:"1px solid rgba(16,185,129,0.2)",
+                            borderRadius:3,padding:"2px 7px",letterSpacing:1}}>
+                            0 OPEN POSITIONS
+                          </div>
+                        </div>
+
+                        {/* Post a job button */}
+                        <button style={{width:"100%",fontFamily:O.mono,fontSize:8,
+                          letterSpacing:1,padding:"8px",background:violetD,
+                          border:"1px solid "+violetB,borderRadius:6,
+                          color:violet,cursor:"pointer",marginBottom:10,fontWeight:600}}>
+                          + Post New Job Opening
                         </button>
-                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,lineHeight:1.5}}>
-                          ShiftPro hiring integration coming Q2 2025
+
+                        {/* Job board sync section */}
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:7}}>SYNC TO JOB BOARDS</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
+                          {[
+                            {name:"Indeed",logo:"🔵",color:"#2557A7",status:"Connect",connected:false},
+                            {name:"ZipRecruiter",logo:"🟠",color:"#f47921",status:"Connect",connected:false},
+                            {name:"LinkedIn Jobs",logo:"🔷",color:"#0A66C2",status:"Connect",connected:false},
+                            {name:"Glassdoor",logo:"🟢",color:"#0caa41",status:"Connect",connected:false},
+                            {name:"Google Jobs",logo:"🔴",color:"#ea4335",status:"Connect",connected:false},
+                          ].map(board=>(
+                            <div key={board.name}
+                              style={{display:"flex",alignItems:"center",gap:8,
+                                padding:"7px 9px",background:O.bg2,borderRadius:6,
+                                border:"1px solid "+(board.connected?board.color+"40":O.border)}}>
+                              <span style={{fontSize:14,flexShrink:0}}>{board.logo}</span>
+                              <span style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff",flex:1}}>{board.name}</span>
+                              {board.connected?(
+                                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                  <div style={{width:6,height:6,borderRadius:"50%",
+                                    background:O.green,
+                                    boxShadow:"0 0 5px "+O.green}}/>
+                                  <span style={{fontFamily:O.mono,fontSize:7,
+                                    color:O.green,letterSpacing:1}}>SYNCED</span>
+                                </div>
+                              ):(
+                                <button style={{fontFamily:O.mono,fontSize:7,
+                                  letterSpacing:1,padding:"3px 9px",
+                                  background:board.color+"18",
+                                  border:"1px solid "+board.color+"40",
+                                  borderRadius:4,color:board.color,
+                                  cursor:"pointer",whiteSpace:"nowrap"}}>
+                                  CONNECT
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* How it works teaser */}
+                        <div style={{background:"rgba(139,92,246,0.06)",
+                          borderRadius:6,padding:"9px 10px",
+                          border:"1px solid rgba(139,92,246,0.15)"}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:violet,
+                            letterSpacing:"2px",marginBottom:5}}>HOW IT WORKS</div>
+                          {[
+                            "Post once → broadcast to all connected boards",
+                            "Applicants flow into ShiftPro candidate tracker",
+                            "Hire directly into your team — no switching apps",
+                          ].map((step,i)=>(
+                            <div key={i} style={{display:"flex",gap:6,
+                              marginBottom:i<2?4:0,alignItems:"flex-start"}}>
+                              <span style={{fontFamily:O.mono,fontSize:8,
+                                color:violet,flexShrink:0}}>{i+1}.</span>
+                              <span style={{fontFamily:O.mono,fontSize:8,
+                                color:O.textD,lineHeight:1.4}}>{step}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{fontFamily:O.mono,fontSize:7,
+                          color:O.textF,marginTop:8,textAlign:"center",lineHeight:1.5}}>
+                          Full hiring suite launching Q3 2025
                         </div>
                       </div>
                     </Card>
