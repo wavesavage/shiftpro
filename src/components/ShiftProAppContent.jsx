@@ -893,14 +893,22 @@ function OwnerCmd({onLogout}){
   const sc = s => ({critical:O.red,warning:O.amber,info:O.blue})[s]||O.textD;
 
   const TABS = [
-    {id:"command",l:"Command"},{id:"intelligence",l:"Intelligence"},
-    {id:"patterns",l:"Patterns"},{id:"payroll",l:"Payroll Fraud"},
-    {id:"feed",l:"Live Feed"},{id:"roi",l:"Payroll Tracking"},
-    {id:"alerts",l:unseen>0?"Alerts ("+unseen+")":"Alerts"},
-    {id:"benchmark",l:"Benchmarks"},{id:"locations",l:"Locations"},
-    {id:"staff",l:"Staff"},{id:"schedule",l:"Schedule"},
-    {id:"requests",l:"Requests"},
-    {id:"cameras",l:"📷 Cameras"},
+    // ── DAILY OPERATIONS ──
+    {id:"command",  l:"Command"},
+    {id:"staff",    l:"Staff"},
+    {id:"schedule", l:"Schedule"},
+    {id:"requests", l:"Requests"},
+    {id:"roi",      l:"Payroll"},
+    {id:"feed",     l:"Live Feed"},
+    // ── SHIFT MONITORING ──
+    {id:"alerts",   l:unseen>0?"Alerts ("+unseen+")":"Alerts"},
+    {id:"cameras",  l:"📷 Cameras"},
+    {id:"locations",l:"Locations"},
+    // ── ANALYTICS ──
+    {id:"intelligence",l:"Intelligence"},
+    {id:"patterns", l:"Patterns"},
+    {id:"payroll",  l:"Payroll Fraud"},
+    {id:"benchmark",l:"Benchmarks"},
   ];
 
   const goProfile = (id) => { setSelEmp(id); setTab("intelligence"); };
