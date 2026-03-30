@@ -913,85 +913,650 @@ function OwnerCmd({onLogout}){
         {/* ── COMMAND (overview) ── */}
         {tab==="command" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
-              <OStat label="Today's Labor Cost" value={`$${EMPS.reduce((s,e)=>s+e.rate*8,0).toFixed(0)}`} sub="Est. 8hr shifts" color={O.amber}/>
-              <OStat label="Ghost Hours (Week)" value={`${totalGhost.toFixed(1)}h`} sub={`$${ghostCost} at risk`} color={O.red}/>
-              <OStat label="Avg Reliability" value={`${Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length)}%`} color={O.green}/>
-              <OStat label="High Risk Staff" value={EMPS.filter(e=>e.risk==="High").length} sub="Need review" color={O.red}/>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:12}}>
-              {/* Risk board */}
-              <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,padding:"16px"}}>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:12}}>EMPLOYEE RISK BOARD</div>
-                {[...EMPS].sort((a,b)=>({High:0,Medium:1,Low:2})[a.risk]-({High:0,Medium:1,Low:2})[b.risk]).map(e => (
-                  <div key={e.id} onClick={()=>goProfile(e.id)}
-                    style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",background:O.bg3,borderRadius:7,marginBottom:6,cursor:"pointer",border:`1px solid ${rC(e.risk)}18`,transition:"all 0.15s"}}
-                    onMouseEnter={ev=>ev.currentTarget.style.borderColor=rC(e.risk)+"50"}
-                    onMouseLeave={ev=>ev.currentTarget.style.borderColor=rC(e.risk)+"18"}>
-                    <Av emp={e} size={30} dark/>
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{e.name}</div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{e.role}</div>
+
+            {/* ── COMPUTED VARS ── */}
+            {(() => {
+              const activeEmps = EMPS.filter(e=>e.status==="active");
+              const burnRate = activeEmps.reduce((s,e)=>s+e.rate,0);
+              const hoursElapsed = now.getHours()+(now.getMinutes()/60)-(9);
+              const hrsPos = Math.max(hoursElapsed,0);
+              const todaySpend = (burnRate*hrsPos).toFixed(0);
+              const ghostExposure = (EMPS.filter(e=>e.ghost>0).reduce((s,e)=>s+e.ghost*e.rate,0)).toFixed(0);
+              const critCount = alerts.filter(a=>a.sev==="critical"&&!a.seen).length;
+              const warnCount = alerts.filter(a=>a.sev==="warning"&&!a.seen).length;
+              const bizStatus = critCount>0?"ACTION NEEDED":warnCount>1?"MONITORING REQUIRED":"OPERATING NORMALLY";
+              const bizColor = critCount>0?O.red:warnCount>1?O.amber:O.green;
+              const weekBudget = 4200;
+              const weekSpend = MONTHLY[5]?MONTHLY[5].cost:3800;
+              const budgetVar = weekBudget - weekSpend;
+              const payrollEff = Math.round((1-(totalGhost/Math.max(EMPS.reduce((s,e)=>s+e.wkHrs,0),1)))*100);
+              const registerEvents = [
+                {t:"14:31",reg:"Reg 1",type:"Sale",amt:34.50,flag:false},
+                {t:"14:18",reg:"Reg 2",type:"Void",amt:28.00,flag:true},
+                {t:"14:02",reg:"Reg 2",type:"Void",amt:12.50,flag:false},
+                {t:"13:55",reg:"Reg 1",type:"Override",amt:0,flag:true},
+                {t:"13:41",reg:"Reg 2",type:"Void",amt:31.00,flag:true},
+              ];
+              const reg2Voids = registerEvents.filter(r=>r.reg==="Reg 2"&&r.type==="Void").length;
+              const camEvents = [
+                {t:"14:28",cam:"Cam 3",zone:"Stock Room",ev:"Extended dwell detected",sev:"warning"},
+                {t:"14:15",cam:"Cam 1",zone:"Entrance",ev:"No-show at scheduled time",sev:"warning"},
+                {t:"13:52",cam:"Cam 4",zone:"Exit",ev:"Motion in restricted zone",sev:"critical"},
+                {t:"13:30",cam:"Cam 2",zone:"Register",ev:"Clock-in presence verified",sev:"good"},
+              ];
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: LIVE STATUS BAR ── */}
+                  <div style={{background:"rgba(5,8,15,0.98)",border:"1px solid "+O.border,
+                    borderRadius:10,padding:"10px 16px",marginBottom:14,
+                    display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",
+                    boxShadow:critCount>0?"0 0 20px rgba(239,68,68,0.1)":"none"}}>
+
+                    {/* Business status */}
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:bizColor,
+                        animation:"blink 1.2s infinite",boxShadow:"0 0 6px "+bizColor}}/>
+                      <span style={{fontFamily:O.mono,fontSize:10,color:bizColor,
+                        letterSpacing:"1.5px",fontWeight:600}}>{bizStatus}</span>
                     </div>
-                    <Ring val={e.rel} size={36}/>
-                    <OBadge label={e.risk} color={rC(e.risk)} sm/>
-                  </div>
-                ))}
-              </div>
-              {/* Monthly chart */}
-              <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,padding:"16px"}}>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:12}}>LABOR vs GHOST HOURS (6mo)</div>
-                <div style={{display:"flex",alignItems:"flex-end",gap:5,height:88,marginBottom:10}}>
-                  {MONTHLY.map((m,i) => {
-                    const hP = ((m.h-500)/200)*100;
-                    const gP = Math.min((m.ghost/10)*100,100);
-                    return (
-                      <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                        <div style={{width:"100%",position:"relative",height:`${hP}%`,minHeight:8}}>
-                          <div style={{width:"100%",height:"100%",background:i===5?O.amber:O.amberD,border:`1px solid ${i===5?O.amber:O.amberB}`,borderRadius:"3px 3px 0 0"}}/>
-                          <div style={{position:"absolute",bottom:0,width:"100%",height:`${gP}%`,background:"rgba(239,68,68,0.45)",borderRadius:"3px 3px 0 0"}}/>
-                        </div>
-                        <span style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>{m.m}</span>
+
+                    <div style={{width:1,height:20,background:O.border}}/>
+
+                    {/* Live clock */}
+                    <div style={{fontFamily:O.mono,fontSize:14,color:"#fff",letterSpacing:"2px",
+                      fontWeight:600}}>{now.toLocaleTimeString("en-US",{hour12:false})}</div>
+
+                    <div style={{width:1,height:20,background:O.border}}/>
+
+                    {/* Active staff */}
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{display:"flex",gap:4}}>
+                        {EMPS.map(e=>(
+                          <div key={e.id} title={e.name}
+                            style={{width:22,height:22,borderRadius:6,
+                              background:e.color+"30",border:"1.5px solid "+(e.status==="active"?e.color:O.border),
+                              display:"flex",alignItems:"center",justifyContent:"center",
+                              fontFamily:O.mono,fontSize:8,color:e.color,
+                              opacity:e.status==="active"?1:0.35}}>
+                            {e.avatar[0]}
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-                <div style={{display:"flex",gap:10,fontFamily:O.mono,fontSize:8,color:O.textD,marginBottom:10}}>
-                  <span style={{color:O.amber}}>■</span> Labor &nbsp;<span style={{color:O.red}}>■</span> Ghost hrs
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {[["This Month","578h",O.amber],["Ghost Cost",`$${(13.9*17).toFixed(0)}`,O.red]].map(([l,v,c]) => (
-                    <div key={l} style={{background:O.bg3,borderRadius:6,padding:"10px",textAlign:"center"}}>
-                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:1,marginBottom:2}}>{l.toUpperCase()}</div>
-                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:c}}>{v}</div>
+                      <span style={{fontFamily:O.mono,fontSize:10,color:O.textD,letterSpacing:1}}>
+                        {activeEmps.length}/{EMPS.length} ON FLOOR
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            {/* Mini feed */}
-            <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,padding:"16px"}}>
-              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:10}}>LIVE SIGNAL FEED — RECENT</div>
-              {FEED.slice(0,4).map(ev => {
-                const e = byId(ev.eId);
-                return (
-                  <div key={ev.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${O.border}`}}>
-                    <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,width:52}}>{ev.time}</div>
-                    <div style={{fontSize:11,color:sC(ev.type),width:14}}>{ev.type==="critical"?"⚠":ev.type==="warning"?"▲":ev.type==="good"?"✓":"●"}</div>
-                    {e && <Av emp={e} size={24} dark/>}
-                    <div style={{flex:1}}>
-                      <span style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.text}}>{e?e.name+" — ":""}{ev.event}</span>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginTop:1}}>{ev.detail}</div>
+
+                    <div style={{width:1,height:20,background:O.border}}/>
+
+                    {/* Burn rate */}
+                    <div>
+                      <span style={{fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1}}>BURN </span>
+                      <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.amber}}>${burnRate.toFixed(0)}/hr</span>
                     </div>
-                    <OBadge label={ev.type} color={sC(ev.type)} sm/>
+
+                    {/* Ghost exposure */}
+                    {parseFloat(ghostExposure)>0 && (
+                      <>
+                        <div style={{width:1,height:20,background:O.border}}/>
+                        <div>
+                          <span style={{fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1}}>GHOST EXP </span>
+                          <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.red}}>${ghostExposure} at risk</span>
+                        </div>
+                      </>
+                    )}
+
+                    <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+                      {critCount>0&&(
+                        <div style={{display:"flex",alignItems:"center",gap:5,
+                          background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.35)",
+                          borderRadius:6,padding:"4px 10px"}}>
+                          <div style={{width:6,height:6,borderRadius:"50%",background:O.red,animation:"blink 0.8s infinite"}}/>
+                          <span style={{fontFamily:O.mono,fontSize:9,color:O.red,letterSpacing:1}}>
+                            {critCount} CRITICAL
+                          </span>
+                        </div>
+                      )}
+                      {warnCount>0&&(
+                        <div style={{display:"flex",alignItems:"center",gap:5,
+                          background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.3)",
+                          borderRadius:6,padding:"4px 10px"}}>
+                          <span style={{fontFamily:O.mono,fontSize:9,color:O.amber,letterSpacing:1}}>
+                            {warnCount} WARNING
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* ── QUICK ACTION TOOLBAR ── */}
+                  <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+                    {[
+                      {icon:"📢",l:"Broadcast"},
+                      {icon:"📋",l:"Export"},
+                      {icon:"🔔",l:"Test Alert"},
+                      {icon:"📅",l:"Schedule"},
+                      {icon:"💾",l:"Snapshot"},
+                    ].map(a=>(
+                      <button key={a.l}
+                        style={{display:"flex",alignItems:"center",gap:6,
+                          padding:"7px 14px",background:O.bg2,
+                          border:"1px solid "+O.border,borderRadius:7,
+                          cursor:"pointer",transition:"all 0.15s",
+                          fontFamily:O.sans,fontSize:12,color:O.textD}}
+                        onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(0,212,255,0.35)";e.currentTarget.style.color="#fff";}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor=O.border;e.currentTarget.style.color=O.textD;}}>
+                        <span>{a.icon}</span>{a.l}
+                      </button>
+                    ))}
+                    <div style={{marginLeft:"auto",fontFamily:O.mono,fontSize:9,
+                      color:O.textF,letterSpacing:1,alignSelf:"center"}}>
+                      R=Refresh &nbsp; F=Feed &nbsp; A=Alerts &nbsp; S=Staff
+                    </div>
+                  </div>
+
+                  {/* ── MAIN 3-COLUMN GRID ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ── ZONE 2: SHIFT STATUS (LEFT) ── */}
+                    <div style={{background:O.bg2,border:"1px solid "+O.border,borderRadius:10,padding:"14px"}}>
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2.5px",marginBottom:12}}>WHO'S ON FLOOR NOW</div>
+
+                      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                        {EMPS.map(e => {
+                          const onSince = e.status==="active"?((now.getHours()-9)*60+now.getMinutes()):0;
+                          const onHrs = Math.floor(onSince/60);
+                          const onMin = onSince%60;
+                          const verified = e.cam>80;
+                          return (
+                            <div key={e.id}
+                              style={{padding:"10px 10px",background:O.bg3,
+                                borderRadius:8,border:"1px solid "+(e.status==="active"?"rgba(16,185,129,0.2)":O.border),
+                                cursor:"pointer",transition:"all 0.15s"}}
+                              onClick={()=>goProfile(e.id)}
+                              onMouseEnter={ev=>ev.currentTarget.style.borderColor="rgba(0,212,255,0.3)"}
+                              onMouseLeave={ev=>ev.currentTarget.style.borderColor=e.status==="active"?"rgba(16,185,129,0.2)":O.border}>
+
+                              <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:7}}>
+                                <Av emp={e} size={28} dark/>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,
+                                    color:"#fff",marginBottom:1,whiteSpace:"nowrap",
+                                    overflow:"hidden",textOverflow:"ellipsis"}}>{e.name}</div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{e.role}</div>
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,
+                                  color:e.status==="active"?O.green:e.status==="break"?O.amber:O.textD,
+                                  background:(e.status==="active"?O.green:e.status==="break"?O.amber:O.textD)+"18",
+                                  border:"1px solid "+(e.status==="active"?O.green:e.status==="break"?O.amber:O.textD)+"35",
+                                  borderRadius:4,padding:"2px 6px",letterSpacing:1,whiteSpace:"nowrap"}}>
+                                  {e.status==="active"?"CLOCKED IN":e.status==="break"?"ON BREAK":"NOT IN"}
+                                </div>
+                              </div>
+
+                              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                                {e.status==="active" && (
+                                  <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                    {onHrs}h {onMin}m on shift
+                                  </span>
+                                )}
+                                <span style={{fontFamily:O.mono,fontSize:8,
+                                  color:verified?O.green:O.amber}}>
+                                  {verified?"📷 VERIFIED":"⚠ UNVERIFIED"}
+                                </span>
+                                <span style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginLeft:"auto"}}>
+                                  {e.dept}
+                                </span>
+                              </div>
+
+                              {/* Micro risk bar */}
+                              <div style={{marginTop:7,height:3,background:"rgba(255,255,255,0.05)",borderRadius:2}}>
+                                <div style={{height:"100%",width:e.rel+"%",
+                                  background:rC(e.risk),borderRadius:2,
+                                  transition:"width 0.8s ease"}}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Footer summary */}
+                      <div style={{marginTop:10,padding:"9px 10px",background:O.bg3,
+                        borderRadius:7,borderTop:"1px solid "+O.border}}>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,lineHeight:1.7}}>
+                          Floor hours today: <span style={{color:O.amber}}>{(hrsPos*activeEmps.length).toFixed(1)}h</span>
+                          &nbsp;·&nbsp; Est. daily labor: <span style={{color:O.amber}}>${todaySpend}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── ZONE 3: THREAT MONITOR (CENTER) ── */}
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+
+                      {/* Ghost hour detector */}
+                      <div style={{background:EMPS.some(e=>e.ghost>2)?"rgba(239,68,68,0.05)":O.bg2,
+                        border:"1px solid "+(EMPS.some(e=>e.ghost>2)?"rgba(239,68,68,0.25)":O.border),
+                        borderRadius:10,padding:"12px 14px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                          letterSpacing:"2.5px",marginBottom:10}}>⚠ GHOST HOUR DETECTOR</div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 36px 44px 44px 44px",
+                          gap:4,marginBottom:6}}>
+                          {["EMPLOYEE","SCHED","LOGGED","CAM","GHOST"].map(h=>(
+                            <div key={h} style={{fontFamily:O.mono,fontSize:7,
+                              color:O.textF,letterSpacing:1}}>{h}</div>
+                          ))}
+                        </div>
+                        {EMPS.map(e=>{
+                          const disc = e.ghost;
+                          const c = disc>3?O.red:disc>0?O.amber:O.green;
+                          return(
+                            <div key={e.id} style={{display:"grid",
+                              gridTemplateColumns:"1fr 36px 44px 44px 44px",
+                              gap:4,padding:"6px 0",
+                              borderTop:"1px solid "+O.border,alignItems:"center"}}>
+                              <div style={{fontFamily:O.sans,fontSize:11,
+                                color:"#fff",fontWeight:600}}>{e.name.split(" ")[0]}</div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{e.wkHrs}h</div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.text}}>{e.wkHrs}h</div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.green}}>{(e.wkHrs-e.ghost).toFixed(1)}h</div>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:c,fontWeight:disc>0?600:400}}>
+                                {disc>0?disc+"h":"—"}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div style={{padding:"6px 0",borderTop:"1px solid rgba(239,68,68,0.3)",
+                          marginTop:4,display:"flex",justifyContent:"space-between"}}>
+                          <span style={{fontFamily:O.mono,fontSize:8,color:O.red}}>TOTAL EXPOSURE</span>
+                          <span style={{fontFamily:O.mono,fontSize:8,color:O.red,fontWeight:600}}>
+                            {totalGhost.toFixed(1)}h · ${ghostCost}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Camera alert stack */}
+                      <div style={{background:O.bg2,border:"1px solid "+O.border,borderRadius:10,padding:"12px 14px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2.5px",marginBottom:10}}>📷 CAMERA ALERTS</div>
+                        {camEvents.map((ev,i)=>{
+                          const c=ev.sev==="critical"?O.red:ev.sev==="warning"?O.amber:O.green;
+                          return(
+                            <div key={i} style={{display:"flex",gap:8,alignItems:"flex-start",
+                              padding:"6px 0",borderTop:i>0?"1px solid "+O.border:"none"}}>
+                              <div style={{width:3,height:"100%",minHeight:24,background:c,
+                                borderRadius:2,flexShrink:0}}/>
+                              <div style={{flex:1}}>
+                                <div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}>
+                                  <span style={{fontFamily:O.mono,fontSize:9,color:"#fff"}}>{ev.zone}</span>
+                                  <span style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>{ev.t}</span>
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{ev.ev}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Register activity */}
+                      <div style={{background:reg2Voids>=3?"rgba(239,68,68,0.05)":O.bg2,
+                        border:"1px solid "+(reg2Voids>=3?"rgba(239,68,68,0.25)":O.border),
+                        borderRadius:10,padding:"12px 14px",flex:1}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"2.5px"}}>
+                            📋 REGISTER ACTIVITY
+                          </div>
+                          {reg2Voids>=3&&(
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                              background:"rgba(239,68,68,0.12)",borderRadius:3,
+                              padding:"2px 6px",letterSpacing:1}}>
+                              {reg2Voids} VOIDS REG 2
+                            </div>
+                          )}
+                        </div>
+                        {registerEvents.map((r,i)=>(
+                          <div key={i} style={{display:"flex",gap:6,alignItems:"center",
+                            padding:"5px 0",borderTop:i>0?"1px solid "+O.border:"none"}}>
+                            <span style={{fontFamily:O.mono,fontSize:8,color:O.textF,width:32}}>{r.t}</span>
+                            <span style={{fontFamily:O.mono,fontSize:8,color:O.textD,width:36}}>{r.reg}</span>
+                            <span style={{fontFamily:O.sans,fontSize:11,flex:1,
+                              color:r.flag?O.red:"#fff",fontWeight:r.flag?600:400}}>{r.type}</span>
+                            {r.amt>0&&<span style={{fontFamily:O.mono,fontSize:9,
+                              color:r.flag?O.red:O.textD}}>${r.amt.toFixed(2)}</span>}
+                            {r.flag&&<span style={{fontSize:9,color:O.red}}>⚠</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* ── ZONE 4: PAYROLL LIVE METER (RIGHT) ── */}
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+
+                      {/* Today spend */}
+                      <div style={{background:O.bg2,border:"1px solid "+O.border,
+                        borderRadius:10,padding:"14px",textAlign:"center"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2.5px",marginBottom:6}}>TODAY'S SPEND SO FAR</div>
+                        <div style={{fontFamily:O.sans,fontWeight:900,fontSize:40,
+                          color:O.amber,lineHeight:1,marginBottom:4,letterSpacing:"-1px"}}>
+                          ${todaySpend}
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                          ${burnRate.toFixed(0)}/hr · {hrsPos.toFixed(1)}h elapsed
+                        </div>
+                      </div>
+
+                      {/* Week-to-date progress */}
+                      <div style={{background:O.bg2,border:"1px solid "+O.border,borderRadius:10,padding:"14px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2.5px",marginBottom:10}}>WEEK-TO-DATE BUDGET</div>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                          <span style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:"#fff"}}>
+                            ${weekSpend.toLocaleString()}
+                          </span>
+                          <span style={{fontFamily:O.mono,fontSize:9,
+                            color:budgetVar>=0?O.green:O.red}}>
+                            {budgetVar>=0?"+$"+budgetVar+" under":"-$"+Math.abs(budgetVar)+" over"}
+                          </span>
+                        </div>
+                        <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,marginBottom:4}}>
+                          <div style={{height:"100%",borderRadius:3,
+                            width:Math.min((weekSpend/weekBudget)*100,100)+"%",
+                            background:budgetVar>=0?O.green:O.red,
+                            transition:"width 1s ease"}}/>
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>
+                          ${weekSpend.toLocaleString()} of ${weekBudget.toLocaleString()} budget
+                        </div>
+                      </div>
+
+                      {/* Monthly sparkline */}
+                      <div style={{background:O.bg2,border:"1px solid "+O.border,borderRadius:10,padding:"14px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2.5px",marginBottom:10}}>6-WEEK LABOR BURN</div>
+                        <div style={{display:"flex",alignItems:"flex-end",gap:5,height:50}}>
+                          {MONTHLY.map((m,i)=>{
+                            const h = Math.round(((m.cost||3500)/4500)*100);
+                            return(
+                              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                                <div style={{width:"100%",height:h+"%",minHeight:4,
+                                  background:i===5?O.amber:"rgba(245,158,11,0.25)",
+                                  borderRadius:"2px 2px 0 0",transition:"height 0.5s"}}/>
+                                <span style={{fontFamily:O.mono,fontSize:6,color:O.textF}}>{m.m}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Ghost exposure + efficiency */}
+                      <div style={{background:parseFloat(ghostExposure)>100?"rgba(239,68,68,0.05)":O.bg2,
+                        border:"1px solid "+(parseFloat(ghostExposure)>100?"rgba(239,68,68,0.25)":O.border),
+                        borderRadius:10,padding:"14px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2.5px",marginBottom:12}}>PAYROLL EFFICIENCY</div>
+                        <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                          <div style={{position:"relative",width:56,height:56,flexShrink:0}}>
+                            <svg width="56" height="56" viewBox="0 0 56 56">
+                              <circle cx="28" cy="28" r="22" fill="none"
+                                stroke="rgba(255,255,255,0.06)" strokeWidth="5"/>
+                              <circle cx="28" cy="28" r="22" fill="none"
+                                stroke={payrollEff>=90?O.green:payrollEff>=75?O.amber:O.red}
+                                strokeWidth="5"
+                                strokeDasharray={2*Math.PI*22}
+                                strokeDashoffset={2*Math.PI*22*(1-payrollEff/100)}
+                                strokeLinecap="round"
+                                transform="rotate(-90 28 28)"/>
+                            </svg>
+                            <div style={{position:"absolute",inset:0,display:"flex",
+                              alignItems:"center",justifyContent:"center",
+                              fontFamily:O.sans,fontWeight:700,fontSize:13,
+                              color:payrollEff>=90?O.green:payrollEff>=75?O.amber:O.red}}>
+                              {payrollEff}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginBottom:4}}>
+                              Ghost exposure
+                            </div>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:O.red}}>
+                              ${ghostExposure}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:2}}>
+                              {totalGhost.toFixed(1)}h unverified
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── BOTTOM 2-COLUMN: FEED + AI ENGINE ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ── ZONE 5: LIVE SIGNAL FEED ── */}
+                    <div style={{background:O.bg2,border:"1px solid "+O.border,borderRadius:10,padding:"14px"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"2.5px"}}>
+                          LIVE SIGNAL FEED
+                        </div>
+                        <div style={{display:"flex",gap:5}}>
+                          {["ALL","CRITICAL","WARNINGS","GOOD"].map(f=>(
+                            <button key={f} onClick={()=>setFilter(f.toLowerCase()==="all"?"all":f.toLowerCase()==="critical"?"critical":f.toLowerCase()==="warnings"?"warning":"good")}
+                              style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                padding:"3px 7px",borderRadius:3,border:"none",
+                                cursor:"pointer",
+                                background:filter===(f.toLowerCase()==="all"?"all":f.toLowerCase()==="critical"?"critical":f.toLowerCase()==="warnings"?"warning":"good")
+                                  ?"rgba(0,212,255,0.15)":"rgba(255,255,255,0.04)",
+                                color:filter===(f.toLowerCase()==="all"?"all":f.toLowerCase()==="critical"?"critical":f.toLowerCase()==="warnings"?"warning":"good")
+                                  ?"#00d4ff":O.textF}}>
+                              {f}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{maxHeight:280,overflowY:"auto"}}>
+                        {FEED.filter(ev=>filter==="all"||ev.type===filter).slice(0,8).map((ev,i)=>{
+                          const e = byId(ev.eId);
+                          const c = sC(ev.type);
+                          const icons = {critical:"⚠️",warning:"▲",good:"✅",normal:"●"};
+                          return(
+                            <div key={ev.id} style={{display:"flex",alignItems:"flex-start",gap:9,
+                              padding:"8px 0",borderBottom:"1px solid "+O.border,
+                              background:ev.type==="critical"?"rgba(239,68,68,0.03)":"transparent"}}>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                width:36,flexShrink:0,marginTop:1}}>{ev.time}</div>
+                              <div style={{fontSize:11,width:14,flexShrink:0,marginTop:1}}>{icons[ev.type]||"●"}</div>
+                              {e&&<Av emp={e} size={22} dark/>}
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,
+                                  color:"#fff",marginBottom:1}}>{e?e.name.split(" ")[0]+" — ":""}{ev.event}</div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{ev.detail}</div>
+                              </div>
+                              <OBadge label={ev.type} color={c} sm/>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* ── ZONE 6: AI DECISION ENGINE ── */}
+                    <div style={{background:"rgba(9,14,26,0.98)",
+                      border:"1px solid rgba(0,212,255,0.2)",
+                      borderRadius:10,padding:"14px",
+                      boxShadow:"0 0 30px rgba(0,212,255,0.05)"}}>
+
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:"rgba(0,212,255,0.8)",letterSpacing:"2.5px"}}>
+                          🤖 AI COMMAND BRIEF
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>
+                          Updated {now.toLocaleTimeString("en-US",{hour12:false})}
+                        </div>
+                      </div>
+
+                      {/* Situation report */}
+                      <div style={{background:"rgba(0,212,255,0.05)",border:"1px solid rgba(0,212,255,0.12)",
+                        borderRadius:8,padding:"10px 12px",marginBottom:12}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:"rgba(0,212,255,0.6)",
+                          letterSpacing:2,marginBottom:5}}>SITUATION REPORT</div>
+                        <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.65}}>
+                          {critCount>0
+                            ? "⚠️ "+critCount+" critical signal"+(critCount>1?"s":"")+` require immediate action. Marcus Bell unverified ${totalGhost.toFixed(1)}h — ghost hour window active. Register void pattern on Reg 2 warrants review before close.`
+                            : warnCount>0
+                            ? `Operations running with ${warnCount} open warning${warnCount>1?"s":""}. Monitor ghost hour exposure ($${ghostExposure}) and camera verification gaps before end of shift.`
+                            : "Operations nominal. All staff verified. Payroll tracking within budget. No anomalies detected in the last 60 minutes."}
+                        </div>
+                      </div>
+
+                      {/* Priority actions */}
+                      <div style={{marginBottom:12}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2.5px",marginBottom:8}}>PRIORITY ACTIONS</div>
+                        {[
+                          {
+                            sev:"critical",
+                            txt:"Verify Marcus Bell's location",
+                            sub:"Ghost hours: "+totalGhost.toFixed(1)+"h ($"+ghostCost+" at risk)",
+                            btn:"REVIEW",c:O.red
+                          },
+                          {
+                            sev:"warning",
+                            txt:"Review Register 2 void history",
+                            sub:reg2Voids+" voids in 4 hours — threshold exceeded",
+                            btn:"REVIEW",c:O.amber
+                          },
+                          {
+                            sev:"good",
+                            txt:"Approve Jordan's shift swap",
+                            sub:"Pending 2h 14m — team coverage maintained",
+                            btn:"APPROVE",c:O.green
+                          },
+                        ].map((a,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",gap:8,
+                            padding:"8px",borderRadius:7,marginBottom:6,
+                            background:a.c+"08",border:"1px solid "+a.c+"25"}}>
+                            <div style={{width:3,height:"100%",minHeight:28,
+                              background:a.c,borderRadius:2,flexShrink:0}}/>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff",marginBottom:1}}>{a.txt}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{a.sub}</div>
+                            </div>
+                            <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                              padding:"4px 10px",background:a.c+"20",
+                              border:"1px solid "+a.c+"50",borderRadius:4,
+                              color:a.c,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                              {a.btn}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Shift forecast */}
+                      <div style={{background:"rgba(245,158,11,0.05)",
+                        border:"1px solid rgba(245,158,11,0.15)",
+                        borderRadius:8,padding:"10px 12px"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:"rgba(245,158,11,0.7)",
+                          letterSpacing:2,marginBottom:5}}>SHIFT FORECAST</div>
+                        <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.7}}>
+                          At current burn rate: <span style={{color:O.amber}}>${(burnRate*8).toFixed(0)} total today</span>.
+                          Ghost exposure: <span style={{color:O.red}}>${ghostExposure}</span>.
+                          Productivity trending {EMPS.reduce((s,e)=>s+e.prod,0)/EMPS.length<80?"below":"on"} average.
+                          {EMPS.find(e=>e.risk==="Medium")
+                            ? " Consider checking in with "+EMPS.find(e=>e.risk==="Medium").name.split(" ")[0]+" — pattern suggests end-of-week fatigue."
+                            : " Team performance strong — no interventions needed."}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── ZONE 7: LABOR COST CHART ── */}
+                  <div style={{background:O.bg2,border:"1px solid "+O.border,borderRadius:10,padding:"14px"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"2.5px"}}>
+                        LABOR COST — THIS WEEK
+                      </div>
+                      <div style={{display:"flex",gap:6}}>
+                        {["THIS WEEK","THIS MONTH","6 MONTHS"].map(t=>(
+                          <button key={t} style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"3px 8px",borderRadius:3,border:"none",
+                            cursor:"pointer",background:t==="THIS WEEK"?"rgba(245,158,11,0.15)":"rgba(255,255,255,0.04)",
+                            color:t==="THIS WEEK"?O.amber:O.textF}}>
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"flex-end",gap:8,height:64,position:"relative"}}>
+                      {/* Benchmark line */}
+                      <div style={{position:"absolute",left:0,right:0,
+                        top:"30%",borderTop:"1px dashed rgba(255,255,255,0.1)",
+                        pointerEvents:"none"}}>
+                        <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          position:"absolute",right:0,top:-8}}>avg</span>
+                      </div>
+                      {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d,i)=>{
+                        const isToday = i === (new Date().getDay()+6)%7;
+                        const h = isToday?parseInt(todaySpend)/12:[55,70,62,68,75,45,30][i];
+                        const barH = Math.min(Math.round((h/80)*100),100);
+                        return(
+                          <div key={d} style={{flex:1,display:"flex",
+                            flexDirection:"column",alignItems:"center",gap:4}}>
+                            <div style={{width:"100%",height:barH+"%",minHeight:3,
+                              background:isToday?O.amber:i<(new Date().getDay()+6)%7?"rgba(245,158,11,0.35)":"rgba(255,255,255,0.06)",
+                              borderRadius:"3px 3px 0 0",
+                              border:isToday?"1px solid "+O.amber:"none",
+                              boxShadow:isToday?"0 0 10px rgba(245,158,11,0.3)":"none",
+                              transition:"height 0.5s"}}/>
+                            <span style={{fontFamily:O.mono,fontSize:7,
+                              color:isToday?O.amber:O.textF}}>{d}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{display:"flex",gap:14,marginTop:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <div style={{width:10,height:3,background:O.amber,borderRadius:2}}/>
+                        <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>Today</span>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <div style={{width:10,height:3,background:"rgba(245,158,11,0.35)",borderRadius:2}}/>
+                        <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>This week</span>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <div style={{width:10,height:1,background:"rgba(255,255,255,0.15)",borderRadius:2}}/>
+                        <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>Average</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── EMERGENCY BROADCAST ── */}
+                  <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
+                    <button style={{display:"flex",alignItems:"center",gap:7,
+                      padding:"8px 18px",
+                      background:"rgba(239,68,68,0.08)",
+                      border:"1px solid rgba(239,68,68,0.25)",
+                      borderRadius:7,cursor:"pointer",
+                      fontFamily:O.mono,fontSize:10,color:O.red,
+                      letterSpacing:1,transition:"all 0.2s"}}
+                      onMouseEnter={e=>{e.currentTarget.style.background="rgba(239,68,68,0.15)";}}
+                      onMouseLeave={e=>{e.currentTarget.style.background="rgba(239,68,68,0.08)";}}>
+                      ⚡ EMERGENCY BROADCAST
+                    </button>
+                  </div>
+
+                </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── INTELLIGENCE PROFILE (Prompt 7) ── */}
+
+                {/* ── INTELLIGENCE PROFILE (Prompt 7) ── */}
         {tab==="intelligence" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
 
