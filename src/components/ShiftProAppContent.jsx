@@ -829,6 +829,14 @@ function OwnerCmd({onLogout}){
   const [activeLoc,setActiveLoc] = useState(1);
   const [now,setNow] = useState(new Date());
   const [aConfig,setAConfig] = useState({ghost:true,camMiss:true,voids:true,late:true,noShow:true,zone:false});
+  const [camFeeds,setCamFeeds] = useState([
+    {id:1,name:"Front Entrance",zone:"Entrance",status:"live",url:"",connected:false},
+    {id:2,name:"Register 1",zone:"POS",status:"live",url:"",connected:false},
+    {id:3,name:"Stock Room",zone:"Back of House",status:"offline",url:"",connected:false},
+    {id:4,name:"Parking Lot",zone:"Exterior",status:"live",url:"",connected:false},
+  ]);
+  const [addingCam,setAddingCam] = useState(false);
+  const [newCam,setNewCam] = useState({name:"",zone:"",url:""});
   const [alerts,setAlerts] = useState([
     {id:1,sev:"critical",msg:"Ghost hours exceeded — Marcus B.",detail:"7.3h unverified this week",time:"Now",seen:false,eId:5},
     {id:2,sev:"critical",msg:"Payroll mismatch — Carlos R.",detail:"4.1h camera discrepancy",time:"14:28",seen:false,eId:3},
@@ -855,6 +863,7 @@ function OwnerCmd({onLogout}){
     {id:"benchmark",l:"Benchmarks"},{id:"locations",l:"Locations"},
     {id:"staff",l:"Staff"},{id:"schedule",l:"Schedule"},
     {id:"requests",l:"Requests"},
+    {id:"cameras",l:"📷 Cameras"},
   ];
 
   const goProfile = (id) => { setSelEmp(id); setTab("intelligence"); };
@@ -895,7 +904,7 @@ function OwnerCmd({onLogout}){
         <div style={{display:"flex",gap:0,borderBottom:`1px solid ${O.border}`,marginBottom:16,overflowX:"auto"}}>
           {TABS.map(t => (
             <button key={t.id} onClick={()=>{setTab(t.id);}}
-              style={{fontFamily:O.mono,fontSize:9,letterSpacing:1.5,padding:"7px 12px",background:"none",border:"none",cursor:"pointer",marginBottom:-1,color:tab===t.id?O.amber:O.textF,borderBottom:tab===t.id?`2px solid ${O.amber}`:"2px solid transparent",transition:"all 0.15s",whiteSpace:"nowrap",textTransform:"uppercase"}}>
+              style={{fontFamily:O.sans,fontWeight:tab===t.id?700:500,fontSize:11,letterSpacing:"0.5px",padding:"10px 16px",background:tab===t.id?"rgba(245,158,11,0.08)":"none",border:"none",borderRadius:tab===t.id?"6px 6px 0 0":"0",cursor:"pointer",marginBottom:-1,color:tab===t.id?O.amber:"rgba(226,232,240,0.75)",borderBottom:tab===t.id?`2px solid ${O.amber}`:"2px solid transparent",transition:"all 0.15s",whiteSpace:"nowrap"}}>
               {t.l}
             </button>
           ))}
@@ -1522,6 +1531,177 @@ function OwnerCmd({onLogout}){
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ── CAMERAS ── */}
+        {tab==="cameras" && (
+          <div style={{animation:"fadeUp 0.3s ease"}}>
+
+            {/* Header */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:3}}>CAMERA MANAGEMENT HUB</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:22,color:"#fff"}}>Camera Network</div>
+                <div style={{fontFamily:O.mono,fontSize:11,color:O.textD,marginTop:4}}>Connect your RTSP streams, ONVIF cameras, or IP camera URLs — view them all here.</div>
+              </div>
+              <button onClick={()=>setAddingCam(true)}
+                style={{fontFamily:O.sans,fontWeight:700,fontSize:13,padding:"10px 22px",
+                  background:O.amber,border:"none",borderRadius:8,color:"#030c14",
+                  cursor:"pointer",boxShadow:"0 0 16px rgba(245,158,11,0.35)",whiteSpace:"nowrap"}}>
+                + Add Camera
+              </button>
+            </div>
+
+            {/* Add camera form */}
+            {addingCam && (
+              <div style={{background:"rgba(245,158,11,0.05)",border:"1px solid rgba(245,158,11,0.25)",
+                borderRadius:12,padding:"20px",marginBottom:20,animation:"fadeUp 0.2s ease"}}>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",marginBottom:16}}>Connect New Camera</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                  <div>
+                    <label style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,display:"block",marginBottom:5}}>CAMERA NAME</label>
+                    <input value={newCam.name} onChange={e=>setNewCam(p=>({...p,name:e.target.value}))}
+                      placeholder="e.g. Front Door"
+                      style={{width:"100%",padding:"9px 12px",background:"rgba(255,255,255,0.05)",
+                        border:"1px solid rgba(245,158,11,0.2)",borderRadius:7,
+                        fontFamily:O.mono,fontSize:12,color:"#fff",outline:"none"}}/>
+                  </div>
+                  <div>
+                    <label style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,display:"block",marginBottom:5}}>ZONE / LOCATION</label>
+                    <input value={newCam.zone} onChange={e=>setNewCam(p=>({...p,zone:e.target.value}))}
+                      placeholder="e.g. Register Area"
+                      style={{width:"100%",padding:"9px 12px",background:"rgba(255,255,255,0.05)",
+                        border:"1px solid rgba(245,158,11,0.2)",borderRadius:7,
+                        fontFamily:O.mono,fontSize:12,color:"#fff",outline:"none"}}/>
+                  </div>
+                </div>
+                <div style={{marginBottom:16}}>
+                  <label style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,display:"block",marginBottom:5}}>STREAM URL (RTSP / HTTP / IP Camera)</label>
+                  <input value={newCam.url} onChange={e=>setNewCam(p=>({...p,url:e.target.value}))}
+                    placeholder="rtsp://192.168.1.100:554/stream  or  http://camera-ip/video"
+                    style={{width:"100%",padding:"9px 12px",background:"rgba(255,255,255,0.05)",
+                      border:"1px solid rgba(245,158,11,0.2)",borderRadius:7,
+                      fontFamily:O.mono,fontSize:12,color:"#fff",outline:"none"}}/>
+                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginTop:5}}>
+                    Supports: RTSP streams · ONVIF · Hikvision · Dahua · Axis · Reolink · Any IP camera URL
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={()=>{
+                    if(newCam.name&&newCam.url){
+                      setCamFeeds(p=>[...p,{id:Date.now(),name:newCam.name,zone:newCam.zone||"General",status:"connecting",url:newCam.url,connected:false}]);
+                      setNewCam({name:"",zone:"",url:""});
+                      setAddingCam(false);
+                    }
+                  }} style={{padding:"9px 22px",background:O.amber,border:"none",borderRadius:7,
+                    fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#030c14",cursor:"pointer"}}>
+                    Connect Camera
+                  </button>
+                  <button onClick={()=>{setAddingCam(false);setNewCam({name:"",zone:"",url:""}); }}
+                    style={{padding:"9px 22px",background:"transparent",border:"1px solid rgba(255,255,255,0.1)",
+                      borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.textD,cursor:"pointer"}}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Camera grid */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
+              {camFeeds.map(cam => (
+                <div key={cam.id} style={{background:O.bg2,border:"1px solid "+O.border,borderRadius:12,overflow:"hidden",transition:"all 0.2s"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(245,158,11,0.3)"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor=O.border}>
+
+                  {/* Camera viewport */}
+                  <div style={{position:"relative",background:"#000",aspectRatio:"16/9",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {cam.url && cam.connected ? (
+                      <img src={cam.url} alt={cam.name}
+                        style={{width:"100%",height:"100%",objectFit:"cover"}}
+                        onError={e=>{e.target.style.display="none";}}/>
+                    ) : (
+                      <div style={{textAlign:"center",padding:20}}>
+                        <div style={{fontSize:32,marginBottom:10,opacity:0.3}}>📷</div>
+                        {cam.status==="connecting" ? (
+                          <div style={{fontFamily:O.mono,fontSize:10,color:O.amber,letterSpacing:1,animation:"blink 1.2s infinite"}}>CONNECTING...</div>
+                        ) : cam.url ? (
+                          <div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,marginBottom:8}}>Stream URL configured</div>
+                            <button onClick={()=>setCamFeeds(p=>p.map(c=>c.id===cam.id?{...c,connected:true}:c))}
+                              style={{padding:"5px 14px",background:O.amber,border:"none",borderRadius:5,
+                                fontFamily:O.mono,fontSize:9,color:"#030c14",cursor:"pointer",letterSpacing:1}}>
+                              CONNECT
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,letterSpacing:1}}>NO STREAM URL</div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Status badge */}
+                    <div style={{position:"absolute",top:8,right:8,
+                      background:cam.status==="live"?"rgba(16,185,129,0.85)":cam.status==="connecting"?"rgba(245,158,11,0.85)":"rgba(239,68,68,0.85)",
+                      borderRadius:4,padding:"2px 8px",
+                      fontFamily:O.mono,fontSize:8,color:"#fff",letterSpacing:1,textTransform:"uppercase",backdropFilter:"blur(4px)"}}>
+                      {cam.status==="live"?"● LIVE":cam.status==="connecting"?"◌ CONNECTING":"○ OFFLINE"}
+                    </div>
+
+                    {/* Zone label */}
+                    <div style={{position:"absolute",top:8,left:8,
+                      background:"rgba(0,0,0,0.65)",borderRadius:4,padding:"2px 8px",
+                      fontFamily:O.mono,fontSize:8,color:"rgba(255,255,255,0.7)",backdropFilter:"blur(4px)"}}>
+                      {cam.zone}
+                    </div>
+                  </div>
+
+                  {/* Camera info bar */}
+                  <div style={{padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div>
+                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:"#fff"}}>{cam.name}</div>
+                      {cam.url && <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginTop:2,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cam.url}</div>}
+                    </div>
+                    <button onClick={()=>setCamFeeds(p=>p.filter(c=>c.id!==cam.id))}
+                      style={{background:"none",border:"none",color:O.textF,cursor:"pointer",fontSize:16,
+                        padding:"4px 6px",borderRadius:4,transition:"color 0.15s"}}
+                      onMouseEnter={e=>e.target.style.color=O.red}
+                      onMouseLeave={e=>e.target.style.color=O.textF}>
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Empty add slot */}
+              <div onClick={()=>setAddingCam(true)}
+                style={{background:"rgba(245,158,11,0.03)",border:"1px dashed rgba(245,158,11,0.2)",
+                  borderRadius:12,aspectRatio:"16/9",display:"flex",flexDirection:"column",
+                  alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all 0.2s",minHeight:180}}
+                onMouseEnter={e=>{e.currentTarget.style.background="rgba(245,158,11,0.07)";e.currentTarget.style.borderColor="rgba(245,158,11,0.45)";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="rgba(245,158,11,0.03)";e.currentTarget.style.borderColor="rgba(245,158,11,0.2)";}}>
+                <div style={{fontSize:24,marginBottom:8,color:"rgba(245,158,11,0.4)"}}>+</div>
+                <div style={{fontFamily:O.mono,fontSize:10,color:"rgba(245,158,11,0.5)",letterSpacing:1}}>ADD CAMERA</div>
+              </div>
+            </div>
+
+            {/* Integration guide */}
+            <div style={{marginTop:24,background:O.bg2,border:"1px solid "+O.border,borderRadius:12,padding:"18px 20px"}}>
+              <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:2,marginBottom:12}}>SUPPORTED SYSTEMS</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>
+                {["Hikvision","Dahua","Axis","Reolink","Amcrest","Lorex","Nest","Ring","Unifi Protect","Hanwha","Vivotek","Any RTSP"].map(brand=>(
+                  <div key={brand} style={{background:O.bg3,borderRadius:6,padding:"7px 10px",
+                    fontFamily:O.mono,fontSize:10,color:O.textD,textAlign:"center"}}>
+                    {brand}
+                  </div>
+                ))}
+              </div>
+              <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,marginTop:12,lineHeight:1.7}}>
+                Use your camera's RTSP URL (found in its settings). Format: <span style={{color:O.amber}}>rtsp://username:password@camera-ip:554/stream</span>
+                <br/>For cloud cameras, use the HTTP snapshot or MJPEG stream URL from your camera's app.
+              </div>
+            </div>
+
           </div>
         )}
 
