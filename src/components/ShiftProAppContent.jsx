@@ -528,11 +528,12 @@ function EmpPortal({emp,onLogout}){
   const scColor = emp.streak>=10?E.yellow:emp.streak>=5?E.violet:E.green;
 
   const TABS = [
-    {id:"home",label:"🏠 Home"},
-    {id:"schedule",label:"📅 Schedule"},
-    {id:"earnings",label:"🌱 My Growth"},
-    {id:"team",label:unread>0?"💬 Messages ("+unread+")":"💬 Messages"},
+    {id:"home",       label:"🏠 Home"},
+    {id:"schedule",   label:"📅 Schedule"},
+    {id:"earnings",   label:"🌱 My Growth"},
+    {id:"team",       label:unread>0?"💬 Messages ("+unread+")":"💬 Messages"},
     {id:"recognition",label:"🏆 Achievements"},
+    {id:"documents",  label:"📄 My Documents"},
   ];
 
   return (
@@ -786,9 +787,9 @@ function EmpPortal({emp,onLogout}){
               {clocked&&!onBreak&&secs>0&&(
                 <div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>
                   {[
-                    {l:"Shift hrs",v:(secs/3600).toFixed(2)+"h",c:E.indigo},
-                    {l:"Break taken",v:(breakSecs/60).toFixed(0)+" min",c:E.yellow},
-                    {l:"Est. earnings",v:"$"+((secs/3600)*emp.rate).toFixed(2),c:E.green},
+                    {l:"Shift time",   v:(secs/3600).toFixed(2)+"h",          c:E.indigo},
+                    {l:"Break taken",  v:(breakSecs/60).toFixed(0)+" min",     c:E.yellow},
+                    {l:"Streak 🔥",    v:emp.streak+"d",                        c:E.green},
                   ].map(s=>(
                     <div key={s.l} style={{flex:1,background:E.bg3,borderRadius:9,
                       padding:"8px 10px",textAlign:"center",minWidth:90}}>
@@ -870,9 +871,9 @@ function EmpPortal({emp,onLogout}){
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
                 {[
-                  {l:"Hours",    v:emp.wkHrs+"h",              c:E.indigo},
-                  {l:"Rate",     v:"$"+emp.rate+"/hr",          c:E.violet},
-                  {l:"Est. Gross",v:"$"+(emp.wkHrs*emp.rate).toFixed(2), c:E.green},
+                  {l:"Hours Worked",  v:emp.wkHrs+"h",                                         c:E.indigo},
+                  {l:"Shifts This Wk",v:myShifts.length+" shifts",                             c:E.violet},
+                  {l:"Streak 🔥",     v:emp.streak+" days",                                     c:E.green},
                 ].map(s=>(
                   <div key={s.l} style={{background:E.bg3,borderRadius:12,
                     padding:"12px",textAlign:"center"}}>
@@ -1600,6 +1601,242 @@ function EmpPortal({emp,onLogout}){
           </div>
         </div>
       )}
+
+        {/* ── MY DOCUMENTS ── */}
+        {tab==="documents" && (
+          <div style={{animation:"fadeUp 0.3s ease"}}>
+
+            {/* Header */}
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,
+              color:E.text,marginBottom:4}}>My Documents 📄</div>
+            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>
+              Your pay records, tax forms, and time history — all in one place.
+            </div>
+
+            {/* W2 Section */}
+            <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+              borderRadius:16,padding:"20px",marginBottom:14,boxShadow:E.shadow}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+                <div style={{fontSize:22}}>📋</div>
+                <div>
+                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text}}>
+                    W-2 Tax Forms
+                  </div>
+                  <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>
+                    Uploaded by your employer via QuickBooks. Download anytime for tax filing.
+                  </div>
+                </div>
+              </div>
+              <div style={{height:"1px",background:E.border,margin:"14px 0"}}/>
+              {[
+                {year:"2024",status:"available",date:"Jan 31, 2025"},
+                {year:"2023",status:"available",date:"Jan 31, 2024"},
+                {year:"2022",status:"available",date:"Feb 1, 2023"},
+              ].map((w,i)=>(
+                <div key={w.year}
+                  style={{display:"flex",alignItems:"center",gap:12,
+                    padding:"12px 0",
+                    borderBottom:i<2?"1px solid "+E.border:"none"}}>
+                  <div style={{width:40,height:48,
+                    background:"linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.06))",
+                    border:"1.5px solid rgba(99,102,241,0.15)",
+                    borderRadius:8,display:"flex",flexDirection:"column",
+                    alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <div style={{fontFamily:E.mono,fontSize:6,
+                      color:E.indigo,letterSpacing:1}}>W-2</div>
+                    <div style={{fontFamily:E.sans,fontWeight:800,
+                      fontSize:11,color:E.indigo}}>{w.year}</div>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontFamily:E.sans,fontWeight:600,
+                      fontSize:14,color:E.text,marginBottom:2}}>
+                      W-2 Wage and Tax Statement — {w.year}
+                    </div>
+                    <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>
+                      Available since {w.date}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:7,flexShrink:0}}>
+                    <button style={{padding:"7px 14px",
+                      background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",
+                      border:"none",borderRadius:8,
+                      fontFamily:E.sans,fontWeight:600,fontSize:12,
+                      color:"#fff",cursor:"pointer",
+                      boxShadow:"0 2px 10px rgba(99,102,241,0.25)"}}>
+                      ↓ Download PDF
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div style={{marginTop:12,padding:"10px 12px",
+                background:"rgba(99,102,241,0.05)",
+                border:"1px solid rgba(99,102,241,0.12)",
+                borderRadius:9,display:"flex",gap:8,alignItems:"flex-start"}}>
+                <span style={{flexShrink:0}}>💡</span>
+                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,lineHeight:1.5}}>
+                  W-2 forms are uploaded by your employer each January. If your current year
+                  W-2 isn't here yet, it may still be processing — check back after January 31.
+                </div>
+              </div>
+            </div>
+
+            {/* Pay Stubs Archive */}
+            <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+              borderRadius:16,padding:"20px",marginBottom:14,boxShadow:E.shadow}}>
+              <div style={{display:"flex",alignItems:"center",
+                justifyContent:"space-between",marginBottom:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{fontSize:20}}>💵</div>
+                  <div style={{fontFamily:E.sans,fontWeight:700,
+                    fontSize:15,color:E.text}}>Pay Stubs</div>
+                </div>
+                <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,
+                  letterSpacing:1}}>LAST 6 PAY PERIODS</div>
+              </div>
+              {[
+                {period:"Mar 16–31, 2025", hrs:emp.wkHrs*2,   paid:true,  date:"Mar 31"},
+                {period:"Mar 1–15, 2025",  hrs:76,             paid:true,  date:"Mar 15"},
+                {period:"Feb 16–28, 2025", hrs:72,             paid:true,  date:"Feb 28"},
+                {period:"Feb 1–15, 2025",  hrs:78,             paid:true,  date:"Feb 15"},
+                {period:"Jan 16–31, 2025", hrs:80,             paid:true,  date:"Jan 31"},
+                {period:"Jan 1–15, 2025",  hrs:74,             paid:true,  date:"Jan 15"},
+              ].map((stub,i)=>(
+                <div key={i}
+                  style={{display:"flex",alignItems:"center",gap:12,
+                    padding:"11px 0",
+                    borderBottom:i<5?"1px solid "+E.border:"none"}}>
+                  <div>
+                    <div style={{fontFamily:E.sans,fontWeight:600,
+                      fontSize:13,color:E.text,marginBottom:1}}>{stub.period}</div>
+                    <div style={{fontFamily:E.mono,fontSize:10,color:E.textD}}>
+                      {stub.hrs}h · Paid {stub.date}
+                    </div>
+                  </div>
+                  <div style={{flex:1}}/>
+                  <div style={{fontFamily:E.sans,fontSize:11,color:E.green,
+                    background:"rgba(16,185,129,0.08)",
+                    border:"1px solid rgba(16,185,129,0.2)",
+                    borderRadius:5,padding:"2px 8px",fontWeight:600}}>
+                    ✓ PAID
+                  </div>
+                  <button style={{padding:"6px 12px",
+                    background:E.indigoD,
+                    border:"1px solid rgba(99,102,241,0.18)",
+                    borderRadius:7,fontFamily:E.sans,fontSize:11,
+                    color:E.indigo,cursor:"pointer",fontWeight:600}}>
+                    ↓ PDF
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Time History */}
+            <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+              borderRadius:16,padding:"20px",marginBottom:14,boxShadow:E.shadow}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                <div style={{fontSize:20}}>⏱</div>
+                <div style={{fontFamily:E.sans,fontWeight:700,
+                  fontSize:15,color:E.text}}>My Time Record</div>
+              </div>
+              <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,
+                marginBottom:14,lineHeight:1.5}}>
+                Your personal time clock history. This is your record — keep it for your files.
+              </div>
+              {[
+                {date:"Mon Mar 29",in:"8:02 AM",out:"4:14 PM",break:"32 min",hrs:"7.7h",status:"verified"},
+                {date:"Fri Mar 28",in:"8:00 AM",out:"4:00 PM",break:"30 min",hrs:"7.5h",status:"verified"},
+                {date:"Thu Mar 27",in:"8:05 AM",out:"5:12 PM",break:"30 min",hrs:"8.6h",status:"verified"},
+                {date:"Wed Mar 26",in:"9:00 AM",out:"5:03 PM",break:"31 min",hrs:"7.5h",status:"verified"},
+                {date:"Mon Mar 24",in:"8:01 AM",out:"4:08 PM",break:"30 min",hrs:"7.6h",status:"verified"},
+              ].map((row,i)=>(
+                <div key={i}
+                  style={{display:"grid",
+                    gridTemplateColumns:"90px 60px 60px 55px 42px 70px",
+                    gap:6,padding:"9px 0",
+                    borderBottom:i<4?"1px solid "+E.border:"none",
+                    alignItems:"center"}}>
+                  <div style={{fontFamily:E.sans,fontSize:11,
+                    color:E.text,fontWeight:600}}>{row.date}</div>
+                  <div>
+                    <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,marginBottom:1}}>IN</div>
+                    <div style={{fontFamily:E.mono,fontSize:10,color:E.green}}>{row.in}</div>
+                  </div>
+                  <div>
+                    <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,marginBottom:1}}>OUT</div>
+                    <div style={{fontFamily:E.mono,fontSize:10,color:E.red}}>{row.out}</div>
+                  </div>
+                  <div>
+                    <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,marginBottom:1}}>BREAK</div>
+                    <div style={{fontFamily:E.mono,fontSize:10,color:E.yellow}}>{row.break}</div>
+                  </div>
+                  <div style={{fontFamily:E.sans,fontWeight:700,
+                    fontSize:12,color:E.indigo}}>{row.hrs}</div>
+                  <div style={{fontFamily:E.mono,fontSize:8,color:E.green,
+                    background:"rgba(16,185,129,0.08)",
+                    border:"1px solid rgba(16,185,129,0.15)",
+                    borderRadius:4,padding:"2px 6px",letterSpacing:0.5,
+                    textAlign:"center"}}>
+                    ✓ {row.status.toUpperCase()}
+                  </div>
+                </div>
+              ))}
+              <button style={{marginTop:12,width:"100%",padding:"10px",
+                background:E.indigoD,
+                border:"1.5px solid rgba(99,102,241,0.18)",borderRadius:10,
+                fontFamily:E.sans,fontWeight:600,fontSize:13,
+                color:E.indigo,cursor:"pointer"}}>
+                Export Full Time History (CSV)
+              </button>
+            </div>
+
+            {/* Other Tax Docs */}
+            <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+              borderRadius:16,padding:"20px",boxShadow:E.shadow}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                <div style={{fontSize:20}}>📁</div>
+                <div style={{fontFamily:E.sans,fontWeight:700,
+                  fontSize:15,color:E.text}}>Other Tax Documents</div>
+              </div>
+              {[
+                {icon:"📋",label:"Direct Deposit Authorization",sub:"On file",action:"View"},
+                {icon:"📝",label:"I-9 Employment Eligibility",sub:"Verified on file",action:"View"},
+                {icon:"📑",label:"Federal W-4 Withholding",sub:"Current on file",action:"Update"},
+                {icon:"🏛️",label:"State Tax Withholding",sub:"OR — Current on file",action:"Update"},
+              ].map((doc,i)=>(
+                <div key={i}
+                  style={{display:"flex",alignItems:"center",gap:10,
+                    padding:"11px 0",
+                    borderBottom:i<3?"1px solid "+E.border:"none"}}>
+                  <span style={{fontSize:18,flexShrink:0}}>{doc.icon}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontFamily:E.sans,fontWeight:600,
+                      fontSize:13,color:E.text,marginBottom:1}}>{doc.label}</div>
+                    <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>
+                      {doc.sub}
+                    </div>
+                  </div>
+                  <button style={{padding:"6px 12px",
+                    background:doc.action==="Update"?E.indigoD:"rgba(16,185,129,0.08)",
+                    border:"1px solid "+(doc.action==="Update"?"rgba(99,102,241,0.18)":"rgba(16,185,129,0.2)"),
+                    borderRadius:7,fontFamily:E.sans,fontSize:11,fontWeight:600,
+                    color:doc.action==="Update"?E.indigo:E.green,cursor:"pointer"}}>
+                    {doc.action}
+                  </button>
+                </div>
+              ))}
+              <div style={{marginTop:14,padding:"10px 12px",
+                background:"rgba(99,102,241,0.04)",
+                border:"1px solid rgba(99,102,241,0.1)",
+                borderRadius:9,fontFamily:E.sans,fontSize:12,
+                color:E.textD,lineHeight:1.6}}>
+                📞 Need a document you don't see here? Contact your manager or HR administrator
+                to request it be added to your profile.
+              </div>
+            </div>
+
+          </div>
+        )}
+
 
       {/* Time Off Modal */}
       {toOpen && (
