@@ -1156,7 +1156,6 @@ function OwnerCmd({onLogout}){
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:2}}>REAL-TIME SHIFT INTELLIGENCE FEED</div>
                 <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>Every meaningful business event, as it happens.</div>
               </div>
-            </div>{/* end scroll wrapper */}
               <div style={{display:"flex",gap:6}}>
                 {["all","critical","warning","good"].map(f => (
                   <button key={f} onClick={()=>setFilter(f)}
