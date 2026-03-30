@@ -842,6 +842,10 @@ function OwnerCmd({onLogout}){
   const [feedPaused,setFeedPaused] = useState(false);
   const [feedSearch,setFeedSearch] = useState("");
   const [expandedFeed,setExpandedFeed] = useState(null);
+  const [roiPeriod,setRoiPeriod] = useState("month");
+  const [payPeriod,setPayPeriod] = useState("biweekly");
+  const [expandedEmp,setExpandedEmp] = useState(null);
+  const [resolvedDisc,setResolvedDisc] = useState({});
   const [alerts,setAlerts] = useState([
     {id:1,sev:"critical",msg:"Ghost hours exceeded — Marcus B.",detail:"7.3h unverified this week",time:"Now",seen:false,eId:5},
     {id:2,sev:"critical",msg:"Payroll mismatch — Carlos R.",detail:"4.1h camera discrepancy",time:"14:28",seen:false,eId:3},
@@ -863,7 +867,7 @@ function OwnerCmd({onLogout}){
   const TABS = [
     {id:"command",l:"Command"},{id:"intelligence",l:"Intelligence"},
     {id:"patterns",l:"Patterns"},{id:"payroll",l:"Payroll Fraud"},
-    {id:"feed",l:"Live Feed"},{id:"roi",l:"ROI Report"},
+    {id:"feed",l:"Live Feed"},{id:"roi",l:"Payroll Tracking"},
     {id:"alerts",l:unseen>0?"Alerts ("+unseen+")":"Alerts"},
     {id:"benchmark",l:"Benchmarks"},{id:"locations",l:"Locations"},
     {id:"staff",l:"Staff"},{id:"schedule",l:"Schedule"},
@@ -4116,60 +4120,931 @@ function OwnerCmd({onLogout}){
                 {/* ── ROI REPORT (Prompt 11) ── */}
         {tab==="roi" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:14}}>WEEKLY BUSINESS INTELLIGENCE REPORT</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
-              <OStat label="Labor Cost Week" value={`$${MONTHLY[5].cost.toLocaleString()}`} sub="vs $9,620 prior wk" color={O.amber}/>
-              <OStat label="Ghost Hrs Caught" value="6.2h" sub="$104 recovered" color={O.green}/>
-              <OStat label="Incidents Flagged" value={BFLAGS.length} color={O.red}/>
-              <OStat label="ShiftPro ROI" value="11×" sub="vs $129/mo sub" color={O.green}/>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-              <div style={{background:O.bg2,border:`1px solid ${O.greenD}`,borderRadius:10,padding:"16px"}}>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.green,letterSpacing:2,marginBottom:10}}>TOP 3 — RELIABILITY</div>
-                {[...EMPS].sort((a,b)=>b.rel-a.rel).slice(0,3).map((e,i) => (
-                  <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<2?`1px solid ${O.border}`:"none"}}>
-                    <div style={{fontFamily:O.mono,fontSize:10,color:O.green,width:20}}>#{i+1}</div>
-                    <Av emp={e} size={28} dark/>
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{e.name.split(" ")[0]}</div>
+            {(() => {
+              // ── PAYROLL CALCULATIONS ──
+              // Additional pay categories — configurable per employee
+              // Future: load from employee file settings
+              const PAY_CATEGORIES = [
+                {id:"tips",      label:"Tips",           icon:"💵", unit:"$",  enabled:true},
+                {id:"mileage",   label:"Mileage",        icon:"🚗", unit:"mi", enabled:true, rate:0.67},
+                {id:"bonus",     label:"Bonus",          icon:"⭐", unit:"$",  enabled:false},
+                {id:"stipend",   label:"Stipend",        icon:"📦", unit:"$",  enabled:false},
+              ];
+              // Per-employee additional pay (synthesized — will come from employee file)
+              const getAdditionalPay = (e) => ({
+                tips:    e.id===1?0:e.id===2?84:e.id===3?210:e.id===4?156:e.id===5?92:0,
+                mileage: e.id===1?0:e.id===2?0:e.id===3?47:e.id===4?0:e.id===5?112:0, // miles driven
+                bonus:   0,
+                stipend: 0,
+              });
+              const mileageRate = 0.67; // IRS standard rate $/mile
+
+              const calcPayroll = (e) => {
+                const regHrs = Math.min(e.wkHrs*2, 80);
+                const otHrs  = e.ot ? e.ot*2 : 0;
+                const regPay = regHrs*e.rate;
+                const otPay  = otHrs*e.rate*1.5;
+                const addl   = getAdditionalPay(e);
+                const tipPay     = addl.tips;
+                const mileagePay = parseFloat((addl.mileage*mileageRate).toFixed(2));
+                const bonusPay   = addl.bonus;
+                const stipendPay = addl.stipend;
+                const additionalTotal = tipPay+mileagePay+bonusPay+stipendPay;
+                const gross  = regPay+otPay+additionalTotal;
+                const verified = e.cam>=80;
+                const hasDisc  = e.ghost>1;
+                const status   = hasDisc?"DISCREPANCY":verified?"VERIFIED":"PENDING";
+                return {regHrs,otHrs,regPay,otPay,gross,verified,hasDisc,status,
+                  tipPay,mileagePay,bonusPay,stipendPay,additionalTotal,
+                  mileageMiles:addl.mileage};
+              };
+
+              const periodTotals = EMPS.reduce((acc,e)=>{
+                const p = calcPayroll(e);
+                return {
+                  totalHrs:    acc.totalHrs+p.regHrs+p.otHrs,
+                  totalGross:  acc.totalGross+p.gross,
+                  totalOT:     acc.totalOT+p.otHrs,
+                  discCount:   acc.discCount+(p.hasDisc?1:0),
+                  totalTips:   acc.totalTips+p.tipPay,
+                  totalMileage:acc.totalMileage+p.mileagePay,
+                  totalAddl:   acc.totalAddl+p.additionalTotal,
+                };
+              },{totalHrs:0,totalGross:0,totalOT:0,discCount:0,totalTips:0,totalMileage:0,totalAddl:0});
+
+              const getDailyRows = (e) => {
+                const days  = ["Mon","Tue","Wed","Thu","Fri","Mon","Tue","Wed","Thu","Fri"];
+                const dates = ["Mar 17","Mar 18","Mar 19","Mar 20","Mar 21","Mar 24","Mar 25","Mar 26","Mar 27","Mar 28"];
+                return days.map((day,i)=>{
+                  const scheduled = i!==2;
+                  const hi = 8+(e.id%2);
+                  const mi = e.id*3%10;
+                  const ho = 16+(i%2);
+                  const mo = (e.id+i)%6*5%10;
+                  const clockIn  = scheduled?"0"+hi+":0"+mi:null;
+                  const clockOut = scheduled?(ho>=10?ho:"0"+ho)+":"+(mo===0?"00":mo*5):null;
+                  const regHrs   = scheduled?parseFloat((7.5+(i%3)*0.25).toFixed(2)):0;
+                  const otHrs    = (i===1||i===6)?0.9:0;
+                  const verified = e.cam>80||i%3!==0;
+                  const discFlag = e.ghost>1&&(i===2||i===7);
+                  return {day,date:dates[i],clockIn,clockOut,regHrs,otHrs,verified,scheduled,discFlag};
+                });
+              };
+
+              const maxHrs = Math.max(...EMPS.map(e=>{const p=calcPayroll(e);return p.regHrs+p.otHrs;}),1);
+              const discEmps = EMPS.filter(e=>calcPayroll(e).hasDisc);
+              const resolvedCount = Object.values(resolvedDisc).filter(Boolean).length;
+              const allResolved = resolvedCount>=discEmps.length;
+              const green = "#10b981";
+              const greenD = "rgba(16,185,129,0.08)";
+              const greenB = "rgba(16,185,129,0.25)";
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
+                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
+                </div>
+              );
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: PAYROLL PERIOD HEADER ── */}
+                  <div style={{background:O.bg2,border:"1px solid "+greenB,
+                    borderRadius:12,padding:"14px 18px",marginBottom:12}}>
+                    <div style={{display:"flex",gap:14,alignItems:"center",
+                      flexWrap:"wrap",marginBottom:10}}>
+                      {/* Period type pills */}
+                      <div style={{display:"flex",gap:5}}>
+                        {[["biweekly","BI-WEEKLY"],["weekly","WEEKLY"],
+                          ["semimonthly","SEMI-MONTHLY"],["monthly","MONTHLY"]].map(([v,l])=>(
+                          <button key={v} onClick={()=>setPayPeriod(v)}
+                            style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                              padding:"4px 9px",borderRadius:4,border:"none",cursor:"pointer",
+                              background:payPeriod===v?"rgba(16,185,129,0.18)":"rgba(255,255,255,0.04)",
+                              color:payPeriod===v?green:O.textF}}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Period navigator */}
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <button style={{background:"none",border:"1px solid "+O.border,
+                          borderRadius:4,color:O.textD,cursor:"pointer",
+                          padding:"3px 8px",fontFamily:O.mono,fontSize:11}}>←</button>
+                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13,
+                          color:"#fff",whiteSpace:"nowrap"}}>
+                          Mar 16 – Mar 29, 2025
+                        </div>
+                        <button style={{background:"none",border:"1px solid "+O.border,
+                          borderRadius:4,color:O.textD,cursor:"pointer",
+                          padding:"3px 8px",fontFamily:O.mono,fontSize:11}}>→</button>
+                      </div>
+
+                      {/* Status + days */}
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,
+                          background:"rgba(245,158,11,0.12)",
+                          border:"1px solid rgba(245,158,11,0.3)",
+                          borderRadius:4,padding:"3px 10px",letterSpacing:1}}>
+                          OPEN
+                        </div>
+                        <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                          2 days left in period
+                        </span>
+                      </div>
+
+                      {/* Quick stats */}
+                      <div style={{display:"flex",gap:12,marginLeft:"auto",flexWrap:"wrap"}}>
+                        {[
+                          {l:"Total Hours",v:periodTotals.totalHrs.toFixed(1)+"h"},
+                          {l:"Est. Gross",v:"$"+periodTotals.totalGross.toFixed(0)},
+                          {l:"Employees",v:EMPS.length+" processed"},
+                        ].map(s=>(
+                          <div key={s.l} style={{textAlign:"center"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff"}}>{s.v}</div>
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:1}}>{s.l}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <Ring val={e.rel} size={34}/>
-                  </div>
-                ))}
-              </div>
-              <div style={{background:O.bg2,border:`1px solid ${O.redD}`,borderRadius:10,padding:"16px"}}>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.red,letterSpacing:2,marginBottom:10}}>FLAGGED FOR REVIEW</div>
-                {[...EMPS].sort((a,b)=>a.rel-b.rel).slice(0,3).map((e,i) => (
-                  <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<2?`1px solid ${O.border}`:"none"}}>
-                    <Av emp={e} size={28} dark/>
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{e.name.split(" ")[0]}</div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{e.ghost}h ghost · {e.rel}% rel.</div>
+
+                    {/* Action buttons */}
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {[
+                        {l:"🔒 Lock Period",bg:"rgba(255,255,255,0.06)",c:O.textD},
+                        {l:"✅ Approve Payroll",bg:"rgba(16,185,129,0.1)",c:green},
+                        {l:"📤 Export to QuickBooks",bg:"rgba(16,185,129,0.18)",c:green,bold:true},
+                      ].map(btn=>(
+                        <button key={btn.l}
+                          style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                            padding:"7px 16px",background:btn.bg,
+                            border:"1px solid "+(btn.bold?greenB:O.border),
+                            borderRadius:6,color:btn.c,cursor:"pointer",
+                            fontWeight:btn.bold?700:400,transition:"all 0.15s"}}
+                          onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
+                          onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                          {btn.l}
+                        </button>
+                      ))}
                     </div>
-                    <OBadge label={e.risk} color={rC(e.risk)} sm/>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div style={{background:`linear-gradient(135deg,${O.amberD},rgba(245,158,11,0.03))`,border:`1px solid ${O.amberB}`,borderRadius:10,padding:"18px"}}>
-              <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:2,marginBottom:12}}>ROI CALCULATOR — THIS MONTH</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:12}}>
-                {[["Ghost Hrs Found",`${totalGhost.toFixed(1)}h`,O.amber],["Payroll Saved",`$${ghostCost}`,O.green],["Incidents Caught",alerts.filter(a=>a.sev==="critical").length,O.red],["Subscription","-$129",O.textD]].map(([l,v,c]) => (
-                  <div key={l} style={{background:O.bg3,borderRadius:8,padding:"13px",textAlign:"center"}}>
-                    <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:1.5,marginBottom:5}}>{l.toUpperCase()}</div>
-                    <div style={{fontFamily:O.sans,fontWeight:800,fontSize:20,color:c}}>{v}</div>
+
+                  {/* ── ZONE 2: SUMMARY STATS ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",
+                    gap:10,marginBottom:12}}>
+                    {[
+                      {l:"Total Hours Worked",v:periodTotals.totalHrs.toFixed(1)+"h",
+                       sub:"vs 194h last period",c:O.amber,trend:"↓"},
+                      {l:"Estimated Gross Pay",v:"$"+periodTotals.totalGross.toFixed(0),
+                       sub:"$"+(periodTotals.totalOT*EMPS[0]?.rate*0.5||0).toFixed(0)+" OT premium",c:green,trend:"↑"},
+                      {l:"Overtime Hours",v:periodTotals.totalOT.toFixed(1)+"h OT",
+                       sub:"at 1.5× rate",c:O.amber,trend:"↑"},
+                      {l:"Discrepancies",v:periodTotals.discCount+" flagged",
+                       sub:"resolve before export",c:periodTotals.discCount>0?O.red:green,trend:""},
+                      {l:"Tips + Reimbursements",v:"$"+periodTotals.totalAddl.toFixed(0),
+                       sub:"tips $"+periodTotals.totalTips.toFixed(0)+" · mileage $"+periodTotals.totalMileage.toFixed(0),
+                       c:"rgba(6,182,212,0.9)",trend:""},
+                    ].map(s=>(
+                      <div key={s.l} style={{background:O.bg2,border:"1px solid "+O.border,
+                        borderRadius:10,padding:"14px",textAlign:"center"}}>
+                        <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,
+                          color:s.c,lineHeight:1,marginBottom:5}}>{s.v}</div>
+                        <div style={{fontFamily:O.mono,fontSize:7,
+                          color:O.textF,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>
+                          {s.l}
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                          {s.trend&&<span style={{color:s.trend==="↑"?O.green:O.red}}>{s.trend} </span>}
+                          {s.sub}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div style={{padding:"11px 14px",background:O.bg3,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text}}>Net Monthly Savings</div>
-                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:26,color:O.green}}>+${(Number(ghostCost)-129).toFixed(2)}</div>
-              </div>
-            </div>
+
+                  {/* ── ZONES 3 + 4: LEDGER + CHART ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 3: Employee Hours Ledger */}
+                    <Card>
+                      <SL text="Employee Hours Ledger" color={green}/>
+                      <div style={{overflowX:"auto"}}>
+                        <div style={{minWidth:580}}>
+                          {/* Header */}
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"120px 48px 46px 52px 64px 58px 58px 64px 64px 68px",
+                            padding:"6px 8px",background:O.bg3,
+                            borderRadius:"6px 6px 0 0",gap:4}}>
+                            {["EMPLOYEE","REG HRS","OT HRS","TOTAL","REG PAY","OT PAY","TIPS","MILEAGE","ADDL","STATUS"].map(h=>(
+                              <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                                color:O.textF,letterSpacing:h==="TIPS"||h==="MILEAGE"||h==="ADDL"?"rgba(6,182,212,0.8)":O.textF,
+                                letterSpacing:1}}>{h}</div>
+                            ))}
+                          </div>
+
+                          {EMPS.map((e,idx)=>{
+                            const p = calcPayroll(e);
+                            const sc = p.status==="DISCREPANCY"?O.red:p.status==="VERIFIED"?green:O.amber;
+                            return (
+                              <div key={e.id} style={{display:"grid",
+                                gridTemplateColumns:"120px 48px 46px 52px 64px 58px 58px 64px 64px 68px",
+                                padding:"9px 8px",gap:4,
+                                borderBottom:"1px solid "+O.border,
+                                background:p.hasDisc?"rgba(239,68,68,0.03)":p.verified?"rgba(16,185,129,0.01)":"transparent",
+                                alignItems:"center"}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <Av emp={e} size={22} dark/>
+                                  <div style={{minWidth:0}}>
+                                    <div style={{fontFamily:O.sans,fontWeight:600,
+                                      fontSize:11,color:"#fff",whiteSpace:"nowrap",
+                                      overflow:"hidden",textOverflow:"ellipsis"}}>
+                                      {e.name.split(" ")[0]}
+                                    </div>
+                                    <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                      ${e.rate}/hr
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:10,color:O.text}}>
+                                  {p.regHrs.toFixed(1)}h
+                                </div>
+                                <div>
+                                  {p.otHrs>0?(
+                                    <div>
+                                      <span style={{fontFamily:O.mono,fontSize:10,
+                                        color:O.amber,fontWeight:600}}>{p.otHrs.toFixed(1)}h</span>
+                                      <div style={{fontFamily:O.mono,fontSize:6,color:O.amber,
+                                        background:"rgba(245,158,11,0.12)",borderRadius:2,
+                                        padding:"0 3px",display:"inline-block",marginLeft:2}}>OT</div>
+                                    </div>
+                                  ):(
+                                    <span style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>—</span>
+                                  )}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:10,color:"#fff",fontWeight:700}}>
+                                  {(p.regHrs+p.otHrs).toFixed(1)}h
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                                  ${p.regPay.toFixed(0)}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:p.otPay>0?O.amber:O.textF}}>
+                                  {p.otPay>0?"$"+p.otPay.toFixed(0):"—"}
+                                </div>
+                                {/* Tips */}
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:p.tipPay>0?"rgba(6,182,212,0.9)":O.textF}}>
+                                  {p.tipPay>0?"$"+p.tipPay.toFixed(0):"—"}
+                                </div>
+                                {/* Mileage */}
+                                <div>
+                                  {p.mileagePay>0?(
+                                    <div>
+                                      <div style={{fontFamily:O.mono,fontSize:9,
+                                        color:"rgba(6,182,212,0.9)"}}>
+                                        {"$"+p.mileagePay.toFixed(0)}
+                                      </div>
+                                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>
+                                        {p.mileageMiles}mi
+                                      </div>
+                                    </div>
+                                  ):(
+                                    <span style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>—</span>
+                                  )}
+                                </div>
+                                {/* Additional total */}
+                                <div style={{fontFamily:O.mono,fontSize:9,
+                                  color:p.additionalTotal>0?"rgba(6,182,212,0.9)":O.textF}}>
+                                  {p.additionalTotal>0?"$"+p.additionalTotal.toFixed(0):"—"}
+                                </div>
+                                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:12,
+                                  color:p.hasDisc?O.red:green}}>
+                                  ${p.gross.toFixed(0)}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:sc,
+                                  background:sc+"15",border:"1px solid "+sc+"30",
+                                  borderRadius:3,padding:"2px 5px",
+                                  letterSpacing:0.5,textAlign:"center",whiteSpace:"nowrap"}}>
+                                  {p.status==="VERIFIED"?"✓ VERF":p.status==="DISCREPANCY"?"⚠ DISC":"PEND"}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* Totals row */}
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"130px 55px 55px 60px 72px 68px 76px 70px",
+                            padding:"10px 8px",gap:4,
+                            background:O.bg3,
+                            borderTop:"2px solid "+green+"50",
+                            borderRadius:"0 0 6px 6px",alignItems:"center"}}>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:green,letterSpacing:1}}>
+                              TOTALS
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:O.amber,fontWeight:600}}>
+                              {EMPS.reduce((s,e)=>s+calcPayroll(e).regHrs,0).toFixed(1)}h
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:O.amber,fontWeight:600}}>
+                              {periodTotals.totalOT.toFixed(1)}h
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:"#fff",fontWeight:700}}>
+                              {periodTotals.totalHrs.toFixed(1)}h
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>
+                              ${EMPS.reduce((s,e)=>s+calcPayroll(e).regPay,0).toFixed(0)}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:O.amber}}>
+                              ${EMPS.reduce((s,e)=>s+calcPayroll(e).otPay,0).toFixed(0)}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:"rgba(6,182,212,0.9)"}}>
+                              ${EMPS.reduce((s,e)=>s+calcPayroll(e).tipPay,0).toFixed(0)}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:"rgba(6,182,212,0.9)"}}>
+                              ${EMPS.reduce((s,e)=>s+calcPayroll(e).mileagePay,0).toFixed(0)}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:"rgba(6,182,212,0.9)"}}>
+                              ${EMPS.reduce((s,e)=>s+calcPayroll(e).additionalTotal,0).toFixed(0)}
+                            </div>
+                            <div style={{fontFamily:O.sans,fontWeight:900,fontSize:14,color:green}}>
+                              ${periodTotals.totalGross.toFixed(0)}
+                            </div>
+                            <div/>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* ZONE 4: Hours Chart + OT Tracker */}
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                      {/* Hours breakdown bars */}
+                      <Card>
+                        <SL text="Hours Breakdown" color={O.amber}/>
+                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                          {EMPS.map(e=>{
+                            const p = calcPayroll(e);
+                            const total = p.regHrs+p.otHrs;
+                            const regW = Math.round((p.regHrs/maxHrs)*100);
+                            const otW  = Math.round((p.otHrs/maxHrs)*100);
+                            const ghostW = Math.round((e.ghost/maxHrs)*20);
+                            return(
+                              <div key={e.id}>
+                                <div style={{display:"flex",
+                                  justifyContent:"space-between",marginBottom:3}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                    <Av emp={e} size={16} dark/>
+                                    <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                      {e.name.split(" ")[0]}
+                                    </span>
+                                  </div>
+                                  <span style={{fontFamily:O.mono,fontSize:8,
+                                    color:"#fff",fontWeight:600}}>{total.toFixed(1)}h</span>
+                                </div>
+                                <div style={{display:"flex",height:8,
+                                  borderRadius:4,overflow:"hidden",
+                                  background:"rgba(255,255,255,0.04)"}}>
+                                  <div style={{width:regW+"%",
+                                    background:"rgba(245,158,11,0.5)",
+                                    transition:"width 0.8s ease"}}/>
+                                  {otW>0&&(
+                                    <div style={{width:otW+"%",
+                                      background:O.amber,
+                                      transition:"width 0.8s ease"}}/>
+                                  )}
+                                  {ghostW>0&&(
+                                    <div style={{width:ghostW+"%",
+                                      background:O.red,
+                                      transition:"width 0.8s ease"}}/>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div style={{display:"flex",gap:10,marginTop:4}}>
+                            {[["Regular",O.amber+"80"],["Overtime",O.amber],["Unverified",O.red]].map(([l,c])=>(
+                              <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
+                                <div style={{width:8,height:8,borderRadius:2,background:c}}/>
+                                <span style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>{l}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </Card>
+
+                      {/* OT Tracker */}
+                      <Card style={{flex:1}}>
+                        <SL text="Overtime Tracker" color={O.amber}/>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:1,marginBottom:8,
+                          background:"rgba(245,158,11,0.06)",borderRadius:5,
+                          padding:"5px 8px",display:"inline-block"}}>
+                          Federal OT threshold: 40h/week
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                          {EMPS.map(e=>{
+                            const p = calcPayroll(e);
+                            const wkHrs = p.regHrs/2+p.otHrs/2;
+                            const overAmt = Math.max(0,wkHrs-40);
+                            const pct = Math.min(100,Math.round((wkHrs/45)*100));
+                            const c = wkHrs>=40?O.red:wkHrs>=37?O.amber:green;
+                            return(
+                              <div key={e.id} style={{padding:"7px 8px",
+                                background:O.bg3,borderRadius:6}}>
+                                <div style={{display:"flex",justifyContent:"space-between",
+                                  marginBottom:4}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                    <Av emp={e} size={16} dark/>
+                                    <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                      {e.name.split(" ")[0]}
+                                    </span>
+                                  </div>
+                                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                    <span style={{fontFamily:O.mono,fontSize:9,color:c,fontWeight:600}}>
+                                      {wkHrs.toFixed(1)}h/wk
+                                    </span>
+                                    {overAmt>0&&(
+                                      <span style={{fontFamily:O.mono,fontSize:7,
+                                        color:O.red,background:"rgba(239,68,68,0.12)",
+                                        border:"1px solid rgba(239,68,68,0.25)",
+                                        borderRadius:3,padding:"1px 5px"}}>
+                                        +{overAmt.toFixed(1)}h OT
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                                  <div style={{height:"100%",width:pct+"%",
+                                    background:c,borderRadius:2,transition:"width 0.8s"}}/>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{marginTop:10,fontFamily:O.mono,fontSize:8,color:O.amber,
+                          background:"rgba(245,158,11,0.06)",borderRadius:6,
+                          padding:"7px 10px",borderLeft:"2px solid "+O.amber}}>
+                          OT cost this period: ${EMPS.reduce((s,e)=>s+calcPayroll(e).otPay,0).toFixed(0)} at 1.5× rate
+                        </div>
+                      </Card>
+                    </div>
+                  </div>
+
+                  {/* ── ZONE 5: TIMESHEET DETAIL ── */}
+                  <Card style={{marginBottom:12}}>
+                    <SL text="Timesheet Detail — Mar 16–29, 2025" color={green}/>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {EMPS.map(e=>{
+                        const p = calcPayroll(e);
+                        const rows = getDailyRows(e);
+                        const isOpen = expandedEmp===e.id;
+                        return(
+                          <div key={e.id} style={{background:O.bg3,
+                            borderRadius:8,overflow:"hidden",
+                            border:"1px solid "+(isOpen?green+"40":O.border)}}>
+                            {/* Collapsed header */}
+                            <div style={{display:"flex",alignItems:"center",gap:10,
+                              padding:"10px 14px",cursor:"pointer"}}
+                              onClick={()=>setExpandedEmp(isOpen?null:e.id)}>
+                              <Av emp={e} size={24} dark/>
+                              <div style={{flex:1}}>
+                                <span style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:13,color:"#fff",marginRight:8}}>{e.name}</span>
+                                <span style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{e.role}</span>
+                              </div>
+                              <div style={{display:"flex",gap:16,alignItems:"center"}}>
+                                <div style={{textAlign:"right"}}>
+                                  <div style={{fontFamily:O.mono,fontSize:10,color:O.amber}}>
+                                    {(p.regHrs+p.otHrs).toFixed(1)}h total
+                                  </div>
+                                  <div style={{fontFamily:O.sans,fontWeight:700,
+                                    fontSize:13,color:green}}>${p.gross.toFixed(0)}</div>
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:7,
+                                  color:p.hasDisc?O.red:green,
+                                  background:(p.hasDisc?O.red:green)+"15",
+                                  border:"1px solid "+(p.hasDisc?O.red:green)+"30",
+                                  borderRadius:3,padding:"2px 7px",letterSpacing:1}}>
+                                  {p.hasDisc?"⚠ DISC":"✓ CLEAN"}
+                                </div>
+                                <span style={{fontFamily:O.mono,fontSize:11,
+                                  color:O.textF,transform:isOpen?"rotate(180deg)":"none",
+                                  transition:"transform 0.2s",display:"inline-block"}}>▾</span>
+                              </div>
+                            </div>
+
+                            {/* Expanded daily grid */}
+                            {isOpen&&(
+                              <div style={{borderTop:"1px solid "+O.border,padding:"12px 14px"}}>
+                                <div style={{overflowX:"auto"}}>
+                                  <div style={{minWidth:640}}>
+                                    {/* Grid header */}
+                                    <div style={{display:"grid",
+                                      gridTemplateColumns:"36px 60px 60px 70px 48px 72px 52px 80px 1fr",
+                                      gap:4,padding:"5px 6px",background:O.bg2,
+                                      borderRadius:"4px 4px 0 0",marginBottom:1}}>
+                                      {["DAY","DATE","IN","OUT","BREAK","REG HRS","OT","CAM","NOTES"].map(h=>(
+                                        <div key={h} style={{fontFamily:O.mono,fontSize:6,
+                                          color:O.textF,letterSpacing:1}}>{h}</div>
+                                      ))}
+                                    </div>
+                                    {rows.map((r,ri)=>{
+                                      const rowBg = !r.scheduled?"rgba(255,255,255,0.02)":
+                                        r.discFlag?"rgba(239,68,68,0.06)":
+                                        r.verified?"rgba(16,185,129,0.03)":"rgba(245,158,11,0.03)";
+                                      const borderL = !r.scheduled?"rgba(255,255,255,0.06)":
+                                        r.discFlag?O.red:r.verified?green:O.amber;
+                                      return(
+                                        <div key={ri} style={{display:"grid",
+                                          gridTemplateColumns:"36px 60px 60px 70px 48px 72px 52px 80px 1fr",
+                                          gap:4,padding:"7px 6px",
+                                          borderBottom:"1px solid "+O.border,
+                                          background:rowBg,borderLeft:"2px solid "+borderL,
+                                          alignItems:"center"}}>
+                                          <div style={{fontFamily:O.mono,fontSize:8,
+                                            color:O.textD}}>{r.day}</div>
+                                          <div style={{fontFamily:O.mono,fontSize:8,
+                                            color:O.textD}}>{r.date}</div>
+                                          <div style={{fontFamily:O.mono,fontSize:9,
+                                            color:r.scheduled?"#fff":O.textF}}>
+                                            {r.clockIn||"—"}
+                                          </div>
+                                          <div style={{fontFamily:O.mono,fontSize:9,
+                                            color:r.scheduled?"#fff":O.textF}}>
+                                            {r.clockOut||"—"}
+                                          </div>
+                                          <div style={{fontFamily:O.mono,fontSize:9,
+                                            color:O.textD}}>
+                                            {r.scheduled?"0:30":"—"}
+                                          </div>
+                                          <div style={{fontFamily:O.mono,fontSize:9,
+                                            color:O.amber,fontWeight:600}}>
+                                            {r.regHrs>0?r.regHrs+"h":"—"}
+                                          </div>
+                                          <div style={{fontFamily:O.mono,fontSize:9,
+                                            color:r.otHrs>0?O.amber:O.textF}}>
+                                            {r.otHrs>0?r.otHrs+"h":"—"}
+                                          </div>
+                                          <div style={{fontFamily:O.mono,fontSize:8,
+                                            color:r.verified?green:O.amber}}>
+                                            {r.scheduled?(r.verified?"📷 ✓":"⚠ NO CAM"):"OFF"}
+                                          </div>
+                                          <div style={{fontFamily:O.mono,fontSize:8,
+                                            color:r.discFlag?O.red:r.otHrs>0?O.amber:O.textF}}>
+                                            {r.discFlag?"Flag: mismatch":r.otHrs>0?"OT approved":"—"}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                {/* Period subtotals */}
+                                <div style={{marginTop:8,display:"flex",gap:14,
+                                  padding:"8px 10px",background:O.bg2,borderRadius:6,
+                                  flexWrap:"wrap"}}>
+                                  {[
+                                    {l:"Regular",v:p.regHrs.toFixed(1)+"h",c:O.amber},
+                                    {l:"Overtime",v:p.otHrs.toFixed(1)+"h",c:O.amber},
+                                    {l:"Unverified",v:e.ghost.toFixed(1)+"h",c:e.ghost>0?O.red:green},
+                                    {l:"Tips",v:p.tipPay>0?"$"+p.tipPay.toFixed(0):"—",c:p.tipPay>0?"rgba(6,182,212,0.9)":O.textF},
+                                    {l:"Mileage",v:p.mileagePay>0?"$"+p.mileagePay.toFixed(0)+" ("+p.mileageMiles+"mi)":"—",c:p.mileagePay>0?"rgba(6,182,212,0.9)":O.textF},
+                                    {l:"Gross Pay",v:"$"+p.gross.toFixed(0),c:green},
+                                  ].map(s=>(
+                                    <div key={s.l}>
+                                      <span style={{fontFamily:O.mono,fontSize:7,
+                                        color:O.textF,marginRight:5}}>{s.l}:</span>
+                                      <span style={{fontFamily:O.mono,fontSize:9,
+                                        color:s.c,fontWeight:600}}>{s.v}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 6 + 7: DISCREPANCIES + EXPORT ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 6: Discrepancy Resolution */}
+                    <Card style={{background:allResolved?"rgba(16,185,129,0.04)":O.bg2,
+                      border:"1px solid "+(allResolved?greenB:O.border)}}>
+                      <div style={{display:"flex",alignItems:"center",
+                        justifyContent:"space-between",marginBottom:12}}>
+                        <SL text={"Discrepancies — "+(allResolved?"All Resolved ✓":periodTotals.discCount+" to Resolve")}
+                          color={allResolved?green:O.red}/>
+                        {!allResolved&&(
+                          <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                            background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",
+                            borderRadius:3,padding:"2px 7px",letterSpacing:1}}>
+                            {periodTotals.discCount-resolvedCount} REMAINING
+                          </div>
+                        )}
+                      </div>
+
+                      {allResolved?(
+                        <div style={{textAlign:"center",padding:"20px 0"}}>
+                          <div style={{fontSize:28,marginBottom:8}}>✅</div>
+                          <div style={{fontFamily:O.sans,fontWeight:600,
+                            fontSize:14,color:green,marginBottom:4}}>All discrepancies resolved</div>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>
+                            Ready to export to payroll
+                          </div>
+                        </div>
+                      ):(
+                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                          {discEmps.map(e=>{
+                            const isResolved = resolvedDisc[e.id];
+                            return(
+                              <div key={e.id}
+                                style={{padding:"12px",background:O.bg3,borderRadius:8,
+                                  border:"1px solid "+(isResolved?green+"30":"rgba(239,68,68,0.2)"),
+                                  borderLeft:"3px solid "+(isResolved?green:O.red),
+                                  opacity:isResolved?0.6:1,transition:"all 0.3s"}}>
+                                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                                  <Av emp={e} size={24} dark/>
+                                  <div style={{flex:1}}>
+                                    <div style={{fontFamily:O.sans,fontWeight:600,
+                                      fontSize:12,color:"#fff",marginBottom:1}}>{e.name}</div>
+                                    <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                                      background:"rgba(239,68,68,0.1)",
+                                      borderRadius:3,padding:"1px 5px",letterSpacing:1,
+                                      display:"inline-block"}}>
+                                      CLOCK VS CAMERA MISMATCH
+                                    </div>
+                                  </div>
+                                  {isResolved&&(
+                                    <span style={{color:green,fontSize:16}}>✓</span>
+                                  )}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginBottom:8}}>
+                                  {e.ghost.toFixed(1)}h unverified · ${(e.ghost*e.rate).toFixed(0)} at risk
+                                  · Mar 19–20
+                                </div>
+                                {!isResolved&&(
+                                  <div style={{display:"flex",gap:7}}>
+                                    <button
+                                      onClick={()=>setResolvedDisc({...resolvedDisc,[e.id]:true})}
+                                      style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                                        padding:"5px 12px",background:"rgba(16,185,129,0.1)",
+                                        border:"1px solid rgba(16,185,129,0.25)",
+                                        borderRadius:4,color:green,cursor:"pointer"}}>
+                                      APPROVE AS-IS
+                                    </button>
+                                    <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                                      padding:"5px 12px",background:"rgba(245,158,11,0.08)",
+                                      border:"1px solid rgba(245,158,11,0.2)",
+                                      borderRadius:4,color:O.amber,cursor:"pointer"}}>
+                                      ADJUST HOURS
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
+                            textAlign:"center",marginTop:4,padding:"6px",
+                            background:"rgba(239,68,68,0.04)",borderRadius:5}}>
+                            All discrepancies must be resolved before payroll can be exported
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+
+                    {/* ZONE 7: Export Center */}
+                    <Card>
+                      <SL text="Export & Integration Center" color={green}/>
+
+                      {/* Additional Pay Categories Config */}
+                      <div style={{marginBottom:14,background:O.bg3,borderRadius:8,padding:"11px 12px",
+                        border:"1px solid rgba(6,182,212,0.2)"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",
+                          alignItems:"center",marginBottom:8}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,
+                            color:"rgba(6,182,212,0.8)",letterSpacing:"2px"}}>
+                            PAY CATEGORIES — THIS PERIOD
+                          </div>
+                          <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"2px 8px",background:"rgba(6,182,212,0.1)",
+                            border:"1px solid rgba(6,182,212,0.25)",borderRadius:3,
+                            color:"rgba(6,182,212,0.8)",cursor:"pointer"}}>
+                            + ADD CATEGORY
+                          </button>
+                        </div>
+                        {PAY_CATEGORIES.filter(c=>c.enabled).map(cat=>(
+                          <div key={cat.id} style={{display:"flex",alignItems:"center",
+                            justifyContent:"space-between",padding:"5px 0",
+                            borderBottom:"1px solid "+O.border}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontSize:12}}>{cat.icon}</span>
+                              <span style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{cat.label}</span>
+                              {cat.rate&&(
+                                <span style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>
+                                  (${cat.rate}/mi IRS rate)
+                                </span>
+                              )}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:9,
+                              color:"rgba(6,182,212,0.9)",fontWeight:600}}>
+                              ${EMPS.reduce((s,e)=>s+(calcPayroll(e)[cat.id+"Pay"]||0),0).toFixed(0)}
+                            </div>
+                          </div>
+                        ))}
+                        <div style={{display:"flex",justifyContent:"space-between",
+                          marginTop:7,paddingTop:5}}>
+                          <span style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:1}}>
+                            TOTAL ADDITIONAL
+                          </span>
+                          <span style={{fontFamily:O.sans,fontWeight:700,fontSize:13,
+                            color:"rgba(6,182,212,0.9)"}}>
+                            ${periodTotals.totalAddl.toFixed(0)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* QuickBooks section */}
+                      <div style={{background:greenD,border:"1px solid "+greenB,
+                        borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                          <div style={{width:8,height:8,borderRadius:"50%",
+                            background:green,boxShadow:"0 0 6px "+green}}/>
+                          <span style={{fontFamily:O.mono,fontSize:9,color:green,letterSpacing:1}}>
+                            CONNECTED TO QUICKBOOKS ONLINE
+                          </span>
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginBottom:10}}>
+                          Sunrise Retail Group · Last sync: Mar 15 at 14:32
+                        </div>
+
+                        {/* Field mapping preview */}
+                        <div style={{background:"rgba(0,0,0,0.2)",borderRadius:6,
+                          padding:"8px 10px",marginBottom:10,fontFamily:O.mono,fontSize:8}}>
+                          <div style={{color:O.textF,letterSpacing:1,marginBottom:5}}>FIELD MAPPING</div>
+                          {[
+                            ["Employee Name","→ Employee"],
+                            ["Regular Hours","→ Regular Pay Hours"],
+                            ["OT Hours","→ Overtime Pay Hours"],
+                            ["Gross Pay","→ Estimated Total"],
+                          ].map(([a,b])=>(
+                            <div key={a} style={{display:"flex",gap:8,
+                              marginBottom:3,color:O.textD}}>
+                              <span style={{color:O.amber,flex:1}}>{a}</span>
+                              <span style={{color:green}}>{b}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button style={{width:"100%",fontFamily:O.mono,fontSize:9,
+                          letterSpacing:1,padding:"9px",
+                          background:allResolved?green:"rgba(16,185,129,0.2)",
+                          border:"none",borderRadius:6,
+                          color:allResolved?"#030c14":green+"80",
+                          cursor:allResolved?"pointer":"not-allowed",fontWeight:700}}>
+                          📤 EXPORT THIS PAY PERIOD TO QBO
+                          {!allResolved&&" (resolve discrepancies first)"}
+                        </button>
+                      </div>
+
+                      {/* Other exports */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2px",marginBottom:8}}>OTHER EXPORT FORMATS</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+                        {[
+                          {icon:"📊",l:"Export as CSV",sub:"Standard spreadsheet format",c:"#3b82f6"},
+                          {icon:"📄",l:"Export as PDF",sub:"Formatted payroll summary report",c:"#a855f7"},
+                          {icon:"📋",l:"Copy to Clipboard",sub:"Tab-separated for any platform",c:O.amber},
+                        ].map(btn=>(
+                          <button key={btn.l}
+                            style={{display:"flex",alignItems:"center",gap:10,
+                              padding:"9px 12px",background:btn.c+"0d",
+                              border:"1px solid "+btn.c+"25",borderRadius:7,
+                              cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}
+                            onMouseEnter={e=>e.currentTarget.style.background=btn.c+"18"}
+                            onMouseLeave={e=>e.currentTarget.style.background=btn.c+"0d"}>
+                            <span style={{fontSize:16}}>{btn.icon}</span>
+                            <div>
+                              <div style={{fontFamily:O.mono,fontSize:9,
+                                color:btn.c,letterSpacing:1}}>{btn.l}</div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>{btn.sub}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Platform badges */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2px",marginBottom:7}}>COMPATIBLE PLATFORMS</div>
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                        {["QuickBooks","ADP","Gusto","Paychex","Square","Rippling","Any CSV"].map(p=>(
+                          <div key={p} style={{fontFamily:O.mono,fontSize:7,
+                            color:O.textD,background:O.bg3,
+                            border:"1px solid "+O.border,
+                            borderRadius:4,padding:"3px 7px"}}>
+                            {p}
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 8: APPROVAL WORKFLOW ── */}
+                  <Card>
+                    <SL text="Payroll Approval Workflow — Mar 16–29, 2025" color={green}/>
+
+                    {/* Stage pipeline */}
+                    <div style={{display:"flex",alignItems:"center",marginBottom:16}}>
+                      {["Hours Captured","Discrepancies Resolved","Manager Review","Hours Approved","Exported"].map((stage,i)=>{
+                        const done = i===0||(i===1&&allResolved);
+                        const active = i===1&&!allResolved;
+                        const sc2 = done?green:active?O.amber:O.textF;
+                        return(
+                          <React.Fragment key={stage}>
+                            <div style={{display:"flex",flexDirection:"column",
+                              alignItems:"center",flex:1}}>
+                              <div style={{width:26,height:26,borderRadius:"50%",
+                                background:done?green+"25":active?"rgba(245,158,11,0.15)":"rgba(255,255,255,0.04)",
+                                border:"2px solid "+(done?green:active?O.amber:O.border),
+                                display:"flex",alignItems:"center",justifyContent:"center",
+                                marginBottom:5,flexShrink:0}}>
+                                <span style={{fontSize:9,color:sc2}}>
+                                  {done?"✓":active?"●":"○"}
+                                </span>
+                              </div>
+                              <span style={{fontFamily:O.mono,fontSize:6,color:sc2,
+                                letterSpacing:0.5,textAlign:"center",maxWidth:60,lineHeight:1.3}}>
+                                {stage}
+                              </span>
+                            </div>
+                            {i<4&&(
+                              <div style={{flex:1,height:2,
+                                background:done?green+"50":"rgba(255,255,255,0.06)",
+                                marginBottom:16,transition:"background 0.3s"}}/>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+
+                    {/* Checklist */}
+                    <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                      letterSpacing:"2px",marginBottom:8}}>PRE-EXPORT CHECKLIST</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
+                      {[
+                        {ok:true, text:"All employees have clock-in records"},
+                        {ok:EMPS.every(e=>e.cam>=80), text:"Camera verification ≥ 80% for all employees"},
+                        {ok:allResolved, text:periodTotals.discCount+" discrepancies resolved"},
+                        {ok:true, text:"Overtime hours reviewed and approved"},
+                        {ok:false,text:"Jordan Mills: missing clock-out Mar 24"},
+                        {ok:true, text:"Pay rates verified and current"},
+                      ].map((item,i)=>(
+                        <div key={i} style={{display:"flex",gap:7,alignItems:"flex-start",
+                          padding:"7px 9px",background:O.bg3,borderRadius:6}}>
+                          <span style={{color:item.ok?green:O.amber,fontSize:12,flexShrink:0,marginTop:1}}>
+                            {item.ok?"✅":"⚠️"}
+                          </span>
+                          <span style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.4}}>
+                            {item.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* History log */}
+                    <div style={{borderTop:"1px solid "+O.border,paddingTop:10}}>
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2px",marginBottom:7}}>RECENT PAYROLL ACTIVITY</div>
+                      {[
+                        {t:"Mar 28 · 14:32",u:"Owner",a:"Viewed payroll summary for period"},
+                        {t:"Mar 27 · 09:15",u:"Owner",a:"Approved Marcus Bell OT hours (1.8h)"},
+                        {t:"Mar 26 · 16:44",u:"System",a:"Auto-flagged 3 discrepancies from camera scan"},
+                        {t:"Mar 15 · 14:32",u:"System",a:"Exported previous period to QuickBooks Online"},
+                      ].map((h,i)=>(
+                        <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",
+                          padding:"6px 0",borderBottom:i<3?"1px solid "+O.border:"none"}}>
+                          <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                            width:100,flexShrink:0}}>{h.t}</span>
+                          <span style={{fontFamily:O.mono,fontSize:7,color:green,
+                            width:44,flexShrink:0}}>{h.u}</span>
+                          <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{h.a}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── SILENT ALERTS (Prompt 12) ── */}
+
+                {/* ── SILENT ALERTS (Prompt 12) ── */}
         {tab==="alerts" && (
           <div style={{animation:"fadeUp 0.3s ease",display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <div>
