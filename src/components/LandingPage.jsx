@@ -29,7 +29,7 @@ body{background:#05080f;font-family:'Outfit',sans-serif;color:#e2e8f0;overflow-x
 .sp-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
 .sp-grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;}
 .sp-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0;}
-.sp-pricing{display:grid;grid-template-columns:repeat(auto-fit,minmax(295px,1fr));gap:13px;}
+.sp-pricing{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:13px;}
 .sp-perks{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:13px;}
 
 @media(max-width:768px){
@@ -230,12 +230,22 @@ function EmployerPage({onBack,onSignIn}){
   ];
 
   const PLANS=[
-    {name:"Starter",price:49,cameras:"Up to 4 cameras",locs:"1 location",
-      feats:["Live camera dashboard","Shift scheduling","Time tracking","Email alerts","7-day clip storage"],c:C.teal,hot:false},
-    {name:"Business",price:129,cameras:"Up to 16 cameras",locs:"3 locations",
-      feats:["Everything in Starter","AI theft detection","Productivity ratings","SMS alerts","30-day clips","Payroll fraud engine"],c:C.amber,hot:true},
-    {name:"Enterprise",price:299,cameras:"Unlimited",locs:"Unlimited locations",
-      feats:["Everything in Business","Custom AI training","Unlimited storage","API access","Priority support","White-label"],c:C.purple,hot:false},
+    {name:"Starter",price:79,cameras:"Up to 4 cameras",locs:"1 location",
+      addLoc:"$49/additional location",
+      feats:["Shift scheduling & time clock","Employee portal & My Growth","Swap & time-off requests","Payroll tracking & export","Email alerts","Documents & W-2 vault"],
+      c:C.teal,hot:false},
+    {name:"Growth",price:179,cameras:"Up to 16 cameras",locs:"3 locations",
+      addLoc:"$49/additional location",
+      feats:["Everything in Starter","AI workforce intelligence","Payroll fraud forensics","Multi-location command center","SMS + push notifications","Benchmarks & analytics","HR enforcement suite"],
+      c:C.amber,hot:true},
+    {name:"Professional",price:349,cameras:"Unlimited cameras",locs:"Unlimited locations",
+      addLoc:null,
+      feats:["Everything in Growth","Camera AI integration","Full RBAC access control","API access & webhooks","White-label option","QuickBooks / ADP / Gusto sync","Priority support & onboarding"],
+      c:C.purple,hot:false},
+    {name:"Enterprise",price:599,cameras:"Unlimited + custom AI",locs:"Unlimited + custom",
+      addLoc:null,
+      feats:["Everything in Professional","Dedicated onboarding specialist","Custom AI model training","SLA guarantee","Annual contract pricing","Direct ADP / Paychex integration","Multi-brand / franchise support"],
+      c:"#f43f5e",hot:false},
   ];
 
   return(
@@ -391,7 +401,7 @@ function EmployerPage({onBack,onSignIn}){
         <div style={{textAlign:"center",marginBottom:56}}>
           <h2 style={{fontFamily:C.sans,fontWeight:800,fontSize:"clamp(22px,3vw,42px)",
             color:"#fff",letterSpacing:"-1px",marginBottom:10}}>Simple, transparent pricing</h2>
-          <p style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>14-day free trial. No credit card required.</p>
+          <p style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>14-day free trial · No credit card required · Average customer recovers $3,200+/yr in payroll losses</p>
         </div>
         <div className="sp-pricing">
           {PLANS.map((plan,i)=>(
@@ -414,7 +424,15 @@ function EmployerPage({onBack,onSignIn}){
                 <span style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>/mo</span>
               </div>
               <div style={{fontFamily:C.mono,fontSize:11,color:C.textD,marginBottom:2}}>{plan.cameras}</div>
-              <div style={{fontFamily:C.mono,fontSize:11,color:C.textD,marginBottom:22}}>{plan.locs}</div>
+              <div style={{fontFamily:C.mono,fontSize:11,color:C.textD,marginBottom:plan.addLoc?2:22}}>{plan.locs}</div>
+              {plan.addLoc&&(
+                <div style={{fontFamily:C.mono,fontSize:10,color:plan.c,
+                  background:plan.c+"14",border:"1px solid "+plan.c+"30",
+                  borderRadius:4,padding:"3px 8px",marginBottom:18,
+                  display:"inline-block"}}>
+                  + {plan.addLoc}
+                </div>
+              )}
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:26}}>
                 {plan.feats.map((f,j)=>(
                   <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
@@ -430,7 +448,7 @@ function EmployerPage({onBack,onSignIn}){
                 color:plan.hot?"#030c14":plan.c,transition:"all 0.2s"}}
                 onMouseEnter={e=>{if(!plan.hot)e.currentTarget.style.background=plan.c+"15";}}
                 onMouseLeave={e=>{if(!plan.hot)e.currentTarget.style.background="transparent";}}>
-                Start Free Trial
+                {plan.name==="Enterprise"?"Contact Sales →":"Start Free Trial →"}
               </button>
             </div>
           ))}
