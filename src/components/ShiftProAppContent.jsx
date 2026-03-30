@@ -2082,40 +2082,704 @@ function OwnerCmd({onLogout}){
                 {/* ── PATTERNS (Prompt 8) ── */}
         {tab==="patterns" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:4}}>BEHAVIORAL PATTERN DETECTION ENGINE</div>
-            <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:14}}>AI-ranked risk signals across your team, updated every shift.</div>
-            <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:14}}>
-              {[...BFLAGS].sort((a,b)=>a.sev==="critical"?-1:1).map((f,i) => {
-                const e = byId(f.eId);
-                const c = f.sev==="critical"?O.red:O.amber;
-                return (
-                  <div key={i} style={{background:O.bg2,border:`1px solid ${c}22`,borderLeft:`3px solid ${c}`,borderRadius:8,padding:"13px 16px",display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{fontFamily:O.mono,fontSize:10,color:O.textF,width:20,textAlign:"center"}}>{i+1}</div>
-                    <Av emp={e} size={32} dark/>
-                    <div style={{flex:1}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                        <span style={{fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.text}}>{e.name}</span>
-                        <OBadge label={f.signal} color={c} sm/>
+            {(() => {
+              // ── COMPUTED DATA ──
+              const avgRel  = Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length);
+              const avgCam  = Math.round(EMPS.reduce((s,e)=>s+e.cam,0)/EMPS.length);
+              const avgProd = Math.round(EMPS.reduce((s,e)=>s+e.prod,0)/EMPS.length);
+              const totalHours = EMPS.reduce((s,e)=>s+e.wkHrs,0);
+              const totalFlags = EMPS.reduce((s,e)=>s+e.flags,0);
+              const trendingDown = EMPS.filter(e=>e.risk==="High"||e.risk==="Medium").length;
+              const trendingUp   = EMPS.filter(e=>e.risk==="Low"&&e.streak>7).length;
+              const critPatterns = BFLAGS.filter(f=>f.sev==="critical").length;
+              const teamHealth = Math.min(100,Math.round(
+                (avgRel*0.3)+(avgCam*0.25)+
+                ((100-(totalGhost/Math.max(totalHours,1)*100))*0.25)+
+                ((100-(totalFlags/EMPS.length*20))*0.2)
+              ));
+              const healthColor = teamHealth>=80?O.green:teamHealth>=60?O.amber:O.red;
+              const purple = "#a855f7";
+              const purpleD = "rgba(168,85,247,0.08)";
+              const purpleB = "rgba(168,85,247,0.25)";
+
+              const getQuadrant = (e) => {
+                const hr = e.ghost>2||e.cam<75;
+                const hrel = e.rel>=80;
+                if(hr&&!hrel) return "critical";
+                if(!hr&&!hrel) return "watch";
+                if(hr&&hrel)  return "monitor";
+                return "star";
+              };
+
+              const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+              const dayPatterns = DAYS.map((day,i)=>({
+                day,
+                incidents: BFLAGS.filter((_,fi)=>fi%7===i).length,
+                ghostRisk: i===0||i===4?"high":i===2||i===3?"low":"normal",
+                score: [68,88,92,90,74,60,0][i],
+              }));
+
+              // Day × employee heat map scores (synthesized from emp data)
+              const heatScore = (e,dayIdx) => {
+                const base = e.rel;
+                const mod = [dayIdx===0?-15:dayIdx===4?-8:dayIdx>=5?-30:0][0]||0;
+                const empMod = e.risk==="High"?-12:e.risk==="Medium"?-5:5;
+                return Math.max(0,Math.min(100, base+mod+empMod+((e.id*dayIdx)%10)-5));
+              };
+
+              const correlations = [
+                {title:"Ghost Hours ↔ Camera Presence",r:0.84,strength:"STRONG",
+                 dir:"negative",
+                 desc:"When camera presence drops below 80%, ghost hours are 3.2× more likely in the same shift.",
+                 detail:"5 occurrences in last 30 days. Pattern consistent across locations.",
+                 action:"Enforce camera check-in requirement",
+                 empIds:EMPS.filter(e=>e.ghost>1).map(e=>e.id)},
+                {title:"Reliability Score ↔ Streak Length",r:0.79,strength:"STRONG",
+                 dir:"positive",
+                 desc:"Employees with streaks over 10 days show 23% higher reliability scores on average.",
+                 detail:"Streak momentum is real — breaking a streak correlates with a 3-day reliability dip.",
+                 action:"Protect and celebrate attendance streaks",
+                 empIds:EMPS.filter(e=>e.streak>5).map(e=>e.id)},
+                {title:"Monday Shifts ↔ Late Arrivals",r:0.61,strength:"MODERATE",
+                 dir:"positive",
+                 desc:"Monday shifts produce 40% more late arrival incidents than any other day.",
+                 detail:"Pattern strongest for staff working Saturday + Sunday prior.",
+                 action:"Consider staggered Monday start times",
+                 empIds:EMPS.filter(e=>e.risk!=="Low").map(e=>e.id)},
+                {title:"Register Voids ↔ End-of-Shift Timing",r:0.57,strength:"MODERATE",
+                 dir:"positive",
+                 desc:"73% of register voids occur in the final 90 minutes of a shift.",
+                 detail:"End-of-shift rush or intentional manipulation — warrants review.",
+                 action:"Implement manager sign-off on late-shift voids",
+                 empIds:[EMPS[1]?.id,EMPS[2]?.id].filter(Boolean)},
+                {title:"Productivity ↔ Consistent Zone Assignment",r:0.72,strength:"STRONG",
+                 dir:"positive",
+                 desc:"Employees in consistent zone assignments score 18% higher on productivity.",
+                 detail:"Zone-switching mid-shift correlates with a measurable output drop.",
+                 action:"Minimize zone reassignments during shifts",
+                 empIds:EMPS.filter(e=>e.prod>80).map(e=>e.id)},
+              ];
+
+              const rStrengthColor = (r) => r>=0.7?O.green:r>=0.5?O.amber:"#666";
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,
+                  color:color||O.textF,letterSpacing:"2.5px",
+                  textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
+                </div>
+              );
+
+              // Radar chart SVG (pure SVG, 6 axes)
+              const radarDims = [
+                {l:"Reliability",   cur:avgRel,        prev:avgRel-4},
+                {l:"Productivity",  cur:avgProd,       prev:avgProd-2},
+                {l:"Cam Presence",  cur:avgCam,        prev:avgCam+3},
+                {l:"Payroll Acc.",  cur:Math.round((1-(totalGhost/Math.max(totalHours,1)))*100), prev:91},
+                {l:"Time Comply",   cur:82,            prev:79},
+                {l:"Sched Adhere",  cur:88,            prev:85},
+              ];
+              const N = radarDims.length;
+              const cx = 140, cy = 140, R = 100;
+              const angle = (i) => (Math.PI*2*i/N) - Math.PI/2;
+              const pt = (val,i) => {
+                const r = (val/100)*R;
+                return [cx+r*Math.cos(angle(i)), cy+r*Math.sin(angle(i))];
+              };
+              const curPts = radarDims.map((d,i)=>pt(d.cur,i));
+              const prevPts = radarDims.map((d,i)=>pt(d.prev,i));
+              const toPath = (pts) => pts.map((p,i)=>(i===0?"M":"L")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")+"Z";
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: ENGINE HEADER ── */}
+                  <Card style={{marginBottom:12,background:"rgba(9,14,26,0.98)",
+                    border:"1px solid "+purpleB,
+                    boxShadow:"0 0 30px rgba(168,85,247,0.06)"}}>
+                    <div style={{display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap"}}>
+
+                      {/* Health score gauge */}
+                      <div style={{textAlign:"center",flexShrink:0}}>
+                        <div style={{position:"relative",width:88,height:88,margin:"0 auto 8px"}}>
+                          <svg width="88" height="88" viewBox="0 0 88 88">
+                            <circle cx="44" cy="44" r="36" fill="none"
+                              stroke="rgba(255,255,255,0.06)" strokeWidth="7"/>
+                            <circle cx="44" cy="44" r="36" fill="none"
+                              stroke={healthColor} strokeWidth="7"
+                              strokeDasharray={2*Math.PI*36}
+                              strokeDashoffset={2*Math.PI*36*(1-teamHealth/100)}
+                              strokeLinecap="round"
+                              transform="rotate(-90 44 44)"/>
+                          </svg>
+                          <div style={{position:"absolute",inset:0,display:"flex",
+                            flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:900,fontSize:24,
+                              color:healthColor,lineHeight:1}}>{teamHealth}</div>
+                            <div style={{fontFamily:O.mono,fontSize:6,color:O.textF,
+                              letterSpacing:1,marginTop:2}}>HEALTH</div>
+                          </div>
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:healthColor,letterSpacing:1}}>
+                          {teamHealth>=80?"STRONG":teamHealth>=60?"MODERATE":"AT RISK"}
+                        </div>
                       </div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{f.desc}</div>
+
+                      <div style={{flex:1,minWidth:200}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:purple,letterSpacing:"2px"}}>
+                            BEHAVIORAL PATTERN DETECTION ENGINE — AI v2.4
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:5,
+                            background:purpleD,border:"1px solid "+purpleB,
+                            borderRadius:4,padding:"2px 8px"}}>
+                            <div style={{width:5,height:5,borderRadius:"50%",background:purple,
+                              animation:"blink 1.2s infinite"}}/>
+                            <span style={{fontFamily:O.mono,fontSize:7,color:purple,letterSpacing:1}}>LIVE</span>
+                          </div>
+                        </div>
+                        <div style={{fontFamily:O.sans,fontSize:13,color:"#fff",marginBottom:6,lineHeight:1.5}}>
+                          {critPatterns>0
+                            ? critPatterns+" critical pattern"+(critPatterns>1?"s":"")+" detected. "+trendingDown+" employee"+(trendingDown>1?"s":"")+" trending negative. Immediate review recommended."
+                            : BFLAGS.length+" active patterns detected. "+trendingDown+" employee"+(trendingDown!==1?"s":"")+" trending negative. "+trendingUp+" improving."}
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                          Last deep scan: {now.toLocaleTimeString("en-US",{hour12:false})}
+                          &nbsp;·&nbsp; Next: {new Date(now.getTime()+30*60000).toLocaleTimeString("en-US",{hour12:false})}
+                        </div>
+                      </div>
+
+                      {/* Mini stats */}
+                      <div style={{display:"flex",gap:8,flexShrink:0,flexWrap:"wrap"}}>
+                        {[
+                          {l:"Total Flags",v:totalFlags,c:O.amber},
+                          {l:"Critical",v:critPatterns,c:O.red},
+                          {l:"Trending Down",v:trendingDown,c:O.red},
+                          {l:"Trending Up",v:trendingUp,c:O.green},
+                        ].map(s=>(
+                          <div key={s.l} style={{background:O.bg3,borderRadius:8,
+                            padding:"10px 14px",textAlign:"center",minWidth:70}}>
+                            <div style={{fontFamily:O.sans,fontWeight:800,
+                              fontSize:20,color:s.c,lineHeight:1,marginBottom:3}}>{s.v}</div>
+                            <div style={{fontFamily:O.mono,fontSize:7,
+                              color:O.textF,letterSpacing:1,textTransform:"uppercase"}}>{s.l}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{textAlign:"right",flexShrink:0}}>
-                      <OBadge label={f.sev} color={c}/>
-                      <div style={{fontFamily:O.mono,fontSize:8,color:f.trend.includes("worsening")?O.red:O.amber,marginTop:4}}>{f.trend}</div>
-                    </div>
+                  </Card>
+
+                  {/* ── ZONES 2 + 3: RISK MATRIX + HEAT MAP ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 2: Risk Matrix */}
+                    <Card>
+                      <SL text="Risk Matrix — Employee Quadrant Analysis" color={purple}/>
+                      <div style={{position:"relative",height:220,
+                        border:"1px solid "+O.border,borderRadius:8,overflow:"hidden"}}>
+
+                        {/* Quadrant backgrounds */}
+                        <div style={{position:"absolute",inset:0,display:"grid",
+                          gridTemplateColumns:"1fr 1fr",gridTemplateRows:"1fr 1fr"}}>
+                          {[
+                            {bg:"rgba(239,68,68,0.06)",label:"HIGH RISK",sub:"High ghost / Low cam",lc:O.red},
+                            {bg:"rgba(245,158,11,0.04)",label:"WATCH LIST",sub:"Low rel / Monitor",lc:O.amber},
+                            {bg:"rgba(59,130,246,0.04)",label:"STABLE",sub:"Average metrics",lc:"#3b82f6"},
+                            {bg:"rgba(16,185,129,0.06)",label:"STAR",sub:"High rel / No flags",lc:O.green},
+                          ].map((q,i)=>(
+                            <div key={i} style={{background:q.bg,
+                              borderRight:i%2===0?"1px solid "+O.border:"none",
+                              borderBottom:i<2?"1px solid "+O.border:"none",
+                              padding:"6px 8px",display:"flex",flexDirection:"column",
+                              justifyContent:"flex-start"}}>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:q.lc,
+                                letterSpacing:1,marginBottom:2}}>{q.label}</div>
+                              <div style={{fontFamily:O.mono,fontSize:6,color:O.textF}}>{q.sub}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Employee dots */}
+                        {EMPS.map(e=>{
+                          const q = getQuadrant(e);
+                          const qMap = {critical:[0,0],monitor:[0,1],watch:[1,0],star:[1,1]};
+                          const [row,col] = qMap[q]||[1,1];
+                          // Random-ish position within quadrant based on emp id
+                          const x = col*50 + 10 + (e.id*13)%30;
+                          const y = row*50 + 20 + (e.id*17)%30;
+                          return(
+                            <div key={e.id} title={e.name+" — "+q}
+                              onClick={()=>{setSelEmp(e.id);setTab("intelligence");}}
+                              style={{position:"absolute",
+                                left:x+"%",top:y+"%",transform:"translate(-50%,-50%)",
+                                width:32,height:32,borderRadius:8,
+                                background:e.color+"28",
+                                border:"2px solid "+(q==="critical"?O.red:q==="star"?O.green:q==="monitor"?O.amber:O.blue),
+                                display:"flex",alignItems:"center",justifyContent:"center",
+                                fontFamily:O.mono,fontSize:10,color:e.color,
+                                cursor:"pointer",zIndex:2,fontWeight:600,
+                                transition:"all 0.2s",boxShadow:"0 2px 8px rgba(0,0,0,0.3)"}}
+                              onMouseEnter={ev=>ev.currentTarget.style.transform="translate(-50%,-50%) scale(1.3)"}
+                              onMouseLeave={ev=>ev.currentTarget.style.transform="translate(-50%,-50%) scale(1)"}>
+                              {e.avatar}
+                            </div>
+                          );
+                        })}
+
+                        {/* Axis labels */}
+                        <div style={{position:"absolute",bottom:2,left:"50%",
+                          transform:"translateX(-50%)",
+                          fontFamily:O.mono,fontSize:6,color:O.textF,letterSpacing:1,
+                          whiteSpace:"nowrap"}}>← RELIABILITY →</div>
+                        <div style={{position:"absolute",left:2,top:"50%",
+                          transform:"translateY(-50%) rotate(-90deg)",
+                          fontFamily:O.mono,fontSize:6,color:O.textF,letterSpacing:1,
+                          whiteSpace:"nowrap"}}>← RISK →</div>
+                      </div>
+                      <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
+                        marginTop:8,lineHeight:1.5}}>
+                        Click any employee to view full intelligence profile.
+                      </div>
+                    </Card>
+
+                    {/* ZONE 3: Heat Map */}
+                    <Card>
+                      <SL text="Performance Heat Map — Employee × Day" color={purple}/>
+                      <div style={{overflowX:"auto"}}>
+                        <div style={{minWidth:340}}>
+                          {/* Day headers */}
+                          <div style={{display:"grid",
+                            gridTemplateColumns:"80px repeat(7,1fr)",gap:2,marginBottom:2}}>
+                            <div/>
+                            {DAYS.map(d=>(
+                              <div key={d} style={{fontFamily:O.mono,fontSize:7,
+                                color:O.textF,textAlign:"center",letterSpacing:1}}>{d}</div>
+                            ))}
+                          </div>
+                          {/* Employee rows */}
+                          {EMPS.map(e=>(
+                            <div key={e.id} style={{display:"grid",
+                              gridTemplateColumns:"80px repeat(7,1fr)",gap:2,marginBottom:2}}>
+                              <div style={{display:"flex",alignItems:"center",gap:5,paddingRight:4}}>
+                                <Av emp={e} size={16} dark/>
+                                <span style={{fontFamily:O.mono,fontSize:8,
+                                  color:O.textD,overflow:"hidden",
+                                  textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  {e.name.split(" ")[0]}
+                                </span>
+                              </div>
+                              {DAYS.map((d,di)=>{
+                                const s = heatScore(e,di);
+                                const scheduled = di<5||(e.id%2===0&&di===5);
+                                const bg = !scheduled
+                                  ? "rgba(255,255,255,0.03)"
+                                  : s>=85?"rgba(16,185,129,0.35)"
+                                  : s>=70?"rgba(245,158,11,0.3)"
+                                  : "rgba(239,68,68,0.3)";
+                                const tc = !scheduled?O.textF:s>=85?O.green:s>=70?O.amber:O.red;
+                                return(
+                                  <div key={d} style={{background:bg,borderRadius:4,
+                                    padding:"4px 0",textAlign:"center",
+                                    border:"1px solid rgba(255,255,255,0.04)"}}>
+                                    <div style={{fontFamily:O.mono,fontSize:7,color:tc,
+                                      letterSpacing:0}}>
+                                      {scheduled?s+"%":"—"}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Legend */}
+                      <div style={{display:"flex",gap:10,marginTop:8,flexWrap:"wrap"}}>
+                        {[["85%+ Strong",O.green],["70-84% Monitor",O.amber],["<70% Risk",O.red],["Not scheduled",O.textF]].map(([l,c])=>(
+                          <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
+                            <div style={{width:8,height:8,borderRadius:2,background:c+"60",border:"1px solid "+c+"40"}}/>
+                            <span style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>{l}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,
+                        marginTop:10,background:O.bg3,borderRadius:7,padding:"9px 11px",
+                        borderLeft:"3px solid "+purple,lineHeight:1.6}}>
+                        {DAYS[dayPatterns.reduce((mi,d,i,arr)=>d.score<arr[mi].score?i:mi,0).valueOf()]} is your highest-risk day.{" "}
+                        {EMPS.filter(e=>e.risk!=="Low").slice(0,2).map(e=>e.name.split(" ")[0]).join(" and ")} show consistent underperformance early in the week. Consider staggered start times.
+                      </div>
+                    </Card>
                   </div>
-                );
-              })}
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-              <OStat label="Clock Drift Flags" value={BFLAGS.filter(f=>f.signal.includes("drift")).length} color={O.amber}/>
-              <OStat label="Ghost Hour Violators" value={EMPS.filter(e=>e.cam<80).length} color={O.red}/>
-              <OStat label="Repeat Offenders" value={EMPS.filter(e=>e.flags>=2).length} color={O.red}/>
-            </div>
+
+                  {/* ── ZONE 4: AI-RANKED BEHAVIORAL FLAGS ── */}
+                  <Card style={{marginBottom:12}}>
+                    <SL text={"AI-Ranked Behavioral Flags — "+BFLAGS.length+" Active Signals"} color={purple}/>
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                      {[...BFLAGS].sort((a,b)=>a.sev==="critical"?-1:1).map((f,i)=>{
+                        const e = byId(f.eId);
+                        const c = f.sev==="critical"?O.red:O.amber;
+                        const conf = f.sev==="critical"?87:72;
+                        const wkData = f.sev==="critical"
+                          ? ["Wk 1: 0.8h","Wk 2: 1.2h","Wk 3: 2.1h","Wk 4: "+e.ghost+"h ↑"]
+                          : ["Wk 1: 1×","Wk 2: 1×","Wk 3: 2×","Wk 4: "+e.flags+"× ↑"];
+                        const impact = f.sev==="critical"
+                          ? "$"+(e.ghost*e.rate*4).toFixed(0)+" potential overpayment this month at current trajectory"
+                          : "Performance gap widening — "+e.flags+" flag"+(e.flags!==1?"s":"")+" on record, reliability at "+e.rel+"%";
+                        return(
+                          <div key={i} style={{
+                            background:f.sev==="critical"?"rgba(239,68,68,0.04)":"rgba(245,158,11,0.03)",
+                            border:"1px solid "+c+"25",borderLeft:"3px solid "+c,
+                            borderRadius:10,padding:"14px 16px"}}>
+
+                            {/* Header */}
+                            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+                              <div style={{fontFamily:O.mono,fontSize:10,color:O.textF,
+                                width:20,textAlign:"center",flexShrink:0}}>#{i+1}</div>
+                              <Av emp={e} size={30} dark/>
+                              <div style={{flex:1,minWidth:120}}>
+                                <div style={{fontFamily:O.sans,fontWeight:700,
+                                  fontSize:14,color:"#fff"}}>{e.name}</div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>{e.role}</div>
+                              </div>
+                              <OBadge label={f.signal} color={c} sm/>
+                              <OBadge label={f.sev.toUpperCase()} color={c}/>
+                              <div style={{fontFamily:O.mono,fontSize:11,
+                                color:f.trend.includes("worsening")?O.red:O.amber}}>
+                                {f.trend.includes("worsening")?"↑ WORSENING":"→ STABLE"}
+                              </div>
+                            </div>
+
+                            {/* Description */}
+                            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,
+                              marginBottom:10,lineHeight:1.5}}>{f.desc}</div>
+
+                            {/* Evidence timeline */}
+                            <div style={{display:"flex",gap:6,alignItems:"center",
+                              marginBottom:8,flexWrap:"wrap"}}>
+                              <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                                letterSpacing:1,marginRight:4}}>EVIDENCE:</span>
+                              {wkData.map((w,wi)=>(
+                                <div key={wi} style={{fontFamily:O.mono,fontSize:8,
+                                  color:wi===wkData.length-1?c:O.textD,
+                                  background:wi===wkData.length-1?c+"15":"rgba(255,255,255,0.04)",
+                                  borderRadius:4,padding:"2px 7px",
+                                  border:"1px solid "+(wi===wkData.length-1?c+"30":O.border)}}>
+                                  {w}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Impact + confidence */}
+                            <div style={{display:"flex",alignItems:"center",
+                              justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,
+                                background:O.bg3,borderRadius:6,padding:"5px 10px",flex:1}}>
+                                💰 {impact}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,
+                                color:purple,background:purpleD,
+                                border:"1px solid "+purpleB,borderRadius:4,
+                                padding:"4px 10px",whiteSpace:"nowrap"}}>
+                                {conf}% confidence
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div style={{display:"flex",gap:8,marginTop:10}}>
+                              <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                                padding:"5px 14px",background:"rgba(168,85,247,0.1)",
+                                border:"1px solid rgba(168,85,247,0.3)",borderRadius:5,
+                                color:purple,cursor:"pointer"}}>
+                                📋 Add to Watch List
+                              </button>
+                              <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                                padding:"5px 14px",background:"rgba(0,212,255,0.08)",
+                                border:"1px solid rgba(0,212,255,0.2)",borderRadius:5,
+                                color:"#00d4ff",cursor:"pointer"}}>
+                                📧 Schedule 1:1
+                              </button>
+                              <button onClick={()=>{setSelEmp(e.id);setTab("intelligence");}}
+                                style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                                  padding:"5px 14px",background:c+"10",
+                                  border:"1px solid "+c+"30",borderRadius:5,
+                                  color:c,cursor:"pointer",marginLeft:"auto"}}>
+                                VIEW PROFILE →
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 5 + 6: TIME PATTERNS + CORRELATIONS ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 5: Time Pattern Analysis */}
+                    <Card>
+                      <SL text="Time Pattern Analysis — When Does Business Bleed?" color={O.red}/>
+
+                      {/* Day of week bar chart */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:1,marginBottom:6}}>INCIDENT FREQUENCY BY DAY</div>
+                      <div style={{display:"flex",alignItems:"flex-end",gap:5,height:60,marginBottom:4}}>
+                        {dayPatterns.map((dp,i)=>{
+                          const h = Math.max(8, dp.score>0?(100-dp.score)*1.2:0);
+                          const c = dp.ghostRisk==="high"?O.red:dp.score<75?O.amber:O.green;
+                          return(
+                            <div key={dp.day} style={{flex:1,display:"flex",
+                              flexDirection:"column",alignItems:"center",gap:3}}>
+                              <div style={{width:"100%",height:h+"%",minHeight:4,
+                                background:c+"50",border:"1px solid "+c+"40",
+                                borderRadius:"3px 3px 0 0",position:"relative"}}
+                                title={dp.day+": "+dp.incidents+" incidents · "+dp.score+"% avg score"}>
+                                {dp.incidents>0&&(
+                                  <div style={{position:"absolute",top:-14,width:"100%",
+                                    textAlign:"center",fontFamily:O.mono,fontSize:7,color:c}}>
+                                    {dp.incidents}
+                                  </div>
+                                )}
+                              </div>
+                              <span style={{fontFamily:O.mono,fontSize:7,
+                                color:dp.ghostRisk==="high"?O.red:O.textF}}>{dp.day}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Hour blocks */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:1,marginBottom:6,marginTop:12}}>HOUR BLOCK BREAKDOWN</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                        {[
+                          {l:"Morning",h:"6am–12pm",inc:2,ghost:"1.2h",cam:"94%",risk:"low"},
+                          {l:"Midday", h:"12pm–3pm",inc:1,ghost:"0.4h",cam:"96%",risk:"low"},
+                          {l:"Afternoon",h:"3pm–6pm",inc:4,ghost:"3.8h",cam:"81%",risk:"high"},
+                          {l:"Evening",h:"6pm–10pm",inc:2,ghost:"8.5h",cam:"72%",risk:"high"},
+                        ].map(b=>{
+                          const c=b.risk==="high"?O.red:b.risk==="medium"?O.amber:O.green;
+                          return(
+                            <div key={b.l} style={{display:"grid",
+                              gridTemplateColumns:"80px 1fr 50px 50px 40px",gap:6,
+                              alignItems:"center",padding:"6px 8px",
+                              background:b.risk==="high"?"rgba(239,68,68,0.05)":O.bg3,
+                              borderRadius:6,border:"1px solid "+(b.risk==="high"?"rgba(239,68,68,0.15)":O.border)}}>
+                              <div>
+                                <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:"#fff"}}>{b.l}</div>
+                                <div style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>{b.h}</div>
+                              </div>
+                              <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                                <div style={{height:"100%",width:(b.inc/5*100)+"%",background:c,borderRadius:2}}/>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:c,textAlign:"center"}}>{b.ghost}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,textAlign:"center"}}>{b.cam}</div>
+                              <OBadge label={b.risk.toUpperCase()} color={c} sm/>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Key insights */}
+                      <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:5}}>
+                        {[
+                          {icon:"🔴",text:"Monday mornings: 3× higher ghost hours than average"},
+                          {icon:"🟡",text:"Friday afternoons: productivity drops 18% after 3pm"},
+                          {icon:"🟢",text:"Tuesday / Wednesday: your highest reliability window"},
+                        ].map((ins,i)=>(
+                          <div key={i} style={{fontFamily:O.sans,fontSize:11,
+                            color:O.textD,display:"flex",gap:6,
+                            background:O.bg3,borderRadius:6,padding:"7px 9px",
+                            lineHeight:1.4}}>
+                            <span>{ins.icon}</span><span>{ins.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+
+                    {/* ZONE 6: Correlation Detector */}
+                    <Card>
+                      <SL text="Correlation Detector — AI Pattern Engine" color={purple}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        {correlations.map((cor,i)=>{
+                          const sc = rStrengthColor(cor.r);
+                          return(
+                            <div key={i} style={{background:O.bg3,
+                              border:"1px solid "+O.border,borderRadius:8,padding:"11px 12px",
+                              transition:"border-color 0.15s",cursor:"default"}}
+                              onMouseEnter={e=>e.currentTarget.style.borderColor=sc+"50"}
+                              onMouseLeave={e=>e.currentTarget.style.borderColor=O.border}>
+
+                              <div style={{display:"flex",alignItems:"center",
+                                justifyContent:"space-between",marginBottom:6,gap:8,flexWrap:"wrap"}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:12,color:"#fff",flex:1}}>{cor.title}</div>
+                                <div style={{display:"flex",gap:5,alignItems:"center",flexShrink:0}}>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:sc,
+                                    background:sc+"15",border:"1px solid "+sc+"30",
+                                    borderRadius:3,padding:"2px 6px",letterSpacing:1,whiteSpace:"nowrap"}}>
+                                    {cor.strength} (r={cor.r})
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:8,
+                                    color:cor.dir==="positive"?O.green:O.red}}>
+                                    {cor.dir==="positive"?"↑ POS":"↓ NEG"}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,
+                                marginBottom:5,lineHeight:1.6}}>{cor.desc}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                marginBottom:7,lineHeight:1.5}}>{cor.detail}</div>
+
+                              <div style={{display:"flex",alignItems:"center",
+                                justifyContent:"space-between",gap:8}}>
+                                <div style={{display:"flex",gap:3}}>
+                                  {cor.empIds.slice(0,3).map(id=>{
+                                    const emp = byId(id);
+                                    return emp ? <Av key={id} emp={emp} size={18} dark/> : null;
+                                  })}
+                                </div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:purple,
+                                  background:purpleD,border:"1px solid "+purpleB,
+                                  borderRadius:4,padding:"3px 8px",whiteSpace:"nowrap"}}>
+                                  {cor.action}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* ── ZONE 7: TEAM PERFORMANCE RADAR ── */}
+                  <Card>
+                    <SL text="Team Performance Radar — This Month vs Last Month" color={purple}/>
+                    <div style={{display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap"}}>
+
+                      {/* SVG Radar */}
+                      <div style={{flexShrink:0}}>
+                        <svg width="280" height="280" viewBox="0 0 280 280">
+                          {/* Grid rings */}
+                          {[0.25,0.5,0.75,1].map((r,ri)=>(
+                            <polygon key={ri} points={
+                              Array.from({length:N},(_,i)=>{
+                                const a=angle(i);
+                                return (cx+R*r*Math.cos(a)).toFixed(1)+","+(cy+R*r*Math.sin(a)).toFixed(1);
+                              }).join(" ")
+                            } fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                          ))}
+                          {/* Axis lines + labels */}
+                          {radarDims.map((d,i)=>{
+                            const [px,py]=pt(110,i);
+                            const [lx,ly]=pt(125,i);
+                            return(
+                              <g key={i}>
+                                <line x1={cx} y1={cy} x2={px} y2={py}
+                                  stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
+                                <text x={lx} y={ly}
+                                  fontFamily="'JetBrains Mono',monospace"
+                                  fontSize="8" fill="rgba(226,232,240,0.45)"
+                                  textAnchor="middle" dominantBaseline="middle">
+                                  {d.l}
+                                </text>
+                              </g>
+                            );
+                          })}
+                          {/* Last month shape */}
+                          <path d={toPath(prevPts)}
+                            fill="rgba(255,255,255,0.04)"
+                            stroke="rgba(255,255,255,0.25)"
+                            strokeWidth="1.5"
+                            strokeDasharray="4 3"/>
+                          {/* This month shape */}
+                          <path d={toPath(curPts)}
+                            fill="rgba(245,158,11,0.12)"
+                            stroke={O.amber}
+                            strokeWidth="2"/>
+                          {/* Data points */}
+                          {curPts.map(([px,py],i)=>(
+                            <circle key={i} cx={px} cy={py} r="3.5"
+                              fill={O.amber} stroke={O.bg2} strokeWidth="1.5"/>
+                          ))}
+                        </svg>
+                      </div>
+
+                      <div style={{flex:1,minWidth:200}}>
+                        {/* Legend */}
+                        <div style={{display:"flex",gap:12,marginBottom:14}}>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:16,height:3,background:O.amber,borderRadius:2}}/>
+                            <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>This month</span>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:16,height:2,background:"rgba(255,255,255,0.3)",
+                              borderRadius:2,borderTop:"1px dashed rgba(255,255,255,0.3)"}}/>
+                            <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>Last month</span>
+                          </div>
+                        </div>
+
+                        {/* Month-over-month per dimension */}
+                        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                          {radarDims.map(d=>{
+                            const diff = d.cur-d.prev;
+                            const c = diff>0?O.green:diff<0?O.red:O.textD;
+                            return(
+                              <div key={d.l} style={{display:"flex",
+                                justifyContent:"space-between",alignItems:"center",
+                                padding:"6px 9px",background:O.bg3,borderRadius:6}}>
+                                <span style={{fontFamily:O.mono,fontSize:9,color:O.textD,flex:1}}>{d.l}</span>
+                                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                  <div style={{width:80,height:4,
+                                    background:"rgba(255,255,255,0.06)",borderRadius:2}}>
+                                    <div style={{height:"100%",width:d.cur+"%",
+                                      background:d.cur>=85?O.green:d.cur>=70?O.amber:O.red,
+                                      borderRadius:2}}/>
+                                  </div>
+                                  <span style={{fontFamily:O.sans,fontWeight:700,
+                                    fontSize:12,color:"#fff",width:32,textAlign:"right"}}>{d.cur}%</span>
+                                  <span style={{fontFamily:O.mono,fontSize:9,color:c,width:30}}>
+                                    {diff>0?"+":""}{diff}%
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Benchmark comparison */}
+                        <div style={{marginTop:14,padding:"12px",
+                          background:purpleD,border:"1px solid "+purpleB,
+                          borderRadius:8}}>
+                          <div style={{fontFamily:O.mono,fontSize:7,color:purple,
+                            letterSpacing:2,marginBottom:7}}>INDUSTRY BENCHMARK</div>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,
+                            marginBottom:8,lineHeight:1.5}}>
+                            Your team ranks in the{" "}
+                            <span style={{color:purple,fontWeight:700}}>67th percentile</span>{" "}
+                            for reliability vs all ShiftPro businesses.
+                          </div>
+                          <div style={{height:5,background:"rgba(255,255,255,0.08)",borderRadius:3}}>
+                            <div style={{height:"100%",width:"67%",
+                              background:"linear-gradient(90deg,"+purple+",rgba(168,85,247,0.6))",
+                              borderRadius:3}}/>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── PAYROLL FRAUD (Prompt 9) ── */}
+
+                {/* ── PAYROLL FRAUD (Prompt 9) ── */}
         {tab==="payroll" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:4}}>PAYROLL INTEGRITY ENGINE — FORENSIC AUDIT</div>
