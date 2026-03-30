@@ -846,6 +846,13 @@ function OwnerCmd({onLogout}){
   const [payPeriod,setPayPeriod] = useState("biweekly");
   const [expandedEmp,setExpandedEmp] = useState(null);
   const [resolvedDisc,setResolvedDisc] = useState({});
+  const [alertFilter,setAlertFilter] = useState("all");
+  const [notifConfig,setNotifConfig] = useState({push:true,sms:true,email:true,quietHours:true});
+  const [customRules,setCustomRules] = useState([
+    {id:1,name:"High Ghost Hour Warning",active:true,condition:"Ghost Hours > 2h AND Camera < 80%",action:"Alert Owner via Push+SMS",sev:"critical",lastTriggered:"14:28"},
+    {id:2,name:"Register Void Pattern",active:true,condition:"Voids > 3 in single shift",action:"Alert Owner via Push",sev:"warning",lastTriggered:"Yesterday"},
+    {id:3,name:"OT Early Warning",active:false,condition:"Weekly hours > 38h",action:"Alert Manager via Email",sev:"info",lastTriggered:"Never"},
+  ]);
   const [alerts,setAlerts] = useState([
     {id:1,sev:"critical",msg:"Ghost hours exceeded — Marcus B.",detail:"7.3h unverified this week",time:"Now",seen:false,eId:5},
     {id:2,sev:"critical",msg:"Payroll mismatch — Carlos R.",detail:"4.1h camera discrepancy",time:"14:28",seen:false,eId:3},
@@ -3426,7 +3433,7 @@ function OwnerCmd({onLogout}){
                                 const done   = si<c.stage;
                                 const sc2 = done?O.green:active?O.amber:O.textF;
                                 return(
-                                  <React.Fragment key={st}>
+                                  <div key={st} style={{display:'contents'}}>
                                     <div style={{display:"flex",flexDirection:"column",
                                       alignItems:"center",flex:1}}>
                                       <div style={{width:22,height:22,borderRadius:"50%",
@@ -3447,7 +3454,7 @@ function OwnerCmd({onLogout}){
                                         background:done?O.green+"40":"rgba(255,255,255,0.06)",
                                         marginBottom:18,transition:"background 0.3s"}}/>
                                     )}
-                                  </React.Fragment>
+                                  </div>
                                 );
                               })}
                             </div>
@@ -4964,7 +4971,7 @@ function OwnerCmd({onLogout}){
                         const active = i===1&&!allResolved;
                         const sc2 = done?green:active?O.amber:O.textF;
                         return(
-                          <React.Fragment key={stage}>
+                          <div key={stage} style={{display:'contents'}}>
                             <div style={{display:"flex",flexDirection:"column",
                               alignItems:"center",flex:1}}>
                               <div style={{width:26,height:26,borderRadius:"50%",
@@ -4986,7 +4993,7 @@ function OwnerCmd({onLogout}){
                                 background:done?green+"50":"rgba(255,255,255,0.06)",
                                 marginBottom:16,transition:"background 0.3s"}}/>
                             )}
-                          </React.Fragment>
+                          </div>
                         );
                       })}
                     </div>
@@ -5046,58 +5053,739 @@ function OwnerCmd({onLogout}){
 
                 {/* ── SILENT ALERTS (Prompt 12) ── */}
         {tab==="alerts" && (
-          <div style={{animation:"fadeUp 0.3s ease",display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            <div>
-              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:10}}>ALERT LOG</div>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {alerts.map(a => (
-                  <div key={a.id} onClick={()=>setAlerts(prev=>prev.map(x=>x.id===a.id?{...x,seen:true}:x))}
-                    style={{padding:"11px 14px",background:a.seen?"rgba(255,255,255,0.018)":`${sc(a.sev)}07`,border:`1px solid ${a.seen?O.border:sc(a.sev)+"28"}`,borderLeft:`3px solid ${sc(a.sev)}`,borderRadius:6,cursor:"pointer",opacity:a.seen?0.5:1,transition:"all 0.2s"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{width:6,height:6,borderRadius:"50%",background:sc(a.sev),flexShrink:0}}/>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,width:45}}>{a.time}</div>
-                      <OBadge label={a.sev} color={sc(a.sev)} sm/>
-                      <div style={{flex:1}}>
-                        <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:a.seen?O.textD:O.text}}>{a.msg}</div>
-                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginTop:1}}>{a.detail}</div>
+          <div style={{animation:"fadeUp 0.3s ease"}}>
+            {(()=>{
+              const critCount = alerts.filter(a=>a.sev==="critical"&&!a.seen).length;
+              const warnCount = alerts.filter(a=>a.sev==="warning"&&!a.seen).length;
+              const infoCount = alerts.filter(a=>a.sev==="info"&&!a.seen).length;
+              const resolvedToday = alerts.filter(a=>a.seen).length;
+              const totalUnseen = alerts.filter(a=>!a.seen).length;
+              const sc2 = (sev) => sev==="critical"?O.red:sev==="warning"?O.amber:"#3b82f6";
+              const blue = "#3b82f6";
+
+              const filteredAlerts = alerts.filter(a=>{
+                if(alertFilter==="all") return true;
+                if(alertFilter==="resolved") return a.seen;
+                if(alertFilter==="critical") return a.sev==="critical"&&!a.seen;
+                if(alertFilter==="warning") return a.sev==="warning"&&!a.seen;
+                if(alertFilter==="info") return a.sev==="info"&&!a.seen;
+                return true;
+              });
+
+              const alertTypeData = [
+                {l:"Ghost Hours",n:3,c:O.red},
+                {l:"Camera",     n:2,c:"#f97316"},
+                {l:"Register",   n:2,c:O.amber},
+                {l:"Late",       n:1,c:blue},
+                {l:"Zone",       n:1,c:"#a855f7"},
+                {l:"System",     n:1,c:O.textD},
+              ];
+              const totalAlertTypes = alertTypeData.reduce((s,a)=>s+a.n,0);
+
+              const dayBars = [
+                {d:"Mon",crit:3,warn:2,info:1},
+                {d:"Tue",crit:1,warn:3,info:2},
+                {d:"Wed",crit:2,warn:1,info:1},
+                {d:"Thu",crit:0,warn:2,info:3},
+                {d:"Fri",crit:2,warn:4,info:1},
+                {d:"Sat",crit:1,warn:1,info:0},
+                {d:"Sun",crit:critCount,warn:warnCount,info:infoCount},
+              ];
+              const maxDay = Math.max(...dayBars.map(d=>d.crit+d.warn+d.info),1);
+
+              const alertConfigs = [
+                {k:"ghost",   l:"Ghost Hours Exceeded",    d:"Presence <80% of clocked time",    icon:"👻",threshold:"2.0h",  sev:"critical",cooldown:"30 min",last:"14:28 today"},
+                {k:"camMiss", l:"Camera Mismatch",         d:"No presence within 20min of clock-in",icon:"📷",threshold:"20 min",sev:"critical",cooldown:"15 min",last:"13:52 today"},
+                {k:"voids",   l:"Register Void Pattern",   d:"3+ voids in single shift",          icon:"📋",threshold:"3 voids",sev:"warning", cooldown:"1 hr",  last:"Yesterday"},
+                {k:"late",    l:"Late Arrival Pattern",    d:"15+ min late 3+ consecutive shifts", icon:"⏰",threshold:"15 min",sev:"warning", cooldown:"1 hr",  last:"Mar 26"},
+                {k:"noShow",  l:"No-Show Alert",           d:"Failed to clock in for shift",       icon:"🚫",threshold:"0 min", sev:"critical",cooldown:"None",  last:"Never"},
+                {k:"zone",    l:"Restricted Zone Entry",   d:"Unauthorized area access",           icon:"⛔",threshold:"1 entry",sev:"critical",cooldown:"5 min", last:"13:52 today"},
+              ];
+
+              const templates = [
+                {icon:"👥",name:"Buddy Punching Detector",desc:"Clock-in without camera presence in 10min"},
+                {icon:"🗃️",name:"End-of-Shift Register Review",desc:"2+ voids in final 90 minutes of shift"},
+                {icon:"⏱",name:"Overtime Early Warning",desc:"Employee approaching 38h weekly threshold"},
+                {icon:"📅",name:"Monday Morning Watch",desc:"Heightened sensitivity Mon 8–10am"},
+                {icon:"🔁",name:"Ghost Hour Escalation",desc:"Auto-escalate if unresolved > 2 hours"},
+              ];
+
+              const SL = ({text,color}) => (
+                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
+                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
+              );
+              const Card = ({children,style={}}) => (
+                <div style={{background:O.bg2,border:"1px solid "+O.border,
+                  borderRadius:12,padding:"16px 18px",...style}}>
+                  {children}
+                </div>
+              );
+              const Toggle = ({on,onToggle}) => (
+                <button onClick={onToggle}
+                  style={{width:42,height:22,borderRadius:11,
+                    background:on?O.amber:"rgba(255,255,255,0.1)",
+                    border:"none",cursor:"pointer",position:"relative",
+                    transition:"all 0.2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,width:16,height:16,
+                    borderRadius:"50%",background:"#fff",transition:"all 0.2s",
+                    left:on?23:3,boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+                </button>
+              );
+
+              return (
+                <div>
+
+                  {/* ── ZONE 1: ALERT CENTER HEADER ── */}
+                  <div style={{background:critCount>0?"rgba(239,68,68,0.06)":O.bg2,
+                    border:"1px solid "+(critCount>0?"rgba(239,68,68,0.3)":O.border),
+                    borderRadius:12,padding:"14px 18px",marginBottom:12,
+                    boxShadow:critCount>0?"0 0 30px rgba(239,68,68,0.08)":"none"}}>
+                    <div style={{display:"flex",alignItems:"center",
+                      gap:14,flexWrap:"wrap",marginBottom:10}}>
+
+                      {/* Status */}
+                      <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:200}}>
+                        <div style={{width:10,height:10,borderRadius:"50%",
+                          background:critCount>0?O.red:O.green,
+                          animation:critCount>0?"blink 0.8s infinite":"none",
+                          boxShadow:"0 0 8px "+(critCount>0?O.red:O.green),
+                          flexShrink:0}}/>
+                        <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,
+                          color:critCount>0?O.red:"#fff"}}>
+                          {critCount>0
+                            ? critCount+" CRITICAL ALERT"+(critCount>1?"S":"")+
+                              " REQUIRE IMMEDIATE ACTION"
+                            : "ALL CLEAR — No active critical alerts"}
+                        </span>
                       </div>
-                      {!a.seen && <OBadge label="NEW" color={O.red} sm/>}
+
+                      {/* Count badges */}
+                      <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                        {[
+                          {l:"Critical",v:critCount,c:O.red},
+                          {l:"Warning", v:warnCount,c:O.amber},
+                          {l:"Info",    v:infoCount,c:blue},
+                          {l:"Resolved",v:resolvedToday,c:O.green},
+                        ].map(b=>(
+                          <div key={b.l} style={{background:b.c+"15",
+                            border:"1px solid "+b.c+"35",borderRadius:7,
+                            padding:"5px 10px",textAlign:"center",minWidth:60}}>
+                            <div style={{fontFamily:O.sans,fontWeight:800,
+                              fontSize:18,color:b.c,lineHeight:1,marginBottom:2}}>{b.v}</div>
+                            <div style={{fontFamily:O.mono,fontSize:7,
+                              color:O.textF,letterSpacing:1}}>{b.l}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                        <button onClick={()=>setAlerts(alerts.map(a=>({...a,seen:true})))}
+                          style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                            padding:"7px 14px",background:"rgba(16,185,129,0.1)",
+                            border:"1px solid rgba(16,185,129,0.25)",borderRadius:6,
+                            color:O.green,cursor:"pointer"}}>
+                          ✓ Acknowledge All
+                        </button>
+                        <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
+                          padding:"7px 14px",background:"rgba(255,255,255,0.05)",
+                          border:"1px solid "+O.border,borderRadius:6,
+                          color:O.textD,cursor:"pointer"}}>
+                          🔕 Snooze 1hr
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Response stats */}
+                    <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                      {[
+                        "Avg response: 4.2 min",
+                        "Resolved today: "+resolvedToday,
+                        "Active rules: "+customRules.filter(r=>r.active).length,
+                        Object.values(aConfig).filter(Boolean).length+"/6 alert types active",
+                      ].map((s,i)=>(
+                        <span key={i} style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                          {i>0?"· ":""}{s}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div style={{background:O.bg2,border:`1px solid ${O.border}`,borderRadius:10,padding:"16px"}}>
-              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:6}}>SILENT ALERT CONFIGURATION</div>
-              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginBottom:14,lineHeight:1.6}}>Owner-only. Never visible to employees.</div>
-              {[
-                {k:"ghost",l:"Ghost Hours Exceeded",d:"Presence <80% of clocked time"},
-                {k:"camMiss",l:"Camera Mismatch",d:"No presence within 20min of clock-in"},
-                {k:"voids",l:"Register Void Pattern",d:"3+ voids in single shift"},
-                {k:"late",l:"Late Arrival Pattern",d:"15+ min late 3+ consecutive shifts"},
-                {k:"noShow",l:"No-Show Alert",d:"Failed to clock in for shift"},
-                {k:"zone",l:"Restricted Zone Entry",d:"Unauthorized area access"},
-              ].map(cfg => (
-                <div key={cfg.k} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:`1px solid ${O.border}`}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{cfg.l}</div>
-                    <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginTop:2}}>{cfg.d}</div>
+
+                  {/* ── ZONES 2 + 3: INBOX + CONFIG ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                    {/* ZONE 2: Alert Inbox */}
+                    <Card>
+                      {/* Inbox header */}
+                      <div style={{display:"flex",alignItems:"center",
+                        justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:8}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <SL text={"Alert Inbox"}/>
+                          {totalUnseen>0&&(
+                            <div style={{fontFamily:O.mono,fontSize:7,color:O.red,
+                              background:"rgba(239,68,68,0.12)",
+                              border:"1px solid rgba(239,68,68,0.25)",
+                              borderRadius:3,padding:"1px 6px",letterSpacing:1}}>
+                              {totalUnseen} UNREAD
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Filter pills */}
+                      <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+                        {["all","critical","warning","info","resolved"].map(f=>(
+                          <button key={f} onClick={()=>setAlertFilter(f)}
+                            style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                              padding:"3px 9px",borderRadius:4,border:"none",cursor:"pointer",
+                              textTransform:"uppercase",
+                              background:alertFilter===f
+                                ?(f==="critical"?"rgba(239,68,68,0.2)":f==="warning"?"rgba(245,158,11,0.15)":f==="info"?"rgba(59,130,246,0.15)":f==="resolved"?"rgba(16,185,129,0.12)":"rgba(0,212,255,0.12)")
+                                :"rgba(255,255,255,0.04)",
+                              color:alertFilter===f
+                                ?(f==="critical"?O.red:f==="warning"?O.amber:f==="info"?blue:f==="resolved"?O.green:"#00d4ff")
+                                :O.textF}}>
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Alert cards */}
+                      <div style={{display:"flex",flexDirection:"column",gap:6,
+                        maxHeight:420,overflowY:"auto"}}>
+                        {filteredAlerts.length===0&&(
+                          <div style={{padding:"30px",textAlign:"center",
+                            fontFamily:O.mono,fontSize:10,color:O.textF}}>
+                            No alerts match this filter
+                          </div>
+                        )}
+                        {filteredAlerts.map(a=>{
+                          const ac = sc2(a.sev);
+                          const emp = a.eId?byId(a.eId):null;
+                          const typeLabel = a.sev==="critical"?"GHOST HOURS":
+                            a.sev==="warning"?"REGISTER VOID":"INFO";
+                          return(
+                            <div key={a.id}
+                              style={{borderRadius:8,borderLeft:"3px solid "+ac,
+                                border:"1px solid "+(a.seen?O.border:ac+"28"),
+                                borderLeftWidth:3,
+                                background:a.seen?"transparent":
+                                  a.sev==="critical"?"rgba(239,68,68,0.04)":
+                                  a.sev==="warning"?"rgba(245,158,11,0.03)":
+                                  "rgba(59,130,246,0.03)",
+                                opacity:a.seen?0.55:1,
+                                transition:"all 0.2s",
+                                padding:a.seen?"7px 12px":"11px 12px"}}>
+
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                {/* Pulsing dot */}
+                                <div style={{width:6,height:6,borderRadius:"50%",
+                                  flexShrink:0,background:ac,
+                                  animation:!a.seen&&a.sev==="critical"?"blink 0.8s infinite":"none"}}/>
+
+                                <div style={{fontFamily:O.mono,fontSize:8,
+                                  color:O.textF,flexShrink:0,width:42}}>{a.time}</div>
+
+                                {emp&&<Av emp={emp} size={20} dark/>}
+
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:12,color:a.seen?O.textD:"#fff",
+                                    whiteSpace:"nowrap",overflow:"hidden",
+                                    textOverflow:"ellipsis"}}>{a.msg}</div>
+                                  {!a.seen&&(
+                                    <div style={{fontFamily:O.mono,fontSize:8,
+                                      color:O.textD,marginTop:1}}>{a.detail}</div>
+                                  )}
+                                </div>
+
+                                <div style={{display:"flex",alignItems:"center",
+                                  gap:5,flexShrink:0}}>
+                                  <div style={{fontFamily:O.mono,fontSize:7,color:ac,
+                                    background:ac+"15",border:"1px solid "+ac+"30",
+                                    borderRadius:3,padding:"1px 5px",
+                                    letterSpacing:0.5,whiteSpace:"nowrap"}}>
+                                    {typeLabel}
+                                  </div>
+                                  {!a.seen&&(
+                                    <div style={{fontFamily:O.mono,fontSize:7,
+                                      color:O.red,background:"rgba(239,68,68,0.1)",
+                                      border:"1px solid rgba(239,68,68,0.2)",
+                                      borderRadius:3,padding:"1px 5px"}}>NEW</div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Action row - only for unread */}
+                              {!a.seen&&(
+                                <div style={{display:"flex",gap:5,marginTop:8,
+                                  paddingLeft:14,flexWrap:"wrap"}}>
+                                  {[
+                                    {l:"ACKNOWLEDGE",bg:"rgba(16,185,129,0.1)",c:O.green,
+                                     fn:()=>setAlerts(alerts.map(x=>x.id===a.id?{...x,seen:true}:x))},
+                                    {l:"INVESTIGATE",bg:"rgba(0,212,255,0.08)",c:"#00d4ff",
+                                     fn:()=>{if(emp){setSelEmp(emp.id);setTab("intelligence");}}},
+                                    {l:"DISMISS",bg:"rgba(255,255,255,0.05)",c:O.textD,
+                                     fn:()=>setAlerts(alerts.filter(x=>x.id!==a.id))},
+                                    {l:"ESCALATE",bg:"rgba(239,68,68,0.08)",c:O.red,fn:()=>{}},
+                                  ].map(btn=>(
+                                    <button key={btn.l} onClick={btn.fn}
+                                      style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                        padding:"3px 9px",background:btn.bg,
+                                        border:"none",borderRadius:3,
+                                        color:btn.c,cursor:"pointer"}}>
+                                      {btn.l}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Footer */}
+                      <div style={{display:"flex",gap:8,marginTop:10,
+                        paddingTop:10,borderTop:"1px solid "+O.border}}>
+                        <button onClick={()=>setAlerts(alerts.filter(a=>!a.seen))}
+                          style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            padding:"4px 10px",background:"rgba(255,255,255,0.04)",
+                            border:"1px solid "+O.border,borderRadius:4,
+                            color:O.textD,cursor:"pointer"}}>
+                          Clear Resolved
+                        </button>
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          padding:"4px 10px",background:"rgba(0,212,255,0.06)",
+                          border:"1px solid rgba(0,212,255,0.2)",borderRadius:4,
+                          color:"#00d4ff",cursor:"pointer"}}>
+                          📋 Export Log
+                        </button>
+                      </div>
+                    </Card>
+
+                    {/* ZONE 3: Alert Configuration */}
+                    <Card>
+                      <SL text="Alert Configuration" color={O.amber}/>
+
+                      {/* Alert type config cards */}
+                      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                        {alertConfigs.map(cfg=>(
+                          <div key={cfg.k} style={{background:O.bg3,borderRadius:8,
+                            padding:"10px 12px",
+                            border:"1px solid "+(aConfig[cfg.k]?sc2(cfg.sev)+"25":O.border),
+                            opacity:aConfig[cfg.k]?1:0.5,transition:"all 0.2s"}}>
+                            <div style={{display:"flex",alignItems:"center",
+                              gap:8,marginBottom:aConfig[cfg.k]?8:0}}>
+                              <span style={{fontSize:14,flexShrink:0}}>{cfg.icon}</span>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontFamily:O.sans,fontWeight:600,
+                                  fontSize:12,color:"#fff",marginBottom:1}}>{cfg.l}</div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                  {cfg.d}
+                                </div>
+                              </div>
+                              <Toggle on={aConfig[cfg.k]}
+                                onToggle={()=>setAConfig(p=>({...p,[cfg.k]:!p[cfg.k]}))}/>
+                            </div>
+
+                            {aConfig[cfg.k]&&(
+                              <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingLeft:22}}>
+                                {[
+                                  {l:"Threshold",v:cfg.threshold,c:sc2(cfg.sev)},
+                                  {l:"Severity", v:cfg.sev.toUpperCase(),c:sc2(cfg.sev)},
+                                  {l:"Cooldown", v:cfg.cooldown,c:O.textD},
+                                  {l:"Last",     v:cfg.last,c:O.textF},
+                                ].map(p=>(
+                                  <div key={p.l} style={{background:O.bg2,borderRadius:5,
+                                    padding:"4px 7px"}}>
+                                    <div style={{fontFamily:O.mono,fontSize:6,
+                                      color:O.textF,letterSpacing:1,marginBottom:1}}>
+                                      {p.l.toUpperCase()}
+                                    </div>
+                                    <div style={{fontFamily:O.mono,fontSize:8,
+                                      color:p.c,fontWeight:600}}>{p.v}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Quick thresholds summary */}
+                      <div style={{background:O.bg3,borderRadius:7,
+                        padding:"9px 12px",
+                        border:"1px solid rgba(245,158,11,0.2)"}}>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.amber,
+                          letterSpacing:"2px",marginBottom:6}}>ACTIVE THRESHOLDS</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {[
+                            {l:"Ghost",v:">2h"},
+                            {l:"Voids",v:">3"},
+                            {l:"Late",v:">15min"},
+                            {l:"Camera",v:"<80%"},
+                          ].map(t=>(
+                            <div key={t.l} style={{fontFamily:O.mono,fontSize:8,
+                              color:O.amber,background:"rgba(245,158,11,0.1)",
+                              border:"1px solid rgba(245,158,11,0.25)",
+                              borderRadius:4,padding:"3px 8px"}}>
+                              {t.l} {t.v}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </Card>
                   </div>
-                  <button onClick={()=>setAConfig(p=>({...p,[cfg.k]:!p[cfg.k]}))}
-                    style={{width:42,height:22,borderRadius:11,background:aConfig[cfg.k]?O.amber:"rgba(255,255,255,0.1)",border:"none",cursor:"pointer",position:"relative",transition:"all 0.2s",flexShrink:0}}>
-                    <div style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"all 0.2s",left:aConfig[cfg.k]?23:3,boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
-                  </button>
+
+                  {/* ── ZONE 4: ALERT HISTORY + ANALYTICS ── */}
+                  <Card style={{marginBottom:12}}>
+                    <SL text="Alert History + Analytics — Last 7 Days"/>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20}}>
+
+                      {/* Volume chart */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>DAILY VOLUME</div>
+                        <div style={{display:"flex",alignItems:"flex-end",gap:5,height:60}}>
+                          {dayBars.map((d,i)=>{
+                            const total = d.crit+d.warn+d.info;
+                            const isToday = i===6;
+                            const h = Math.round((total/maxDay)*100);
+                            return(
+                              <div key={d.d} style={{flex:1,display:"flex",
+                                flexDirection:"column",alignItems:"center",gap:3,
+                                height:"100%",justifyContent:"flex-end"}}>
+                                <div style={{width:"100%",height:h+"%",minHeight:3,
+                                  display:"flex",flexDirection:"column-reverse",
+                                  borderRadius:"3px 3px 0 0",overflow:"hidden",
+                                  boxShadow:isToday?"0 0 8px rgba(245,158,11,0.3)":"none"}}>
+                                  <div style={{width:"100%",
+                                    height:Math.round((d.info/Math.max(total,1))*100)+"%",
+                                    background:blue+"60",minHeight:d.info?2:0}}/>
+                                  <div style={{width:"100%",
+                                    height:Math.round((d.warn/Math.max(total,1))*100)+"%",
+                                    background:O.amber+"80",minHeight:d.warn?2:0}}/>
+                                  <div style={{width:"100%",
+                                    height:Math.round((d.crit/Math.max(total,1))*100)+"%",
+                                    background:isToday?O.red:O.red+"99",minHeight:d.crit?2:0}}/>
+                                </div>
+                                <span style={{fontFamily:O.mono,fontSize:7,
+                                  color:isToday?O.amber:O.textF}}>{d.d}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{display:"flex",gap:8,marginTop:7}}>
+                          {[[O.red,"Critical"],[O.amber,"Warning"],[blue,"Info"]].map(([c,l])=>(
+                            <div key={l} style={{display:"flex",alignItems:"center",gap:3}}>
+                              <div style={{width:7,height:7,borderRadius:1,background:c}}/>
+                              <span style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>{l}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginTop:7}}>
+                          Busiest: <span style={{color:O.red}}>Monday</span>
+                          &nbsp;· Most common: <span style={{color:O.red}}>Ghost Hours</span>
+                        </div>
+                      </div>
+
+                      {/* Response metrics */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>RESPONSE METRICS</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                          {[
+                            {l:"Avg Acknowledge",v:"4.2 min",c:O.green},
+                            {l:"Avg Resolve",    v:"18 min", c:O.green},
+                            {l:"Ack Rate",       v:"94%",    c:O.green},
+                            {l:"Unresolved 24h", v:"0",      c:O.green},
+                          ].map(m=>(
+                            <div key={m.l} style={{display:"flex",
+                              justifyContent:"space-between",alignItems:"center",
+                              padding:"6px 9px",background:O.bg3,borderRadius:5}}>
+                              <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                {m.l}
+                              </span>
+                              <span style={{fontFamily:O.sans,fontWeight:700,
+                                fontSize:13,color:m.c}}>{m.v}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{marginTop:8,fontFamily:O.mono,fontSize:8,
+                          color:O.green,background:"rgba(16,185,129,0.08)",
+                          border:"1px solid rgba(16,185,129,0.2)",borderRadius:5,
+                          padding:"5px 9px"}}>
+                          ↓ 23% fewer alerts vs last week — improving
+                        </div>
+                      </div>
+
+                      {/* Type breakdown donut */}
+                      <div>
+                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                          letterSpacing:"2px",marginBottom:8}}>ALERT TYPE BREAKDOWN</div>
+                        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                          <svg width="80" height="80" viewBox="0 0 80 80" style={{flexShrink:0}}>
+                            {alertTypeData.map((a,i)=>{
+                              const total2 = totalAlertTypes;
+                              const startAngle = alertTypeData.slice(0,i)
+                                .reduce((s,x)=>s+(x.n/total2)*Math.PI*2,0)-Math.PI/2;
+                              const angle = (a.n/total2)*Math.PI*2;
+                              const x1 = 40+32*Math.cos(startAngle);
+                              const y1 = 40+32*Math.sin(startAngle);
+                              const x2 = 40+32*Math.cos(startAngle+angle);
+                              const y2 = 40+32*Math.sin(startAngle+angle);
+                              const large = angle>Math.PI?1:0;
+                              return(
+                                <path key={a.l}
+                                  d={"M 40 40 L "+x1.toFixed(1)+" "+y1.toFixed(1)+
+                                    " A 32 32 0 "+large+" 1 "+x2.toFixed(1)+" "+y2.toFixed(1)+" Z"}
+                                  fill={a.c} opacity="0.85"
+                                  stroke={O.bg2} strokeWidth="1.5"/>
+                              );
+                            })}
+                            <circle cx="40" cy="40" r="16" fill={O.bg2}/>
+                            <text x="40" y="44" textAnchor="middle"
+                              fontFamily="'Outfit',sans-serif" fontWeight="700"
+                              fontSize="9" fill={O.textD}>{totalAlertTypes}</text>
+                          </svg>
+                          <div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
+                            {alertTypeData.map(a=>(
+                              <div key={a.l} style={{display:"flex",
+                                alignItems:"center",gap:5}}>
+                                <div style={{width:6,height:6,borderRadius:1,
+                                  background:a.c,flexShrink:0}}/>
+                                <span style={{fontFamily:O.mono,fontSize:7,
+                                  color:O.textD,flex:1}}>{a.l}</span>
+                                <span style={{fontFamily:O.mono,fontSize:8,
+                                  color:a.c,fontWeight:600}}>
+                                  {Math.round((a.n/totalAlertTypes)*100)}%
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{marginTop:8,fontFamily:O.mono,fontSize:8,
+                          color:O.textD,lineHeight:1.6}}>
+                          Top generators: {EMPS.sort((a,b)=>b.flags-a.flags)
+                            .slice(0,2).map(e=>e.name.split(" ")[0]).join(", ")}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* ── ZONES 5 + 6: NOTIFICATION ROUTING + RULES BUILDER ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+
+                    {/* ZONE 5: Notification Routing */}
+                    <Card>
+                      <SL text="Notification Routing" color="#3b82f6"/>
+
+                      {/* Channels */}
+                      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                        {[
+                          {icon:"📱",l:"Push Notifications",
+                           sub:"2 devices registered",
+                           detail:"Critical only",k:"push"},
+                          {icon:"💬",l:"SMS Text Alerts",
+                           sub:"+1 (503) 555-0147 · 14/100 msg used",
+                           detail:"Critical alerts only",k:"sms"},
+                          {icon:"📧",l:"Email Digest",
+                           sub:"owner@sunriseretail.com",
+                           detail:"Immediate · Last: Today 09:00",k:"email"},
+                          {icon:"🖥️",l:"In-App Notifications",
+                           sub:"Always on · Desktop enabled",
+                           detail:"All alerts",k:null},
+                        ].map((ch,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",
+                            gap:10,padding:"10px 12px",background:O.bg3,
+                            borderRadius:8,
+                            border:"1px solid "+((ch.k&&notifConfig[ch.k])||ch.k===null
+                              ?"rgba(59,130,246,0.2)":O.border),
+                            opacity:(ch.k&&!notifConfig[ch.k])?0.5:1,
+                            transition:"all 0.2s"}}>
+                            <span style={{fontSize:18,flexShrink:0}}>{ch.icon}</span>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:12,color:"#fff",marginBottom:1}}>{ch.l}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                                {ch.sub}
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:blue}}>
+                                {ch.detail}
+                              </div>
+                            </div>
+                            {ch.k?(
+                              <Toggle on={notifConfig[ch.k]}
+                                onToggle={()=>setNotifConfig(p=>({...p,[ch.k]:!p[ch.k]}))}/>
+                            ):(
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.green,
+                                background:"rgba(16,185,129,0.1)",
+                                border:"1px solid rgba(16,185,129,0.2)",
+                                borderRadius:3,padding:"2px 6px",letterSpacing:1}}>
+                                ALWAYS ON
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Quiet hours */}
+                      <div style={{background:"rgba(59,130,246,0.05)",
+                        border:"1px solid rgba(59,130,246,0.2)",
+                        borderRadius:8,padding:"11px 12px"}}>
+                        <div style={{display:"flex",alignItems:"center",
+                          justifyContent:"space-between",marginBottom:6}}>
+                          <div>
+                            <div style={{fontFamily:O.mono,fontSize:8,
+                              color:blue,letterSpacing:1,marginBottom:2}}>
+                              QUIET HOURS: 10PM – 7AM
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
+                              Critical alerts only during this window
+                            </div>
+                          </div>
+                          <Toggle on={notifConfig.quietHours}
+                            onToggle={()=>setNotifConfig(p=>({...p,quietHours:!p.quietHours}))}/>
+                        </div>
+                        {notifConfig.quietHours&&(
+                          <div style={{fontFamily:O.mono,fontSize:7,color:blue,
+                            background:"rgba(59,130,246,0.08)",borderRadius:4,
+                            padding:"4px 8px",display:"inline-block",letterSpacing:1}}>
+                            ✓ Quiet hours active — non-critical suppressed 10pm–7am
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+
+                    {/* ZONE 6: Alert Rules Builder */}
+                    <Card>
+                      <div style={{display:"flex",alignItems:"center",
+                        justifyContent:"space-between",marginBottom:12}}>
+                        <SL text={"Custom Alert Rules — "+customRules.filter(r=>r.active).length+" Active"}
+                          color="#a855f7"/>
+                        <button style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                          padding:"4px 10px",background:"rgba(168,85,247,0.1)",
+                          border:"1px solid rgba(168,85,247,0.25)",borderRadius:4,
+                          color:"#a855f7",cursor:"pointer"}}>
+                          + Create Rule
+                        </button>
+                      </div>
+
+                      {/* Custom rules */}
+                      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                        {customRules.map(r=>{
+                          const rc2 = r.sev==="critical"?O.red:r.sev==="warning"?O.amber:blue;
+                          return(
+                            <div key={r.id} style={{background:O.bg3,borderRadius:8,
+                              padding:"10px 12px",
+                              border:"1px solid "+(r.active?rc2+"25":O.border),
+                              opacity:r.active?1:0.5,transition:"all 0.2s"}}>
+                              <div style={{display:"flex",alignItems:"center",
+                                gap:8,marginBottom:7}}>
+                                <div style={{flex:1}}>
+                                  <div style={{fontFamily:O.sans,fontWeight:600,
+                                    fontSize:12,color:"#fff",marginBottom:2}}>{r.name}</div>
+                                  {/* Condition chips */}
+                                  <div style={{display:"flex",gap:4,
+                                    flexWrap:"wrap",alignItems:"center"}}>
+                                    <span style={{fontFamily:O.mono,fontSize:7,
+                                      color:O.textF,letterSpacing:1}}>WHEN</span>
+                                    {r.condition.split(" AND ").map((cond,ci)=>(
+                                      [
+                                        ci>0&&(
+                                          <span key={"and"+ci} style={{fontFamily:O.mono,
+                                            fontSize:7,color:O.textF}}>AND</span>
+                                        ),
+                                        <div key={ci} style={{fontFamily:O.mono,fontSize:8,
+                                          color:rc2,background:rc2+"12",
+                                          border:"1px solid "+rc2+"25",
+                                          borderRadius:4,padding:"2px 7px"}}>
+                                          {cond.trim()}
+                                        </div>
+                                      ]
+                                    ))}
+                                  </div>
+                                  <div style={{fontFamily:O.mono,fontSize:7,
+                                    color:O.textD,marginTop:4}}>
+                                    THEN {r.action}
+                                  </div>
+                                </div>
+                                <Toggle on={r.active}
+                                  onToggle={()=>setCustomRules(customRules.map(x=>
+                                    x.id===r.id?{...x,active:!x.active}:x))}/>
+                              </div>
+                              <div style={{display:"flex",
+                                justifyContent:"space-between",alignItems:"center"}}>
+                                <span style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>
+                                  Last triggered: {r.lastTriggered}
+                                </span>
+                                <div style={{display:"flex",gap:5}}>
+                                  <button style={{fontFamily:O.mono,fontSize:7,
+                                    padding:"2px 7px",background:"rgba(0,212,255,0.06)",
+                                    border:"1px solid rgba(0,212,255,0.15)",
+                                    borderRadius:3,color:"#00d4ff",cursor:"pointer"}}>
+                                    EDIT
+                                  </button>
+                                  <button onClick={()=>setCustomRules(customRules.filter(x=>x.id!==r.id))}
+                                    style={{fontFamily:O.mono,fontSize:7,
+                                      padding:"2px 7px",background:"rgba(239,68,68,0.06)",
+                                      border:"1px solid rgba(239,68,68,0.15)",
+                                      borderRadius:3,color:O.red,cursor:"pointer"}}>
+                                    DELETE
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Template rules */}
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2px",marginBottom:8}}>ONE-CLICK TEMPLATES</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                        {templates.map((t,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",
+                            gap:8,padding:"7px 10px",background:O.bg3,
+                            borderRadius:6,border:"1px solid "+O.border,
+                            transition:"all 0.15s",cursor:"pointer"}}
+                            onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(168,85,247,0.3)"}
+                            onMouseLeave={e=>e.currentTarget.style.borderColor=O.border}>
+                            <span style={{fontSize:14,flexShrink:0}}>{t.icon}</span>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontFamily:O.sans,fontWeight:600,
+                                fontSize:11,color:"#fff",marginBottom:1}}>{t.name}</div>
+                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
+                                {t.desc}
+                              </div>
+                            </div>
+                            <button
+                              onClick={()=>setCustomRules([...customRules,{
+                                id:Date.now(),name:t.name,active:true,
+                                condition:t.desc,action:"Alert Owner via Push",
+                                sev:"warning",lastTriggered:"Never"
+                              }])}
+                              style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                                padding:"3px 8px",background:"rgba(168,85,247,0.1)",
+                                border:"1px solid rgba(168,85,247,0.25)",
+                                borderRadius:3,color:"#a855f7",cursor:"pointer",
+                                flexShrink:0,whiteSpace:"nowrap"}}>
+                              + ACTIVATE
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+
                 </div>
-              ))}
-              <div style={{marginTop:12,padding:"9px 12px",background:O.amberD,border:`1px solid ${O.amberB}`,borderRadius:6,fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:1}}>
-                {Object.values(aConfig).filter(Boolean).length}/6 ALERTS ACTIVE · SMS + PUSH
-              </div>
-            </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── BENCHMARKS (Prompt 13) ── */}
-        {tab==="benchmark" && (
+
+                {tab==="benchmark" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:4}}>COMPARATIVE TEAM INTELLIGENCE</div>
             <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:14}}>Side-by-side analysis across every performance dimension.</div>
