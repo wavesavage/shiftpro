@@ -523,7 +523,7 @@ function EmpPortal({emp,onLogout}){
   const TABS = [
     {id:"home",label:"🏠 Home"},
     {id:"schedule",label:"📅 Schedule"},
-    {id:"earnings",label:"💰 Earnings"},
+    {id:"earnings",label:"🌱 My Growth"},
     {id:"team",label:unread>0?"💬 Messages ("+unread+")":"💬 Messages"},
     {id:"recognition",label:"🏆 Achievements"},
   ];
@@ -659,44 +659,553 @@ function EmpPortal({emp,onLogout}){
         {/* ── EARNINGS (Prompt 3) ── */}
         {tab==="earnings" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:4}}>Your Earnings 💰</div>
-            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>Transparent. Accurate. Always yours.</div>
-            <div style={{background:`linear-gradient(135deg,${E.indigo}18,${E.violet}18)`,border:`1.5px solid ${E.indigo}30`,borderRadius:16,padding:"20px",marginBottom:14}}>
-              <div style={{fontFamily:E.sans,fontSize:12,color:E.indigo,fontWeight:600,marginBottom:3}}>Current Pay Period (Mar 18–31)</div>
-              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:34,color:E.text,marginBottom:3}}>${gross}</div>
-              <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>{emp.wkHrs} hrs · ${emp.rate}/hr</div>
-              {emp.ot>0 && <div style={{fontFamily:E.sans,fontSize:12,color:E.orange,marginTop:4}}>+ ${(emp.ot*emp.rate*1.5).toFixed(2)} overtime</div>}
-            </div>
-            <div style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"18px",marginBottom:12,boxShadow:E.shadow}}>
-              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:14}}>Hours (Last 8 Weeks)</div>
-              <div style={{display:"flex",alignItems:"flex-end",gap:6,height:72}}>
-                {[32,38,36,40,35,38,36,emp.wkHrs].map((hh,i) => (
-                  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                    <div style={{width:"100%",background:i===7?`linear-gradient(${E.indigo},${E.violet})`:E.indigoD,border:`1px solid ${i===7?E.indigo:E.border}`,borderRadius:"3px 3px 0 0",height:`${(hh/45)*100}%`,minHeight:5,transition:"height 0.8s ease"}}/>
-                    <span style={{fontFamily:O.mono,fontSize:7,color:E.textF}}>{["W1","W2","W3","W4","W5","W6","W7","Now"][i]}</span>
+
+            {/* ── ZONE 1: PERFORMANCE SCORE CARD ── */}
+            {(()=>{
+              const score = Math.min(100,Math.max(0,Math.round(
+                (emp.rel+emp.prod+emp.cam)/3 - (emp.ghost*5) - (emp.flags*8)
+              )));
+              const scoreColor = score>=85?E.green:score>=70?E.indigo:score>=55?E.yellow:E.red;
+              const tier = score>=90?"Elite Performer":score>=80?"Lead Candidate":
+                           score>=65?"Solid Performer":score>=50?"Developing":"New Hire";
+              const tierIcon = score>=90?"🏆":score>=80?"⭐":score>=65?"💪":score>=50?"🌱":"👋";
+              const encourage = score>=85
+                ? "You're one of the strongest performers on your team. Keep it up!"
+                : score>=70
+                ? "You're improving steadily. You're "+Math.round(80-score)+" points from Lead Candidate."
+                : score>=55
+                ? "Great foundation. Focus on reliability and you'll level up fast."
+                : "Every great career starts somewhere — keep showing up strong.";
+
+              const gross = (emp.wkHrs*emp.rate*2).toFixed(2);
+
+              const earnedBadges = [
+                {icon:"🔥",label:"7-Day Streak",earned:emp.streak>=7},
+                {icon:"⭐",label:"Most Reliable",earned:emp.rel>=90},
+                {icon:"💰",label:"Payroll Accurate",earned:emp.ghost<0.5},
+                {icon:"📷",label:"Camera Pro",earned:emp.cam>=90},
+                {icon:"🏆",label:"Zero Flags",earned:emp.flags===0},
+                {icon:"💪",label:"OT Warrior",earned:(emp.ot||0)>0},
+              ];
+
+              const lockedBadges = [
+                {icon:"🔒",label:"30-Day Streak",need:"16 more shifts"},
+                {icon:"🔒",label:"Lead Ready",need:"reach 95% reliability"},
+                {icon:"🔒",label:"90-Day Legend",need:90-emp.streak+" days to go"},
+              ];
+
+              const tiers = ["New Hire","Developing","Solid Performer","Lead Candidate","Team Lead"];
+              const tierIndex = score>=90?4:score>=80?3:score>=65?2:score>=50?1:0;
+
+              const skills = [
+                {label:"Food Handler",      earned:emp.rel>80,    icon:"🍽️"},
+                {label:"Cash Handling",     earned:emp.cam>80,    icon:"💵"},
+                {label:"First Aid",         earned:emp.streak>5,  icon:"🩺"},
+                {label:"Forklift Cert",     earned:false,         icon:"🏗️", note:"Ask manager to schedule"},
+                {label:"Manager Cert",      earned:false,         icon:"📋", note:"Eligible after Lead Candidate"},
+              ];
+
+              const trendData = [
+                {w:"W1",rel:emp.rel-8,prod:emp.prod-6},
+                {w:"W2",rel:emp.rel-5,prod:emp.prod-4},
+                {w:"W3",rel:emp.rel-7,prod:emp.prod-3},
+                {w:"W4",rel:emp.rel-2,prod:emp.prod-5},
+                {w:"W5",rel:emp.rel-4,prod:emp.prod-2},
+                {w:"W6",rel:emp.rel-1,prod:emp.prod-1},
+                {w:"W7",rel:emp.rel-3,prod:emp.prod+1},
+                {w:"Now",rel:emp.rel,  prod:emp.prod},
+              ];
+              const maxTrend = 100;
+
+              const recognitions = [
+                {date:"Mar 20",note:"Excellent customer service during busy Friday shift",icon:"⭐"},
+                {date:"Mar 15",note:"Perfect attendance for 2nd consecutive month",icon:"🏆"},
+              ];
+
+              return (
+                <div>
+
+                  {/* Score card */}
+                  <div style={{background:"linear-gradient(135deg,rgba(99,102,241,0.07),rgba(139,92,246,0.05))",
+                    border:"1.5px solid rgba(99,102,241,0.18)",
+                    borderRadius:20,padding:"22px 24px",marginBottom:14,
+                    boxShadow:"0 4px 24px rgba(99,102,241,0.1)"}}>
+                    <div style={{display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap"}}>
+
+                      {/* Score gauge */}
+                      <div style={{flexShrink:0,textAlign:"center"}}>
+                        <div style={{position:"relative",width:100,height:100,margin:"0 auto 8px"}}>
+                          <svg width="100" height="100" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="42" fill="none"
+                              stroke="rgba(99,102,241,0.1)" strokeWidth="8"/>
+                            <circle cx="50" cy="50" r="42" fill="none"
+                              stroke={scoreColor} strokeWidth="8"
+                              strokeDasharray={2*Math.PI*42}
+                              strokeDashoffset={2*Math.PI*42*(1-score/100)}
+                              strokeLinecap="round"
+                              transform="rotate(-90 50 50)"/>
+                          </svg>
+                          <div style={{position:"absolute",inset:0,display:"flex",
+                            flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                            <div style={{fontFamily:E.sans,fontWeight:900,fontSize:28,
+                              color:scoreColor,lineHeight:1}}>{score}</div>
+                            <div style={{fontFamily:E.mono,fontSize:8,
+                              color:E.textF,letterSpacing:1}}>SCORE</div>
+                          </div>
+                        </div>
+                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:12,
+                          color:scoreColor}}>
+                          {tierIcon} {tier}
+                        </div>
+                      </div>
+
+                      {/* Metrics + streak */}
+                      <div style={{flex:1,minWidth:200}}>
+                        <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,
+                          color:E.text,marginBottom:4}}>
+                          Your Growth Dashboard 🌱
+                        </div>
+                        <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,
+                          marginBottom:12,lineHeight:1.5}}>
+                          {encourage}
+                        </div>
+
+                        {/* Three metric bars */}
+                        {[
+                          {l:"Reliability",    v:emp.rel,  delta:"+3",c:E.indigo},
+                          {l:"Productivity",   v:emp.prod, delta:"+1",c:E.violet},
+                          {l:"Camera Presence",v:emp.cam,  delta:"+2",c:E.teal},
+                        ].map(m=>(
+                          <div key={m.l} style={{marginBottom:8}}>
+                            <div style={{display:"flex",justifyContent:"space-between",
+                              marginBottom:3}}>
+                              <span style={{fontFamily:E.sans,fontSize:12,
+                                color:E.textD,fontWeight:600}}>{m.l}</span>
+                              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                                <span style={{fontFamily:E.mono,fontSize:11,
+                                  color:E.green,fontWeight:600}}>↑ {m.delta}%</span>
+                                <span style={{fontFamily:E.sans,fontWeight:700,
+                                  fontSize:13,color:m.c}}>{m.v}%</span>
+                              </div>
+                            </div>
+                            <div style={{height:6,background:"rgba(99,102,241,0.08)",
+                              borderRadius:3,overflow:"hidden"}}>
+                              <div style={{height:"100%",width:m.v+"%",
+                                background:m.c,borderRadius:3,transition:"width 1s ease"}}/>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Streak */}
+                      <div style={{flexShrink:0,textAlign:"center",
+                        background:"linear-gradient(135deg,rgba(245,158,11,0.1),rgba(239,68,68,0.06))",
+                        border:"1.5px solid rgba(245,158,11,0.25)",
+                        borderRadius:14,padding:"16px 20px"}}>
+                        <div style={{fontFamily:E.sans,fontWeight:900,
+                          fontSize:42,color:E.yellow,lineHeight:1,marginBottom:2}}>
+                          🔥 {emp.streak}
+                        </div>
+                        <div style={{fontFamily:E.mono,fontSize:8,
+                          color:"rgba(245,158,11,0.7)",letterSpacing:1,marginBottom:4}}>
+                          DAY STREAK
+                        </div>
+                        <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>
+                          Best: {emp.streak+12} days
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"18px",boxShadow:E.shadow}}>
-              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>Recent Pay Stubs</div>
-              {[["Mar 1–15",76],["Feb 15–28",72],["Feb 1–14",78],["Jan 15–31",80]].map(([period,hrs],i) => (
-                <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 0",borderBottom:i<3?`1px solid ${E.border}`:"none"}}>
-                  <div>
-                    <div style={{fontFamily:E.sans,fontWeight:600,fontSize:14,color:E.text}}>{period}</div>
-                    <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>{hrs}h · ${emp.rate}/hr</div>
+
+                  {/* ── ZONES 2 + 3: TREND CHART + BADGES ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",
+                    gap:12,marginBottom:14}}>
+
+                    {/* Zone 2: Trend chart */}
+                    <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+                      borderRadius:16,padding:"18px",boxShadow:E.shadow}}>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,
+                        color:E.text,marginBottom:4}}>30-Day Trend</div>
+                      <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginBottom:14}}>
+                        Your progress — compared only to yourself
+                      </div>
+
+                      {/* Line chart */}
+                      <div style={{position:"relative",height:90,marginBottom:10}}>
+                        <svg width="100%" height="90" viewBox="0 0 280 90"
+                          preserveAspectRatio="none">
+                          {/* Grid lines */}
+                          {[25,50,75].map(y=>(
+                            <line key={y} x1="0" y1={90-(y/100)*90}
+                              x2="280" y2={90-(y/100)*90}
+                              stroke="rgba(99,102,241,0.08)" strokeWidth="1"/>
+                          ))}
+                          {/* Reliability line */}
+                          <polyline
+                            points={trendData.map((d,i)=>
+                              (i*(280/7)).toFixed(1)+","+(90-(d.rel/maxTrend)*80).toFixed(1)
+                            ).join(" ")}
+                            fill="none" stroke={E.indigo} strokeWidth="2.5"
+                            strokeLinecap="round" strokeLinejoin="round"/>
+                          {/* Productivity line */}
+                          <polyline
+                            points={trendData.map((d,i)=>
+                              (i*(280/7)).toFixed(1)+","+(90-(d.prod/maxTrend)*80).toFixed(1)
+                            ).join(" ")}
+                            fill="none" stroke={E.violet} strokeWidth="2.5"
+                            strokeLinecap="round" strokeLinejoin="round"
+                            strokeDasharray="4 2"/>
+                          {/* Today dot */}
+                          <circle cx="280" cy={(90-(trendData[7].rel/maxTrend)*80).toFixed(1)}
+                            r="5" fill={E.indigo} stroke="#fff" strokeWidth="2"/>
+                          <circle cx="280" cy={(90-(trendData[7].prod/maxTrend)*80).toFixed(1)}
+                            r="5" fill={E.violet} stroke="#fff" strokeWidth="2"/>
+                        </svg>
+                        {/* X-axis labels */}
+                        <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+                          {trendData.map(d=>(
+                            <span key={d.w} style={{fontFamily:E.mono,fontSize:7,
+                              color:d.w==="Now"?E.indigo:E.textF,
+                              fontWeight:d.w==="Now"?700:400}}>
+                              {d.w}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Legend + delta */}
+                      <div style={{display:"flex",gap:12}}>
+                        {[
+                          {c:E.indigo,l:"Reliability",delta:"+"+Math.abs(trendData[7].rel-trendData[0].rel)},
+                          {c:E.violet,l:"Productivity",delta:"+"+Math.abs(trendData[7].prod-trendData[0].prod),dash:true},
+                        ].map(leg=>(
+                          <div key={leg.l} style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:14,height:3,
+                              background:leg.dash?"transparent":leg.c,
+                              borderTop:leg.dash?"2.5px dashed "+leg.c:"none",borderRadius:2}}/>
+                            <span style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>
+                              {leg.l}
+                            </span>
+                            <span style={{fontFamily:E.sans,fontSize:11,
+                              color:E.green,fontWeight:700}}>
+                              {leg.delta}% this month
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Zone 3: Badges + streak */}
+                    <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+                      borderRadius:16,padding:"18px",boxShadow:E.shadow}}>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,
+                        color:E.text,marginBottom:12}}>Achievements</div>
+
+                      {/* Earned badges */}
+                      <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,
+                        letterSpacing:"2px",marginBottom:8}}>EARNED</div>
+                      <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:14}}>
+                        {earnedBadges.filter(b=>b.earned).map(b=>(
+                          <div key={b.label}
+                            style={{background:"linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.06))",
+                              border:"1.5px solid rgba(99,102,241,0.2)",
+                              borderRadius:10,padding:"8px 10px",textAlign:"center"}}>
+                            <div style={{fontSize:18,marginBottom:3}}>{b.icon}</div>
+                            <div style={{fontFamily:E.sans,fontSize:9,
+                              color:E.indigo,fontWeight:600,lineHeight:1.2}}>{b.label}</div>
+                          </div>
+                        ))}
+                        {earnedBadges.filter(b=>b.earned).length===0&&(
+                          <div style={{fontFamily:E.sans,fontSize:12,color:E.textF,
+                            padding:"8px 0"}}>
+                            Keep going — your first badge is close!
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Locked badges */}
+                      <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,
+                        letterSpacing:"2px",marginBottom:8}}>LOCKED — EARN NEXT</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {lockedBadges.map(b=>(
+                          <div key={b.label}
+                            style={{display:"flex",alignItems:"center",gap:10,
+                              padding:"8px 10px",background:"rgba(0,0,0,0.02)",
+                              border:"1.5px dashed rgba(99,102,241,0.15)",
+                              borderRadius:8,opacity:0.7}}>
+                            <span style={{fontSize:16,flexShrink:0}}>{b.icon}</span>
+                            <div style={{flex:1}}>
+                              <div style={{fontFamily:E.sans,fontWeight:600,
+                                fontSize:11,color:E.textD,marginBottom:1}}>{b.label}</div>
+                              <div style={{fontFamily:E.mono,fontSize:8,color:E.textF}}>
+                                {b.need}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.indigo}}>${(hrs*emp.rate).toFixed(2)}</div>
-                    <button style={{padding:"5px 11px",background:E.indigoD,border:`1px solid ${E.indigo}30`,borderRadius:6,fontFamily:E.sans,fontSize:11,color:E.indigo,cursor:"pointer"}}>↓ PDF</button>
+
+                  {/* ── ZONE 4: GROWTH PATH ── */}
+                  <div style={{background:"linear-gradient(135deg,rgba(99,102,241,0.06),rgba(20,184,166,0.04))",
+                    border:"1.5px solid rgba(99,102,241,0.15)",
+                    borderRadius:18,padding:"20px 24px",marginBottom:14,
+                    boxShadow:E.shadow}}>
+                    <div style={{fontFamily:E.sans,fontWeight:800,fontSize:15,
+                      color:E.text,marginBottom:4}}>Your Career Path</div>
+                    <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginBottom:16}}>
+                      Where you are now — and exactly what it takes to get to the next level
+                    </div>
+
+                    {/* Progress track */}
+                    <div style={{display:"flex",alignItems:"center",
+                      marginBottom:20,overflowX:"auto",paddingBottom:4}}>
+                      {tiers.map((t,i)=>{
+                        const isHere = i===tierIndex;
+                        const isPast = i<tierIndex;
+                        const tc = isPast?E.green:isHere?E.indigo:E.textF;
+                        return(
+                          <div key={t} style={{display:"flex",alignItems:"center",flex:1,minWidth:80}}>
+                            <div style={{display:"flex",flexDirection:"column",
+                              alignItems:"center",flex:1}}>
+                              <div style={{width:isHere?32:24,height:isHere?32:24,
+                                borderRadius:"50%",
+                                background:isPast?E.green:isHere?E.indigo:"rgba(99,102,241,0.08)",
+                                border:"2px solid "+(isPast?E.green:isHere?E.indigo:"rgba(99,102,241,0.2)"),
+                                display:"flex",alignItems:"center",justifyContent:"center",
+                                marginBottom:6,transition:"all 0.3s",
+                                boxShadow:isHere?"0 0 16px rgba(99,102,241,0.3)":"none"}}>
+                                <span style={{fontSize:isHere?14:10,color:"#fff"}}>
+                                  {isPast?"✓":isHere?"★":"○"}
+                                </span>
+                              </div>
+                              <div style={{fontFamily:E.sans,fontSize:9,
+                                fontWeight:isHere?700:400,color:tc,
+                                textAlign:"center",lineHeight:1.3}}>
+                                {t}
+                              </div>
+                              {isHere&&(
+                                <div style={{fontFamily:E.mono,fontSize:7,
+                                  color:E.indigo,letterSpacing:1,marginTop:2}}>
+                                  YOU ARE HERE
+                                </div>
+                              )}
+                            </div>
+                            {i<tiers.length-1&&(
+                              <div style={{flex:1,height:2,margin:"0 4px",marginBottom:20,
+                                background:isPast?E.green:"rgba(99,102,241,0.15)",
+                                borderRadius:1}}/>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Next level requirements */}
+                    {tierIndex<4&&(
+                      <div>
+                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:13,
+                          color:E.text,marginBottom:10}}>
+                          To reach{" "}
+                          <span style={{color:E.indigo}}>{tiers[tierIndex+1]}</span>:
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                          {[
+                            {label:"Reliability ≥ 95%",
+                             current:emp.rel+"%",
+                             target:"95%",
+                             pct:Math.min(100,Math.round((emp.rel/95)*100)),
+                             met:emp.rel>=95},
+                            {label:"Zero flags — 14 days",
+                             current:emp.flags===0?"3 days in":"0 days",
+                             target:"14 days",
+                             pct:emp.flags===0?Math.round((3/14)*100):0,
+                             met:false},
+                            {label:"Attendance streak",
+                             current:emp.streak+" days",
+                             target:"90 days",
+                             pct:Math.round((emp.streak/90)*100),
+                             met:emp.streak>=90},
+                            {label:"Manager recommendation",
+                             current:"Pending",
+                             target:"Required",
+                             pct:0,
+                             met:false},
+                          ].map(req=>(
+                            <div key={req.label}
+                              style={{background:req.met?"rgba(16,185,129,0.07)":"rgba(99,102,241,0.04)",
+                                border:"1px solid "+(req.met?"rgba(16,185,129,0.2)":"rgba(99,102,241,0.12)"),
+                                borderRadius:10,padding:"10px 12px"}}>
+                              <div style={{display:"flex",justifyContent:"space-between",
+                                marginBottom:5}}>
+                                <span style={{fontFamily:E.sans,fontSize:11,
+                                  color:E.textD,fontWeight:600}}>{req.label}</span>
+                                {req.met
+                                  ? <span style={{color:E.green,fontSize:14}}>✅</span>
+                                  : <span style={{fontFamily:E.mono,fontSize:9,
+                                      color:E.indigo}}>{req.current}</span>
+                                }
+                              </div>
+                              <div style={{height:5,background:"rgba(99,102,241,0.1)",
+                                borderRadius:3,overflow:"hidden"}}>
+                                <div style={{height:"100%",
+                                  width:req.pct+"%",
+                                  background:req.met?E.green:E.indigo,
+                                  borderRadius:3,transition:"width 1s ease"}}/>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{background:"rgba(99,102,241,0.06)",
+                          borderRadius:10,padding:"10px 14px",
+                          border:"1px solid rgba(99,102,241,0.15)",
+                          fontFamily:E.sans,fontSize:12,color:E.textD,
+                          lineHeight:1.6}}>
+                          💡 At your current pace, you could qualify for{" "}
+                          <span style={{color:E.indigo,fontWeight:700}}>
+                            {tiers[Math.min(tierIndex+1,4)]} review
+                          </span>{" "}
+                          in approximately{" "}
+                          <span style={{color:E.text,fontWeight:700}}>
+                            {Math.ceil((90-emp.streak)/5)} weeks
+                          </span>.
+                        </div>
+                      </div>
+                    )}
                   </div>
+
+                  {/* ── ZONES 5 + 6: RECOGNITION + SKILLS ── */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+
+                    {/* Zone 5: Manager recognition */}
+                    <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+                      borderRadius:16,padding:"18px",boxShadow:E.shadow}}>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,
+                        color:E.text,marginBottom:4}}>Manager Recognition</div>
+                      <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,
+                        marginBottom:14}}>
+                        What your manager has said about your work
+                      </div>
+                      {recognitions.length>0?(
+                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                          {recognitions.map((r,i)=>(
+                            <div key={i}
+                              style={{background:"linear-gradient(135deg,rgba(16,185,129,0.06),rgba(99,102,241,0.04))",
+                                border:"1px solid rgba(16,185,129,0.2)",
+                                borderRadius:10,padding:"11px 13px",
+                                display:"flex",gap:10,alignItems:"flex-start"}}>
+                              <span style={{fontSize:16,flexShrink:0}}>{r.icon}</span>
+                              <div>
+                                <div style={{fontFamily:E.mono,fontSize:8,
+                                  color:E.textF,letterSpacing:1,marginBottom:3}}>
+                                  {r.date}
+                                </div>
+                                <div style={{fontFamily:E.sans,fontSize:12,
+                                  color:E.text,lineHeight:1.5}}>{r.note}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ):(
+                        <div style={{fontFamily:E.sans,fontSize:12,color:E.textF,
+                          textAlign:"center",padding:"20px 0",lineHeight:1.6}}>
+                          Keep up the great work — your manager can add recognition notes here
+                          that only you can see. 💪
+                        </div>
+                      )}
+
+                      {/* Compact pay summary */}
+                      <div style={{marginTop:14,paddingTop:12,
+                        borderTop:"1px solid "+E.border}}>
+                        <div style={{fontFamily:E.mono,fontSize:8,
+                          color:E.textF,letterSpacing:"2px",marginBottom:7}}>
+                          CURRENT PAY PERIOD
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between",
+                          alignItems:"center"}}>
+                          <div>
+                            <div style={{fontFamily:E.sans,fontWeight:800,
+                              fontSize:22,color:E.indigo}}>${gross}</div>
+                            <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>
+                              {emp.wkHrs}h · ${emp.rate}/hr · Mar 18–31
+                            </div>
+                          </div>
+                          <button style={{padding:"6px 12px",
+                            background:E.indigoD,
+                            border:"1px solid rgba(99,102,241,0.2)",
+                            borderRadius:7,fontFamily:E.sans,fontSize:11,
+                            color:E.indigo,cursor:"pointer",fontWeight:600}}>
+                            Pay History →
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Zone 6: Skills */}
+                    <div style={{background:E.bg2,border:"1.5px solid "+E.border,
+                      borderRadius:16,padding:"18px",boxShadow:E.shadow}}>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,
+                        color:E.text,marginBottom:4}}>Skills & Certifications</div>
+                      <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,
+                        marginBottom:14}}>
+                        Build your skills to unlock more opportunities
+                      </div>
+
+                      <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,
+                        letterSpacing:"2px",marginBottom:8}}>EARNED</div>
+                      <div style={{display:"flex",flexDirection:"column",
+                        gap:6,marginBottom:14}}>
+                        {skills.filter(s=>s.earned).map(s=>(
+                          <div key={s.label}
+                            style={{display:"flex",alignItems:"center",gap:10,
+                              padding:"8px 10px",
+                              background:"rgba(16,185,129,0.06)",
+                              border:"1px solid rgba(16,185,129,0.2)",
+                              borderRadius:8}}>
+                            <span style={{fontSize:16}}>{s.icon}</span>
+                            <span style={{fontFamily:E.sans,fontWeight:600,
+                              fontSize:12,color:E.text,flex:1}}>{s.label}</span>
+                            <span style={{color:E.green,fontSize:16}}>✅</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,
+                        letterSpacing:"2px",marginBottom:8}}>AVAILABLE TO EARN</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {skills.filter(s=>!s.earned).map(s=>(
+                          <div key={s.label}
+                            style={{display:"flex",alignItems:"center",gap:10,
+                              padding:"8px 10px",
+                              background:"rgba(99,102,241,0.04)",
+                              border:"1.5px dashed rgba(99,102,241,0.15)",
+                              borderRadius:8,opacity:0.8}}>
+                            <span style={{fontSize:16}}>{s.icon}</span>
+                            <div style={{flex:1}}>
+                              <div style={{fontFamily:E.sans,fontWeight:600,
+                                fontSize:12,color:E.textD,marginBottom:1}}>
+                                {s.label}
+                              </div>
+                              <div style={{fontFamily:E.sans,fontSize:11,color:E.textF}}>
+                                {s.note}
+                              </div>
+                            </div>
+                            <span style={{fontSize:14}}>🔒</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* ── TEAM / MESSAGES (Prompt 4) ── */}
+
+                {/* ── TEAM / MESSAGES (Prompt 4) ── */}
         {tab==="team" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:14}}>Team & Messages</div>
