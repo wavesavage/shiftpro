@@ -982,7 +982,7 @@ function EmpPortal({emp,onLogout}){
                 {icon:"🔥",label:"7-Day Streak",earned:emp.streak>=7},
                 {icon:"⭐",label:"Most Reliable",earned:emp.rel>=90},
                 {icon:"💰",label:"Payroll Accurate",earned:emp.ghost<0.5},
-                {icon:"📷",label:"Camera Pro",earned:emp.cam>=90},
+                {icon:"⏰",label:"Always On Time",earned:emp.rel>=90},
                 {icon:"🏆",label:"Zero Flags",earned:emp.flags===0},
                 {icon:"💪",label:"OT Warrior",earned:(emp.ot||0)>0},
               ];
@@ -1073,7 +1073,7 @@ function EmpPortal({emp,onLogout}){
                         {[
                           {l:"Reliability",    v:emp.rel,  delta:"+3",c:E.indigo},
                           {l:"Productivity",   v:emp.prod, delta:"+1",c:E.violet},
-                          {l:"Camera Presence",v:emp.cam,  delta:"+2",c:E.teal},
+                          {l:"Punctuality",     v:emp.rel,  delta:"+2",c:E.teal},
                         ].map(m=>(
                           <div key={m.l} style={{marginBottom:8}}>
                             <div style={{display:"flex",justifyContent:"space-between",
