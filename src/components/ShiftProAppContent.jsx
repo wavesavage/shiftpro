@@ -478,28 +478,7 @@ function Login({onLogin}){
     }finally{setBusy(false);}
   };
 
-  const InputField = ({label,val,set,type="text",ph="",accent}) => (
-    <div style={{marginBottom:14}}>
-      <label style={{fontFamily:O.mono,fontSize:9,color:"rgba(255,255,255,0.45)",
-        letterSpacing:"2px",display:"block",marginBottom:6}}>{label}</label>
-      <input value={val}
-        onChange={e=>{set(e.target.value);setErr("");}}
-        onKeyDown={e=>{
-          if(e.key!=="Enter") return;
-          if(mode==="owner") doOwnerLogin();
-          else if(mode==="employee") doEmpLogin();
-        }}
-        type={type} placeholder={ph}
-        style={{width:"100%",padding:"12px 14px",
-          background:"rgba(255,255,255,0.06)",
-          border:"1px solid "+(accent+"40"),
-          borderRadius:9,fontFamily:O.mono,fontSize:14,
-          color:"#fff",outline:"none",
-          boxSizing:"border-box",transition:"border-color 0.2s"}}
-        onFocus={e=>e.target.style.borderColor=accent}
-        onBlur={e=>e.target.style.borderColor=accent+"40"}/>
-    </div>
-  );
+
 
   return(
     <div style={{minHeight:"100vh",
@@ -601,10 +580,32 @@ function Login({onLogin}){
                   color:"rgba(245,158,11,0.6)",marginBottom:22,letterSpacing:1}}>
                   OPERATIONS CENTER LOGIN
                 </div>
-                <InputField label="EMAIL" val={email} set={setEmail}
-                  type="email" ph="you@yourbusiness.com" accent={amber}/>
-                <InputField label="PASSWORD" val={pass} set={setPass}
-                  type="password" ph="••••••••" accent={amber}/>
+                <div style={{marginBottom:14}}>
+                  <label style={{fontFamily:O.mono,fontSize:9,color:"rgba(255,255,255,0.45)",
+                    letterSpacing:"2px",display:"block",marginBottom:6}}>EMAIL</label>
+                  <input value={email}
+                    onChange={e=>{setEmail(e.target.value);setErr("");}}
+                    onKeyDown={e=>e.key==="Enter"&&doOwnerLogin()}
+                    type="email" placeholder="you@yourbusiness.com"
+                    style={{width:"100%",padding:"12px 14px",
+                      background:"rgba(255,255,255,0.06)",
+                      border:"1px solid rgba(245,158,11,0.35)",
+                      borderRadius:9,fontFamily:O.mono,fontSize:14,
+                      color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label style={{fontFamily:O.mono,fontSize:9,color:"rgba(255,255,255,0.45)",
+                    letterSpacing:"2px",display:"block",marginBottom:6}}>PASSWORD</label>
+                  <input value={pass}
+                    onChange={e=>{setPass(e.target.value);setErr("");}}
+                    onKeyDown={e=>e.key==="Enter"&&doOwnerLogin()}
+                    type="password" placeholder="••••••••"
+                    style={{width:"100%",padding:"12px 14px",
+                      background:"rgba(255,255,255,0.06)",
+                      border:"1px solid rgba(245,158,11,0.35)",
+                      borderRadius:9,fontFamily:O.mono,fontSize:14,
+                      color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                </div>
                 {err&&(
                   <div style={{fontFamily:O.mono,fontSize:10,color:red,
                     marginBottom:12,padding:"8px 10px",
@@ -647,8 +648,19 @@ function Login({onLogin}){
                       marginBottom:20,lineHeight:1.6}}>
                       Enter your email and we'll send a reset link.
                     </div>
-                    <InputField label="EMAIL" val={email} set={setEmail}
-                      type="email" ph="you@yourbusiness.com" accent={amber}/>
+                    <div style={{marginBottom:14}}>
+                      <label style={{fontFamily:O.mono,fontSize:9,color:"rgba(255,255,255,0.45)",
+                        letterSpacing:"2px",display:"block",marginBottom:6}}>EMAIL</label>
+                      <input value={email}
+                        onChange={e=>{setEmail(e.target.value);setErr("");}}
+                        onKeyDown={e=>e.key==="Enter"&&doReset()}
+                        type="email" placeholder="you@yourbusiness.com"
+                        style={{width:"100%",padding:"12px 14px",
+                          background:"rgba(255,255,255,0.06)",
+                          border:"1px solid rgba(245,158,11,0.35)",
+                          borderRadius:9,fontFamily:O.mono,fontSize:14,
+                          color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
                     {err&&<div style={{fontFamily:O.mono,fontSize:10,color:red,marginBottom:12}}>{err}</div>}
                     <button onClick={doReset}
                       style={{width:"100%",padding:"13px",
