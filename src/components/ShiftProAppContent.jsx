@@ -2683,9 +2683,11 @@ function OwnerCmd({onLogout}){
                 try{
                   let orgId=activeOrg?.id||ownerProfile?.org_id;
                   if(!orgId){
-                    const {data:{session:s}}=await sb.auth.getSession();
-                    const {data:p}=await sb.from("users").select("org_id").eq("id",s.user.id).single();
-                    orgId=p?.org_id;
+                    const {createClient:_cc}=await import("@supabase/supabase-js");
+                    const _sb=_cc(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                    const {data:{session:_s}}=await _sb.auth.getSession();
+                    const {data:_p}=await _sb.from("users").select("org_id").eq("id",_s?.user?.id).single();
+                    orgId=_p?.org_id;
                   }
                   if(!orgId) throw new Error("No company selected. Please refresh and try again.");
                   // Get auth token for server-side ownership check
