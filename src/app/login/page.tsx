@@ -1,5 +1,6 @@
 "use client";
-import ShiftProApp from "@/components/ShiftProApp";
+import { useEffect } from "react";
 export default function LoginPage() {
-  return <ShiftProApp />;
+  useEffect(() => { window.location.replace("/"); }, []);
+  return null;
 }
