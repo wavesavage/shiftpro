@@ -557,6 +557,22 @@ function Login({onLogin}){
             </button>
 
           </div>
+
+          {/* Signup link */}
+          <div style={{textAlign:"center",marginTop:20}}>
+            <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,
+              color:"rgba(255,255,255,0.2)",letterSpacing:1}}>
+              New business?{" "}
+            </span>
+            <a href="/signup"
+              style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,
+                color:"rgba(245,158,11,0.5)",letterSpacing:1,
+                textDecoration:"none",transition:"color 0.2s"}}
+              onMouseEnter={e=>e.target.style.color="rgba(245,158,11,0.9)"}
+              onMouseLeave={e=>e.target.style.color="rgba(245,158,11,0.5)"}>
+              Create your account →
+            </a>
+          </div>
         )}
 
         {/* ── OWNER LOGIN ── */}
@@ -794,6 +810,29 @@ function Login({onLogin}){
 //  EMPLOYEE PORTAL  (Prompts 1–6)
 // ══════════════════════════════════════════════════
 function EmpPortal({emp,onLogout}){
+  // Normalize emp to prevent crashes from missing fields
+  const empSafe = {
+    id:      empSafe.id||"",
+    name:    empSafe.name||(empSafe.first?empSafe.first+" ":"")+"Employee",
+    first:   empSafe.first||(empSafe.name?.split(" ")[0])||"there",
+    role:    empSafe.role||"Employee",
+    dept:    empSafe.dept||"",
+    rate:    parseFloat(empSafe.rate)||15,
+    avatar:  empSafe.avatar||"?",
+    color:   empSafe.color||"#6366f1",
+    email:   empSafe.email||"",
+    wkHrs:   parseFloat(empSafe.wkHrs)||0,
+    moHrs:   parseFloat(empSafe.moHrs)||0,
+    ot:      parseFloat(empSafe.ot)||0,
+    streak:  parseInt(empSafe.streak)||0,
+    flags:   parseInt(empSafe.flags)||0,
+    shifts:  parseInt(empSafe.shifts)||0,
+    risk:    empSafe.risk||"Low",
+    orgId:   empSafe.orgId||null,
+    locId:   empSafe.locId||null,
+    appRole: empSafe.appRole||"employee",
+    pin:     empSafe.pin||"",
+  };
   const [tab,setTab] = useState("home");
   const [clocked,setClocked] = useState(false);
   const [empShifts,setEmpShifts] = useState(null);
@@ -824,14 +863,14 @@ function EmpPortal({emp,onLogout}){
   },[clocked,onBreak]);
 
   useEffect(()=>{
-    if(!emp?.id) return;
+    if(!empSafe.id) return;
     const loadEmpShifts=async()=>{
       try{
         const {createClient}=await import("@supabase/supabase-js");
         const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
         const today=new Date().toISOString().split("T")[0];
         const {data:shifts}=await sb.from("shifts")
-          .select("*").eq("user_id",emp.id)
+          .select("*").eq("user_id",empSafe.id)
           .gte("shift_date",today)
           .in("status",["scheduled","published","confirmed"])
           .order("shift_date");
@@ -839,17 +878,17 @@ function EmpPortal({emp,onLogout}){
       }catch(e){ setEmpShifts([]); }
     };
     loadEmpShifts();
-  },[emp?.id]);
+  },[empSafe.id]);
 
   const fmt = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   const h = now.getHours();
   const greet = h<12 ? "Good morning" : h<17 ? "Good afternoon" : "Good evening";
-  const myShifts = Object.entries(SCHED).map(([d,ss])=>({d,ss:ss.filter(s=>s.eId===emp.id)})).filter(x=>x.ss.length>0);
+  const myShifts = []; // Real users have UUID IDs - use realShifts from Supabase instead
   const realShifts = empShifts||[];
   const unread = msgs.filter(m=>!m.read).length;
-  const gross = (emp.wkHrs * emp.rate).toFixed(2);
-  const sc = emp.streak>=10?"⭐ Star Performer":emp.streak>=5?"🔷 Consistent":"✅ Reliable";
-  const scColor = emp.streak>=10?E.yellow:emp.streak>=5?E.violet:E.green;
+  const gross = (empSafe.wkHrs * empSafe.rate).toFixed(2);
+  const sc = empSafe.streak>=10?"⭐ Star Performer":empSafe.streak>=5?"🔷 Consistent":"✅ Reliable";
+  const scColor = empSafe.streak>=10?E.yellow:empSafe.streak>=5?E.violet:E.green;
 
   const TABS = [
     {id:"home",       label:"🏠 Home"},
@@ -869,8 +908,8 @@ function EmpPortal({emp,onLogout}){
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <Av emp={emp} size={32}/>
           <div>
-            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {emp.first}!</div>
-            <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>{emp.role}</div>
+            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {empSafe.first}!</div>
+            <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>{empSafe.role}</div>
           </div>
           <button onClick={onLogout} style={{padding:"5px 14px",background:"none",border:`1.5px solid ${E.border}`,borderRadius:20,fontFamily:E.sans,fontSize:12,color:E.textD,cursor:"pointer",marginLeft:4}}>
             Sign out
@@ -903,7 +942,7 @@ function EmpPortal({emp,onLogout}){
               <div style={{position:"absolute",bottom:-20,left:-20,width:90,height:90,
                 background:"rgba(255,255,255,0.04)",borderRadius:"50%",pointerEvents:"none"}}/>
               <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>
-                {greet}, {emp.first}! ✨
+                {greet}, {empSafe.first}! ✨
               </div>
               <div style={{fontFamily:E.sans,fontSize:13,opacity:0.8}}>
                 {now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
@@ -1032,9 +1071,9 @@ function EmpPortal({emp,onLogout}){
                         const {createClient}=await import("@supabase/supabase-js");
                         const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
                         await sb.from("clock_events").insert({
-                          user_id:emp.id,
-                          org_id:emp.orgId||null,
-                          location_id:emp.locId||null,
+                          user_id:empSafe.id,
+                          org_id:empSafe.orgId||null,
+                          location_id:empSafe.locId||null,
                           event_type:"clock_in",
                           occurred_at:new Date().toISOString(),
                         });
@@ -1065,7 +1104,7 @@ function EmpPortal({emp,onLogout}){
                           const {createClient}=await import("@supabase/supabase-js");
                           const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
                           await sb.from("clock_events").insert({
-                            user_id:emp.id,org_id:emp.orgId||null,location_id:emp.locId||null,
+                            user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,
                             event_type:nowBreak?"break_start":"break_end",
                             occurred_at:new Date().toISOString(),
                           });
@@ -1111,7 +1150,7 @@ function EmpPortal({emp,onLogout}){
                             const {createClient}=await import("@supabase/supabase-js");
                             const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
                             await sb.from("clock_events").insert({
-                              user_id:emp.id,org_id:emp.orgId||null,location_id:emp.locId||null,
+                              user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,
                               event_type:"clock_out",
                               occurred_at:new Date().toISOString(),
                             });
@@ -1162,7 +1201,7 @@ function EmpPortal({emp,onLogout}){
                   {[
                     {l:"Shift time",   v:(secs/3600).toFixed(2)+"h",          c:E.indigo},
                     {l:"Break taken",  v:(breakSecs/60).toFixed(0)+" min",     c:E.yellow},
-                    {l:"Streak 🔥",    v:emp.streak+"d",                        c:E.green},
+                    {l:"Streak 🔥",    v:empSafe.streak+"d",                        c:E.green},
                   ].map(s=>(
                     <div key={s.l} style={{flex:1,background:E.bg3,borderRadius:9,
                       padding:"8px 10px",textAlign:"center",minWidth:90}}>
@@ -1200,7 +1239,7 @@ function EmpPortal({emp,onLogout}){
                         {realShifts[0].day_of_week} · {fH(realShifts[0].start_hour)} – {fH(realShifts[0].end_hour)}
                       </div>
                       <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>
-                        {realShifts[0].end_hour-realShifts[0].start_hour} hours · {emp.role}
+                        {realShifts[0].end_hour-realShifts[0].start_hour} hours · {empSafe.role}
                       </div>
                     </div>
                   ):(
@@ -1210,7 +1249,7 @@ function EmpPortal({emp,onLogout}){
                         {myShifts[0].d} · {fH(myShifts[0].ss[0].s)} – {fH(myShifts[0].ss[0].e)}
                       </div>
                       <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>
-                        {myShifts[0].ss[0].e-myShifts[0].ss[0].s} hours · {emp.role}
+                        {myShifts[0].ss[0].e-myShifts[0].ss[0].s} hours · {empSafe.role}
                       </div>
                     </div>
                   )}
@@ -1258,9 +1297,9 @@ function EmpPortal({emp,onLogout}){
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
                 {[
-                  {l:"Hours Worked",  v:emp.wkHrs+"h",                                         c:E.indigo},
+                  {l:"Hours Worked",  v:empSafe.wkHrs+"h",                                         c:E.indigo},
                   {l:"Shifts This Wk",v:myShifts.length+" shifts",                             c:E.violet},
-                  {l:"Streak 🔥",     v:emp.streak+" days",                                     c:E.green},
+                  {l:"Streak 🔥",     v:empSafe.streak+" days",                                     c:E.green},
                 ].map(s=>(
                   <div key={s.l} style={{background:E.bg3,borderRadius:12,
                     padding:"12px",textAlign:"center"}}>
@@ -1343,7 +1382,7 @@ function EmpPortal({emp,onLogout}){
                     <div style={{width:4,height:42,background:`linear-gradient(${E.indigo},${E.violet})`,borderRadius:2}}/>
                     <div style={{flex:1}}>
                       <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text}}>{fH(s.s)} – {fH(s.e)}</div>
-                      <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>{s.e-s.s} hours · {emp.role}</div>
+                      <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>{s.e-s.s} hours · {empSafe.role}</div>
                     </div>
                     <EBadge label="Confirmed ✓" color={E.green}/>
                   </div>
@@ -1352,9 +1391,9 @@ function EmpPortal({emp,onLogout}){
             ))}
             <div style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"16px 18px",boxShadow:E.shadow}}>
               <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:10}}>Swap Requests</div>
-              {SWAPS.filter(s=>s.from.includes(emp.first)||s.to.includes(emp.first)).length===0
+              {SWAPS.filter(s=>s.from.includes(empSafe.first)||s.to.includes(empSafe.first)).length===0
                 ? <div style={{fontFamily:E.sans,fontSize:13,color:E.textF,textAlign:"center",padding:"16px 0"}}>No swap requests</div>
-                : SWAPS.filter(s=>s.from.includes(emp.first)||s.to.includes(emp.first)).map(s => (
+                : SWAPS.filter(s=>s.from.includes(empSafe.first)||s.to.includes(empSafe.first)).map(s => (
                   <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 0",borderTop:`1px solid ${E.border}`}}>
                     <div style={{flex:1}}>
                       <div style={{fontFamily:E.sans,fontWeight:600,fontSize:14,color:E.text}}>{s.day} · {s.shift}</div>
@@ -1375,7 +1414,7 @@ function EmpPortal({emp,onLogout}){
             {/* ── ZONE 1: PERFORMANCE SCORE CARD ── */}
             {(()=>{
               const score = Math.min(100,Math.max(0,Math.round(
-                (emp.rel+emp.prod+emp.cam)/3 - (emp.ghost*5) - (emp.flags*8)
+                (empSafe.rel+empSafe.prod+empSafe.cam)/3 - (empSafe.ghost*5) - (empSafe.flags*8)
               )));
               const scoreColor = score>=85?E.green:score>=70?E.indigo:score>=55?E.yellow:E.red;
               const tier = score>=90?"Elite Performer":score>=80?"Lead Candidate":
@@ -1389,43 +1428,43 @@ function EmpPortal({emp,onLogout}){
                 ? "Great foundation. Focus on reliability and you'll level up fast."
                 : "Every great career starts somewhere — keep showing up strong.";
 
-              const gross = (emp.wkHrs*emp.rate*2).toFixed(2);
+              const gross = (empSafe.wkHrs*empSafe.rate*2).toFixed(2);
 
               const earnedBadges = [
-                {icon:"🔥",label:"7-Day Streak",earned:emp.streak>=7},
-                {icon:"⭐",label:"Most Reliable",earned:emp.rel>=90},
-                {icon:"💰",label:"Payroll Accurate",earned:emp.ghost<0.5},
-                {icon:"⏰",label:"Always On Time",earned:emp.rel>=90},
-                {icon:"🏆",label:"Zero Flags",earned:emp.flags===0},
-                {icon:"💪",label:"OT Warrior",earned:(emp.ot||0)>0},
+                {icon:"🔥",label:"7-Day Streak",earned:empSafe.streak>=7},
+                {icon:"⭐",label:"Most Reliable",earned:empSafe.rel>=90},
+                {icon:"💰",label:"Payroll Accurate",earned:empSafe.ghost<0.5},
+                {icon:"⏰",label:"Always On Time",earned:empSafe.rel>=90},
+                {icon:"🏆",label:"Zero Flags",earned:empSafe.flags===0},
+                {icon:"💪",label:"OT Warrior",earned:(empSafe.ot||0)>0},
               ];
 
               const lockedBadges = [
                 {icon:"🔒",label:"30-Day Streak",need:"16 more shifts"},
                 {icon:"🔒",label:"Lead Ready",need:"reach 95% reliability"},
-                {icon:"🔒",label:"90-Day Legend",need:90-emp.streak+" days to go"},
+                {icon:"🔒",label:"90-Day Legend",need:90-empSafe.streak+" days to go"},
               ];
 
               const tiers = ["New Hire","Developing","Solid Performer","Lead Candidate","Team Lead"];
               const tierIndex = score>=90?4:score>=80?3:score>=65?2:score>=50?1:0;
 
               const skills = [
-                {label:"Food Handler",      earned:emp.rel>80,    icon:"🍽️"},
-                {label:"Cash Handling",     earned:emp.cam>80,    icon:"💵"},
-                {label:"First Aid",         earned:emp.streak>5,  icon:"🩺"},
+                {label:"Food Handler",      earned:empSafe.rel>80,    icon:"🍽️"},
+                {label:"Cash Handling",     earned:empSafe.cam>80,    icon:"💵"},
+                {label:"First Aid",         earned:empSafe.streak>5,  icon:"🩺"},
                 {label:"Forklift Cert",     earned:false,         icon:"🏗️", note:"Ask manager to schedule"},
                 {label:"Manager Cert",      earned:false,         icon:"📋", note:"Eligible after Lead Candidate"},
               ];
 
               const trendData = [
-                {w:"W1",rel:emp.rel-8,prod:emp.prod-6},
-                {w:"W2",rel:emp.rel-5,prod:emp.prod-4},
-                {w:"W3",rel:emp.rel-7,prod:emp.prod-3},
-                {w:"W4",rel:emp.rel-2,prod:emp.prod-5},
-                {w:"W5",rel:emp.rel-4,prod:emp.prod-2},
-                {w:"W6",rel:emp.rel-1,prod:emp.prod-1},
-                {w:"W7",rel:emp.rel-3,prod:emp.prod+1},
-                {w:"Now",rel:emp.rel,  prod:emp.prod},
+                {w:"W1",rel:empSafe.rel-8,prod:empSafe.prod-6},
+                {w:"W2",rel:empSafe.rel-5,prod:empSafe.prod-4},
+                {w:"W3",rel:empSafe.rel-7,prod:empSafe.prod-3},
+                {w:"W4",rel:empSafe.rel-2,prod:empSafe.prod-5},
+                {w:"W5",rel:empSafe.rel-4,prod:empSafe.prod-2},
+                {w:"W6",rel:empSafe.rel-1,prod:empSafe.prod-1},
+                {w:"W7",rel:empSafe.rel-3,prod:empSafe.prod+1},
+                {w:"Now",rel:empSafe.rel,  prod:empSafe.prod},
               ];
               const maxTrend = 100;
 
@@ -1484,9 +1523,9 @@ function EmpPortal({emp,onLogout}){
 
                         {/* Three metric bars */}
                         {[
-                          {l:"Reliability",    v:emp.rel,  delta:"+3",c:E.indigo},
-                          {l:"Productivity",   v:emp.prod, delta:"+1",c:E.violet},
-                          {l:"Punctuality",     v:emp.rel,  delta:"+2",c:E.teal},
+                          {l:"Reliability",    v:empSafe.rel,  delta:"+3",c:E.indigo},
+                          {l:"Productivity",   v:empSafe.prod, delta:"+1",c:E.violet},
+                          {l:"Punctuality",     v:empSafe.rel,  delta:"+2",c:E.teal},
                         ].map(m=>(
                           <div key={m.l} style={{marginBottom:8}}>
                             <div style={{display:"flex",justifyContent:"space-between",
@@ -1516,14 +1555,14 @@ function EmpPortal({emp,onLogout}){
                         borderRadius:14,padding:"16px 20px"}}>
                         <div style={{fontFamily:E.sans,fontWeight:900,
                           fontSize:42,color:E.yellow,lineHeight:1,marginBottom:2}}>
-                          🔥 {emp.streak}
+                          🔥 {empSafe.streak}
                         </div>
                         <div style={{fontFamily:E.mono,fontSize:8,
                           color:"rgba(245,158,11,0.7)",letterSpacing:1,marginBottom:4}}>
                           DAY STREAK
                         </div>
                         <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>
-                          Best: {emp.streak+12} days
+                          Best: {empSafe.streak+12} days
                         </div>
                       </div>
                     </div>
@@ -1725,20 +1764,20 @@ function EmpPortal({emp,onLogout}){
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
                           {[
                             {label:"Reliability ≥ 95%",
-                             current:emp.rel+"%",
+                             current:empSafe.rel+"%",
                              target:"95%",
-                             pct:Math.min(100,Math.round((emp.rel/95)*100)),
-                             met:emp.rel>=95},
+                             pct:Math.min(100,Math.round((empSafe.rel/95)*100)),
+                             met:empSafe.rel>=95},
                             {label:"Zero flags — 14 days",
-                             current:emp.flags===0?"3 days in":"0 days",
+                             current:empSafe.flags===0?"3 days in":"0 days",
                              target:"14 days",
-                             pct:emp.flags===0?Math.round((3/14)*100):0,
+                             pct:empSafe.flags===0?Math.round((3/14)*100):0,
                              met:false},
                             {label:"Attendance streak",
-                             current:emp.streak+" days",
+                             current:empSafe.streak+" days",
                              target:"90 days",
-                             pct:Math.round((emp.streak/90)*100),
-                             met:emp.streak>=90},
+                             pct:Math.round((empSafe.streak/90)*100),
+                             met:empSafe.streak>=90},
                             {label:"Manager recommendation",
                              current:"Pending",
                              target:"Required",
@@ -1780,7 +1819,7 @@ function EmpPortal({emp,onLogout}){
                           </span>{" "}
                           in approximately{" "}
                           <span style={{color:E.text,fontWeight:700}}>
-                            {Math.ceil((90-emp.streak)/5)} weeks
+                            {Math.ceil((90-empSafe.streak)/5)} weeks
                           </span>.
                         </div>
                       </div>
@@ -1840,7 +1879,7 @@ function EmpPortal({emp,onLogout}){
                             <div style={{fontFamily:E.sans,fontWeight:800,
                               fontSize:22,color:E.indigo}}>${gross}</div>
                             <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>
-                              {emp.wkHrs}h · ${emp.rate}/hr · Mar 18–31
+                              {empSafe.wkHrs}h · ${empSafe.rate}/hr · Mar 18–31
                             </div>
                           </div>
                           <button style={{padding:"6px 12px",
@@ -1937,7 +1976,7 @@ function EmpPortal({emp,onLogout}){
             </div>
             <div style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"18px",boxShadow:E.shadow}}>
               <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text,marginBottom:12}}>👥 Team This Week</div>
-              {EMPS.filter(e=>e.id!==emp.id).map(e => (
+              {EMPS.filter(e=>e.id!==empSafe.id).map(e => (
                 <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 0",borderBottom:`1px solid ${E.border}`}}>
                   <Av emp={e} size={34}/>
                   <div style={{flex:1}}>
@@ -1956,11 +1995,11 @@ function EmpPortal({emp,onLogout}){
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:14}}>Your Achievements 🏆</div>
             <div style={{background:`linear-gradient(135deg,${scColor}18,${scColor}06)`,border:`2px solid ${scColor}40`,borderRadius:18,padding:"26px",textAlign:"center",marginBottom:14,boxShadow:`0 4px 24px ${scColor}18`}}>
-              <div style={{fontSize:44,marginBottom:8}}>{emp.streak>=10?"⭐":emp.streak>=5?"🔷":"✅"}</div>
+              <div style={{fontSize:44,marginBottom:8}}>{empSafe.streak>=10?"⭐":empSafe.streak>=5?"🔷":"✅"}</div>
               <div style={{fontFamily:E.sans,fontWeight:800,fontSize:"clamp(16px,5vw,22px)",color:scColor,marginBottom:4}}>{sc}</div>
-              <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>Keep it up, {emp.first}!</div>
+              <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>Keep it up, {empSafe.first}!</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-                {[["On-Time Streak",`${emp.streak} shifts`,scColor],["This Month",`${emp.shifts} shifts`,E.indigo],["Reliability",`${emp.rel}%`,E.violet]].map(([l,v,c]) => (
+                {[["On-Time Streak",`${empSafe.streak} shifts`,scColor],["This Month",`${empSafe.shifts} shifts`,E.indigo],["Reliability",`${empSafe.rel}%`,E.violet]].map(([l,v,c]) => (
                   <div key={l} style={{background:"rgba(255,255,255,0.75)",borderRadius:10,padding:"11px"}}>
                     <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginBottom:3}}>{l}</div>
                     <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:c}}>{v}</div>
@@ -1972,12 +2011,12 @@ function EmpPortal({emp,onLogout}){
               <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>Badges Earned</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
                 {[
-                  {icon:"🎯",label:"On Time",ok:emp.streak>0},
-                  {icon:"💪",label:"Full Month",ok:emp.shifts>=15},
+                  {icon:"🎯",label:"On Time",ok:empSafe.streak>0},
+                  {icon:"💪",label:"Full Month",ok:empSafe.shifts>=15},
                   {icon:"⚡",label:"Fast Learner",ok:true},
-                  {icon:"🤝",label:"Team Player",ok:emp.flags===0},
-                  {icon:"📈",label:"Improving",ok:emp.prod>70},
-                  {icon:"🔒",label:"Trustworthy",ok:emp.flags===0&&emp.rel>80},
+                  {icon:"🤝",label:"Team Player",ok:empSafe.flags===0},
+                  {icon:"📈",label:"Improving",ok:empSafe.prod>70},
+                  {icon:"🔒",label:"Trustworthy",ok:empSafe.flags===0&&empSafe.rel>80},
                 ].map(b => (
                   <div key={b.label} style={{background:b.ok?E.bg3:`${E.bg3}70`,borderRadius:10,padding:"13px",textAlign:"center",border:`1px solid ${b.ok?E.border:"transparent"}`,opacity:b.ok?1:0.4}}>
                     <div style={{fontSize:22,marginBottom:5,filter:b.ok?"none":"grayscale(1)"}}>{b.icon}</div>
@@ -1999,7 +2038,7 @@ function EmpPortal({emp,onLogout}){
             <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Your manager will review and confirm</div>
             {[
               {label:"Which shift?",el:<select style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text}}>{myShifts.map(({d,ss})=><option key={d}>{d} · {fH(ss[0].s)}–{fH(ss[0].e)}</option>)}</select>},
-              {label:"Swap with?",el:<select style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text}}>{EMPS.filter(e=>e.id!==emp.id).map(e=><option key={e.id}>{e.name}</option>)}</select>},
+              {label:"Swap with?",el:<select style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text}}>{EMPS.filter(e=>e.id!==empSafe.id).map(e=><option key={e.id}>{e.name}</option>)}</select>},
               {label:"Notes (optional)",el:<input placeholder="Any details…" style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text}}/>},
             ].map(f => (
               <div key={f.label} style={{marginBottom:12}}>
@@ -2107,7 +2146,7 @@ function EmpPortal({emp,onLogout}){
                   letterSpacing:1}}>LAST 6 PAY PERIODS</div>
               </div>
               {[
-                {period:"Mar 16–31, 2025", hrs:emp.wkHrs*2,   paid:true,  date:"Mar 31"},
+                {period:"Mar 16–31, 2025", hrs:empSafe.wkHrs*2,   paid:true,  date:"Mar 31"},
                 {period:"Mar 1–15, 2025",  hrs:76,             paid:true,  date:"Mar 15"},
                 {period:"Feb 16–28, 2025", hrs:72,             paid:true,  date:"Feb 28"},
                 {period:"Feb 1–15, 2025",  hrs:78,             paid:true,  date:"Feb 15"},
@@ -2419,10 +2458,17 @@ function OwnerCmd({onLogout}){
             }
           }
         }
-      }catch(e){ console.error("Owner load error:",e); }
-    };
-    load();
-  },[]);
+      }catch(e){
+      console.error("Owner load error:",e);
+      setLiveEmps([]);
+    }
+  };
+  load();
+  const fallback = setTimeout(()=>{
+    setLiveEmps(prev => prev === null ? [] : prev);
+  }, 4000);
+  return () => clearTimeout(fallback);
+},[]);
 
   // ── Load shifts for a week ──
   const loadShifts = async(orgId, weekStr) => {
