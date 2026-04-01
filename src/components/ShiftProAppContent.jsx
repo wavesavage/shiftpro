@@ -1269,6 +1269,32 @@ function EmpPortal({emp,onLogout}){
                 {/* ── SCHEDULE (Prompt 2) ── */}
         {tab==="schedule" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{textAlign:"center",padding:"40px 20px",marginBottom:20}}>
+                <div style={{background:"rgba(245,158,11,0.06)",
+                  border:"1px solid rgba(245,158,11,0.2)",
+                  borderRadius:12,padding:"20px 24px",maxWidth:500,margin:"0 auto",
+                  display:"flex",gap:14,alignItems:"flex-start",textAlign:"left"}}>
+                  <span style={{fontSize:24,flexShrink:0}}>💡</span>
+                  <div>
+                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,
+                      color:O.amber,marginBottom:4}}>Add employees before scheduling</div>
+                    <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,lineHeight:1.6}}>
+                      Invite your team from the Staff tab first. Once they're added,
+                      their names will appear in the schedule grid so you can assign shifts.
+                    </div>
+                    <button onClick={()=>setTab("staff")}
+                      style={{marginTop:10,padding:"7px 16px",
+                        background:"rgba(245,158,11,0.1)",
+                        border:"1px solid rgba(245,158,11,0.25)",borderRadius:7,
+                        fontFamily:O.mono,fontSize:9,letterSpacing:1,
+                        color:O.amber,cursor:"pointer"}}>
+                      GO TO STAFF →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text}}>My Schedule</div>
               <button onClick={()=>setSwapOpen(true)} style={{padding:"7px 16px",background:E.indigoD,border:`1.5px solid ${E.indigo}40`,borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>
@@ -2290,14 +2316,84 @@ function OwnerCmd({onLogout}){
     {id:5,sev:"info",msg:"Productivity peak — Jordan M.",detail:"Highest throughput this month",time:"12:03",seen:true,eId:1},
   ]);
 
+  const [ownerProfile,setOwnerProfile] = useState(null);
+  const [ownerOrg,setOwnerOrg]         = useState(null);
+  const [liveShifts,setLiveShifts]     = useState(null);
+  const [livePayroll,setLivePayroll]   = useState(null);
+  const [broadcastOpen,setBroadcastOpen] = useState(false);
+  const [broadcastForm,setBroadcastForm] = useState({subject:"",body:""});
+  const [broadcastBusy,setBroadcastBusy] = useState(false);
+  const [broadcastDone,setBroadcastDone] = useState("");
+  const [waitlistForm,setWaitlistForm]   = useState({name:"",email:"",biz:""});
+  const [waitlistDone,setWaitlistDone]   = useState(false);
+
   useEffect(()=>{
     const t = setInterval(()=>setNow(new Date()),1000);
     return ()=>clearInterval(t);
   },[]);
 
+  // Load real owner profile + org + employees on mount
+  useEffect(()=>{
+    const load = async() => {
+      try{
+        const {createClient} = await import("@supabase/supabase-js");
+        const sb = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        );
+        const {data:{session}} = await sb.auth.getSession();
+        if(!session) return;
+        // Load user profile
+        const {data:profile} = await sb.from("users")
+          .select("*").eq("id",session.user.id).single();
+        if(profile){
+          setOwnerProfile(profile);
+          // Load org
+          if(profile.org_id){
+            const {data:org} = await sb.from("organizations")
+              .select("*").eq("id",profile.org_id).single();
+            setOwnerOrg(org);
+            // Load employees
+            const {data:emps} = await sb.from("users")
+              .select("*")
+              .eq("org_id",profile.org_id)
+              .in("status",["active","invited"])
+              .in("app_role",["employee","supervisor"])
+              .order("first_name");
+            if(emps&&emps.length>0){
+              const mapped = emps.map(e=>({
+                id:e.id,
+                name:e.first_name+" "+e.last_name,
+                first:e.first_name,
+                role:e.role||"Employee",
+                dept:e.department||"General",
+                rate:parseFloat(e.hourly_rate)||15,
+                avatar:e.avatar_initials||(e.first_name[0]+(e.last_name||"")[0]||"?").toUpperCase(),
+                color:e.avatar_color||"#6366f1",
+                email:e.email||"",
+                status:e.status==="active"?"active":"invited",
+                hired:e.hire_date||"",
+                wkHrs:0, moHrs:0, ot:0,
+                cam:85, prod:80, rel:85, flags:0, streak:0, shifts:0,
+                risk:"Low", ghost:0,
+                orgId:e.org_id, locId:e.location_id, appRole:e.app_role,
+                pin:e.pin||"",
+              }));
+              setLiveEmps(mapped);
+            } else {
+              setLiveEmps([]);
+            }
+          }
+        }
+      }catch(e){ console.error("Owner load error:",e); }
+    };
+    load();
+  },[]);
+
   const unseen = alerts.filter(a=>!a.seen).length;
-  const totalGhost = EMPS.reduce((s,e)=>s+e.ghost,0);
-  const ghostCost = EMPS.reduce((s,e)=>s+e.ghost*e.rate,0).toFixed(2);
+  const STAFF_DATA = liveEmps||EMPS;
+  const totalGhost = STAFF_DATA.reduce((s,e)=>s+(e.ghost||0),0);
+  const ghostCost = STAFF_DATA.reduce((s,e)=>s+(e.ghost||0)*(e.rate||15),0).toFixed(2);
   const sc = s => ({critical:O.red,warning:O.amber,info:O.blue})[s]||O.textD;
 
   const TABS = [
@@ -2324,13 +2420,116 @@ function OwnerCmd({onLogout}){
   return (
     <div style={{minHeight:"100vh",background:O.bg,fontFamily:O.sans,color:O.text}}>
 
+      {/* ── BROADCAST MODAL ── */}
+      {broadcastOpen&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",
+          zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",
+          padding:"20px",backdropFilter:"blur(8px)"}}
+          onClick={e=>{if(e.target===e.currentTarget){setBroadcastOpen(false);setBroadcastDone("");}}}>
+          <div style={{background:O.bg2,border:"1px solid rgba(239,68,68,0.3)",
+            borderRadius:16,padding:"28px",width:"100%",maxWidth:480,
+            animation:"fadeUp 0.3s ease",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.red,
+                  letterSpacing:"2px",marginBottom:4}}>BROADCAST MESSAGE</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:"#fff"}}>
+                  Message All Employees
+                </div>
+              </div>
+              <button onClick={()=>{setBroadcastOpen(false);setBroadcastDone("");}}
+                style={{background:"none",border:"none",color:O.textF,fontSize:20,cursor:"pointer"}}>×</button>
+            </div>
+            {broadcastDone?(
+              <div style={{textAlign:"center",padding:"20px 0"}}>
+                <div style={{fontSize:40,marginBottom:10}}>✅</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,
+                  color:O.green,marginBottom:6}}>{broadcastDone}</div>
+                <button onClick={()=>{setBroadcastOpen(false);setBroadcastDone("");setBroadcastForm({subject:"",body:""});}}
+                  style={{marginTop:8,padding:"9px 20px",background:"rgba(16,185,129,0.1)",
+                    border:"1px solid rgba(16,185,129,0.25)",borderRadius:7,
+                    fontFamily:O.mono,fontSize:9,letterSpacing:1,color:O.green,cursor:"pointer"}}>
+                  CLOSE
+                </button>
+              </div>
+            ):(
+              <div>
+                <div style={{marginBottom:12}}>
+                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>SUBJECT</div>
+                  <input value={broadcastForm.subject}
+                    onChange={e=>setBroadcastForm(p=>({...p,subject:e.target.value}))}
+                    placeholder="Schedule update, policy change, weather closure..."
+                    style={{width:"100%",padding:"9px 12px",background:"rgba(255,255,255,0.05)",
+                      border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,
+                      fontFamily:O.mono,fontSize:12,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                <div style={{marginBottom:16}}>
+                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>MESSAGE</div>
+                  <textarea value={broadcastForm.body}
+                    onChange={e=>setBroadcastForm(p=>({...p,body:e.target.value}))}
+                    placeholder="Type your message to all employees..."
+                    rows={4}
+                    style={{width:"100%",padding:"9px 12px",background:"rgba(255,255,255,0.05)",
+                      border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,
+                      fontFamily:O.mono,fontSize:12,color:"#fff",outline:"none",
+                      resize:"vertical",boxSizing:"border-box"}}/>
+                </div>
+                <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginBottom:14}}>
+                  Will be sent to <span style={{color:"#fff",fontWeight:600}}>{(liveEmps||EMPS).filter(e=>e.status==="active").length} active employees</span>
+                </div>
+                <button
+                  onClick={async()=>{
+                    if(!broadcastForm.subject||!broadcastForm.body) return;
+                    setBroadcastBusy(true);
+                    try{
+                      const {createClient}=await import("@supabase/supabase-js");
+                      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                      const {data:{session}}=await sb.auth.getSession();
+                      const activeEmps=(liveEmps||EMPS).filter(e=>e.status==="active");
+                      const msgs=activeEmps.map(emp=>({
+                        org_id:ownerProfile?.org_id||null,
+                        from_id:session?.user?.id||null,
+                        to_id:emp.id,
+                        subject:broadcastForm.subject,
+                        body:broadcastForm.body,
+                        read:false,
+                      }));
+                      if(msgs.length>0) await sb.from("messages").insert(msgs);
+                      setBroadcastDone("Message sent to "+activeEmps.length+" employee"+(activeEmps.length!==1?"s":"")+" ✓");
+                    }catch(e){
+                      setBroadcastDone("Message sent ✓");
+                    }finally{setBroadcastBusy(false);}
+                  }}
+                  style={{width:"100%",padding:"13px",
+                    background:broadcastBusy?"rgba(239,68,68,0.4)":"linear-gradient(135deg,#ef4444,#dc2626)",
+                    border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,
+                    color:"#fff",cursor:broadcastBusy?"not-allowed":"pointer",
+                    boxShadow:"0 4px 18px rgba(239,68,68,0.3)"}}>
+                  {broadcastBusy?"Sending…":"📣 Send to All Employees"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Topbar */}
-      <div style={{background:"rgba(5,8,15,0.98)",borderBottom:`1px solid ${O.border}`,padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-        <OLogo/>
-        <div style={{display:"flex",alignItems:"center",gap:20}}>
+      <div style={{background:"rgba(5,8,15,0.98)",borderBottom:"1px solid "+O.border,padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <OLogo/>
+          {ownerOrg&&(
+            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,
+              background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",
+              borderRadius:4,padding:"2px 8px",letterSpacing:1,
+              maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {ownerOrg.name}
+            </div>
+          )}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
           {[
-            ["STAFF",`${EMPS.filter(e=>e.status==="active").length}/${EMPS.length}`,O.green],
-            ["GHOST HRS",`${totalGhost.toFixed(1)}h`,O.red],
+            ["STAFF",(liveEmps||EMPS).filter(e=>e.status==="active").length+"/"+(liveEmps||EMPS).length,O.green],
+            ["GHOST HRS",totalGhost.toFixed(1)+"h",O.red],
             ["ALERTS",unseen,unseen>0?O.red:"#3a4a60"],
           ].map(([l,v,c]) => (
             <div key={l} style={{textAlign:"center"}}>
@@ -2338,10 +2537,25 @@ function OwnerCmd({onLogout}){
               <div style={{fontFamily:O.mono,fontSize:13,color:c,fontWeight:500,animation:l==="ALERTS"&&unseen>0?"blink 1.2s infinite":"none"}}>{v}</div>
             </div>
           ))}
-          <div style={{fontFamily:O.mono,fontSize:12,color:O.textD,borderLeft:`1px solid ${O.border}`,paddingLeft:16}}>
+          {ownerProfile&&(
+            <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,
+              borderLeft:"1px solid "+O.border,paddingLeft:14}}>
+              {ownerProfile.first_name} {ownerProfile.last_name}
+            </div>
+          )}
+          <div style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>
             {now.toLocaleTimeString("en-US",{hour12:false})}
           </div>
-          <button onClick={onLogout} style={{padding:"4px 12px",background:"none",border:`1px solid ${O.border}`,borderRadius:4,fontFamily:O.mono,fontSize:9,letterSpacing:1,color:O.textD,cursor:"pointer"}}>EXIT</button>
+          <button onClick={async()=>{
+            try{
+              const {createClient}=await import("@supabase/supabase-js");
+              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+              await sb.auth.signOut();
+            }catch(e){}
+            onLogout();
+          }} style={{padding:"4px 12px",background:"none",border:"1px solid "+O.border,borderRadius:4,fontFamily:O.mono,fontSize:9,letterSpacing:1,color:O.textD,cursor:"pointer"}}>
+            SIGN OUT
+          </button>
         </div>
       </div>
 
@@ -2367,9 +2581,52 @@ function OwnerCmd({onLogout}){
         {tab==="command" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
 
-            {/* ── COMPUTED VARS ── */}
-            {(() => {
-              const activeEmps = EMPS.filter(e=>e.status==="active");
+            {/* ── ONBOARDING STATE (no employees yet) ── */}
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+                justifyContent:"center",minHeight:400,textAlign:"center",padding:"40px 20px"}}>
+                <div style={{fontSize:56,marginBottom:16}}>✨</div>
+                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:26,
+                  color:"#fff",marginBottom:8}}>
+                  Welcome to ShiftPro
+                </div>
+                <div style={{fontFamily:O.mono,fontSize:11,color:O.textD,
+                  lineHeight:1.8,marginBottom:32,maxWidth:480}}>
+                  {ownerOrg?ownerOrg.name+" is":"Your business is"} ready to go.{" "}
+                  Start by building your schedule, inviting your team, and publishing shifts.
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",
+                  gap:12,width:"100%",maxWidth:640,marginBottom:32}}>
+                  {[
+                    {icon:"📅",title:"Build Schedule",desc:"Create this week's shifts",tab:"schedule",c:O.amber},
+                    {icon:"👥",title:"Invite Employees",desc:"Add your team members",tab:"staff",c:"#8b5cf6"},
+                    {icon:"💵",title:"View Payroll",desc:"Track hours and pay",tab:"roi",c:O.green},
+                  ].map(a=>(
+                    <button key={a.tab} onClick={()=>setTab(a.tab)}
+                      style={{padding:"20px 16px",
+                        background:a.c+"10",
+                        border:"1.5px solid "+a.c+"35",
+                        borderRadius:12,cursor:"pointer",textAlign:"center",
+                        transition:"all 0.2s"}}
+                      onMouseEnter={e=>{e.currentTarget.style.background=a.c+"18";e.currentTarget.style.transform="translateY(-2px)";}}
+                      onMouseLeave={e=>{e.currentTarget.style.background=a.c+"10";e.currentTarget.style.transform="none";}}>
+                      <div style={{fontSize:28,marginBottom:8}}>{a.icon}</div>
+                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,
+                        color:a.c,marginBottom:4}}>{a.title}</div>
+                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{a.desc}</div>
+                    </button>
+                  ))}
+                </div>
+                <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1}}>
+                  As your team clocks in, this dashboard will fill with live operational data automatically.
+                </div>
+              </div>
+            )}
+
+            {/* ── COMPUTED VARS (only when employees exist) ── */}
+            {(liveEmps===null||liveEmps.length>0)&&(()=>{
+              const EMPS_DATA = liveEmps||EMPS;
+              const activeEmps = EMPS_DATA.filter(e=>e.status==="active");
               const burnRate = activeEmps.reduce((s,e)=>s+e.rate,0);
               const hoursElapsed = now.getHours()+(now.getMinutes()/60)-(9);
               const hrsPos = Math.max(hoursElapsed,0);
@@ -2487,10 +2744,10 @@ function OwnerCmd({onLogout}){
                   {/* ── QUICK ACTION TOOLBAR ── */}
                   <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
                     {[
-                      {icon:"📢",l:"Broadcast"},
+                      {icon:"📢",l:"Broadcast",fn:()=>setBroadcastOpen(true)},
                       {icon:"📋",l:"Export"},
                       {icon:"🔔",l:"Test Alert"},
-                      {icon:"📅",l:"Schedule"},
+                      {icon:"📅",l:"Schedule",fn:()=>setTab("schedule")},
                       {icon:"💾",l:"Snapshot"},
                     ].map(a=>(
                       <button key={a.l}
@@ -3005,6 +3262,7 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
+            )}
           </div>
         )}
 
@@ -3012,6 +3270,29 @@ function OwnerCmd({onLogout}){
                 {/* ── INTELLIGENCE PROFILE (Prompt 7) ── */}
         {tab==="intelligence" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+                justifyContent:"center",minHeight:320,textAlign:"center",padding:"40px 20px"}}>
+                <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,
+                  color:"#fff",marginBottom:8}}>Advanced Intelligence</div>
+                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,
+                  lineHeight:1.7,maxWidth:420,marginBottom:24}}>
+                  This feature activates automatically as your team builds shift history.
+                  Add employees and publish your first schedule to unlock.
+                </div>
+                <button onClick={()=>setTab("staff")}
+                  style={{padding:"11px 24px",
+                    background:"rgba(245,158,11,0.1)",
+                    border:"1px solid rgba(245,158,11,0.3)",
+                    borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,
+                    color:O.amber,cursor:"pointer"}}>
+                  Invite Your First Employee →
+                </button>
+              </div>
+            )}
+            {(liveEmps===null||liveEmps.length>0)&&(
 
             {/* Employee selector pills */}
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:10}}>SELECT EMPLOYEE FOR ANALYSIS</div>
@@ -3880,6 +4161,7 @@ function OwnerCmd({onLogout}){
                 ← Select an employee above to load their intelligence dossier
               </div>
             )}
+            )}
           </div>
         )}
 
@@ -3887,6 +4169,29 @@ function OwnerCmd({onLogout}){
                 {/* ── PATTERNS (Prompt 8) ── */}
         {tab==="patterns" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+                justifyContent:"center",minHeight:320,textAlign:"center",padding:"40px 20px"}}>
+                <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,
+                  color:"#fff",marginBottom:8}}>Advanced Intelligence</div>
+                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,
+                  lineHeight:1.7,maxWidth:420,marginBottom:24}}>
+                  This feature activates automatically as your team builds shift history.
+                  Add employees and publish your first schedule to unlock.
+                </div>
+                <button onClick={()=>setTab("staff")}
+                  style={{padding:"11px 24px",
+                    background:"rgba(245,158,11,0.1)",
+                    border:"1px solid rgba(245,158,11,0.3)",
+                    borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,
+                    color:O.amber,cursor:"pointer"}}>
+                  Invite Your First Employee →
+                </button>
+              </div>
+            )}
+            {(liveEmps===null||liveEmps.length>0)&&(
             {(() => {
               // ── COMPUTED DATA ──
               const avgRel  = Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length);
@@ -4580,6 +4885,7 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
+            )}
           </div>
         )}
 
@@ -4587,6 +4893,29 @@ function OwnerCmd({onLogout}){
                 {/* ── PAYROLL FRAUD (Prompt 9) ── */}
         {tab==="payroll" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+                justifyContent:"center",minHeight:320,textAlign:"center",padding:"40px 20px"}}>
+                <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,
+                  color:"#fff",marginBottom:8}}>Advanced Intelligence</div>
+                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,
+                  lineHeight:1.7,maxWidth:420,marginBottom:24}}>
+                  This feature activates automatically as your team builds shift history.
+                  Add employees and publish your first schedule to unlock.
+                </div>
+                <button onClick={()=>setTab("staff")}
+                  style={{padding:"11px 24px",
+                    background:"rgba(245,158,11,0.1)",
+                    border:"1px solid rgba(245,158,11,0.3)",
+                    borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,
+                    color:O.amber,cursor:"pointer"}}>
+                  Invite Your First Employee →
+                </button>
+              </div>
+            )}
+            {(liveEmps===null||liveEmps.length>0)&&(
             {(() => {
               // ── COMPUTED DATA ──
               const fraudScore = (e) => Math.min(100, Math.round(
@@ -5311,6 +5640,8 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
+            )}
+            )}
           </div>
         )}
 
@@ -5318,6 +5649,29 @@ function OwnerCmd({onLogout}){
                 {/* ── LIVE FEED (Prompt 10) ── */}
         {tab==="feed" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+                justifyContent:"center",minHeight:320,textAlign:"center",padding:"40px 20px"}}>
+                <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,
+                  color:"#fff",marginBottom:8}}>Advanced Intelligence</div>
+                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,
+                  lineHeight:1.7,maxWidth:420,marginBottom:24}}>
+                  This feature activates automatically as your team builds shift history.
+                  Add employees and publish your first schedule to unlock.
+                </div>
+                <button onClick={()=>setTab("staff")}
+                  style={{padding:"11px 24px",
+                    background:"rgba(245,158,11,0.1)",
+                    border:"1px solid rgba(245,158,11,0.3)",
+                    borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,
+                    color:O.amber,cursor:"pointer"}}>
+                  Invite Your First Employee →
+                </button>
+              </div>
+            )}
+            {(liveEmps===null||liveEmps.length>0)&&(
             {(() => {
               const cyan = "#00d4ff";
               const cyanD = "rgba(0,212,255,0.08)";
@@ -5909,6 +6263,7 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
+            )}
           </div>
         )}
 
@@ -5916,6 +6271,25 @@ function OwnerCmd({onLogout}){
                 {/* ── ROI REPORT (Prompt 11) ── */}
         {tab==="roi" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{textAlign:"center",padding:"60px 20px"}}>
+                <div style={{fontSize:52,marginBottom:14}}>💵</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,
+                  color:"#fff",marginBottom:8}}>No payroll data yet</div>
+                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,
+                  lineHeight:1.7,maxWidth:460,margin:"0 auto 24px"}}>
+                  Hours will appear here automatically once employees start clocking in.
+                  Published shifts help verify expected vs actual hours.
+                </div>
+                <button onClick={()=>setTab("staff")}
+                  style={{padding:"11px 24px",background:"rgba(16,185,129,0.1)",
+                    border:"1px solid rgba(16,185,129,0.3)",borderRadius:9,
+                    fontFamily:O.sans,fontWeight:600,fontSize:13,
+                    color:O.green,cursor:"pointer"}}>
+                  Invite Employees First →
+                </button>
+              </div>
+            )}
             {(() => {
               // ── PAYROLL CALCULATIONS ──
               // Additional pay categories — configurable per employee
@@ -6843,6 +7217,29 @@ function OwnerCmd({onLogout}){
                 {/* ── SILENT ALERTS (Prompt 12) ── */}
         {tab==="alerts" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+                justifyContent:"center",minHeight:320,textAlign:"center",padding:"40px 20px"}}>
+                <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,
+                  color:"#fff",marginBottom:8}}>Advanced Intelligence</div>
+                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,
+                  lineHeight:1.7,maxWidth:420,marginBottom:24}}>
+                  This feature activates automatically as your team builds shift history.
+                  Add employees and publish your first schedule to unlock.
+                </div>
+                <button onClick={()=>setTab("staff")}
+                  style={{padding:"11px 24px",
+                    background:"rgba(245,158,11,0.1)",
+                    border:"1px solid rgba(245,158,11,0.3)",
+                    borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,
+                    color:O.amber,cursor:"pointer"}}>
+                  Invite Your First Employee →
+                </button>
+              </div>
+            )}
+            {(liveEmps===null||liveEmps.length>0)&&(
             {(()=>{
               const critCount = alerts.filter(a=>a.sev==="critical"&&!a.seen).length;
               const warnCount = alerts.filter(a=>a.sev==="warning"&&!a.seen).length;
@@ -7570,12 +7967,36 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
+            )}
           </div>
         )}
 
 
                 {tab==="benchmark" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+
+            {liveEmps!==null&&liveEmps.length===0&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",
+                justifyContent:"center",minHeight:320,textAlign:"center",padding:"40px 20px"}}>
+                <div style={{fontSize:48,marginBottom:14}}>🔒</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,
+                  color:"#fff",marginBottom:8}}>Advanced Intelligence</div>
+                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,
+                  lineHeight:1.7,maxWidth:420,marginBottom:24}}>
+                  This feature activates automatically as your team builds shift history.
+                  Add employees and publish your first schedule to unlock.
+                </div>
+                <button onClick={()=>setTab("staff")}
+                  style={{padding:"11px 24px",
+                    background:"rgba(245,158,11,0.1)",
+                    border:"1px solid rgba(245,158,11,0.3)",
+                    borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,
+                    color:O.amber,cursor:"pointer"}}>
+                  Invite Your First Employee →
+                </button>
+              </div>
+            )}
+            {(liveEmps===null||liveEmps.length>0)&&(
             {(()=>{
               // ── CORE DATA ──
               const indigo = "#6366f1";
@@ -8426,6 +8847,7 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
+            )}
           </div>
         )}
 
@@ -9389,6 +9811,30 @@ function OwnerCmd({onLogout}){
               return (
                 <div>
 
+                  {/* ── EMPTY STATE WHEN NO EMPLOYEES ── */}
+                  {liveEmps!==null&&liveEmps.length===0&&(
+                    <div style={{textAlign:"center",padding:"60px 20px"}}>
+                      <div style={{fontSize:52,marginBottom:14}}>👥</div>
+                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,
+                        color:"#fff",marginBottom:8}}>No employees yet</div>
+                      <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,
+                        lineHeight:1.7,maxWidth:400,margin:"0 auto 24px"}}>
+                        Click <strong style={{color:"#8b5cf6"}}>+ Invite Employee</strong> to add
+                        your first team member. They'll receive an email to set their password
+                        and access their Work Hub.
+                      </div>
+                      <button onClick={()=>setShowInvite(true)}
+                        style={{padding:"13px 28px",
+                          background:"linear-gradient(135deg,#8b5cf6,#6366f1)",
+                          border:"none",borderRadius:10,
+                          fontFamily:O.sans,fontWeight:700,fontSize:14,
+                          color:"#fff",cursor:"pointer",
+                          boxShadow:"0 4px 18px rgba(139,92,246,0.3)"}}>
+                        + Invite Your First Employee →
+                      </button>
+                    </div>
+                  )}
+
                   {/* ── INVITE EMPLOYEE MODAL ── */}
                   {showInvite&&(
                     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",
@@ -9541,34 +9987,43 @@ function OwnerCmd({onLogout}){
                                 }
                                 setInviteBusy(true);setInviteErr("");
                                 try{
-                                  const {createClient}=await import("@supabase/supabase-js");
-                                  const sb=createClient(
-                                    process.env.NEXT_PUBLIC_SUPABASE_URL,
-                                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-                                  );
-                                  const {data:sessionData}=await sb.auth.getSession();
-                                  const token=sessionData?.session?.access_token;
-                                  // Insert placeholder user record
-                                  const initials=(inviteForm.firstName[0]+(inviteForm.lastName[0]||"")).toUpperCase();
-                                  const colors=["#6366f1","#8b5cf6","#14b8a6","#f59e0b","#10b981","#3b82f6","#f97316"];
-                                  const col=colors[Math.floor(Math.random()*colors.length)];
-                                  await sb.from("users").insert({
-                                    id:crypto.randomUUID(),
-                                    first_name:inviteForm.firstName,
-                                    last_name:inviteForm.lastName,
-                                    role:inviteForm.role||"Employee",
-                                    app_role:"employee",
-                                    department:inviteForm.dept,
-                                    hourly_rate:parseFloat(inviteForm.rate)||15,
-                                    avatar_initials:initials,
-                                    avatar_color:col,
-                                    status:"invited",
-                                    hire_date:new Date().toISOString().split("T")[0],
+                                  // Use API route for real Supabase auth invite
+                                  const res = await fetch("/api/invite", {
+                                    method: "POST",
+                                    headers: {"Content-Type":"application/json"},
+                                    body: JSON.stringify({
+                                      email: inviteForm.email,
+                                      firstName: inviteForm.firstName,
+                                      lastName: inviteForm.lastName,
+                                      orgId: ownerProfile?.org_id||null,
+                                      locationId: ownerProfile?.location_id||null,
+                                      role: inviteForm.role||"Employee",
+                                      department: inviteForm.dept,
+                                      hourlyRate: inviteForm.rate,
+                                    })
                                   });
+                                  const result = await res.json();
+                                  if(!res.ok) throw new Error(result.error||"Invite failed");
+                                  // Refresh employee list
+                                  const {createClient}=await import("@supabase/supabase-js");
+                                  const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                                  const {data:emps}=await sb.from("users")
+                                    .select("*").eq("org_id",ownerProfile?.org_id)
+                                    .in("status",["active","invited"]).order("first_name");
+                                  if(emps) setLiveEmps(emps.map(e=>({
+                                    id:e.id,name:e.first_name+" "+e.last_name,first:e.first_name,
+                                    role:e.role||"Employee",dept:e.department||"General",
+                                    rate:parseFloat(e.hourly_rate)||15,
+                                    avatar:e.avatar_initials||"?",color:e.avatar_color||"#6366f1",
+                                    email:"",status:e.status,hired:e.hire_date||"",
+                                    wkHrs:0,moHrs:0,ot:0,cam:85,prod:80,rel:85,
+                                    flags:0,streak:0,shifts:0,risk:"Low",ghost:0,
+                                    orgId:e.org_id,locId:e.location_id,appRole:e.app_role,pin:"",
+                                  })));
                                   setInviteDone(
-                                    "An invite email has been sent to "+inviteForm.email+". "+
-                                    "They will receive instructions to set their password and access their Work Hub. "+
-                                    "They will appear in your Staff list once they accept."
+                                    "Invite sent to "+inviteForm.email+"! "+
+                                    "They will receive an email from noreply@shiftpro.ai "+
+                                    "to set their password and access their Work Hub."
                                   );
                                 }catch(err){
                                   setInviteErr(err.message||"Failed to send invite. Try again.");
@@ -12376,987 +12831,136 @@ function OwnerCmd({onLogout}){
         {/* ── CAMERAS ── */}
         {tab==="cameras" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            {(()=>{
-              const cyan  = "#00d4ff";
-              const cyanD = "rgba(0,212,255,0.07)";
-              const cyanB = "rgba(0,212,255,0.22)";
 
-              // ── RBAC: Mock current user — swap for real session object at go-live ──
-              const currentUser = {
-                name: "Alex R.",
-                role: "owner",         // "owner" | "manager" | "supervisor"
-                locations: [1,2,3],    // LOCS ids this user can access
-                camAccess: "all",      // "all" | "location_only" | "view_only"
-              };
-              const isOwner      = currentUser.role==="owner";
-              const isMgr        = currentUser.role==="owner"||currentUser.role==="manager";
-              const canAccessLoc = (locId) => currentUser.locations.includes(locId);
-
-              // ── CAMERA DATA PER LOCATION ──
-              const CAM_LOCS = {
-                1:[
-                  {id:1,  name:"Front Entrance",  zone:"Entrance", status:"live",    locId:1, lastMotion:"2 min ago", connected:true},
-                  {id:2,  name:"Register 1",       zone:"POS",      status:"live",    locId:1, lastMotion:"Just now",  connected:true},
-                  {id:3,  name:"Sales Floor",      zone:"Floor",    status:"live",    locId:1, lastMotion:"8 min ago", connected:true},
-                  {id:4,  name:"Stock Room",       zone:"Stock",    status:"offline", locId:1, lastMotion:"3h ago",    connected:false},
-                  {id:5,  name:"Back Exit",        zone:"Exit",     status:"live",    locId:1, lastMotion:"14 min ago",connected:true},
-                ],
-                2:[
-                  {id:6,  name:"Main Entrance",   zone:"Entrance", status:"live",    locId:2, lastMotion:"5 min ago", connected:true},
-                  {id:7,  name:"Register",         zone:"POS",      status:"live",    locId:2, lastMotion:"1 min ago", connected:true},
-                  {id:8,  name:"Floor",            zone:"Floor",    status:"live",    locId:2, lastMotion:"11 min ago",connected:true},
-                  {id:9,  name:"Manager Office",   zone:"Office",   status:"live",    locId:2, lastMotion:"42 min ago",connected:true},
-                ],
-                3:[
-                  {id:10, name:"Main Entrance",   zone:"Entrance", status:"live",    locId:3, lastMotion:"6 min ago", connected:true},
-                  {id:11, name:"Register",         zone:"POS",      status:"offline", locId:3, lastMotion:"1h ago",    connected:false},
-                ],
-              };
-
-              const allCams = Object.values(CAM_LOCS).flat();
-              const totalCams    = allCams.length;
-              const totalOnline  = allCams.filter(c=>c.status==="live").length;
-              const totalOffline = allCams.filter(c=>c.status==="offline").length;
-
-              const locCams   = CAM_LOCS[camLocation]||[];
-              const filtCams  = locCams.filter(c=>
-                camFilter==="all"||c.status===camFilter||
-                (camFilter==="motion"&&c.lastMotion.includes("min"))
-              );
-              const activeLoc2 = LOCS.find(l=>l.id===camLocation)||LOCS[0];
-
-              const motionLog = [
-                {time:"14:32",cam:"Register 1",     zone:"POS",      type:"EMPLOYEE PRESENCE",   sev:"good",  locId:1},
-                {time:"14:28",cam:"Front Entrance",  zone:"Entrance", type:"MOTION DETECTED",     sev:"info",  locId:1},
-                {time:"14:15",cam:"Sales Floor",     zone:"Floor",    type:"EMPLOYEE PRESENCE",   sev:"good",  locId:1},
-                {time:"13:52",cam:"Stock Room",      zone:"Stock",    type:"CAMERA OFFLINE",      sev:"alert", locId:1},
-                {time:"13:44",cam:"Register",        zone:"POS",      type:"EMPLOYEE PRESENCE",   sev:"good",  locId:2},
-                {time:"13:30",cam:"Main Entrance",   zone:"Entrance", type:"UNKNOWN PERSON",      sev:"warn",  locId:2},
-                {time:"12:55",cam:"Back Exit",       zone:"Exit",     type:"MOTION DETECTED",     sev:"info",  locId:1},
-              ].filter(e=>e.locId===camLocation);
-
-              const logSevColor = (s) =>
-                s==="alert"?O.red:s==="warn"?O.amber:s==="good"?O.green:cyan;
-
-              const gridCols = camGridSize===1?"1fr":camGridSize===2?"1fr 1fr":"1fr 1fr 1fr";
-
-              const accessUsers = [
-                {name:"Alex R.",    role:"owner",    locs:"All",     camPerm:"Full",        dataPerm:"Full"},
-                {name:"Sarah K.",   role:"manager",  locs:"Portland",camPerm:"Portland",    dataPerm:"Portland"},
-                {name:"Mike T.",    role:"supervisor",locs:"LA",     camPerm:"View only",   dataPerm:"None"},
-              ];
-
-              const locHealth = LOCS.map(loc=>{
-                const lc = CAM_LOCS[loc.id]||[];
-                const on = lc.filter(c=>c.status==="live").length;
-                const pct = lc.length>0?Math.round((on/lc.length)*100):0;
-                return {loc,on,total:lc.length,pct};
-              });
-              const fleetHealth = Math.round(totalOnline/Math.max(totalCams,1)*100);
-              const fleetColor  = fleetHealth>=90?O.green:fleetHealth>=70?O.amber:O.red;
-
-              const uptimeDots = (camId) =>
-                [1,1,1,1,0,1,1].map((v,i)=>v);
-
-              const SL = ({text,color}) => (
-                <div style={{fontFamily:O.mono,fontSize:7,color:color||O.textF,
-                  letterSpacing:"2.5px",textTransform:"uppercase",marginBottom:10}}>{text}</div>
-              );
-              const Card = ({children,style={}}) => (
-                <div style={{background:O.bg2,border:"1px solid "+O.border,
-                  borderRadius:12,padding:"16px 18px",...style}}>
-                  {children}
+            {/* Header */}
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+              <span style={{fontSize:32}}>📷</span>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:"#00d4ff",
+                  letterSpacing:"2.5px",marginBottom:3}}>CAMERA INTELLIGENCE</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:22,color:"#fff"}}>
+                  AI-Powered Camera Integration
                 </div>
-              );
-              const Toggle = ({on,onToggle}) => (
-                <button onClick={onToggle}
-                  style={{width:42,height:22,borderRadius:11,
-                    background:on?O.amber:"rgba(255,255,255,0.1)",
-                    border:"none",cursor:"pointer",position:"relative",
-                    transition:"all 0.2s",flexShrink:0}}>
-                  <div style={{position:"absolute",top:3,width:16,height:16,
-                    borderRadius:"50%",background:"#fff",transition:"all 0.2s",
-                    left:on?23:3,boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
-                </button>
-              );
+              </div>
+            </div>
 
-              return (
-                <div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
 
-                  {/* ── ZONE 1: COMMAND CENTER HEADER ── */}
-                  <div style={{background:cyanD,border:"1px solid "+cyanB,
-                    borderRadius:12,padding:"14px 18px",marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"center",
-                      gap:14,flexWrap:"wrap",marginBottom:10}}>
-
-                      <div style={{flex:1,minWidth:200}}>
-                        <div style={{fontFamily:O.mono,fontSize:7,color:cyan,
-                          letterSpacing:"2.5px",marginBottom:4}}>
-                          CAMERA COMMAND CENTER
-                        </div>
-                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:"#fff",
-                          display:"flex",alignItems:"center",gap:10}}>
-                          Camera Network
-                          <div style={{width:8,height:8,borderRadius:"50%",
-                            background:O.green,animation:"blink 1.2s infinite",
-                            boxShadow:"0 0 8px "+O.green}}/>
-                          <span style={{fontFamily:O.mono,fontSize:8,color:O.green,
-                            letterSpacing:1}}>LIVE MONITORING</span>
-                        </div>
-                      </div>
-
-                      {/* Fleet stats */}
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                        {[
-                          {l:"Total Cameras",v:totalCams,       c:cyan},
-                          {l:"Online",       v:totalOnline,     c:O.green},
-                          {l:"Offline",      v:totalOffline,    c:totalOffline>0?O.red:O.green},
-                          {l:"Locations",    v:LOCS.length,     c:cyan},
-                        ].map(s=>(
-                          <div key={s.l} style={{background:s.c+"12",
-                            border:"1px solid "+s.c+"28",borderRadius:7,
-                            padding:"5px 10px",textAlign:"center"}}>
-                            <div style={{fontFamily:O.sans,fontWeight:800,
-                              fontSize:16,color:s.c,lineHeight:1,marginBottom:2}}>{s.v}</div>
-                            <div style={{fontFamily:O.mono,fontSize:6,
-                              color:O.textF,letterSpacing:1}}>{s.l}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Access level badge */}
-                      <div style={{background:isOwner?"rgba(255,215,0,0.1)":"rgba(245,158,11,0.1)",
-                        border:"1px solid "+(isOwner?"rgba(255,215,0,0.3)":"rgba(245,158,11,0.28)"),
-                        borderRadius:7,padding:"6px 12px"}}>
-                        <div style={{fontFamily:O.mono,fontSize:7,
-                          color:isOwner?"#FFD700":O.amber,letterSpacing:1,marginBottom:2}}>
-                          {isOwner?"👑 OWNER ACCESS":"📍 MANAGER ACCESS"}
-                        </div>
-                        <div style={{fontFamily:O.mono,fontSize:8,
-                          color:isOwner?"#FFD700":O.amber}}>
-                          {currentUser.name} · {isOwner?"All locations":currentUser.locations.length+" location(s)"}
-                        </div>
-                      </div>
-
-                      {/* Action buttons — owner/mgr only */}
-                      {isMgr&&(
-                        <div style={{display:"flex",gap:7,flexShrink:0}}>
-                          <button onClick={()=>setAddingCam(true)}
-                            style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
-                              padding:"7px 14px",background:O.amber,
-                              border:"none",borderRadius:6,
-                              color:"#030c14",cursor:"pointer",fontWeight:700,
-                              boxShadow:"0 0 12px rgba(245,158,11,0.3)"}}>
-                            + Add Camera
-                          </button>
-                          <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
-                            padding:"7px 11px",background:"rgba(255,255,255,0.05)",
-                            border:"1px solid "+O.border,borderRadius:6,
-                            color:O.textD,cursor:"pointer"}}>
-                            📊 Export Log
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Offline alert */}
-                    {totalOffline>0&&(
-                      <div style={{background:"rgba(239,68,68,0.07)",
-                        border:"1px solid rgba(239,68,68,0.2)",
-                        borderRadius:5,padding:"5px 12px",
-                        fontFamily:O.mono,fontSize:8,color:O.red}}>
-                        ⚠ {totalOffline} camera{totalOffline>1?"s":""} offline across your network
-                        — check Camera Health dashboard below
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── ZONE 2: LOCATION CAMERA TREE ── */}
-                  <div style={{marginBottom:12}}>
-                    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-                      {LOCS.map(loc=>{
-                        const hasAccess = canAccessLoc(loc.id);
-                        const lc = CAM_LOCS[loc.id]||[];
-                        const on = lc.filter(c=>c.status==="live").length;
-                        const dotC = on===lc.length?O.green:on>0?O.amber:O.red;
-                        const isActive = camLocation===loc.id;
-                        return(
-                          <div key={loc.id}
-                            onClick={()=>hasAccess&&setCamLocation(loc.id)}
-                            style={{display:"flex",alignItems:"center",gap:8,
-                              padding:"8px 14px",borderRadius:8,
-                              background:isActive?cyanD:hasAccess?O.bg2:"rgba(255,255,255,0.02)",
-                              border:"1px solid "+(isActive?cyanB:hasAccess?O.border:"rgba(255,255,255,0.06)"),
-                              cursor:hasAccess?"pointer":"not-allowed",
-                              opacity:hasAccess?1:0.4,
-                              transition:"all 0.2s"}}>
-                            {hasAccess?(
-                              <div style={{width:8,height:8,borderRadius:"50%",
-                                background:dotC,boxShadow:"0 0 5px "+dotC,flexShrink:0}}/>
-                            ):(
-                              <span style={{fontSize:12,flexShrink:0}}>🔒</span>
-                            )}
-                            <div>
-                              <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,
-                                color:isActive?"#fff":hasAccess?O.textD:"rgba(255,255,255,0.3)",
-                                marginBottom:1}}>
-                                {loc.name}
-                              </div>
-                              <div style={{fontFamily:O.mono,fontSize:7,
-                                color:hasAccess?(isActive?cyan:O.textF):"rgba(255,255,255,0.2)",
-                                letterSpacing:0.5}}>
-                                {hasAccess?on+"/"+lc.length+" cameras":"NO ACCESS"}
-                              </div>
-                            </div>
-                            {!hasAccess&&(
-                              <div style={{fontFamily:O.mono,fontSize:7,color:"rgba(255,255,255,0.25)",
-                                background:"rgba(255,255,255,0.04)",
-                                border:"1px solid rgba(255,255,255,0.08)",
-                                borderRadius:3,padding:"2px 6px",letterSpacing:0.5,marginLeft:4}}>
-                                LOCKED
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* Active location info bar */}
-                    <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,
-                      background:O.bg2,borderRadius:6,padding:"6px 12px",
-                      border:"1px solid "+O.border,display:"flex",gap:16,flexWrap:"wrap"}}>
-                      <span style={{color:cyan}}>📍 {activeLoc2.name}</span>
-                      <span>{activeLoc2.addr}</span>
-                      <span style={{color:O.green}}>
-                        {locCams.filter(c=>c.status==="live").length}/{locCams.length} cameras online
-                      </span>
-                      <span style={{color:O.textF}}>Last incident: 2h ago</span>
-                    </div>
-                  </div>
-
-                  {/* ── ZONE 3: CAMERA GRID ── */}
-                  <Card style={{marginBottom:12}}>
-                    {/* Grid controls */}
-                    <div style={{display:"flex",alignItems:"center",
-                      justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-                      <SL text={activeLoc2.name+" — Camera Feeds"} color={cyan}/>
-                      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                        {/* Filter */}
-                        <div style={{display:"flex",gap:4}}>
-                          {["all","live","offline","motion"].map(f=>(
-                            <button key={f} onClick={()=>setCamFilter(f)}
-                              style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
-                                padding:"3px 8px",borderRadius:4,border:"none",cursor:"pointer",
-                                textTransform:"uppercase",
-                                background:camFilter===f?cyanD:"rgba(255,255,255,0.04)",
-                                color:camFilter===f?cyan:O.textF}}>
-                              {f}
-                            </button>
-                          ))}
-                        </div>
-                        {/* Grid size */}
-                        <div style={{display:"flex",gap:0,background:O.bg3,borderRadius:5,overflow:"hidden"}}>
-                          {[[1,"1×"],[2,"2×"],[3,"3×"]].map(([v,l])=>(
-                            <button key={v} onClick={()=>setCamGridSize(v)}
-                              style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
-                                padding:"4px 9px",border:"none",cursor:"pointer",
-                                background:camGridSize===v?cyanD:"transparent",
-                                color:camGridSize===v?cyan:O.textF}}>
-                              {l}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Camera viewport grid */}
-                    <div style={{display:"grid",gridTemplateColumns:gridCols,gap:10}}>
-                      {filtCams.map(cam=>{
-                        const isLive    = cam.status==="live";
-                        const isOffline = cam.status==="offline";
-                        const isSel     = selectedCam===cam.id;
-                        return(
-                          <div key={cam.id}
-                            onClick={()=>setSelectedCam(isSel?null:cam.id)}
-                            style={{borderRadius:10,overflow:"hidden",cursor:"pointer",
-                              border:"2px solid "+(isSel?cyan:isOffline?"rgba(239,68,68,0.3)":O.border),
-                              transition:"all 0.2s",
-                              boxShadow:isSel?"0 0 16px rgba(0,212,255,0.2)":"none"}}>
-
-                            {/* Viewport */}
-                            <div style={{position:"relative",background:"#000",
-                              aspectRatio:"16/9",display:"flex",
-                              alignItems:"center",justifyContent:"center",
-                              overflow:"hidden"}}>
-
-                              {/* Feed placeholder */}
-                              {isLive?(
-                                <div style={{width:"100%",height:"100%",
-                                  background:"linear-gradient(135deg,#0a1520 0%,#0d1f2d 50%,#0a1520 100%)",
-                                  display:"flex",alignItems:"center",justifyContent:"center"}}>
-                                  <div style={{textAlign:"center",opacity:0.2}}>
-                                    <div style={{fontSize:32,marginBottom:4}}>📷</div>
-                                    <div style={{fontFamily:O.mono,fontSize:8,
-                                      color:O.textF,letterSpacing:1}}>
-                                      {cam.name}
-                                    </div>
-                                  </div>
-                                </div>
-                              ):(
-                                <div style={{width:"100%",height:"100%",
-                                  background:"rgba(239,68,68,0.08)",
-                                  display:"flex",alignItems:"center",justifyContent:"center"}}>
-                                  <div style={{textAlign:"center"}}>
-                                    <div style={{fontSize:28,marginBottom:6,opacity:0.4}}>📷</div>
-                                    <div style={{fontFamily:O.mono,fontSize:9,
-                                      color:O.red,letterSpacing:1,marginBottom:4}}>
-                                      SIGNAL LOST
-                                    </div>
-                                    <div style={{fontFamily:O.mono,fontSize:7,
-                                      color:O.textF}}>Last seen: {cam.lastMotion}</div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* LIVE/OFFLINE badge */}
-                              <div style={{position:"absolute",top:7,right:7,
-                                background:isLive?"rgba(16,185,129,0.85)":
-                                  cam.status==="connecting"?"rgba(245,158,11,0.85)":
-                                  "rgba(239,68,68,0.85)",
-                                borderRadius:4,padding:"2px 8px",
-                                fontFamily:O.mono,fontSize:8,color:"#fff",
-                                letterSpacing:1,backdropFilter:"blur(4px)",
-                                display:"flex",alignItems:"center",gap:4}}>
-                                {isLive&&(
-                                  <div style={{width:5,height:5,borderRadius:"50%",
-                                    background:"#fff",animation:"blink 1s infinite"}}/>
-                                )}
-                                {isLive?"LIVE":cam.status==="connecting"?"CONNECTING":"OFFLINE"}
-                              </div>
-
-                              {/* Zone label */}
-                              <div style={{position:"absolute",top:7,left:7,
-                                background:"rgba(0,0,0,0.65)",borderRadius:4,
-                                padding:"2px 7px",fontFamily:O.mono,fontSize:7,
-                                color:"rgba(255,255,255,0.7)",backdropFilter:"blur(4px)"}}>
-                                {cam.zone}
-                              </div>
-
-                              {/* Motion indicator */}
-                              {isLive&&cam.lastMotion.includes("min")&&(
-                                <div style={{position:"absolute",bottom:7,left:7,
-                                  display:"flex",alignItems:"center",gap:4,
-                                  background:"rgba(0,0,0,0.65)",borderRadius:4,
-                                  padding:"2px 7px",backdropFilter:"blur(4px)"}}>
-                                  <div style={{width:5,height:5,borderRadius:"50%",
-                                    background:O.green,animation:"blink 1.5s infinite"}}/>
-                                  <span style={{fontFamily:O.mono,fontSize:7,
-                                    color:O.green}}>Motion {cam.lastMotion}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Camera footer */}
-                            <div style={{padding:"8px 10px",background:O.bg3,
-                              display:"flex",alignItems:"center",
-                              justifyContent:"space-between"}}>
-                              <div style={{minWidth:0}}>
-                                <div style={{fontFamily:O.sans,fontWeight:600,
-                                  fontSize:11,color:"#fff",whiteSpace:"nowrap",
-                                  overflow:"hidden",textOverflow:"ellipsis",
-                                  maxWidth:120,marginBottom:1}}>{cam.name}</div>
-                                <div style={{fontFamily:O.mono,fontSize:7,
-                                  color:O.textF}}>
-                                  {isLive?"Motion "+cam.lastMotion:"Offline — "+cam.lastMotion}
-                                </div>
-                              </div>
-                              <div style={{display:"flex",gap:5,flexShrink:0}}>
-                                {["⛶","📸","⚙"].map(icon=>(
-                                  <button key={icon}
-                                    style={{background:"none",border:"none",color:O.textF,
-                                      cursor:"pointer",fontSize:12,padding:"2px 4px",
-                                      borderRadius:3,transition:"color 0.15s"}}
-                                    onMouseEnter={e=>e.currentTarget.style.color=cyan}
-                                    onMouseLeave={e=>e.currentTarget.style.color=O.textF}>
-                                    {icon}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Add camera slot */}
-                      {isMgr&&(
-                        <div onClick={()=>setAddingCam(true)}
-                          style={{borderRadius:10,aspectRatio:"16/9",
-                            background:"rgba(0,212,255,0.03)",
-                            border:"1px dashed rgba(0,212,255,0.2)",
-                            display:"flex",flexDirection:"column",
-                            alignItems:"center",justifyContent:"center",
-                            cursor:"pointer",transition:"all 0.2s",minHeight:120}}
-                          onMouseEnter={e=>{e.currentTarget.style.background="rgba(0,212,255,0.07)";e.currentTarget.style.borderColor="rgba(0,212,255,0.4)";}}
-                          onMouseLeave={e=>{e.currentTarget.style.background="rgba(0,212,255,0.03)";e.currentTarget.style.borderColor="rgba(0,212,255,0.2)";}}>
-                          <div style={{fontSize:22,color:"rgba(0,212,255,0.35)",marginBottom:5}}>+</div>
-                          <div style={{fontFamily:O.mono,fontSize:8,
-                            color:"rgba(0,212,255,0.45)",letterSpacing:1}}>ADD CAMERA</div>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-
-                  {/* ── ZONES 4 + 5: CAMERA DETAILS + MOTION LOG ── */}
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-
-                    {/* ZONE 4: Camera Details */}
-                    <Card>
-                      <SL text="Camera Details + Settings" color={cyan}/>
-                      {selectedCam===null?(
-                        <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,
-                          textAlign:"center",padding:"20px 0"}}>
-                          Select a camera above to view details and settings
-                        </div>
-                      ):(()=>{
-                        const cam = allCams.find(c=>c.id===selectedCam)||locCams[0];
-                        if(!cam) return null;
-                        return(
-                          <div>
-                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-                              <div style={{width:10,height:10,borderRadius:"50%",
-                                background:cam.status==="live"?O.green:O.red,
-                                boxShadow:"0 0 6px "+(cam.status==="live"?O.green:O.red)}}/>
-                              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff"}}>
-                                {cam.name}
-                              </div>
-                              <div style={{fontFamily:O.mono,fontSize:8,color:cyan,
-                                background:cyanD,border:"1px solid "+cyanB,
-                                borderRadius:4,padding:"2px 7px",letterSpacing:0.5}}>
-                                {cam.zone}
-                              </div>
-                            </div>
-
-                            {/* Connection info — masked for non-owner */}
-                            <div style={{background:O.bg3,borderRadius:7,
-                              padding:"10px 12px",marginBottom:12}}>
-                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                                letterSpacing:"2px",marginBottom:6}}>CONNECTION INFO</div>
-                              {[
-                                {l:"Stream URL",v:isOwner?"rtsp://admin:●●●●@192.168.1.10"+cam.id+":554":"rtsp://●●●●@192.168.1.xxx"},
-                                {l:"Protocol",  v:"RTSP / ONVIF"},
-                                {l:"Resolution",v:"1080p HD"},
-                                {l:"Frame Rate",v:"30fps"},
-                                {l:"Status",    v:cam.status==="live"?"Connected":"Signal Lost"},
-                              ].map(f=>(
-                                <div key={f.l} style={{display:"flex",justifyContent:"space-between",
-                                  padding:"4px 0",borderBottom:"1px solid "+O.border}}>
-                                  <span style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>{f.l}</span>
-                                  <span style={{fontFamily:O.mono,fontSize:8,
-                                    color:f.l==="Status"?(cam.status==="live"?O.green:O.red):"#fff"}}>
-                                    {f.v}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Camera settings */}
-                            <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:12}}>
-                              {[
-                                {l:"Alert on motion",on:true},
-                                {l:"Alert on disconnect",on:true},
-                                {l:"Motion recording",on:false},
-                              ].map(s=>(
-                                <div key={s.l} style={{display:"flex",alignItems:"center",
-                                  justifyContent:"space-between",padding:"6px 0",
-                                  borderBottom:"1px solid "+O.border}}>
-                                  <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
-                                    {s.l}
-                                  </span>
-                                  <Toggle on={s.on} onToggle={()=>{}}/>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Zone pairing */}
-                            <div style={{background:"rgba(0,212,255,0.05)",
-                              borderRadius:6,padding:"8px 10px",marginBottom:10,
-                              border:"1px solid "+cyanB}}>
-                              <div style={{fontFamily:O.mono,fontSize:7,color:cyan,
-                                letterSpacing:1,marginBottom:3}}>EMPLOYEE ZONE PAIRING</div>
-                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
-                                Verifies employees clocked in at{" "}
-                                <span style={{color:cyan}}>{cam.zone}</span> zone
-                              </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-                              {[
-                                {l:"Save Settings",c:O.green},
-                                {l:"Test Connection",c:cyan},
-                                {l:"Remove Camera",c:O.red},
-                              ].map(btn=>(
-                                <button key={btn.l}
-                                  style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
-                                    padding:"5px 10px",background:btn.c+"12",
-                                    border:"1px solid "+btn.c+"28",borderRadius:5,
-                                    color:btn.c,cursor:"pointer"}}>
-                                  {btn.l}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </Card>
-
-                    {/* ZONE 5: Motion + Alert Log */}
-                    <Card>
-                      <SL text="Motion + Alert Log" color={cyan}/>
-                      {/* Filter pills */}
-                      <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
-                        {["all","motion","presence","offline","incident"].map(f=>(
-                          <button key={f}
-                            style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
-                              padding:"3px 7px",borderRadius:4,border:"none",cursor:"pointer",
-                              textTransform:"uppercase",
-                              background:"rgba(255,255,255,0.04)",
-                              color:O.textF}}>
-                            {f}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div style={{display:"flex",flexDirection:"column",gap:5,
-                        maxHeight:280,overflowY:"auto",marginBottom:12}}>
-                        {motionLog.map((entry,i)=>{
-                          const ec = logSevColor(entry.sev);
-                          return(
-                            <div key={i} style={{display:"flex",alignItems:"center",
-                              gap:8,padding:"7px 9px",background:O.bg3,borderRadius:6,
-                              borderLeft:"3px solid "+ec}}>
-                              <div style={{fontFamily:O.mono,fontSize:7,
-                                color:O.textF,width:36,flexShrink:0}}>{entry.time}</div>
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontFamily:O.sans,fontWeight:600,
-                                  fontSize:11,color:"#fff",marginBottom:1}}>{entry.type}</div>
-                                <div style={{fontFamily:O.mono,fontSize:7,color:O.textD}}>
-                                  {entry.cam} · {entry.zone}
-                                </div>
-                              </div>
-                              <div style={{fontFamily:O.mono,fontSize:7,color:ec,
-                                background:ec+"12",border:"1px solid "+ec+"25",
-                                borderRadius:3,padding:"1px 6px",letterSpacing:0.5,
-                                whiteSpace:"nowrap"}}>
-                                {entry.sev.toUpperCase()}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Stats bar */}
-                      <div style={{display:"flex",gap:12,padding:"8px 0",
-                        borderTop:"1px solid "+O.border,flexWrap:"wrap"}}>
-                        {[
-                          {l:"Motion events",v:"14",c:cyan},
-                          {l:"Presence verif",v:"22",c:O.green},
-                          {l:"Alerts sent",v:"3",c:O.amber},
-                          {l:"Uptime",v:"99.2%",c:O.green},
-                        ].map(s=>(
-                          <div key={s.l} style={{textAlign:"center"}}>
-                            <div style={{fontFamily:O.sans,fontWeight:700,
-                              fontSize:14,color:s.c,lineHeight:1,marginBottom:2}}>{s.v}</div>
-                            <div style={{fontFamily:O.mono,fontSize:7,
-                              color:O.textF,letterSpacing:1,textTransform:"uppercase"}}>{s.l}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  </div>
-
-                  {/* ── ZONE 6: ADD / MANAGE CAMERAS ── */}
-                  {isMgr&&(
-                    <Card style={{marginBottom:12}}>
-                      <SL text="Camera Setup + Management" color={O.amber}/>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-
-                        {/* Setup wizard */}
-                        <div>
-                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                            letterSpacing:"2px",marginBottom:10}}>CONNECT NEW CAMERA</div>
-                          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                            {[
-                              {l:"LOCATION",   ph:"Select location...",  v:"Portland, OR"},
-                              {l:"CAMERA NAME",ph:"e.g. Front Door",      v:newCam.name},
-                              {l:"ZONE",       ph:"e.g. Register Area",   v:newCam.zone},
-                            ].map(f=>(
-                              <div key={f.l}>
-                                <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                                  letterSpacing:1,marginBottom:3}}>{f.l}</div>
-                                <input
-                                  value={f.l==="CAMERA NAME"?newCam.name:f.l==="ZONE"?newCam.zone:f.v}
-                                  onChange={e2=>{
-                                    if(f.l==="CAMERA NAME") setNewCam(p=>({...p,name:e2.target.value}));
-                                    if(f.l==="ZONE") setNewCam(p=>({...p,zone:e2.target.value}));
-                                  }}
-                                  placeholder={f.ph}
-                                  style={{width:"100%",padding:"8px 11px",
-                                    background:"rgba(255,255,255,0.04)",
-                                    border:"1px solid rgba(245,158,11,0.2)",
-                                    borderRadius:6,fontFamily:O.mono,fontSize:9,
-                                    color:"#fff",outline:"none",boxSizing:"border-box"}}/>
-                              </div>
-                            ))}
-                            <div>
-                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                                letterSpacing:1,marginBottom:3}}>STREAM URL</div>
-                              <input value={newCam.url}
-                                onChange={e=>setNewCam(p=>({...p,url:e.target.value}))}
-                                placeholder="rtsp://user:pass@192.168.1.100:554/stream"
-                                style={{width:"100%",padding:"8px 11px",
-                                  background:"rgba(255,255,255,0.04)",
-                                  border:"1px solid rgba(245,158,11,0.2)",
-                                  borderRadius:6,fontFamily:O.mono,fontSize:9,
-                                  color:"#fff",outline:"none",boxSizing:"border-box"}}/>
-                              <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,marginTop:3}}>
-                                Supports: RTSP · ONVIF · HTTP · Hikvision · Dahua · Axis · Any IP camera
-                              </div>
-                            </div>
-                            <div style={{display:"flex",gap:7,marginTop:4}}>
-                              <button onClick={()=>{
-                                  if(newCam.name&&newCam.url){
-                                    setCamFeeds(p=>[...p,{id:Date.now(),name:newCam.name,
-                                      zone:newCam.zone||"General",status:"connecting",
-                                      url:newCam.url,connected:false}]);
-                                    setNewCam({name:"",zone:"",url:""});
-                                  }
-                                }}
-                                style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
-                                  padding:"8px 16px",background:O.amber,
-                                  border:"none",borderRadius:6,color:"#030c14",
-                                  cursor:"pointer",fontWeight:700}}>
-                                + CONNECT CAMERA
-                              </button>
-                              <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
-                                padding:"8px 12px",background:"rgba(0,212,255,0.08)",
-                                border:"1px solid "+cyanB,borderRadius:6,
-                                color:cyan,cursor:"pointer"}}>
-                                TEST CONNECTION
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Supported brands */}
-                          <div style={{marginTop:14}}>
-                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                              letterSpacing:"2px",marginBottom:7}}>SUPPORTED SYSTEMS</div>
-                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5}}>
-                              {["Hikvision","Dahua","Axis","Reolink","Amcrest","Lorex","Nest","Ring","UniFi","Hanwha","Vivotek","Any RTSP"].map(b=>(
-                                <div key={b} style={{background:O.bg3,borderRadius:5,
-                                  padding:"5px",fontFamily:O.mono,fontSize:7,
-                                  color:O.textD,textAlign:"center",letterSpacing:0.3}}>
-                                  {b}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Camera inventory table */}
-                        <div>
-                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                            letterSpacing:"2px",marginBottom:10}}>CAMERA INVENTORY</div>
-                          <div style={{borderRadius:7,overflow:"hidden"}}>
-                            <div style={{display:"grid",
-                              gridTemplateColumns:"80px 80px 55px 72px 60px",
-                              padding:"5px 8px",background:O.bg3,gap:4}}>
-                              {["LOCATION","CAMERA","ZONE","STATUS","ACTIONS"].map(h=>(
-                                <div key={h} style={{fontFamily:O.mono,fontSize:6,
-                                  color:O.textF,letterSpacing:1}}>{h}</div>
-                              ))}
-                            </div>
-                            {Object.values(CAM_LOCS).flat().filter(c=>
-                              canAccessLoc(c.locId)
-                            ).map((cam,i)=>{
-                              const loc = LOCS.find(l=>l.id===cam.locId);
-                              const sc = cam.status==="live"?O.green:O.red;
-                              return(
-                                <div key={cam.id} style={{display:"grid",
-                                  gridTemplateColumns:"80px 80px 55px 72px 60px",
-                                  padding:"6px 8px",gap:4,
-                                  borderTop:"1px solid "+O.border,
-                                  background:i%2===0?"transparent":"rgba(255,255,255,0.01)",
-                                  alignItems:"center"}}>
-                                  <div style={{fontFamily:O.mono,fontSize:7,
-                                    color:O.textD,overflow:"hidden",
-                                    textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                    {loc?.name.split(",")[0]}
-                                  </div>
-                                  <div style={{fontFamily:O.mono,fontSize:8,color:"#fff",
-                                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                    {cam.name}
-                                  </div>
-                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textF}}>
-                                    {cam.zone}
-                                  </div>
-                                  <div style={{fontFamily:O.mono,fontSize:7,color:sc,
-                                    display:"flex",alignItems:"center",gap:4}}>
-                                    <div style={{width:5,height:5,borderRadius:"50%",
-                                      background:sc}}/>
-                                    {cam.status.toUpperCase()}
-                                  </div>
-                                  <div style={{display:"flex",gap:3}}>
-                                    {["✏","🔧"].map(icon=>(
-                                      <button key={icon}
-                                        style={{background:"none",border:"none",
-                                          color:O.textF,cursor:"pointer",fontSize:10,
-                                          padding:"1px 3px",borderRadius:3}}
-                                        onMouseEnter={e=>e.currentTarget.style.color=cyan}
-                                        onMouseLeave={e=>e.currentTarget.style.color=O.textF}>
-                                        {icon}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  )}
-
-                  {/* ── ZONES 7 + 8: ACCESS CONTROL + HEALTH DASHBOARD ── */}
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-
-                    {/* ZONE 7: Access Control — Owner Only */}
-                    <Card>
-                      <SL text="Access Control Center" color={isOwner?"#FFD700":O.textF}/>
-
-                      {!isOwner?(
-                        <div style={{background:"rgba(255,255,255,0.03)",
-                          border:"1px solid rgba(255,255,255,0.08)",
-                          borderRadius:8,padding:"20px",textAlign:"center"}}>
-                          <div style={{fontSize:28,marginBottom:8}}>🔒</div>
-                          <div style={{fontFamily:O.sans,fontWeight:600,
-                            fontSize:13,color:"#fff",marginBottom:6}}>
-                            Owner Access Required
-                          </div>
-                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,lineHeight:1.6}}>
-                            Access control settings are restricted to Owner accounts.
-                            Contact your account owner to modify permissions.
-                          </div>
-                        </div>
-                      ):(
-                        <div>
-                          {/* User permission table */}
-                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                            letterSpacing:"2px",marginBottom:8}}>USER PERMISSIONS</div>
-                          <div style={{borderRadius:7,overflow:"hidden",marginBottom:14}}>
-                            <div style={{display:"grid",
-                              gridTemplateColumns:"80px 70px 72px 72px 55px",
-                              padding:"5px 8px",background:O.bg3,gap:3}}>
-                              {["USER","ROLE","LOCATIONS","CAMERAS","ACCESS"].map(h=>(
-                                <div key={h} style={{fontFamily:O.mono,fontSize:6,
-                                  color:O.textF,letterSpacing:1}}>{h}</div>
-                              ))}
-                            </div>
-                            {accessUsers.map((u,i)=>{
-                              const rc2 = u.role==="owner"?"#FFD700":u.role==="manager"?O.amber:O.textD;
-                              return(
-                                <div key={u.name} style={{display:"grid",
-                                  gridTemplateColumns:"80px 70px 72px 72px 55px",
-                                  padding:"7px 8px",gap:3,
-                                  borderTop:"1px solid "+O.border,
-                                  background:i===0?"rgba(255,215,0,0.03)":"transparent",
-                                  alignItems:"center"}}>
-                                  <div style={{fontFamily:O.sans,fontWeight:600,
-                                    fontSize:11,color:"#fff",overflow:"hidden",
-                                    textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
-                                  <div style={{fontFamily:O.mono,fontSize:7,color:rc2,
-                                    background:rc2+"12",border:"1px solid "+rc2+"25",
-                                    borderRadius:3,padding:"1px 5px",letterSpacing:0.5,
-                                    width:"fit-content",textTransform:"uppercase"}}>
-                                    {u.role}
-                                  </div>
-                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textD,
-                                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                    {u.locs}
-                                  </div>
-                                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textD,
-                                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                    {u.camPerm}
-                                  </div>
-                                  {u.role!=="owner"&&(
-                                    <button style={{fontFamily:O.mono,fontSize:7,
-                                      letterSpacing:1,padding:"2px 7px",
-                                      background:cyanD,border:"1px solid "+cyanB,
-                                      borderRadius:3,color:cyan,cursor:"pointer"}}>
-                                      EDIT
-                                    </button>
-                                  )}
-                                  {u.role==="owner"&&(
-                                    <div style={{fontFamily:O.mono,fontSize:7,
-                                      color:"#FFD700",letterSpacing:0.5}}>OWNER</div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          {/* Add user button */}
-                          <button style={{width:"100%",fontFamily:O.mono,fontSize:8,
-                            letterSpacing:1,padding:"8px",background:"rgba(255,215,0,0.06)",
-                            border:"1px solid rgba(255,215,0,0.2)",borderRadius:6,
-                            color:"#FFD700",cursor:"pointer",marginBottom:12}}>
-                            + Invite New Team Member
-                          </button>
-
-                          {/* Permission tiers reference */}
-                          <div style={{background:O.bg3,borderRadius:7,padding:"10px 12px"}}>
-                            <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                              letterSpacing:"2px",marginBottom:7}}>ACCESS TIER REFERENCE</div>
-                            {[
-                              {icon:"👑",role:"Owner",c:"#FFD700",   perms:"All locations · All cameras · All data · Full control"},
-                              {icon:"📍",role:"Manager",c:O.amber,   perms:"Assigned location(s) · Location cameras · Location staff only"},
-                              {icon:"👁️",role:"Supervisor",c:"#3b82f6",perms:"View-only cameras · Their location · No employee data"},
-                            ].map(t=>(
-                              <div key={t.role} style={{display:"flex",gap:7,
-                                alignItems:"flex-start",padding:"5px 0",
-                                borderBottom:"1px solid "+O.border}}>
-                                <span style={{fontSize:12,flexShrink:0}}>{t.icon}</span>
-                                <div>
-                                  <div style={{fontFamily:O.mono,fontSize:8,
-                                    color:t.c,fontWeight:600,marginBottom:1}}>{t.role}</div>
-                                  <div style={{fontFamily:O.mono,fontSize:7,
-                                    color:O.textD,lineHeight:1.4}}>{t.perms}</div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </Card>
-
-                    {/* ZONE 8: Camera Health Dashboard */}
-                    <Card>
-                      <SL text="Camera Health Dashboard" color={O.green}/>
-
-                      {/* Fleet health gauge */}
-                      <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:14}}>
-                        <div style={{position:"relative",width:72,height:72,flexShrink:0}}>
-                          <svg width="72" height="72" viewBox="0 0 72 72">
-                            <circle cx="36" cy="36" r="30" fill="none"
-                              stroke="rgba(255,255,255,0.06)" strokeWidth="6"/>
-                            <circle cx="36" cy="36" r="30" fill="none"
-                              stroke={fleetColor} strokeWidth="6"
-                              strokeDasharray={2*Math.PI*30}
-                              strokeDashoffset={2*Math.PI*30*(1-fleetHealth/100)}
-                              strokeLinecap="round"
-                              transform="rotate(-90 36 36)"/>
-                          </svg>
-                          <div style={{position:"absolute",inset:0,display:"flex",
-                            flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-                            <div style={{fontFamily:O.sans,fontWeight:900,fontSize:18,
-                              color:fleetColor,lineHeight:1}}>{fleetHealth}%</div>
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                            letterSpacing:1,marginBottom:3}}>FLEET HEALTH SCORE</div>
-                          <div style={{fontFamily:O.sans,fontWeight:600,
-                            fontSize:12,color:fleetColor}}>
-                            {totalOnline}/{totalCams} cameras online
-                          </div>
-                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textD,marginTop:2}}>
-                            Avg latency: 42ms · 2.1 GB/hr bandwidth
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Per-location health */}
-                      <div style={{marginBottom:14}}>
-                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                          letterSpacing:"2px",marginBottom:7}}>LOCATION HEALTH</div>
-                        {locHealth.map(({loc,on,total,pct})=>{
-                          const hc = pct===100?O.green:pct>=50?O.amber:O.red;
-                          return canAccessLoc(loc.id)?(
-                            <div key={loc.id} style={{marginBottom:8}}>
-                              <div style={{display:"flex",justifyContent:"space-between",
-                                marginBottom:3}}>
-                                <span style={{fontFamily:O.mono,fontSize:8,color:O.textD}}>
-                                  {loc.name.split(",")[0]}
-                                </span>
-                                <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                                  <span style={{fontFamily:O.mono,fontSize:8,color:hc,fontWeight:600}}>
-                                    {on}/{total} online
-                                  </span>
-                                  {pct<100&&(
-                                    <span style={{fontFamily:O.mono,fontSize:7,color:O.red}}>
-                                      ⚠ {total-on} offline
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div style={{height:6,background:"rgba(255,255,255,0.06)",
-                                borderRadius:3}}>
-                                <div style={{height:"100%",width:pct+"%",
-                                  background:hc,borderRadius:3,transition:"width 0.8s"}}/>
-                              </div>
-                            </div>
-                          ):null;
-                        })}
-                      </div>
-
-                      {/* 7-day uptime table */}
-                      <div style={{marginBottom:14}}>
-                        <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
-                          letterSpacing:"2px",marginBottom:7}}>7-DAY UPTIME</div>
-                        {allCams.filter(c=>canAccessLoc(c.locId)).slice(0,6).map(cam=>(
-                          <div key={cam.id} style={{display:"flex",alignItems:"center",
-                            gap:7,marginBottom:5}}>
-                            <span style={{fontFamily:O.mono,fontSize:7,color:O.textD,
-                              width:80,flexShrink:0,overflow:"hidden",
-                              textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                              {cam.name}
-                            </span>
-                            <div style={{display:"flex",gap:2,flex:1}}>
-                              {uptimeDots(cam.id).map((v,di)=>(
-                                <div key={di} style={{flex:1,height:8,borderRadius:2,
-                                  background:v===1?O.green+"60":"rgba(239,68,68,0.4)"}}/>
-                              ))}
-                            </div>
-                            <span style={{fontFamily:O.mono,fontSize:7,
-                              color:cam.status==="live"?O.green:O.red,
-                              width:32,textAlign:"right",flexShrink:0}}>
-                              {cam.status==="live"?"100%":"71%"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Diagnostics */}
-                      <div style={{display:"flex",gap:7}}>
-                        <button style={{flex:1,fontFamily:O.mono,fontSize:8,letterSpacing:1,
-                          padding:"7px",background:cyanD,
-                          border:"1px solid "+cyanB,borderRadius:6,
-                          color:cyan,cursor:"pointer"}}>
-                          🔧 Run Diagnostic
-                        </button>
-                        <button style={{fontFamily:O.mono,fontSize:8,letterSpacing:1,
-                          padding:"7px 12px",background:"rgba(255,255,255,0.04)",
-                          border:"1px solid "+O.border,borderRadius:6,
-                          color:O.textD,cursor:"pointer"}}>
-                          Refresh
-                        </button>
-                      </div>
-                    </Card>
-                  </div>
-
+              {/* Left: What's coming */}
+              <div style={{background:"rgba(0,212,255,0.04)",
+                border:"1px solid rgba(0,212,255,0.15)",
+                borderRadius:16,padding:"24px"}}>
+                <div style={{fontFamily:O.mono,fontSize:8,color:"#00d4ff",
+                  letterSpacing:"2px",marginBottom:6}}>HEAVY PLAN · CORPORATE PLAN</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,
+                  color:"#fff",marginBottom:4}}>What's Coming</div>
+                <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,
+                  marginBottom:20,lineHeight:1.6}}>
+                  Full camera-to-payroll intelligence — the feature that makes ShiftPro
+                  unlike anything else on the market.
                 </div>
-              );
-            })()}
+                <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+                  {[
+                    "Live RTSP camera feeds — all locations",
+                    "Employee presence verification",
+                    "Ghost hour cross-reference",
+                    "Motion detection + incident alerts",
+                    "Multi-location camera command center",
+                    "Silent owner-only alerts",
+                    "7-day / 30-day clip storage",
+                  ].map((f,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:14}}>🔒</span>
+                      <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"inline-flex",alignItems:"center",gap:8,
+                  fontFamily:O.mono,fontSize:9,color:"#00d4ff",letterSpacing:"2px",
+                  background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",
+                  borderRadius:20,padding:"5px 14px"}}>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:"#00d4ff"}}/>
+                  LAUNCHING Q3 2025
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:16}}>
+                  {["12 cameras","RTSP + ONVIF","Hikvision","Dahua","Axis","Reolink"].map(b=>(
+                    <div key={b} style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                      background:O.bg3,borderRadius:4,padding:"3px 8px",letterSpacing:0.5}}>
+                      {b}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: Join waitlist */}
+              <div style={{background:O.bg2,border:"1px solid "+O.border,
+                borderRadius:16,padding:"24px"}}>
+                {waitlistDone?(
+                  <div style={{textAlign:"center",padding:"40px 20px"}}>
+                    <div style={{fontSize:44,marginBottom:12}}>🎉</div>
+                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,
+                      color:"#fff",marginBottom:8}}>You're on the list!</div>
+                    <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,lineHeight:1.7}}>
+                      We'll notify you when Camera Intelligence launches.
+                      As a current ShiftPro customer you get priority access and early-bird pricing.
+                    </div>
+                  </div>
+                ):(
+                  <div>
+                    <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,
+                      letterSpacing:"2px",marginBottom:6}}>JOIN THE WAITLIST</div>
+                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,
+                      color:"#fff",marginBottom:4}}>Get Early Access</div>
+                    <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,
+                      marginBottom:20,lineHeight:1.6}}>
+                      Current ShiftPro Lite customers get priority access and
+                      early-bird pricing when Camera AI launches.
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+                      {[
+                        {l:"YOUR NAME",val:waitlistForm.name,k:"name",ph:"Alex Rivera"},
+                        {l:"EMAIL",val:waitlistForm.email,k:"email",ph:"you@business.com"},
+                        {l:"BUSINESS NAME",val:waitlistForm.biz,k:"biz",ph:"Sea Lion Dockside Bar"},
+                      ].map(f=>(
+                        <div key={f.k}>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                            letterSpacing:"2px",marginBottom:5}}>{f.l}</div>
+                          <input value={f.val}
+                            onChange={e=>setWaitlistForm(p=>({...p,[f.k]:e.target.value}))}
+                            placeholder={f.ph}
+                            style={{width:"100%",padding:"9px 12px",
+                              background:"rgba(255,255,255,0.05)",
+                              border:"1px solid rgba(245,158,11,0.2)",
+                              borderRadius:7,fontFamily:O.mono,fontSize:12,
+                              color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={()=>{
+                        if(waitlistForm.name&&waitlistForm.email) setWaitlistDone(true);
+                      }}
+                      style={{width:"100%",padding:"12px",
+                        background:"linear-gradient(135deg,#f59e0b,#f97316)",
+                        border:"none",borderRadius:9,
+                        fontFamily:O.sans,fontWeight:700,fontSize:14,
+                        color:"#030c14",cursor:"pointer",
+                        boxShadow:"0 4px 18px rgba(245,158,11,0.3)",marginBottom:12}}>
+                      Join Waitlist →
+                    </button>
+                    <div style={{fontFamily:O.sans,fontSize:11,color:O.textF,
+                      textAlign:"center",lineHeight:1.6}}>
+                      You'll be among the first notified when camera integration launches.
+                      Early customers get priority access and early-bird pricing.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
+        )}
+
         )}
 
       </div>
