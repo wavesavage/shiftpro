@@ -2681,14 +2681,28 @@ function OwnerCmd({onLogout}){
                 if(!addLocForm.name){setAddLocErr("Location name is required.");return;}
                 setAddLocBusy(true);setAddLocErr("");
                 try{
+                  const orgId=activeOrg?.id||ownerProfile?.org_id;
+                  if(!orgId) throw new Error("No company selected. Please refresh and try again.");
+                  // Get auth token for server-side ownership check
                   const {createClient}=await import("@supabase/supabase-js");
                   const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-                  const orgId=activeOrg?.id||ownerProfile?.org_id;
-                  const {data:newLoc,error:locErr}=await sb.from("locations")
-                    .insert({org_id:orgId,name:addLocForm.name,
-                      address:addLocForm.address||"",timezone:addLocForm.timezone,active:true})
-                    .select().single();
-                  if(locErr) throw locErr;
+                  const {data:{session}}=await sb.auth.getSession();
+                  const res=await fetch("/api/location",{
+                    method:"POST",
+                    headers:{
+                      "Content-Type":"application/json",
+                      ...(session?.access_token?{"Authorization":"Bearer "+session.access_token}:{})
+                    },
+                    body:JSON.stringify({
+                      orgId,
+                      name:addLocForm.name,
+                      address:addLocForm.address||"",
+                      timezone:addLocForm.timezone,
+                    })
+                  });
+                  const result=await res.json();
+                  if(!res.ok) throw new Error(result.error||"Failed to create location");
+                  const newLoc=result.location;
                   setLiveLocations(prev=>[...prev,newLoc]);
                   setActiveLocation(newLoc);
                   setLiveEmps([]);setLiveShifts(null);setLivePayroll(null);
