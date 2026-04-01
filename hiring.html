@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Staff Hiring — Newport Hospitality Group</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#0d1117;font-family:Georgia,serif;color:#f0f6fc;}
+    button,textarea,input,select{font-family:Georgia,serif;}
+    ::-webkit-scrollbar{width:6px;}
+    ::-webkit-scrollbar-track{background:#0d1117;}
+    ::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
+    .check-row{display:flex;align-items:flex-start;gap:12px;padding:11px 8px;
+      border-bottom:1px solid #161b22;cursor:pointer;border-radius:6px;transition:background 0.1s;}
+    .check-row:last-child{border-bottom:none;}
+    .check-row:hover{background:rgba(240,180,41,0.05);}
+    .chkbox{width:20px;height:20px;min-width:20px;border-radius:4px;border:2px solid #30363d;
+      display:flex;align-items:center;justify-content:center;transition:all 0.15s;margin-top:2px;}
+    .chkbox.on{background:#10b981;border-color:#34d399;}
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;
+      align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;}
+    .modal{background:#161b22;border:1px solid #f0b429;border-radius:14px;padding:28px;width:100%;max-width:600px;}
+    .tab-btn{padding:7px 16px;border-radius:20px;border:1px solid #30363d;background:transparent;
+      color:#8b949e;font-size:12px;cursor:pointer;letter-spacing:0.04em;transition:all 0.15s;}
+    .tab-btn.active{background:#f0b429;color:#0d1117;border-color:#f0b429;font-weight:bold;}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const C={bg:"#0d1117",mid:"#161b22",light:"#21262d",border:"#30363d",
+    amber:"#f0b429",amberL:"#fcd34d",cream:"#f0f6fc",dim:"#8b949e",
+    teal:"#10b981",tealL:"#34d399",red:"#f85149"};
+
+  const COMPANIES={
+    sealion:{name:"Sea Lion Dockside Bar",short:"Sea Lion",icon:"🦁",
+      color:"#e07b39",colorL:"#f59e42",colorBg:"rgba(224,123,57,0.1)",
+      address:"Newport, OR",positions:["bartender","barista","giftshop","all"]},
+    surftown:{name:"Surftown Coffee Company",short:"Surftown Coffee",icon:"☕",
+      color:"#b45309",colorL:"#d97706",colorBg:"rgba(180,83,9,0.1)",
+      address:"Newport, OR",positions:["barista"]},
+    anchor:{name:"Anchor Pier Gifts",short:"Anchor Pier",icon:"⚓",
+      color:"#2563eb",colorL:"#3b82f6",colorBg:"rgba(37,99,235,0.1)",
+      address:"Newport, OR",positions:["giftshop"]},
+  };
+
+  const POS_LABELS={
+    bartender:{title:"Bartender",icon:"🍹"},
+    barista:{title:"Barista",icon:"☕"},
+    giftshop:{title:"Gift Shop Host",icon:"🛍️"},
+    all:{title:"All Positions",icon:"⭐"},
+  };
+
+  const POS_QUESTIONS={
+    bartender:[
+      {id:"q1",text:"What is your availability — evenings, weekends, and peak season April–October?",hint:"Evening and weekend availability is essential",weight:2},
+      {id:"q2",text:"Are you OLCC certified or willing to obtain certification before your first shift?",hint:"Oregon law requires OLCC for alcohol service — must be willing",weight:3},
+      {id:"q3",text:"How many years of bartending or bar service experience do you have?",hint:"1+ year preferred; enthusiasm and trainability count for newcomers",weight:2},
+      {id:"q4",text:"Describe your experience in a high-volume or fast-paced bar environment.",hint:"Look for composure under pressure and team awareness",weight:2},
+      {id:"q5",text:"Are you comfortable handling difficult or intoxicated guests?",hint:"Must be able to de-escalate and cut off guests professionally",weight:3},
+      {id:"q6",text:"What cocktails or drinks are you most confident preparing from scratch?",hint:"Look for versatility — classics, seasonal, non-alcoholic options",weight:2},
+      {id:"q7",text:"Do you have experience with POS systems and accurate cash handling?",hint:"Square, Toast, or similar — cash accuracy is critical",weight:1},
+      {id:"q8",text:"Do you have a food handler's card or are you willing to obtain one?",hint:"Oregon requirement — can be obtained quickly if not current",weight:1},
+      {id:"q9",text:"Can you provide references from previous bar or hospitality employers?",hint:"2+ references expected",weight:1},
+      {id:"q10",text:"Why do you want to work at Sea Lion Dockside Bar specifically?",hint:"Look for genuine enthusiasm for the Newport waterfront",weight:1},
+    ],
+    barista:[
+      {id:"q1",text:"What is your availability — early morning shifts starting before 7 AM are common?",hint:"Coffee service starts early — must be a morning person",weight:2},
+      {id:"q2",text:"Do you have previous barista or coffee shop experience?",hint:"Any espresso bar, café, or coffee kiosk experience counts",weight:3},
+      {id:"q3",text:"Are you familiar with espresso-based drinks — lattes, cappuccinos, flat whites, cold brew?",hint:"Should know drink styles and milk texturing techniques",weight:3},
+      {id:"q4",text:"How do you handle a morning rush with a long line of impatient customers?",hint:"Look for composure, speed, and a real system — not just enthusiasm",weight:2},
+      {id:"q5",text:"Do you have experience with latte art or specialty coffee preparation?",hint:"Nice to have — eagerness to learn is the key signal",weight:1},
+      {id:"q6",text:"How do you ensure drink quality and consistency when it gets very busy?",hint:"Listen for muscle memory, recipes, and teamwork strategies",weight:2},
+      {id:"q7",text:"Are you comfortable operating commercial espresso machines and grinders?",hint:"La Marzocca, Mahlkönig or similar — will train the right candidate",weight:2},
+      {id:"q8",text:"Do you have a food handler's card or are you willing to obtain one?",hint:"Oregon food safety requirement",weight:1},
+      {id:"q9",text:"Can you provide references from previous food service employers?",hint:"2+ references expected",weight:1},
+      {id:"q10",text:"Why do you want to work in a coffee role at a waterfront tourist destination?",hint:"Look for a love of coffee craft and genuine guest interaction",weight:1},
+    ],
+    giftshop:[
+      {id:"q1",text:"What is your availability — weekends and peak tourist season April–October are essential?",hint:"Heavy tourist traffic on weekends — reliability is critical",weight:2},
+      {id:"q2",text:"Do you have retail or customer-facing sales experience?",hint:"Any retail, boutique, or tourist shop experience is ideal",weight:3},
+      {id:"q3",text:"Are you comfortable operating a cash register and POS system?",hint:"Square, Shopify, or similar — accuracy with transactions matters",weight:2},
+      {id:"q4",text:"How do you handle multiple customers at once during a busy tourist rush?",hint:"Look for patience, prioritization, and a calm confident demeanor",weight:2},
+      {id:"q5",text:"Do you have experience with inventory, merchandising, or restocking?",hint:"Keeping shelves full and displays attractive during peak hours",weight:2},
+      {id:"q6",text:"How would you describe your approach to product recommendations or upselling?",hint:"Should feel natural and genuine — listen for their specific style",weight:2},
+      {id:"q7",text:"Are you comfortable working on your feet for an entire shift?",hint:"Gift shop roles require energy and stamina on busy summer days",weight:1},
+      {id:"q8",text:"How do you handle returns, complaints, or difficult customer situations?",hint:"Look for empathy, professionalism, and calm problem-solving",weight:2},
+      {id:"q9",text:"Can you provide references from previous retail or customer service employers?",hint:"2+ references expected",weight:1},
+      {id:"q10",text:"Why do you want to work in a gift shop at a waterfront tourist destination?",hint:"Look for enthusiasm for hospitality and local Newport culture",weight:1},
+    ],
+    all:[
+      {id:"q1",text:"What is your full schedule availability — evenings, early mornings, weekends, and peak season?",hint:"All positions require flexible availability April–October minimum",weight:2},
+      {id:"q2",text:"Which position interests you most — Bartender, Barista, Gift Shop, or all three equally?",hint:"Listen for genuine interest vs just wanting any available job",weight:2},
+      {id:"q3",text:"Describe your overall experience in hospitality, food service, retail, or bar work.",hint:"Look for breadth and adaptability across different customer-facing roles",weight:3},
+      {id:"q4",text:"Do you have OLCC certification, a food handler's card, or barista training?",hint:"The more certs the better — note which they have and which they'd obtain",weight:2},
+      {id:"q5",text:"How do you handle working in a fast-paced, high-traffic tourist environment for a full shift?",hint:"Summer at Newport waterfront is intense — gauge their stamina and mindset",weight:2},
+      {id:"q6",text:"Describe your customer service approach when dealing with a wide range of guests.",hint:"Tourists, locals, families, frustrated guests — look for adaptability",weight:3},
+      {id:"q7",text:"Do you have experience with POS systems and accurate cash handling?",hint:"Will use registers in all three venues — accuracy is non-negotiable",weight:1},
+      {id:"q8",text:"Are you comfortable shifting between different roles or stations based on daily business needs?",hint:"Multi-position candidates need to embrace flexibility — not just tolerate it",weight:2},
+      {id:"q9",text:"Can you provide 2+ references from previous hospitality, retail, or food service employers?",hint:"Verify before offering — multi-role candidates need solid references",weight:1},
+      {id:"q10",text:"Why do you want to join the Sea Lion Dockside Bar family of businesses?",hint:"Look for genuine enthusiasm for the waterfront culture and team environment",weight:2},
+    ],
+  };
+
+  const CHECKLIST=[
+    {id:"c1",label:"Lives locally / commute is feasible",sub:"Within reasonable distance of Newport, OR"},
+    {id:"c2",label:"Reliable transportation",sub:"Has dependable way to get to work on time"},
+    {id:"c3",label:"Seasonal nature explained",sub:"Peak season April–October; hours may vary off-season"},
+    {id:"c4",label:"Compensation discussed",sub:"Hourly rate, tips policy, and pay schedule covered"},
+    {id:"c5",label:"Shift expectations covered",sub:"Start times, shift length, and weekend requirements explained"},
+    {id:"c6",label:"Required certifications noted",sub:"OLCC, food handler's card, or barista certs discussed"},
+    {id:"c7",label:"Dress code & appearance explained",sub:"Uniform or appearance standards outlined"},
+    {id:"c8",label:"Training process explained",sub:"Onboarding timeline and training period discussed"},
+    {id:"c9",label:"Team culture & expectations covered",sub:"Work environment and performance standards discussed"},
+    {id:"c10",label:"Next steps communicated",sub:"Timeline, follow-up method, and what to expect explained"},
+  ];
+
+  const RATINGS={0:{label:"—",color:"#8b949e"},1:{label:"Weak",color:"#f85149"},2:{label:"Good",color:"#f0b429"},3:{label:"Strong",color:"#34d399"}};
+  const STATUS_CFG={
+    hired:{label:"✅ Hired",color:"#34d399",bg:"rgba(52,211,153,0.12)",border:"#34d399"},
+    hold:{label:"⏸ On Hold",color:"#f0b429",bg:"rgba(240,180,41,0.12)",border:"#f0b429"},
+    pass:{label:"✗ Passed",color:"#f85149",bg:"rgba(248,81,73,0.1)",border:"#f85149"},
+  };
+  const WRAPUP=11;
+
+  function calcScore(answers,questions){
+    let total=0,max=0;
+    questions.forEach(q=>{const a=answers[q.id];if(a&&a.rating)total+=a.rating*q.weight;max+=3*q.weight;});
+    return{score:total,max,pct:max>0?Math.round((total/max)*100):0};
+  }
+  function tier(pct){
+    if(pct>=80)return{label:"🟢 Top Candidate",color:C.tealL};
+    if(pct>=55)return{label:"🟡 Consider",color:C.amber};
+    return{label:"🔴 Pass",color:C.red};
+  }
+
+  const pBtn={background:C.amber,color:C.bg,border:"none",borderRadius:7,padding:"11px 22px",fontSize:14,fontWeight:"bold",cursor:"pointer",letterSpacing:"0.03em"};
+  const nBtn={background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:7,padding:"10px 18px",fontSize:14,cursor:"pointer"};
+  const cardS={background:C.mid,border:`1px solid ${C.border}`,borderRadius:10,padding:"22px"};
+  const inputS={background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px 12px",color:C.cream,fontSize:14,outline:"none",width:"100%"};
+  const labelS={display:"flex",flexDirection:"column",gap:7,fontSize:13,color:C.dim};
+
+  function generateContract(c,data){
+    const co=COMPANIES[c.company]||{name:"Newport Hospitality Group",address:"Newport, OR",icon:"🏢",short:"NHG"};
+    const pos=POS_LABELS[c.position]||{title:c.position};
+    const today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+    const dutiesMap={
+      bartender:`<li>Mix and serve beverages in full compliance with OLCC regulations and responsible alcohol service standards</li>
+        <li>Maintain a clean, organized, and professional bar environment throughout each shift</li>
+        <li>Provide exceptional guest service to tourists and locals alike — the bar experience starts with you</li>
+        <li>Handle cash and POS transactions accurately and honestly at all times</li>
+        <li>Monitor guest consumption and confidently enforce responsible alcohol service policies</li>
+        <li>Collaborate with kitchen and front-of-house staff to ensure smooth coordinated operations</li>
+        <li>Maintain a current OLCC Alcohol Server Permit throughout employment</li>`,
+      barista:`<li>Prepare espresso drinks, drip coffee, cold brew, and specialty beverages to consistent quality standards</li>
+        <li>Maintain a clean, organized, and food-safe coffee station throughout each shift</li>
+        <li>Deliver fast, friendly, and accurate service during high-traffic tourist periods</li>
+        <li>Operate commercial espresso machines, grinders, and brewing equipment with care and skill</li>
+        <li>Follow all Oregon food safety and health code requirements at all times</li>
+        <li>Support the broader team across front-of-house duties as directed by management</li>
+        <li>Maintain a current Oregon Food Handler's Card throughout employment</li>`,
+      giftshop:`<li>Welcome and assist guests in a warm, knowledgeable, and professional manner</li>
+        <li>Operate the POS system and handle all cash and card transactions with accuracy</li>
+        <li>Maintain organized, clean, well-stocked, and visually attractive product displays at all times</li>
+        <li>Assist with inventory management, receiving shipments, and restocking shelves</li>
+        <li>Represent ${co.name} as a welcoming ambassador for Newport's local culture and products</li>
+        <li>Handle guest concerns, returns, and complaints with professionalism and care</li>
+        <li>Support fellow team members during peak tourist hours as directed by management</li>`,
+      all:`<li>Serve in a rotating capacity across bar, coffee station, and gift shop operations as scheduled</li>
+        <li>Adapt quickly between roles based on daily staffing needs and business volume</li>
+        <li>Maintain all required certifications for each area of work (OLCC, food handler's card, etc.)</li>
+        <li>Provide consistent, exceptional guest experiences across all positions and venues</li>
+        <li>Support team leads and management with a flexible, solutions-first attitude</li>
+        <li>Contribute to a collaborative, guest-first work culture across all Sea Lion properties</li>`,
+    };
+    const duties=dutiesMap[c.position]||dutiesMap.giftshop;
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Offer Letter — ${c.name}</title>
+      <style>body{font-family:Georgia,serif;color:#111;padding:0;max-width:740px;margin:0 auto;}
+      .page{padding:48px 52px;}.lh{border-bottom:3px solid #0d1117;padding-bottom:18px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-end;}
+      .cn{font-size:22px;font-weight:bold;color:#0d1117;letter-spacing:0.04em;}.cs{font-size:11px;color:#555;margin-top:3px;letter-spacing:0.06em;}
+      .cc{font-size:11px;color:#666;text-align:right;line-height:1.7;}h2{font-size:18px;color:#0d1117;margin-bottom:18px;border-bottom:1px solid #ddd;padding-bottom:8px;}
+      p{font-size:13px;color:#222;line-height:1.8;margin-bottom:14px;}
+      table{width:100%;border-collapse:collapse;margin:20px 0;}td{padding:9px 12px;font-size:13px;border-bottom:1px solid #eee;vertical-align:top;}
+      td:first-child{font-weight:bold;color:#0d1117;width:200px;white-space:nowrap;}
+      ul{margin:10px 0 14px 20px;}li{font-size:13px;line-height:1.8;color:#222;margin-bottom:4px;}
+      .badge{display:inline-block;background:#0d1117;color:#f0b429;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:bold;letter-spacing:0.06em;margin-bottom:20px;}
+      .aw{background:#f9f9f6;border-left:3px solid #0d1117;padding:12px 16px;margin:16px 0;font-size:12px;color:#444;font-style:italic;line-height:1.7;}
+      .sr{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:24px;}
+      .sb{border-bottom:1px solid #333;padding-bottom:6px;margin-bottom:6px;min-height:48px;}.sl{font-size:11px;color:#666;letter-spacing:0.04em;}
+      .footer{margin-top:32px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px;}
+      @media print{.np{display:none!important;}}</style></head>
+    <body><div class="page">
+      <div class="np" style="background:#f0b429;color:#0d1117;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:24px;">
+        <span style="font-size:13px;font-weight:bold;">📄 Offer Letter — Ready to Print</span>
+        <button onclick="window.print()" style="background:#0d1117;color:#f0b429;border:none;border-radius:6px;padding:8px 20px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Georgia,serif;">🖨 Print / Save PDF</button>
+      </div>
+      <div class="lh"><div><div class="cn">${co.icon} ${co.name.toUpperCase()}</div><div class="cs">NEWPORT HOSPITALITY GROUP</div></div>
+        <div class="cc">${co.address}<br/>Newport Hospitality Group</div></div>
+      <div style="font-size:13px;color:#444;margin-bottom:24px;">${today}</div>
+      <p>Dear <strong>${c.name}</strong>,</p>
+      <p>We are pleased to extend this offer of seasonal employment with <strong>${co.name}</strong>, a proud member of the Newport Hospitality Group family of companies.</p>
+      <div class="badge">${pos.title.toUpperCase()}</div>
+      <h2>Terms of Employment</h2>
+      <table><tr><td>Position</td><td>${pos.title}</td></tr><tr><td>Company</td><td>${co.name}</td></tr>
+        <tr><td>Employment Type</td><td>Seasonal — At-Will</td></tr>
+        <tr><td>Start Date</td><td>${data.startDate||"_______________________"}</td></tr>
+        <tr><td>Season Duration</td><td>April – October (subject to operational needs)</td></tr>
+        <tr><td>Compensation</td><td>${data.payRate?`$${data.payRate} per ${data.payPeriod||"hour"}`:"_______________________"}</td></tr>
+        <tr><td>Schedule</td><td>Weekends required; schedule based on business needs</td></tr>
+        <tr><td>Location</td><td>${co.address}</td></tr></table>
+      <h2>Duties &amp; Responsibilities</h2><ul>${duties}</ul>
+      <h2>Conditions of Employment</h2>
+      <ul><li>This offer is contingent upon successful completion of any required background or reference checks</li>
+        <li>Employee must maintain all required certifications throughout the season</li>
+        <li>Employee agrees to adhere to all ${co.name} policies and guest service standards</li>
+        <li>Uniform or dress code requirements must be maintained at all times while on duty</li></ul>
+      <div class="aw"><strong>At-Will Employment:</strong> Employment with ${co.name} is at-will, meaning either party may terminate the employment relationship at any time, with or without cause or advance notice.</div>
+      <p>We are excited to welcome you to the team. Please sign below and return a copy by <strong>${data.returnBy||"_______________________"}</strong>. Welcome aboard!</p>
+      <div style="border-top:1px solid #ddd;padding-top:28px;margin-top:40px;">
+        <p style="font-size:13px;color:#333;">By signing below, you acknowledge that you have read, understood, and agree to the terms outlined in this offer letter.</p>
+        <div class="sr">
+          <div><div class="sb"></div><div class="sl">EMPLOYEE SIGNATURE</div>
+            <div style="margin-top:14px;"><div class="sb"></div><div class="sl">PRINTED NAME</div></div>
+            <div style="margin-top:14px;"><div class="sb"></div><div class="sl">DATE</div></div></div>
+          <div><div class="sb"></div><div class="sl">EMPLOYER SIGNATURE</div>
+            <div style="margin-top:14px;"><div class="sb" style="display:flex;align-items:flex-end;padding-bottom:4px;"><span style="font-size:13px;color:#333;">${co.name}</span></div><div class="sl">COMPANY</div></div>
+            <div style="margin-top:14px;"><div class="sb"></div><div class="sl">DATE</div></div></div>
+        </div>
+      </div>
+      <div class="footer">${co.name} &nbsp;·&nbsp; Newport Hospitality Group &nbsp;·&nbsp; Internal Use Only</div>
+    </div></body></html>`;
+    const w=window.open("","_blank");w.document.write(html);w.document.close();
+  }
+
+  function downloadPDF(c){
+    const questions=POS_QUESTIONS[c.position]||[];
+    const t=tier(c.pct);
+    const co=COMPANIES[c.company]||{};
+    const pos=POS_LABELS[c.position]||{title:c.position};
+    const checkedCount=Object.values(c.checklist||{}).filter(Boolean).length;
+    const rows=questions.map((q,i)=>{
+      const a=c.answers[q.id]||{};const rl=RATINGS[a.rating||0];
+      const rc=a.rating===3?"#1a6b5e":a.rating===2?"#8a6800":a.rating===1?"#aa2200":"#888";
+      return`<tr style="border-bottom:1px solid #ddd;"><td style="padding:8px 6px;font-size:12px;color:#444;vertical-align:top;width:26px;text-align:center;">${i+1}</td>
+        <td style="padding:8px 6px;font-size:12px;color:#222;vertical-align:top;">${q.text}${a.note?`<div style="margin-top:4px;font-style:italic;color:#555;">"${a.note}"</div>`:""}</td>
+        <td style="padding:8px 6px;font-size:12px;font-weight:bold;color:${rc};white-space:nowrap;text-align:right;">${rl.label}</td></tr>`;
+    }).join("");
+    const checkRows=CHECKLIST.map(item=>{
+      const checked=c.checklist&&c.checklist[item.id];
+      return`<div style="display:inline-flex;align-items:center;gap:5px;margin:3px 12px 3px 0;font-size:11px;color:${checked?"#1a6b5e":"#999"};"><span>${checked?"✅":"⬜"}</span><span>${item.label}</span></div>`;
+    }).join("");
+    const av=c.avail||{};const months=Object.keys(av.months||{}).filter(m=>av.months[m]);
+    const days=Object.keys(av.days||{}).filter(d=>av.days[d]&&av.days[d].on);
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Interview — ${c.name}</title>
+      <style>body{font-family:Georgia,serif;color:#111;padding:32px;max-width:720px;margin:0 auto;}
+      h1{font-size:22px;color:#0d1117;}table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+      th{background:#0d1117;color:#f0b429;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 6px;text-align:left;}
+      .st{font-size:13px;font-weight:bold;color:#0d1117;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;border-bottom:2px solid #0d1117;padding-bottom:4px;}
+      .nb{background:#f9f9f6;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:12px;color:#444;font-style:italic;line-height:1.6;white-space:pre-wrap;}
+      .footer{margin-top:28px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px;}
+      @media print{.np{display:none;}}</style></head>
+    <body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+        <div><h1>${co.icon||""} ${c.name}</h1>
+          <div style="font-size:12px;color:#666;">${pos.title} @ ${co.name||c.company} &nbsp;·&nbsp; ${c.date} at ${c.time}${c.phone?" &nbsp;·&nbsp; "+c.phone:""}</div></div>
+        <button class="np" onclick="window.print()" style="background:#f0b429;color:#0d1117;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Georgia,serif;">🖨 Print</button>
+      </div>
+      <div style="background:#f5f5f0;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:20px;display:flex;align-items:center;gap:20px;">
+        <div style="font-size:38px;font-weight:bold;color:${t.color}">${c.pct}%</div>
+        <div><div style="font-size:14px;font-weight:bold;">${t.label}</div>
+          <div style="font-size:12px;color:#666;margin-top:3px;">Score: ${c.score}/${c.max} &nbsp;·&nbsp; Checklist: ${checkedCount}/${CHECKLIST.length}</div></div>
+      </div>
+      ${c.notes?`<div class="st">First Impression</div><div class="nb">${c.notes}</div>`:""}
+      ${months.length>0||days.length>0||av.commitment?`<div class="st">Availability</div><div style="margin-bottom:12px;">${months.length>0?`<div style="margin-bottom:6px;">${months.map(m=>`<span style="background:#e0f7f3;border:1px solid #10b981;color:#065f46;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:bold;margin-right:4px;">${m}</span>`).join("")}</div>`:""} ${days.length>0?`<div style="margin-bottom:4px;">${days.map(d=>`<span style="font-size:12px;color:#111;margin-right:12px;"><b>${d}</b> — ${av.days[d].shift||"Full Day"}</span>`).join("")}</div>`:""} ${av.commitment?`<div style="font-size:13px;font-weight:bold;color:#92400e;">${av.commitment}</div>`:""} ${av.availNotes?`<div style="font-size:12px;color:#555;font-style:italic;margin-top:4px;">${av.availNotes}</div>`:""}</div>`:""}
+      <div class="st">Interview Questions</div>
+      <table><thead><tr><th style="width:26px;">#</th><th>Question &amp; Answer</th><th style="text-align:right;">Rating</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="st">Wrap-Up Checklist</div><div style="padding:10px 0;">${checkRows}</div>
+      ${c.finalNotes?`<div class="st">Final Notes</div><div class="nb">${c.finalNotes}</div>`:""}
+      <div class="footer">${co.name||"Newport Hospitality Group"} &nbsp;·&nbsp; Newport, OR &nbsp;·&nbsp; Internal Use Only</div>
+    </body></html>`;
+    const w=window.open("","_blank");w.document.write(html);w.document.close();
+  }
+
+  function ContractModal({candidate,onClose}){
+    const [startDate,setStartDate]=React.useState("");
+    const [payRate,setPayRate]=React.useState("");
+    const [payPeriod,setPayPeriod]=React.useState("hour");
+    const [returnBy,setReturnBy]=React.useState("");
+    const co=COMPANIES[candidate.company]||{};
+    const pos=POS_LABELS[candidate.position]||{title:candidate.position};
+    return(
+      <div className="overlay" onClick={onClose}>
+        <div className="modal" onClick={e=>e.stopPropagation()}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div><div style={{fontSize:18,fontWeight:"bold",color:C.amberL}}>📄 Generate Offer Letter</div>
+              <div style={{fontSize:13,color:C.dim,marginTop:3}}>{candidate.name} · {co.name} · {pos.title}</div></div>
+            <button onClick={onClose} style={{...nBtn,padding:"6px 12px",fontSize:13}}>✕</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <label style={labelS}>Start Date<input style={inputS} type="date" onChange={e=>setStartDate(new Date(e.target.value+"T12:00:00").toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}))}/></label>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <label style={labelS}>Pay Rate
+                <div style={{display:"flex"}}><span style={{background:C.light,border:`1px solid ${C.border}`,borderRight:"none",borderRadius:"6px 0 0 6px",padding:"10px 10px",color:C.dim,fontSize:14}}>$</span>
+                  <input style={{...inputS,borderRadius:"0 6px 6px 0",borderLeft:"none"}} placeholder="0.00" value={payRate} onChange={e=>setPayRate(e.target.value)}/></div>
+              </label>
+              <label style={labelS}>Pay Period<select style={{...inputS,cursor:"pointer"}} value={payPeriod} onChange={e=>setPayPeriod(e.target.value)}>
+                <option value="hour">Per Hour</option><option value="shift">Per Shift</option>
+                <option value="day">Per Day</option><option value="week">Per Week</option></select></label>
+            </div>
+            <label style={labelS}>Return Signed By<input style={inputS} type="date" onChange={e=>setReturnBy(new Date(e.target.value+"T12:00:00").toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}))}/></label>
+          </div>
+          <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",marginTop:16}}>
+            <div style={{fontSize:11,color:C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:6}}>What's included</div>
+            <div style={{fontSize:12,color:C.dim,lineHeight:1.7}}>{co.name} letterhead · Employment terms · Role-specific duties · At-will clause · Dual signature lines</div>
+          </div>
+          <div style={{display:"flex",gap:12,marginTop:20}}>
+            <button onClick={onClose} style={{...nBtn,flex:1}}>Cancel</button>
+            <button onClick={()=>{generateContract(candidate,{startDate,payRate,payPeriod,returnBy});onClose();}} style={{...pBtn,flex:2}}>Generate &amp; Open →</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const PASSWORD="sea2026";
+  function LoginGate({onUnlock}){
+    const [input,setInput]=React.useState("");
+    const [error,setError]=React.useState(false);
+    const [shake,setShake]=React.useState(false);
+    function attempt(){
+      if(input.toLowerCase().trim()===PASSWORD){sessionStorage.setItem("nhg-auth","1");setTimeout(()=>onUnlock(),0);}
+      else{setError(true);setShake(true);setInput("");setTimeout(()=>setShake(false),600);}
+    }
+    return(
+      <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{background:C.mid,border:`1px solid ${C.amber}`,borderRadius:14,padding:"40px 36px",
+          width:"100%",maxWidth:420,textAlign:"center",transform:shake?"translateX(6px)":"none",transition:"transform 0.1s"}}>
+          <div style={{fontSize:13,color:C.dim,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:16}}>Newport Hospitality Group</div>
+          <div style={{display:"flex",justifyContent:"center",gap:16,fontSize:32,marginBottom:16}}>🦁☕⚓</div>
+          <div style={{fontSize:22,fontWeight:"bold",color:C.amberL,marginBottom:4}}>Staff Hiring Portal</div>
+          <div style={{fontSize:11,color:C.dim,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:28}}>Internal Use Only</div>
+          <input style={{background:C.bg,border:`1px solid ${error?C.red:C.border}`,borderRadius:6,padding:"12px 14px",
+            color:C.cream,fontSize:16,outline:"none",width:"100%",textAlign:"center",letterSpacing:"0.1em",boxSizing:"border-box"}}
+            type="password" placeholder="Enter password" value={input}
+            onChange={e=>{setInput(e.target.value);setError(false);}}
+            onKeyDown={e=>e.key==="Enter"&&attempt()} autoFocus/>
+          {error&&<div style={{fontSize:12,color:C.red,marginTop:8}}>Incorrect password — try again</div>}
+          <button onClick={attempt} style={{...pBtn,marginTop:14,width:"100%",fontSize:15,padding:"12px 0"}}>Unlock →</button>
+        </div>
+      </div>
+    );
+  }
+
+  function App(){
+    const [view,setView]=React.useState("gateway");
+    const [company,setCompany]=React.useState(null);
+    const [position,setPosition]=React.useState(null);
+    const [candidates,setCandidates]=React.useState([]);
+    const [step,setStep]=React.useState(0);
+    const [answers,setAnswers]=React.useState({});
+    const [candName,setCandName]=React.useState("");
+    const [candPhone,setCandPhone]=React.useState("");
+    const [candNotes,setCandNotes]=React.useState("");
+    const [finalNotes,setFinalNotes]=React.useState("");
+    const [checklist,setChecklist]=React.useState({});
+    const [avail,setAvail]=React.useState({months:{},days:{},commitment:"",startDate:"",endDate:"",availNotes:""});
+    const [current,setCurrent]=React.useState(null);
+    const [detailId,setDetailId]=React.useState(null);
+    const [confirmDel,setConfirmDel]=React.useState(null);
+    const [editId,setEditId]=React.useState(null);
+    const [editData,setEditData]=React.useState({});
+    const [contractFor,setContractFor]=React.useState(null);
+    const [dashTab,setDashTab]=React.useState("all");
+    const [dashCo,setDashCo]=React.useState("all");
+
+    React.useEffect(()=>{
+      fetch("/api/staff-candidates").then(r=>r.json())
+        .then(d=>{if(Array.isArray(d.candidates))setCandidates(d.candidates);})
+        .catch(()=>{try{const s=localStorage.getItem("nhg-candidates");if(s)setCandidates(JSON.parse(s));}catch{}});
+    },[]);
+
+    function persist(u){
+      fetch("/api/staff-candidates",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({candidates:u})})
+        .catch(()=>{try{localStorage.setItem("nhg-candidates",JSON.stringify(u));}catch{}});
+    }
+
+    const questions=position?POS_QUESTIONS[position]:[];
+    const totalSteps=questions.length+1;
+
+    function startInterview(co,pos){
+      setCompany(co);setPosition(pos);setStep(0);setAnswers({});
+      setCandName("");setCandPhone("");setCandNotes("");setFinalNotes("");
+      setChecklist({});setAvail({months:{},days:{},commitment:"",startDate:"",endDate:"",availNotes:""});
+      setCurrent(null);setView("interview");
+    }
+    function setAns(qid,field,val){setAnswers(prev=>({...prev,[qid]:{...prev[qid],[field]:val}}));}
+    function toggleCheck(id){setChecklist(prev=>({...prev,[id]:!prev[id]}));}
+    function finish(){
+      const s=calcScore(answers,questions);
+      const c={id:Date.now().toString(),name:candName.trim()||"Unnamed",phone:candPhone.trim(),
+        company,position,notes:candNotes.trim(),answers,...s,
+        finalNotes:finalNotes.trim(),checklist,avail,status:null,
+        date:new Date().toLocaleDateString(),time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})};
+      const updated=[c,...candidates];setCandidates(updated);persist(updated);setCurrent(c);setView("summary");
+    }
+    function setStatus(id,status){
+      const updated=candidates.map(c=>c.id===id?{...c,status:c.status===status?null:status}:c);
+      setCandidates(updated);persist(updated);
+    }
+    function deleteCand(id){
+      const updated=candidates.filter(c=>c.id!==id);setCandidates(updated);persist(updated);
+      if(detailId===id)setDetailId(null);setConfirmDel(null);
+    }
+    function openEdit(c){
+      setEditId(c.id);setEditData({name:c.name,phone:c.phone||"",notes:c.notes||"",finalNotes:c.finalNotes||"",
+        avail:c.avail?JSON.parse(JSON.stringify(c.avail)):{months:{},days:{},commitment:"",startDate:"",endDate:"",availNotes:""}});
+    }
+    function saveEdit(id){
+      const updated=candidates.map(c=>c.id===id?{...c,...editData}:c);setCandidates(updated);persist(updated);setEditId(null);setEditData({});
+    }
+
+    const allSorted=[...candidates].sort((a,b)=>b.pct-a.pct);
+    const filtered=allSorted.filter(c=>dashCo==="all"||c.company===dashCo)
+      .filter(c=>dashTab==="all"||(dashTab==="pending"?(!c.status||c.status==="pass"):c.status===dashTab));
+    const hiredCount=candidates.filter(c=>c.status==="hired").length;
+    const holdCount=candidates.filter(c=>c.status==="hold").length;
+
+    function StatusBtns({c}){
+      return(<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{key:"hired",label:"✅ Hire"},{key:"hold",label:"⏸ Hold"},{key:"pass",label:"✗ Pass"}].map(opt=>{
+          const active=c.status===opt.key;const cfg=STATUS_CFG[opt.key];
+          return(<button key={opt.key} onClick={e=>{e.stopPropagation();setStatus(c.id,opt.key);}} style={{
+            padding:"5px 12px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:active?"bold":"normal",
+            border:`1px solid ${active?cfg.border:C.border}`,background:active?cfg.bg:"transparent",
+            color:active?cfg.color:C.dim,fontFamily:"Georgia,serif",transition:"all 0.15s"}}>{opt.label}</button>);
+        })}
+      </div>);
+    }
+
+    const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const COMMIT=["Full Season","Most of Season","Weekends Only","Flexible / TBD"];
+
+    return(
+      <div style={{background:C.bg,minHeight:"100vh"}}>
+        {contractFor&&<ContractModal candidate={contractFor} onClose={()=>setContractFor(null)}/>}
+
+        {/* HEADER */}
+        <div style={{background:C.mid,borderBottom:`2px solid ${C.amber}`,padding:"14px 24px",
+          display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{fontSize:20}}>🦁☕⚓</div>
+            <div>
+              <div style={{fontSize:15,fontWeight:"bold",color:C.amberL,letterSpacing:"0.04em"}}>NEWPORT HOSPITALITY GROUP</div>
+              <div style={{fontSize:11,color:C.dim,letterSpacing:"0.12em",textTransform:"uppercase"}}>Staff Hiring — Internal</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            {view!=="gateway"&&<button onClick={()=>setView("gateway")} style={nBtn}>← Companies</button>}
+            {view!=="dashboard"&&<button onClick={()=>setView("dashboard")} style={nBtn}>Dashboard</button>}
+            {view==="dashboard"&&<button onClick={()=>setView("gateway")} style={pBtn}>+ New Interview</button>}
+          </div>
+        </div>
+
+        <div style={{maxWidth:780,margin:"0 auto",padding:"28px 20px"}}>
+
+          {/* GATEWAY */}
+          {view==="gateway"&&(
+            <div>
+              <h2 style={{fontSize:22,color:C.amberL,marginBottom:6}}>Select a Company to Begin</h2>
+              <div style={{fontSize:13,color:C.dim,marginBottom:28}}>Choose the company you're hiring for, then select a position.</div>
+              <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                {Object.entries(COMPANIES).map(([key,co])=>(
+                  <div key={key} style={{...cardS,border:`1px solid ${C.border}`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:14}}>
+                      <div style={{fontSize:40}}>{co.icon}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:20,fontWeight:"bold",color:co.colorL}}>{co.name}</div>
+                        <div style={{fontSize:12,color:C.dim,marginTop:2}}>{co.address} · {co.positions.length} position{co.positions.length!==1?"s":""} available</div>
+                      </div>
+                      <div style={{fontSize:13,color:C.dim}}>
+                        {candidates.filter(c=>c.company===key).length} interviewed
+                      </div>
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
+                      {co.positions.map(pos=>{
+                        const p=POS_LABELS[pos];
+                        return(
+                          <button key={pos} onClick={()=>startInterview(key,pos)} style={{
+                            background:co.colorBg,border:`1px solid ${co.color}`,borderRadius:8,
+                            padding:"10px 18px",cursor:"pointer",fontFamily:"Georgia,serif",
+                            display:"flex",alignItems:"center",gap:8,transition:"all 0.15s"}}>
+                            <span style={{fontSize:16}}>{p.icon}</span>
+                            <span style={{fontSize:14,color:co.colorL,fontWeight:"bold"}}>{p.title}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{marginTop:20,textAlign:"center"}}>
+                <button onClick={()=>setView("dashboard")} style={{...nBtn,fontSize:13}}>📊 View All Candidates →</button>
+              </div>
+            </div>
+          )}
+
+          {/* INTERVIEW */}
+          {view==="interview"&&(()=>{
+            const co=COMPANIES[company]||{};const pos=POS_LABELS[position]||{};
+            return(
+              <div>
+                <div style={{marginBottom:24}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                    <span style={{fontSize:12,color:C.dim,textTransform:"uppercase",letterSpacing:"0.1em"}}>{co.icon} {co.short} — {pos.icon} {pos.title}</span>
+                    <span style={{fontSize:12,color:C.amber}}>{step===0?"Candidate Info":step===WRAPUP?"Wrap-Up":`Question ${step} of ${questions.length}`}</span>
+                  </div>
+                  <div style={{background:C.light,borderRadius:4,height:4,overflow:"hidden"}}>
+                    <div style={{background:co.color||C.amber,height:"100%",borderRadius:4,width:`${step===0?2:(step/totalSteps)*100}%`,transition:"width 0.3s ease"}}/>
+                  </div>
+                </div>
+
+                {/* Step 0 */}
+                {step===0&&(
+                  <div style={cardS}>
+                    <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:20}}>📋 Candidate Information</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                      <label style={labelS}>Full Name *<input style={inputS} placeholder="e.g. Jane Smith" value={candName} onChange={e=>setCandName(e.target.value)}/></label>
+                      <label style={labelS}>Phone Number<input style={inputS} placeholder="e.g. (541) 555-0199" value={candPhone} onChange={e=>setCandPhone(e.target.value)}/></label>
+                      <label style={labelS}>Initial Impressions / Notes<textarea style={{...inputS,height:80,resize:"vertical"}} placeholder="First impression, referral source, energy level, etc." value={candNotes} onChange={e=>setCandNotes(e.target.value)}/></label>
+                    </div>
+                    <button onClick={()=>setStep(1)} disabled={!candName.trim()}
+                      style={{...pBtn,marginTop:24,width:"100%",opacity:candName.trim()?1:0.4,background:co.color||C.amber,color:"#fff"}}>
+                      Begin Interview →
+                    </button>
+                  </div>
+                )}
+
+                {/* Questions */}
+                {step>=1&&step<=questions.length&&(()=>{
+                  const q=questions[step-1];const ans=answers[q.id]||{};
+                  return(
+                    <div style={cardS}>
+                      <div style={{fontSize:12,color:co.colorL||C.amber,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Question {step} of {questions.length}</div>
+                      <div style={{fontSize:19,color:C.cream,lineHeight:1.5,fontWeight:"bold",marginBottom:10}}>{q.text}</div>
+                      <div style={{fontSize:12,color:C.tealL,fontStyle:"italic",marginBottom:20}}>💡 {q.hint}</div>
+                      <label style={labelS}>Candidate's Answer / Notes
+                        <textarea style={{...inputS,height:80,resize:"vertical"}} placeholder="Type what they say…"
+                          value={ans.note||""} onChange={e=>setAns(q.id,"note",e.target.value)} autoFocus/>
+                      </label>
+                      <div style={{marginTop:14}}>
+                        <div style={{fontSize:12,color:C.dim,marginBottom:8,letterSpacing:"0.05em"}}>RATE THIS ANSWER</div>
+                        <div style={{display:"flex",gap:10}}>
+                          {[1,2,3].map(r=>(
+                            <button key={r} onClick={()=>setAns(q.id,"rating",r)} style={{
+                              flex:1,padding:"10px 0",borderRadius:6,fontWeight:"bold",fontSize:13,cursor:"pointer",
+                              border:ans.rating===r?`2px solid ${RATINGS[r].color}`:`2px solid ${C.border}`,
+                              background:ans.rating===r?`${RATINGS[r].color}22`:C.light,
+                              color:ans.rating===r?RATINGS[r].color:C.dim,fontFamily:"Georgia,serif"}}>
+                              {r===1?"1 – Weak":r===2?"2 – Good":"3 – Strong"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Q1 Availability Widget */}
+                      {step===1&&(
+                        <div style={{marginTop:22,borderTop:`1px solid ${C.border}`,paddingTop:20}}>
+                          <div style={{fontSize:12,color:co.colorL||C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:14}}>🗓 Fill In Their Availability</div>
+                          <div style={{fontSize:12,color:C.dim,marginBottom:8,letterSpacing:"0.04em"}}>AVAILABLE MONTHS</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:18}}>
+                            {MONTHS.map(m=>{const on=avail.months[m];return(
+                              <button key={m} onClick={()=>setAvail(p=>({...p,months:{...p.months,[m]:!p.months[m]}}))} style={{
+                                padding:"5px 12px",borderRadius:16,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",
+                                border:`1px solid ${on?C.tealL:C.border}`,background:on?`${C.tealL}22`:C.light,
+                                color:on?C.tealL:C.dim,fontWeight:on?"bold":"normal"}}>{m}</button>
+                            );})}
+                          </div>
+                          <div style={{fontSize:12,color:C.dim,marginBottom:8,letterSpacing:"0.04em"}}>AVAILABLE DAYS & SHIFT</div>
+                          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:18}}>
+                            {DAYS.map(d=>{const dd=avail.days[d]||{on:false,shift:""};return(
+                              <div key={d} style={{display:"flex",alignItems:"center",gap:10,background:dd.on?`${C.tealL}11`:C.bg,
+                                border:`1px solid ${dd.on?C.tealL:C.border}`,borderRadius:7,padding:"7px 10px",transition:"all 0.15s"}}>
+                                <button onClick={()=>setAvail(p=>({...p,days:{...p.days,[d]:{...p.days[d],on:!dd.on,shift:dd.shift||"Full Day"}}}))} style={{
+                                  width:18,height:18,minWidth:18,borderRadius:3,cursor:"pointer",
+                                  border:`2px solid ${dd.on?C.tealL:C.border}`,background:dd.on?C.teal:"transparent",
+                                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                  {dd.on&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                </button>
+                                <span style={{fontSize:12,fontWeight:"bold",color:dd.on?C.cream:C.dim,width:28}}>{d}</span>
+                                {dd.on&&<div style={{display:"flex",gap:5}}>
+                                  {["Morning","Afternoon","Full Day"].map(s=>(
+                                    <button key={s} onClick={()=>setAvail(p=>({...p,days:{...p.days,[d]:{...p.days[d],shift:s}}}))} style={{
+                                      padding:"3px 9px",borderRadius:10,fontSize:11,cursor:"pointer",fontFamily:"Georgia,serif",
+                                      border:`1px solid ${dd.shift===s?C.amber:C.border}`,background:dd.shift===s?`${C.amber}22`:"transparent",
+                                      color:dd.shift===s?C.amberL:C.dim}}>{s}</button>
+                                  ))}
+                                </div>}
+                              </div>
+                            );})}
+                          </div>
+                          <div style={{fontSize:12,color:C.dim,marginBottom:8,letterSpacing:"0.04em"}}>COMMITMENT LEVEL</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:18}}>
+                            {COMMIT.map(cl=>{const on=avail.commitment===cl;return(
+                              <button key={cl} onClick={()=>setAvail(p=>({...p,commitment:on?"":cl}))} style={{
+                                padding:"6px 14px",borderRadius:16,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",
+                                border:`1px solid ${on?C.amberL:C.border}`,background:on?`${C.amber}22`:C.light,
+                                color:on?C.amberL:C.dim,fontWeight:on?"bold":"normal"}}>{cl}</button>
+                            );})}
+                          </div>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                            <label style={labelS}>Earliest Start Date<input type="date" style={inputS} value={avail.startDate} onChange={e=>setAvail(p=>({...p,startDate:e.target.value}))}/></label>
+                            <label style={labelS}>Latest End Date<input type="date" style={inputS} value={avail.endDate} onChange={e=>setAvail(p=>({...p,endDate:e.target.value}))}/></label>
+                          </div>
+                          <label style={labelS}>Scheduling Notes
+                            <textarea style={{...inputS,height:60,resize:"vertical"}} placeholder="e.g. Available after May 15th, can't work Sundays..."
+                              value={avail.availNotes} onChange={e=>setAvail(p=>({...p,availNotes:e.target.value}))}/>
+                          </label>
+                        </div>
+                      )}
+
+                      <div style={{display:"flex",gap:12,marginTop:22}}>
+                        <button onClick={()=>setStep(step-1)} style={{...nBtn,flex:1}}>← Back</button>
+                        <button onClick={()=>setStep(step+1)} style={{...pBtn,flex:2,background:co.color||C.amber,color:"#fff"}}>
+                          {step<questions.length?"Next Question →":"Wrap-Up →"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Wrap-Up */}
+                {step===WRAPUP&&(
+                  <div>
+                    <div style={{...cardS,marginBottom:16}}>
+                      <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:4}}>✅ Interview Wrap-Up Checklist</div>
+                      <div style={{fontSize:12,color:C.dim,marginBottom:18,fontStyle:"italic"}}>Check off each item covered with the candidate before ending the call.</div>
+                      {CHECKLIST.map(item=>(
+                        <div key={item.id} className="check-row" onClick={()=>toggleCheck(item.id)}>
+                          <div className={`chkbox${checklist[item.id]?" on":""}`}>
+                            {checklist[item.id]&&<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                          </div>
+                          <div>
+                            <div style={{fontSize:14,color:checklist[item.id]?C.tealL:C.cream,lineHeight:1.4}}>{item.label}</div>
+                            <div style={{fontSize:12,color:C.dim,fontStyle:"italic",marginTop:2}}>{item.sub}</div>
+                          </div>
+                        </div>
+                      ))}
+                      <div style={{marginTop:14,fontSize:12,color:C.amber,fontWeight:"bold"}}>{Object.values(checklist).filter(Boolean).length} of {CHECKLIST.length} items covered</div>
+                    </div>
+                    <div style={{...cardS,marginBottom:16}}>
+                      <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:6}}>📝 Final Notes</div>
+                      <div style={{fontSize:12,color:C.dim,marginBottom:14,fontStyle:"italic"}}>Gut feeling, red flags, standout moments, follow-up items.</div>
+                      <textarea style={{...inputS,height:120,resize:"vertical"}}
+                        placeholder="e.g. 3 years at McMenamins, OLCC current, wants to start May 1st, very personable..."
+                        value={finalNotes} onChange={e=>setFinalNotes(e.target.value)} autoFocus/>
+                    </div>
+                    <div style={{display:"flex",gap:12}}>
+                      <button onClick={()=>setStep(questions.length)} style={{...nBtn,flex:1}}>← Back</button>
+                      <button onClick={finish} style={{...pBtn,flex:2,background:C.teal}}>✓ Finish & Score</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* SUMMARY */}
+          {view==="summary"&&current&&(()=>{
+            const t=tier(current.pct);
+            const co=COMPANIES[current.company]||{};const pos=POS_LABELS[current.position]||{};
+            const qs=POS_QUESTIONS[current.position]||[];
+            const checkedCount=Object.values(current.checklist||{}).filter(Boolean).length;
+            const av=current.avail||{};
+            const months=Object.keys(av.months||{}).filter(m=>av.months[m]);
+            const days=Object.keys(av.days||{}).filter(d=>av.days[d]&&av.days[d].on);
+            return(
+              <div>
+                <div style={{...cardS,marginBottom:16,textAlign:"center"}}>
+                  <div style={{fontSize:48,marginBottom:8}}>{current.pct>=80?"🟢":current.pct>=55?"🟡":"🔴"}</div>
+                  <div style={{fontSize:28,fontWeight:"bold",color:C.amberL}}>{current.name}</div>
+                  <div style={{fontSize:13,color:C.dim,marginTop:4}}>{co.icon} {co.name} · {pos.icon} {pos.title} · {current.date}</div>
+                  <div style={{fontSize:36,fontWeight:"bold",color:t.color,margin:"16px 0 4px"}}>{current.pct}%</div>
+                  <div style={{fontSize:14,color:t.color}}>{t.label}</div>
+                  <div style={{fontSize:12,color:C.dim,marginTop:4}}>Score: {current.score}/{current.max} · Checklist: {checkedCount}/{CHECKLIST.length}</div>
+                  <div style={{marginTop:18,display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,color:C.dim,alignSelf:"center"}}>Mark as:</span>
+                    {[{key:"hired",label:"✅ Hire"},{key:"hold",label:"⏸ Hold"},{key:"pass",label:"✗ Pass"}].map(opt=>{
+                      const active=current.status===opt.key;const cfg=STATUS_CFG[opt.key];
+                      return(<button key={opt.key} onClick={()=>{
+                        const updated=candidates.map(c=>c.id===current.id?{...c,status:c.status===opt.key?null:opt.key}:c);
+                        setCandidates(updated);persist(updated);setCurrent(p=>({...p,status:p.status===opt.key?null:opt.key}));
+                      }} style={{padding:"6px 14px",borderRadius:20,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",fontWeight:active?"bold":"normal",
+                        border:`1px solid ${active?cfg.border:C.border}`,background:active?cfg.bg:"transparent",color:active?cfg.color:C.dim}}>{opt.label}</button>);
+                    })}
+                  </div>
+                  {current.status==="hired"&&<div style={{marginTop:14}}>
+                    <button onClick={()=>setContractFor(current)} style={{...pBtn,background:C.teal}}>📄 Generate Offer Letter</button>
+                  </div>}
+                </div>
+
+                {(months.length>0||days.length>0||av.commitment)&&(
+                  <div style={{...cardS,marginBottom:16}}>
+                    <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:14}}>🗓 Availability</div>
+                    {months.length>0&&<div style={{marginBottom:8,display:"flex",flexWrap:"wrap",gap:5}}>
+                      {months.map(m=><span key={m} style={{background:`${C.tealL}22`,border:`1px solid ${C.tealL}`,color:C.tealL,borderRadius:10,padding:"2px 9px",fontSize:11,fontWeight:"bold"}}>{m}</span>)}</div>}
+                    {days.length>0&&<div style={{marginBottom:6}}>{days.map(d=><span key={d} style={{fontSize:12,color:C.cream,marginRight:14}}><b>{d}</b> <span style={{color:C.dim,fontSize:11}}>— {av.days[d].shift||"Full Day"}</span></span>)}</div>}
+                    {av.commitment&&<div style={{fontSize:13,color:C.amberL,fontWeight:"bold",marginBottom:av.availNotes?4:0}}>{av.commitment}</div>}
+                    {av.availNotes&&<div style={{fontSize:12,color:C.dim,fontStyle:"italic"}}>{av.availNotes}</div>}
+                  </div>
+                )}
+
+                <div style={{...cardS,marginBottom:16}}>
+                  <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:16}}>Interview Breakdown</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                    {qs.map((q,i)=>{const a=current.answers[q.id]||{};const rl=RATINGS[a.rating||0];
+                      return(<div key={q.id} style={{borderBottom:`1px solid ${C.border}`,paddingBottom:14}}>
+                        <div style={{display:"flex",justifyContent:"space-between",gap:12}}>
+                          <div style={{fontSize:13,color:C.cream,flex:1}}><span style={{color:C.dim,marginRight:6}}>{i+1}.</span>{q.text}</div>
+                          <span style={{fontSize:12,fontWeight:"bold",color:rl.color,whiteSpace:"nowrap"}}>{rl.label}</span>
+                        </div>
+                        {a.note&&<div style={{fontSize:12,color:C.dim,marginTop:6,fontStyle:"italic",paddingLeft:14}}>"{a.note}"</div>}
+                      </div>);
+                    })}
+                  </div>
+                </div>
+
+                {current.finalNotes&&<div style={{...cardS,marginBottom:16}}>
+                  <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:10}}>📝 Final Notes</div>
+                  <div style={{fontSize:13,color:C.dim,fontStyle:"italic",lineHeight:1.7}}>{current.finalNotes}</div>
+                </div>}
+
+                <div style={{display:"flex",gap:12,marginTop:4}}>
+                  <button onClick={()=>setView("gateway")} style={{...pBtn,flex:1,background:co.color||C.amber,color:"#fff"}}>+ Interview Another</button>
+                  <button onClick={()=>setView("dashboard")} style={{...nBtn,flex:1}}>View Rankings</button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* DASHBOARD */}
+          {view==="dashboard"&&(
+            <div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
+                {[{label:"Total Interviewed",val:candidates.length,color:C.amberL},{label:"Hired",val:hiredCount,color:C.tealL},{label:"On Hold",val:holdCount,color:C.amber}].map(s=>(
+                  <div key={s.label} style={{...cardS,textAlign:"center",padding:"14px 10px"}}>
+                    <div style={{fontSize:26,fontWeight:"bold",color:s.color}}>{s.val}</div>
+                    <div style={{fontSize:11,color:C.dim,marginTop:3}}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+                {[{key:"all",label:"All Companies"},...Object.entries(COMPANIES).map(([k,c])=>({key:k,label:`${c.icon} ${c.short}`}))].map(t=>(
+                  <button key={t.key} className={`tab-btn${dashCo===t.key?" active":""}`} onClick={()=>setDashCo(t.key)}>{t.label}</button>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+                {[{key:"all",label:`All (${candidates.filter(c=>dashCo==="all"||c.company===dashCo).length})`},
+                  {key:"hired",label:`✅ Hired (${candidates.filter(c=>(dashCo==="all"||c.company===dashCo)&&c.status==="hired").length})`},
+                  {key:"hold",label:`⏸ Hold (${candidates.filter(c=>(dashCo==="all"||c.company===dashCo)&&c.status==="hold").length})`},
+                  {key:"pending",label:"Pending Review"}].map(t=>(
+                  <button key={t.key} className={`tab-btn${dashTab===t.key?" active":""}`} onClick={()=>setDashTab(t.key)}>{t.label}</button>
+                ))}
+              </div>
+
+              {filtered.length===0&&(
+                <div style={{...cardS,textAlign:"center",padding:"48px 24px"}}>
+                  <div style={{fontSize:36,marginBottom:12}}>🦁☕⚓</div>
+                  <div style={{color:C.dim,fontSize:15}}>{candidates.length===0?"No interviews yet.":"No candidates in this category."}</div>
+                  {candidates.length===0&&<button onClick={()=>setView("gateway")} style={{...pBtn,marginTop:20}}>+ Start Interview</button>}
+                </div>
+              )}
+
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {filtered.map((c,idx)=>{
+                  const t=tier(c.pct);const co=COMPANIES[c.company]||{color:C.amber};const pos=POS_LABELS[c.position]||{title:c.position};
+                  const isOpen=detailId===c.id;const statusCfg=c.status?STATUS_CFG[c.status]:null;
+                  const qs=POS_QUESTIONS[c.position]||[];
+                  const checkedCount=Object.values(c.checklist||{}).filter(Boolean).length;
+                  const av=c.avail||{};const months=Object.keys(av.months||{}).filter(m=>av.months[m]);
+                  const days=Object.keys(av.days||{}).filter(d=>av.days[d]&&av.days[d].on);
+                  return(
+                    <div key={c.id}>
+                      <div onClick={()=>setDetailId(isOpen?null:c.id)} style={{
+                        ...cardS,padding:"14px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,
+                        border:isOpen?`1px solid ${co.color||C.amber}`:statusCfg?`1px solid ${statusCfg.border}`:`1px solid ${C.border}`,
+                        background:statusCfg?statusCfg.bg:C.mid}}>
+                        <div style={{fontSize:24}}>{co.icon||"👤"}</div>
+                        <div style={{flex:1}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                            <div style={{fontWeight:"bold",color:C.cream,fontSize:15}}>{c.name}</div>
+                            {statusCfg&&<span style={{fontSize:11,fontWeight:"bold",color:statusCfg.color,background:statusCfg.bg,border:`1px solid ${statusCfg.border}`,borderRadius:10,padding:"2px 8px"}}>{statusCfg.label}</span>}
+                          </div>
+                          <div style={{fontSize:12,color:C.dim,marginTop:2}}>{pos.icon} {pos.title} @ {co.short||c.company} · {c.date}{c.phone&&` · ${c.phone}`}</div>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontSize:20,fontWeight:"bold",color:t.color}}>{c.pct}%</div>
+                          <div style={{fontSize:11,color:t.color}}>{t.label}</div>
+                        </div>
+                        <div style={{color:C.dim,fontSize:12}}>{isOpen?"▲":"▼"}</div>
+                      </div>
+
+                      {isOpen&&(
+                        <div style={{...cardS,borderTop:"none",borderRadius:"0 0 10px 10px",padding:"16px 18px",background:C.light}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:16,paddingBottom:16,borderBottom:`1px solid ${C.bg}`}}>
+                            <StatusBtns c={c}/>
+                            {c.status==="hired"&&<button onClick={e=>{e.stopPropagation();setContractFor(c);}} style={{...pBtn,background:C.teal,padding:"7px 14px",fontSize:12}}>📄 Offer Letter</button>}
+                          </div>
+
+                          {c.notes&&<div style={{fontSize:13,color:C.dim,fontStyle:"italic",marginBottom:14,paddingBottom:14,borderBottom:`1px solid ${C.bg}`}}>First impression: {c.notes}</div>}
+
+                          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+                            {qs.map(q=>{const a=c.answers[q.id]||{};const rl=RATINGS[a.rating||0];
+                              return(<div key={q.id} style={{display:"flex",gap:10}}>
+                                <span style={{fontSize:11,color:rl.color,fontWeight:"bold",minWidth:52}}>{rl.label}</span>
+                                <div><div style={{fontSize:12,color:C.dim}}>{q.text}</div>
+                                  {a.note&&<div style={{fontSize:11,color:C.cream,fontStyle:"italic",marginTop:3}}>"{a.note}"</div>}</div>
+                              </div>);
+                            })}
+                          </div>
+
+                          {(months.length>0||days.length>0||av.commitment)&&(
+                            <div style={{borderTop:`1px solid ${C.bg}`,paddingTop:14,marginBottom:14}}>
+                              <div style={{fontSize:12,color:C.amber,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"}}>🗓 Availability</div>
+                              {months.length>0&&<div style={{marginBottom:6,display:"flex",flexWrap:"wrap",gap:4}}>
+                                {months.map(m=><span key={m} style={{background:`${C.tealL}22`,border:`1px solid ${C.tealL}`,color:C.tealL,borderRadius:10,padding:"2px 8px",fontSize:11,fontWeight:"bold"}}>{m}</span>)}</div>}
+                              {days.length>0&&<div style={{marginBottom:4}}>{days.map(d=><span key={d} style={{fontSize:11,color:C.cream,marginRight:12}}><b>{d}</b> <span style={{color:C.dim}}>{av.days[d].shift||"Full Day"}</span></span>)}</div>}
+                              {av.commitment&&<div style={{fontSize:12,color:C.amberL,fontWeight:"bold"}}>{av.commitment}</div>}
+                              {av.availNotes&&<div style={{fontSize:11,color:C.dim,fontStyle:"italic",marginTop:4}}>{av.availNotes}</div>}
+                            </div>
+                          )}
+
+                          <div style={{borderTop:`1px solid ${C.bg}`,paddingTop:14,marginBottom:14}}>
+                            <div style={{fontSize:12,color:C.amber,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"}}>Wrap-Up — {checkedCount}/{CHECKLIST.length} covered</div>
+                            <div style={{display:"flex",flexWrap:"wrap",gap:"5px 16px"}}>
+                              {CHECKLIST.map(item=>{const checked=c.checklist&&c.checklist[item.id];
+                                return(<div key={item.id} style={{display:"flex",gap:5,alignItems:"center",fontSize:12,color:checked?C.tealL:C.dim}}><span>{checked?"✅":"⬜"}</span><span>{item.label}</span></div>);})}
+                            </div>
+                          </div>
+
+                          {c.finalNotes&&<div style={{borderTop:`1px solid ${C.bg}`,paddingTop:14,marginBottom:14}}>
+                            <div style={{fontSize:12,color:C.amber,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Final Notes</div>
+                            <div style={{fontSize:12,color:C.dim,fontStyle:"italic",lineHeight:1.6}}>{c.finalNotes}</div>
+                          </div>}
+
+                          {editId===c.id&&(
+                            <div onClick={e=>e.stopPropagation()} style={{borderTop:`1px solid ${C.bg}`,paddingTop:16,marginBottom:14}}>
+                              <div style={{fontSize:12,color:C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:12}}>✏️ Edit Candidate Details</div>
+                              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                                <label style={labelS}>Full Name<input style={inputS} value={editData.name||""} onChange={e=>setEditData(p=>({...p,name:e.target.value}))}/></label>
+                                <label style={labelS}>Phone<input style={inputS} value={editData.phone||""} onChange={e=>setEditData(p=>({...p,phone:e.target.value}))}/></label>
+                                <label style={labelS}>First Impression<textarea style={{...inputS,height:60,resize:"vertical"}} value={editData.notes||""} onChange={e=>setEditData(p=>({...p,notes:e.target.value}))}/></label>
+                                <label style={labelS}>Final Notes<textarea style={{...inputS,height:60,resize:"vertical"}} value={editData.finalNotes||""} onChange={e=>setEditData(p=>({...p,finalNotes:e.target.value}))}/></label>
+                                <label style={labelS}>Commitment<select style={{...inputS,cursor:"pointer"}} value={editData.avail?.commitment||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,commitment:e.target.value}}))}>
+                                  <option value="">— Select —</option>
+                                  {["Full Season","Most of Season","Weekends Only","Flexible / TBD"].map(cl=><option key={cl} value={cl}>{cl}</option>)}
+                                </select></label>
+                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                                  <label style={labelS}>Start Date<input type="date" style={inputS} value={editData.avail?.startDate||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,startDate:e.target.value}}))}/></label>
+                                  <label style={labelS}>End Date<input type="date" style={inputS} value={editData.avail?.endDate||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,endDate:e.target.value}}))}/></label>
+                                </div>
+                                <label style={labelS}>Scheduling Notes<textarea style={{...inputS,height:50,resize:"vertical"}} value={editData.avail?.availNotes||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,availNotes:e.target.value}}))}/></label>
+                              </div>
+                              <div style={{display:"flex",gap:8,marginTop:14}}>
+                                <button onClick={e=>{e.stopPropagation();setEditId(null);}} style={{...nBtn,flex:1,padding:"8px 0",fontSize:12}}>Cancel</button>
+                                <button onClick={e=>{e.stopPropagation();saveEdit(c.id);}} style={{...pBtn,flex:2,padding:"8px 0",fontSize:12,background:C.teal}}>✓ Save Changes</button>
+                              </div>
+                            </div>
+                          )}
+
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+                            <button onClick={e=>{e.stopPropagation();downloadPDF(c);}} style={{...nBtn,color:C.tealL,borderColor:C.tealL,fontSize:12}}>📄 Download PDF</button>
+                            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                              {editId!==c.id&&<button onClick={e=>{e.stopPropagation();setConfirmDel(null);openEdit(c);}} style={{...nBtn,color:C.amber,borderColor:C.amber,fontSize:12}}>✏️ Edit Details</button>}
+                              {confirmDel===c.id?(
+                                <div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(248,81,73,0.1)",border:`1px solid ${C.red}`,borderRadius:8,padding:"8px 12px"}}>
+                                  <span style={{fontSize:12,color:C.red}}>Remove this candidate?</span>
+                                  <button onClick={e=>{e.stopPropagation();deleteCand(c.id);}} style={{background:C.red,color:"#fff",border:"none",borderRadius:5,padding:"5px 12px",fontSize:12,fontWeight:"bold",cursor:"pointer",fontFamily:"Georgia,serif"}}>Yes, Remove</button>
+                                  <button onClick={e=>{e.stopPropagation();setConfirmDel(null);}} style={{...nBtn,padding:"5px 10px",fontSize:12}}>Cancel</button>
+                                </div>
+                              ):(
+                                <button onClick={e=>{e.stopPropagation();setEditId(null);setConfirmDel(c.id);}} style={{...nBtn,color:C.red,borderColor:C.red,fontSize:12}}>🗑 Remove</button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    );
+  }
+
+  function Root(){
+    const [authed,setAuthed]=React.useState(!!sessionStorage.getItem("nhg-auth"));
+    if(!authed) return <LoginGate onUnlock={()=>setAuthed(true)}/>;
+    return <App/>;
+  }
+
+  const root=ReactDOM.createRoot(document.getElementById("root"));
+  root.render(<Root/>);
+</script>
+</body>
+</html>

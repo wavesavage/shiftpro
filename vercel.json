@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "api/chat.js": { "maxDuration": 15 },
+    "api/staff-candidates.js": { "maxDuration": 10 }
+  },
+  "routes": [
+    { "src": "/hiring", "dest": "/hiring.html" }
+  ]
+}
