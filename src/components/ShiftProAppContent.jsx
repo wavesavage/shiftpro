@@ -2723,7 +2723,7 @@ function OwnerCmd({onLogout}){
             )}
 
             {/* ── COMPUTED VARS (only when employees exist) ── */}
-            ()=>{
+            {liveEmps!==null&&liveEmps.length>0&&(()=>{
               const EMPS_DATA = liveEmps;
               const activeEmps = EMPS_DATA.filter(e=>e.status==="active");
               const burnRate = activeEmps.reduce((s,e)=>s+e.rate,0);
@@ -3361,6 +3361,7 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
+            )}
           </div>
         )}
 
