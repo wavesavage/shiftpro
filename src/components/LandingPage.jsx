@@ -13,48 +13,6 @@ body{background:#05080f;font-family:'Outfit',sans-serif;color:#e2e8f0;overflow-x
 @keyframes pulseG{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.5)}50%{box-shadow:0 0 0 14px rgba(16,185,129,0)}}
 @keyframes slideL{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
 @keyframes slideR{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:none}}
-
-/* ── RESPONSIVE ── */
-.sp-split{display:flex;flex:1;position:relative;min-height:0;margin-top:0;}
-.sp-half{flex:1;display:flex;flex-direction:column;justify-content:center;cursor:pointer;position:relative;overflow:hidden;transition:background 0.5s;}
-.sp-half-l{align-items:flex-end;padding-right:12%;padding-left:60px;padding-top:80px;}
-.sp-half-r{align-items:flex-start;padding-left:12%;padding-right:60px;padding-top:80px;}
-.sp-content-l{position:relative;text-align:right;animation:slideR 0.7s ease;}
-.sp-content-r{position:relative;animation:slideL 0.7s ease;}
-.sp-nav{padding:0 40px;}
-.sp-section-pad{padding:90px 40px;}
-.sp-hero-pad{padding:120px 40px 80px;}
-.sp-footer-pad{padding:24px 40px;}
-.sp-grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:13px;}
-.sp-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
-.sp-grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;}
-.sp-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0;}
-.sp-pricing{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:13px;}
-.sp-perks{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:13px;}
-
-@media(max-width:768px){
-  .sp-split{flex-direction:column;}
-  .sp-half{flex:none;min-height:50vh;padding-top:20px !important;}
-  .sp-half-l{align-items:center !important;padding-right:24px !important;padding-left:24px !important;text-align:center;}
-  .sp-half-r{align-items:center !important;padding-left:24px !important;padding-right:24px !important;text-align:center;}
-  .sp-content-l{text-align:center !important;}
-  .sp-content-r{text-align:center !important;}
-  .sp-nav{padding:0 20px !important;}
-  .sp-section-pad{padding:60px 20px !important;}
-  .sp-hero-pad{padding:90px 20px 60px !important;}
-  .sp-footer-pad{padding:20px !important;}
-  .sp-grid-2{grid-template-columns:1fr !important;}
-  .sp-grid-4{grid-template-columns:repeat(2,1fr) !important;}
-  .sp-steps{grid-template-columns:1fr 1fr !important;}
-  .sp-pricing{grid-template-columns:1fr !important;}
-  .sp-perks{grid-template-columns:1fr !important;}
-  .sp-hide-mobile{display:none !important;}
-}
-@media(max-width:480px){
-  .sp-steps{grid-template-columns:1fr !important;}
-  .sp-grid-4{grid-template-columns:1fr 1fr !important;}
-  .sp-grid-3{grid-template-columns:1fr !important;}
-}
 `;
 
 const C={
@@ -116,30 +74,37 @@ function Logo({size=36}){
 function Entry({onChoose}){
   const [hov,setHov]=useState(null);
   return(
-    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      {/* Top bar — minimal, centered logo only */}
-      <div style={{padding:"20px 40px",display:"flex",justifyContent:"center",
-        position:"absolute",top:0,left:0,right:0,zIndex:30}}>
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"22px 40px",display:"flex",justifyContent:"center",zIndex:10}}>
         <Logo/>
       </div>
-      <div className="sp-split">
-        {/* Seamless center blend line */}
-        <div style={{position:"absolute",top:0,bottom:0,left:"50%",
-          transform:"translateX(-50%)",width:1,zIndex:10,pointerEvents:"none",
-          background:"linear-gradient(to bottom,transparent 0%,rgba(255,255,255,0.06) 30%,rgba(255,255,255,0.06) 70%,transparent 100%)"}}/>
+      <div style={{flex:1,display:"flex",position:"relative",minHeight:0}}>
+        {/* Floating center mark */}
+        <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",
+          zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",
+          animation:"fadeIn 0.9s ease",pointerEvents:"none"}}>
+          <div style={{filter:"drop-shadow(0 0 40px rgba(0,212,255,0.45))",
+            animation:"float 5s ease-in-out infinite"}}>
+            <Swirl size={96}/>
+          </div>
+          <div style={{fontFamily:C.mono,fontSize:10,color:"rgba(255,255,255,0.28)",
+            letterSpacing:"5px",marginTop:14,textAlign:"center"}}>WHO ARE YOU?</div>
+        </div>
 
         {/* LEFT — EMPLOYER */}
         <div onClick={()=>onChoose("employer")}
           onMouseEnter={()=>setHov("employer")} onMouseLeave={()=>setHov(null)}
-          className="sp-half sp-half-l"
-          style={{background:hov==="employer"?"rgba(245,158,11,0.05)":"transparent"}}>
+          style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-end",
+            justifyContent:"center",paddingRight:"14%",paddingLeft:40,cursor:"pointer",
+            position:"relative",overflow:"hidden",transition:"background 0.4s",
+            background:hov==="employer"?"rgba(245,158,11,0.05)":"transparent"}}>
           <div style={{position:"absolute",top:"50%",right:"18%",width:420,height:420,
             borderRadius:"50%",transform:"translateY(-50%)",pointerEvents:"none",
             background:`radial-gradient(ellipse,rgba(245,158,11,${hov==="employer"?0.11:0.04}) 0%,transparent 70%)`,
             transition:"all 0.4s"}}/>
           <div style={{position:"absolute",right:0,top:"8%",bottom:"8%",width:1,
             background:"linear-gradient(to bottom,transparent,rgba(255,255,255,0.07),transparent)"}}/>
-          <div className="sp-content-l">
+          <div style={{position:"relative",textAlign:"right",animation:"slideR 0.7s ease"}}>
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:18}}>
               <Swirl size={76} c1="#f59e0b" c2="#f97316" c3="#b45309" accent="#fde68a"/>
             </div>
@@ -172,13 +137,15 @@ function Entry({onChoose}){
         {/* RIGHT — EMPLOYEE */}
         <div onClick={()=>onChoose("employee")}
           onMouseEnter={()=>setHov("employee")} onMouseLeave={()=>setHov(null)}
-          className="sp-half sp-half-r"
-          style={{background:hov==="employee"?"rgba(16,185,129,0.05)":"transparent"}}>
+          style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",
+            justifyContent:"center",paddingLeft:"14%",paddingRight:40,cursor:"pointer",
+            position:"relative",overflow:"hidden",transition:"background 0.4s",
+            background:hov==="employee"?"rgba(16,185,129,0.05)":"transparent"}}>
           <div style={{position:"absolute",top:"50%",left:"18%",width:420,height:420,
             borderRadius:"50%",transform:"translateY(-50%)",pointerEvents:"none",
             background:`radial-gradient(ellipse,rgba(16,185,129,${hov==="employee"?0.11:0.04}) 0%,transparent 70%)`,
             transition:"all 0.4s"}}/>
-          <div className="sp-content-r">
+          <div style={{position:"relative",animation:"slideL 0.7s ease"}}>
             <div style={{marginBottom:18}}>
               <Swirl size={76} c1="#10b981" c2="#059669" c3="#065f46" accent="#6ee7b7"/>
             </div>
@@ -208,388 +175,20 @@ function Entry({onChoose}){
           </div>
         </div>
       </div>
-
+      <div style={{padding:"18px",textAlign:"center"}}>
+        <span style={{fontFamily:C.mono,fontSize:10,color:C.textF,letterSpacing:"3px"}}>
+          SELECT YOUR PORTAL TO CONTINUE
+        </span>
+      </div>
     </div>
   );
 }
 
 // ══ EMPLOYER LANDING ═══════════════════════════
-
-// ══ LITE PRICING DATA ══════════════════════════════
-const LITE_PLANS=[
-  {
-    name:"Lite Starter",
-    price:39,
-    tag:"MOST POPULAR",
-    employees:"Up to 15 employees",
-    locs:"1 location",
-    addLoc:"+ $29/additional location",
-    trial:"14-day free trial",
-    feats:[
-      "Time clock (clock in/out/break)",
-      "Weekly schedule builder",
-      "Employee mobile portal",
-      "Shift swap & time-off requests",
-      "My Growth career tracker",
-      "Achievement badges & streaks",
-      "Pay stubs & W-2 document vault",
-      "Email support",
-    ],
-    c:"#10b981",
-    hot:true,
-  },
-  {
-    name:"Lite Pro",
-    price:79,
-    tag:null,
-    employees:"Up to 40 employees",
-    locs:"Up to 3 locations",
-    addLoc:"+ $29/additional location",
-    trial:"14-day free trial",
-    feats:[
-      "Everything in Lite Starter",
-      "Multi-location dashboard",
-      "Manager + supervisor roles",
-      "Schedule templates",
-      "CSV time history export",
-      "Priority email support",
-    ],
-    c:"#6366f1",
-    hot:false,
-  },
-];
-
-// ══ EMPLOYER AUTH MODAL ══════════════════════════════
-function EmployerAuthModal({onClose,onSuccess}){
-  const [mode,setMode]=useState("signin"); // signin | signup
-  const [step,setStep]=useState(1);        // signup step 1 or 2
-  const [busy,setBusy]=useState(false);
-  const [err,setErr]=useState("");
-  // Sign in fields
-  const [email,setEmail]=useState("");
-  const [pass,setPass]=useState("");
-  // Sign up fields
-  const [bizName,setBizName]=useState("");
-  const [firstName,setFirstName]=useState("");
-  const [lastName,setLastName]=useState("");
-  const [empCount,setEmpCount]=useState("1-10");
-  const [signupEmail,setSignupEmail]=useState("");
-  const [signupPass,setSignupPass]=useState("");
-  const [signupPass2,setSignupPass2]=useState("");
-
-  const handleSignIn=async()=>{
-    if(!email||!pass){setErr("Please enter email and password.");return;}
-    setBusy(true);setErr("");
-    try{
-      // Import supabase dynamically to avoid SSR issues
-      const {signIn}=await import("../lib/supabase");
-      await signIn(email,pass);
-      onSuccess();
-    }catch(e){
-      setErr(e.message||"Sign in failed. Check your email and password.");
-    }finally{setBusy(false);}
-  };
-
-  const handleSignUp=async()=>{
-    if(!signupEmail||!signupPass||!signupPass2||!bizName||!firstName||!lastName){
-      setErr("Please fill in all fields.");return;
-    }
-    if(signupPass!==signupPass2){setErr("Passwords do not match.");return;}
-    if(signupPass.length<8){setErr("Password must be at least 8 characters.");return;}
-    setBusy(true);setErr("");
-    try{
-      const {supabase}=await import("../lib/supabase");
-      // 1. Create auth user
-      const {data:authData,error:authErr}=await supabase.auth.signUp({
-        email:signupEmail,password:signupPass,
-        options:{data:{first_name:firstName,last_name:lastName}}
-      });
-      if(authErr)throw authErr;
-      // 2. Create org
-      const slug=bizName.toLowerCase().replace(/[^a-z0-9]/g,"-").replace(/-+/g,"-");
-      const {data:org,error:orgErr}=await supabase.from("organizations")
-        .insert({name:bizName,slug:slug+"-"+Date.now(),plan:"lite_starter"})
-        .select().single();
-      if(orgErr)throw orgErr;
-      // 3. Create user profile
-      const {error:profileErr}=await supabase.from("users").insert({
-        id:authData.user.id,
-        org_id:org.id,
-        first_name:firstName,
-        last_name:lastName,
-        role:"owner",
-        app_role:"owner",
-        avatar_initials:(firstName[0]+lastName[0]).toUpperCase(),
-        avatar_color:"#f59e0b",
-        hourly_rate:0,
-      });
-      if(profileErr)throw profileErr;
-      onSuccess();
-    }catch(e){
-      setErr(e.message||"Sign up failed. Please try again.");
-    }finally{setBusy(false);}
-  };
-
-  const IN=({label,val,set,type="text",ph=""})=>(
-    <div style={{marginBottom:12}}>
-      <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.4)",
-        letterSpacing:"2px",marginBottom:5}}>{label}</div>
-      <input value={val} onChange={e=>{set(e.target.value);setErr("");}}
-        type={type} placeholder={ph}
-        onKeyDown={e=>{if(e.key==="Enter"){mode==="signin"?handleSignIn():handleSignUp();}}}
-        style={{width:"100%",padding:"11px 14px",
-          background:"rgba(255,255,255,0.06)",
-          border:"1px solid rgba(255,255,255,0.12)",
-          borderRadius:8,fontFamily:C.mono,fontSize:13,color:"#fff",
-          outline:"none",boxSizing:"border-box"}}/>
-    </div>
-  );
-
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",
-      zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",
-      padding:"20px",backdropFilter:"blur(8px)"}}
-      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{background:"#0d1623",
-        border:"1px solid rgba(245,158,11,0.25)",
-        borderRadius:18,padding:"32px",width:"100%",maxWidth:440,
-        animation:"fadeUp 0.3s ease",position:"relative",
-        boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-
-        {/* Close */}
-        <button onClick={onClose}
-          style={{position:"absolute",top:16,right:16,
-            background:"none",border:"none",color:"rgba(255,255,255,0.3)",
-            fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
-
-        {/* Logo */}
-        <div style={{display:"flex",justifyContent:"center",marginBottom:22}}>
-          <Logo/>
-        </div>
-
-        {/* Mode toggle */}
-        <div style={{display:"flex",gap:0,background:"rgba(255,255,255,0.05)",
-          borderRadius:10,padding:3,marginBottom:24}}>
-          {["signin","signup"].map(m=>(
-            <button key={m} onClick={()=>{setMode(m);setErr("");setStep(1);}}
-              style={{flex:1,padding:"9px",borderRadius:8,border:"none",
-                cursor:"pointer",
-                background:mode===m?"rgba(245,158,11,0.15)":"transparent",
-                fontFamily:C.sans,fontWeight:700,fontSize:13,
-                color:mode===m?C.amber:"rgba(255,255,255,0.35)",
-                transition:"all 0.2s"}}>
-              {m==="signin"?"Sign In":"Start Free Trial"}
-            </button>
-          ))}
-        </div>
-
-        {/* SIGN IN */}
-        {mode==="signin"&&(
-          <div>
-            <IN label="EMAIL" val={email} set={setEmail} type="email" ph="you@business.com"/>
-            <IN label="PASSWORD" val={pass} set={setPass} type="password" ph="••••••••"/>
-            {err&&<div style={{fontFamily:C.mono,fontSize:10,color:"#ef4444",
-              marginBottom:12}}>{err}</div>}
-            <button onClick={handleSignIn}
-              style={{width:"100%",padding:"13px",
-                background:busy?"rgba(245,158,11,0.4)":"linear-gradient(135deg,#f59e0b,#f97316)",
-                border:"none",borderRadius:10,fontFamily:C.sans,fontWeight:700,
-                fontSize:15,color:"#030c14",cursor:busy?"not-allowed":"pointer",
-                boxShadow:"0 4px 20px rgba(245,158,11,0.3)",marginBottom:14}}>
-              {busy?"Signing in…":"Enter Command Center →"}
-            </button>
-            <div style={{textAlign:"center",fontFamily:C.sans,fontSize:12,
-              color:"rgba(255,255,255,0.3)"}}>
-              No account?{" "}
-              <span onClick={()=>{setMode("signup");setErr("");}}
-                style={{color:C.amber,cursor:"pointer",textDecoration:"underline"}}>
-                Start your free trial
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* SIGN UP step 1 — business info */}
-        {mode==="signup"&&step===1&&(
-          <div>
-            <div style={{fontFamily:C.sans,fontWeight:700,fontSize:16,
-              color:"#fff",marginBottom:4}}>Create your account</div>
-            <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.3)",
-              marginBottom:18,letterSpacing:1}}>14-DAY FREE TRIAL · NO CREDIT CARD REQUIRED</div>
-            <IN label="BUSINESS NAME" val={bizName} set={setBizName} ph="Marine Discovery Tours"/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-              <div>
-                <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.4)",
-                  letterSpacing:"2px",marginBottom:5}}>FIRST NAME</div>
-                <input value={firstName} onChange={e=>setFirstName(e.target.value)}
-                  placeholder="Alex"
-                  style={{width:"100%",padding:"11px 14px",
-                    background:"rgba(255,255,255,0.06)",
-                    border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,
-                    fontFamily:C.mono,fontSize:13,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
-              </div>
-              <div>
-                <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.4)",
-                  letterSpacing:"2px",marginBottom:5}}>LAST NAME</div>
-                <input value={lastName} onChange={e=>setLastName(e.target.value)}
-                  placeholder="Rivera"
-                  style={{width:"100%",padding:"11px 14px",
-                    background:"rgba(255,255,255,0.06)",
-                    border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,
-                    fontFamily:C.mono,fontSize:13,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
-              </div>
-            </div>
-            <div style={{marginBottom:16}}>
-              <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.4)",
-                letterSpacing:"2px",marginBottom:5}}>TEAM SIZE</div>
-              <select value={empCount} onChange={e=>setEmpCount(e.target.value)}
-                style={{width:"100%",padding:"11px 14px",
-                  background:"rgba(255,255,255,0.06)",
-                  border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,
-                  fontFamily:C.mono,fontSize:13,color:"#fff",outline:"none",
-                  boxSizing:"border-box",cursor:"pointer"}}>
-                {["1-5","6-10","11-20","21-40","41-100","100+"].map(v=>(
-                  <option key={v} value={v} style={{background:"#0d1623"}}>{v} employees</option>
-                ))}
-              </select>
-            </div>
-            {err&&<div style={{fontFamily:C.mono,fontSize:10,color:"#ef4444",marginBottom:12}}>{err}</div>}
-            <button onClick={()=>{
-              if(!bizName||!firstName||!lastName){setErr("Please fill in all fields.");return;}
-              setErr("");setStep(2);
-            }}
-              style={{width:"100%",padding:"13px",
-                background:"linear-gradient(135deg,#f59e0b,#f97316)",
-                border:"none",borderRadius:10,fontFamily:C.sans,fontWeight:700,
-                fontSize:15,color:"#030c14",cursor:"pointer",
-                boxShadow:"0 4px 20px rgba(245,158,11,0.3)"}}>
-              Continue →
-            </button>
-          </div>
-        )}
-
-        {/* SIGN UP step 2 — credentials */}
-        {mode==="signup"&&step===2&&(
-          <div>
-            <button onClick={()=>setStep(1)}
-              style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",
-                fontFamily:C.mono,fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:16}}>
-              ← BACK
-            </button>
-            <div style={{fontFamily:C.sans,fontWeight:700,fontSize:16,
-              color:"#fff",marginBottom:4}}>Set your login credentials</div>
-            <div style={{fontFamily:C.mono,fontSize:9,color:C.amber,
-              marginBottom:18,letterSpacing:1}}>
-              {bizName} · {firstName} {lastName}
-            </div>
-            <IN label="EMAIL ADDRESS" val={signupEmail} set={setSignupEmail} type="email" ph="you@yourbusiness.com"/>
-            <IN label="PASSWORD (min 8 characters)" val={signupPass} set={setSignupPass} type="password" ph="••••••••"/>
-            <IN label="CONFIRM PASSWORD" val={signupPass2} set={setSignupPass2} type="password" ph="••••••••"/>
-            {err&&<div style={{fontFamily:C.mono,fontSize:10,color:"#ef4444",marginBottom:12}}>{err}</div>}
-            <button onClick={handleSignUp}
-              style={{width:"100%",padding:"13px",
-                background:busy?"rgba(16,185,129,0.4)":"linear-gradient(135deg,#10b981,#059669)",
-                border:"none",borderRadius:10,fontFamily:C.sans,fontWeight:700,
-                fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",
-                boxShadow:"0 4px 20px rgba(16,185,129,0.3)",marginBottom:12}}>
-              {busy?"Creating your account…":"Start My Free Trial →"}
-            </button>
-            <div style={{fontFamily:C.sans,fontSize:11,color:"rgba(255,255,255,0.25)",
-              textAlign:"center",lineHeight:1.6}}>
-              By creating an account you agree to our Terms of Service.
-              No credit card required for the 14-day trial.
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ══ EMPLOYEE AUTH MODAL ══════════════════════════════
-function EmployeeAuthModal({onClose,onSuccess}){
-  const [email,setEmail]=useState("");
-  const [pass,setPass]=useState("");
-  const [err,setErr]=useState("");
-  const [busy,setBusy]=useState(false);
-
-  const handleSignIn=async()=>{
-    if(!email||!pass){setErr("Please enter your email and password.");return;}
-    setBusy(true);setErr("");
-    try{
-      const {signIn}=await import("../lib/supabase");
-      await signIn(email,pass);
-      onSuccess();
-    }catch(e){
-      setErr("Sign in failed. Check your email and password.");
-    }finally{setBusy(false);}
-  };
-
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",
-      zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",
-      padding:"20px",backdropFilter:"blur(8px)"}}
-      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{background:"#fff",borderRadius:18,padding:"32px",
-        width:"100%",maxWidth:400,animation:"fadeUp 0.3s ease",position:"relative",
-        boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
-        <button onClick={onClose}
-          style={{position:"absolute",top:14,right:16,
-            background:"none",border:"none",color:"#9ca3af",
-            fontSize:20,cursor:"pointer"}}>×</button>
-        <div style={{textAlign:"center",marginBottom:22}}>
-          <Swirl size={48} c1="#10b981" c2="#059669" c3="#065f46" accent="#6ee7b7"/>
-          <div style={{fontFamily:C.sans,fontWeight:800,fontSize:22,
-            color:"#0f172a",marginTop:10,marginBottom:4}}>Welcome back 👋</div>
-          <div style={{fontFamily:C.body,fontSize:13,color:"#6b7280"}}>
-            Sign in to your Work Hub
-          </div>
-        </div>
-        <div style={{marginBottom:12}}>
-          <div style={{fontFamily:C.body,fontWeight:600,fontSize:12,
-            color:"#374151",marginBottom:5}}>Email Address</div>
-          <input value={email} onChange={e=>{setEmail(e.target.value);setErr("");}}
-            type="email" placeholder="you@email.com"
-            onKeyDown={e=>e.key==="Enter"&&handleSignIn()}
-            style={{width:"100%",padding:"11px 14px",
-              background:"#f9fafb",border:"1.5px solid #e5e7eb",
-              borderRadius:8,fontFamily:C.body,fontSize:14,color:"#111827",
-              outline:"none",boxSizing:"border-box"}}/>
-        </div>
-        <div style={{marginBottom:err?8:16}}>
-          <div style={{fontFamily:C.body,fontWeight:600,fontSize:12,
-            color:"#374151",marginBottom:5}}>Password</div>
-          <input value={pass} onChange={e=>{setPass(e.target.value);setErr("");}}
-            type="password" placeholder="••••••••"
-            onKeyDown={e=>e.key==="Enter"&&handleSignIn()}
-            style={{width:"100%",padding:"11px 14px",
-              background:"#f9fafb",border:"1.5px solid #e5e7eb",
-              borderRadius:8,fontFamily:C.body,fontSize:14,color:"#111827",
-              outline:"none",boxSizing:"border-box"}}/>
-        </div>
-        {err&&<div style={{fontFamily:C.body,fontSize:12,color:"#ef4444",marginBottom:12}}>{err}</div>}
-        <button onClick={handleSignIn}
-          style={{width:"100%",padding:"13px",
-            background:busy?"#9ca3af":"linear-gradient(135deg,#10b981,#059669)",
-            border:"none",borderRadius:10,fontFamily:C.sans,fontWeight:700,
-            fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",
-            boxShadow:"0 4px 20px rgba(16,185,129,0.3)",marginBottom:10}}>
-          {busy?"Signing in…":"Go to My Work Hub →"}
-        </button>
-        <div style={{fontFamily:C.body,fontSize:12,color:"#9ca3af",textAlign:"center"}}>
-          Need access? Ask your manager to add you to ShiftPro.
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function EmployerPage({onBack,onSignIn}){
   const [navSolid,setNavSolid]=useState(false);
   const [email,setEmail]=useState("");
   const [sent,setSent]=useState(false);
-  const [showAuth,setShowAuth]=useState(false);
-  const [authMode,setAuthMode]=useState("signin");
   useEffect(()=>{const h=()=>setNavSolid(window.scrollY>60);window.addEventListener("scroll",h);return()=>window.removeEventListener("scroll",h);},[]);
 
   const FEATS=[
@@ -602,63 +201,36 @@ function EmployerPage({onBack,onSignIn}){
   ];
 
   const PLANS=[
-    {name:"Starter",price:79,cameras:"Up to 4 cameras",locs:"1 location",
-      addLoc:"$49/additional location",
-      feats:["Shift scheduling & time clock","Employee portal & My Growth","Swap & time-off requests","Payroll tracking & export","Email alerts","Documents & W-2 vault"],
-      c:C.teal,hot:false},
-    {name:"Growth",price:179,cameras:"Up to 16 cameras",locs:"3 locations",
-      addLoc:"$49/additional location",
-      feats:["Everything in Starter","AI workforce intelligence","Payroll fraud forensics","Multi-location command center","SMS + push notifications","Benchmarks & analytics","HR enforcement suite"],
-      c:C.amber,hot:true},
-    {name:"Professional",price:349,cameras:"Unlimited cameras",locs:"Unlimited locations",
-      addLoc:null,
-      feats:["Everything in Growth","Camera AI integration","Full RBAC access control","API access & webhooks","White-label option","QuickBooks / ADP / Gusto sync","Priority support & onboarding"],
-      c:C.purple,hot:false},
-    {name:"Enterprise",price:599,cameras:"Unlimited + custom AI",locs:"Unlimited + custom",
-      addLoc:null,
-      feats:["Everything in Professional","Dedicated onboarding specialist","Custom AI model training","SLA guarantee","Annual contract pricing","Direct ADP / Paychex integration","Multi-brand / franchise support"],
-      c:"#f43f5e",hot:false},
+    {name:"Starter",price:49,cameras:"Up to 4 cameras",locs:"1 location",
+      feats:["Live camera dashboard","Shift scheduling","Time tracking","Email alerts","7-day clip storage"],c:C.teal,hot:false},
+    {name:"Business",price:129,cameras:"Up to 16 cameras",locs:"3 locations",
+      feats:["Everything in Starter","AI theft detection","Productivity ratings","SMS alerts","30-day clips","Payroll fraud engine"],c:C.amber,hot:true},
+    {name:"Enterprise",price:299,cameras:"Unlimited",locs:"Unlimited locations",
+      feats:["Everything in Business","Custom AI training","Unlimited storage","API access","Priority support","White-label"],c:C.purple,hot:false},
   ];
 
   return(
     <div style={{minHeight:"100vh",background:C.bg}}>
-      {showAuth&&<EmployerAuthModal
-        onClose={()=>setShowAuth(false)}
-        onSuccess={()=>{setShowAuth(false);onSignIn();}}
-      />}
       <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:200,height:62,
         background:navSolid?"rgba(5,8,15,0.97)":"transparent",
         borderBottom:navSolid?`1px solid ${C.border}`:"none",
         backdropFilter:navSolid?"blur(20px)":"none",transition:"all 0.3s",
-        padding:"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        padding:"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer"}}><Logo/></button>
         <div style={{display:"flex",alignItems:"center",gap:28}}>
           {["Features","Pricing"].map(item=>(
             <a key={item} href={`#el-${item.toLowerCase()}`}
-              className="sp-hide-mobile"
               style={{fontFamily:C.mono,fontSize:11,color:C.textD,textDecoration:"none",
                 letterSpacing:"1.5px",textTransform:"uppercase",transition:"color 0.2s"}}
               onMouseEnter={e=>e.target.style.color=C.amber}
               onMouseLeave={e=>e.target.style.color=C.textD}>{item}</a>
           ))}
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>{setAuthMode("signup");setShowAuth(true);}}
-              style={{fontFamily:C.sans,fontWeight:600,fontSize:13,
-                padding:"9px 18px",background:"transparent",
-                border:"1px solid rgba(245,158,11,0.35)",borderRadius:8,
-                color:C.amber,cursor:"pointer",transition:"all 0.2s"}}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(245,158,11,0.08)"}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              Free Trial
-            </button>
-            <button onClick={()=>{setAuthMode("signin");setShowAuth(true);}}
-              style={{fontFamily:C.sans,fontWeight:700,fontSize:14,
-                padding:"9px 22px",background:C.amber,border:"none",borderRadius:8,
-                color:"#030c14",cursor:"pointer",boxShadow:"0 0 18px rgba(245,158,11,0.4)",
-                transition:"all 0.2s"}}
-              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}
-              onMouseLeave={e=>e.currentTarget.style.transform="none"}>Sign In →</button>
-          </div>
+          <button onClick={onSignIn} style={{fontFamily:C.sans,fontWeight:700,fontSize:14,
+            padding:"9px 22px",background:C.amber,border:"none",borderRadius:8,
+            color:"#030c14",cursor:"pointer",boxShadow:"0 0 18px rgba(245,158,11,0.4)",
+            transition:"all 0.2s"}}
+            onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}
+            onMouseLeave={e=>e.currentTarget.style.transform="none"}>Sign In →</button>
         </div>
       </nav>
 
@@ -705,16 +277,6 @@ function EmployerPage({onBack,onSignIn}){
               onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 0 32px rgba(245,158,11,0.45)";}}>
               Start Free Trial →
             </button>
-            <button onClick={()=>{window.location.href="/demo";}}
-              style={{fontFamily:C.sans,fontWeight:600,fontSize:15,
-                padding:"16px 38px",background:"transparent",
-                border:"1px solid rgba(255,255,255,0.15)",borderRadius:50,
-                color:C.textD,cursor:"pointer",transition:"all 0.2s",letterSpacing:0.3,
-                marginLeft:8}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.35)";e.currentTarget.style.color="#fff";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.15)";e.currentTarget.style.color=C.textD;}}>
-              View Live Demo →
-            </button>
             <a href="#el-features" style={{fontFamily:C.sans,fontWeight:600,fontSize:16,
               padding:"15px 42px",background:"transparent",
               border:"1px solid rgba(245,158,11,0.3)",borderRadius:10,
@@ -727,7 +289,7 @@ function EmployerPage({onBack,onSignIn}){
           </div>
           <div style={{display:"flex",justifyContent:"center",gap:0,flexWrap:"wrap",
             border:`1px solid ${C.border}`,borderRadius:14,background:C.bg2,
-            padding:"20px 0",maxWidth:620,margin:"0 auto",overflowX:"auto"}}>
+            padding:"20px 0",maxWidth:620,margin:"0 auto"}}>
             {[["99.7%","Uptime SLA"],["< 2s","Alert Speed"],["Any Camera","RTSP/ONVIF"],["ROI","Day One"]].map(([v,l],i)=>(
               <div key={i} style={{flex:"1 1 130px",textAlign:"center",
                 borderRight:i<3?`1px solid ${C.border}`:"none",padding:"0 18px"}}>
@@ -747,7 +309,7 @@ function EmployerPage({onBack,onSignIn}){
             The intelligence layer your<br/>business has been missing
           </h2>
         </div>
-        <div className="sp-grid-3">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(310px,1fr))",gap:13}}>
           {FEATS.map((f,i)=>(
             <div key={i} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:13,
               padding:"26px 24px",transition:"all 0.25s",animation:`fadeUp 0.5s ease ${i*0.07}s both`}}
@@ -769,7 +331,7 @@ function EmployerPage({onBack,onSignIn}){
             color:"#fff",textAlign:"center",letterSpacing:"-1px",marginBottom:52}}>
             Live in under 10 minutes
           </h2>
-          <div className="sp-steps">
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:0}}>
             {[
               {n:"01",t:"Connect Cameras",d:"Any RTSP or ONVIF camera. Zero rip-and-replace."},
               {n:"02",t:"Add Your Team",d:"Employees see a scheduling app. You see everything else."},
@@ -794,155 +356,14 @@ function EmployerPage({onBack,onSignIn}){
         </div>
       </section>
 
-
-      {/* ── LITE PRICING ── */}
-      <section id="el-lite" style={{padding:"80px 40px",maxWidth:1100,margin:"0 auto"}}>
-        <div style={{textAlign:"center",marginBottom:48}}>
-          <div style={{display:"inline-flex",alignItems:"center",gap:10,marginBottom:16,
-            fontFamily:C.mono,fontSize:10,color:C.green,letterSpacing:"2px",
-            background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.2)",
-            borderRadius:20,padding:"5px 16px"}}>
-            ✓ AVAILABLE NOW — GO LIVE TODAY
-          </div>
-          <h2 style={{fontFamily:C.sans,fontWeight:800,
-            fontSize:"clamp(22px,3vw,38px)",color:"#fff",
-            letterSpacing:"-1px",marginBottom:10}}>
-            ShiftPro Lite — Time Clock & Scheduling
-          </h2>
-          <p style={{fontFamily:C.mono,fontSize:12,color:C.textD,maxWidth:580,
-            margin:"0 auto",lineHeight:1.7}}>
-            Start using ShiftPro for your team tomorrow. Full time clock, scheduling,
-            employee portal with career tools, and achievements — all live today.
-          </p>
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",
-          gap:16,marginBottom:36}}>
-          {LITE_PLANS.map((plan,i)=>(
-            <div key={i} style={{position:"relative",
-              background:plan.hot?"rgba(16,185,129,0.05)":"rgba(9,14,26,0.8)",
-              border:"1px solid "+(plan.hot?"rgba(16,185,129,0.4)":"rgba(255,255,255,0.07)"),
-              borderRadius:16,padding:"32px 28px",
-              boxShadow:plan.hot?"0 0 44px rgba(16,185,129,0.12)":"none",
-              transition:"all 0.2s"}}
-              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-3px)"}
-              onMouseLeave={e=>e.currentTarget.style.transform="none"}>
-              {plan.tag&&(
-                <div style={{position:"absolute",top:-12,left:"50%",
-                  transform:"translateX(-50%)",fontFamily:C.mono,fontSize:9,
-                  color:"#fff",background:C.green,padding:"3px 14px",
-                  borderRadius:20,letterSpacing:"2px",whiteSpace:"nowrap"}}>
-                  {plan.tag}
-                </div>
-              )}
-              <div style={{fontFamily:C.mono,fontSize:9,color:plan.c,
-                letterSpacing:"3px",marginBottom:9,textTransform:"uppercase"}}>
-                {plan.name}
-              </div>
-              <div style={{display:"flex",alignItems:"baseline",gap:5,marginBottom:4}}>
-                <span style={{fontFamily:C.sans,fontWeight:800,fontSize:48,color:"#fff"}}>
-                  ${plan.price}
-                </span>
-                <span style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>/mo</span>
-              </div>
-              <div style={{fontFamily:C.mono,fontSize:10,color:C.textD,marginBottom:2}}>
-                {plan.employees}
-              </div>
-              <div style={{fontFamily:C.mono,fontSize:10,color:C.textD,marginBottom:2}}>
-                {plan.locs}
-              </div>
-              <div style={{fontFamily:C.mono,fontSize:9,color:plan.c,
-                background:plan.c+"14",border:"1px solid "+plan.c+"30",
-                borderRadius:4,padding:"2px 8px",marginBottom:20,
-                display:"inline-block"}}>
-                {plan.addLoc}
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:24}}>
-                {plan.feats.map((f,j)=>(
-                  <div key={j} style={{display:"flex",alignItems:"flex-start",gap:8}}>
-                    <span style={{color:plan.c,fontSize:12,flexShrink:0,marginTop:1}}>✓</span>
-                    <span style={{fontFamily:C.mono,fontSize:11,color:C.textD,lineHeight:1.4}}>
-                      {f}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div style={{fontFamily:C.mono,fontSize:9,color:plan.c,
-                textAlign:"center",marginBottom:12,letterSpacing:1}}>
-                {plan.trial}
-              </div>
-              <button onClick={()=>{setAuthMode("signup");setShowAuth(true);}}
-                style={{width:"100%",padding:"13px",borderRadius:9,cursor:"pointer",
-                  fontFamily:C.sans,fontWeight:700,fontSize:14,
-                  background:plan.hot?C.green:"transparent",
-                  border:"1px solid "+(plan.hot?C.green:plan.c+"50"),
-                  color:plan.hot?"#fff":plan.c,transition:"all 0.2s"}}
-                onMouseEnter={e=>{if(!plan.hot)e.currentTarget.style.background=plan.c+"15";}}
-                onMouseLeave={e=>{if(!plan.hot)e.currentTarget.style.background="transparent";}}>
-                Start Free Trial →
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* vs competitors */}
-        <div style={{background:"rgba(9,14,26,0.8)",
-          border:"1px solid rgba(255,255,255,0.06)",
-          borderRadius:14,padding:"22px 28px"}}>
-          <div style={{fontFamily:C.mono,fontSize:9,color:C.textF,
-            letterSpacing:"2px",marginBottom:14,textAlign:"center"}}>
-            HOW SHIFTPRO LITE COMPARES
-          </div>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",
-              fontFamily:C.mono,fontSize:11}}>
-              <thead>
-                <tr>
-                  {["Feature","ShiftPro Lite","When I Work","Homebase","Deputy"].map((h,i)=>(
-                    <th key={h} style={{padding:"8px 12px",textAlign:"left",
-                      color:i===1?C.green:C.textD,
-                      borderBottom:"1px solid rgba(255,255,255,0.06)",
-                      fontWeight:i===1?700:400,letterSpacing:1}}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["Time Clock","✅","✅","✅","✅"],
-                  ["Scheduling","✅","✅","✅","✅"],
-                  ["Employee Portal","✅","Basic","Basic","Basic"],
-                  ["Career Growth Tools","✅","❌","❌","❌"],
-                  ["Achievement System","✅","❌","❌","❌"],
-                  ["W-2 Document Vault","✅","❌","❌","❌"],
-                  ["Pricing (15 staff)","$39/mo","$60/mo","$55/mo","$68/mo"],
-                ].map((row,ri)=>(
-                  <tr key={ri} style={{background:ri%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
-                    {row.map((cell,ci)=>(
-                      <td key={ci} style={{padding:"9px 12px",
-                        color:ci===1?C.green:ci===0?"#fff":C.textD,
-                        borderBottom:"1px solid rgba(255,255,255,0.04)",
-                        fontWeight:ci===1?600:400}}>
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
       {/* PRICING */}
       <section id="el-pricing" style={{padding:"90px 40px",maxWidth:1100,margin:"0 auto"}}>
         <div style={{textAlign:"center",marginBottom:56}}>
           <h2 style={{fontFamily:C.sans,fontWeight:800,fontSize:"clamp(22px,3vw,42px)",
             color:"#fff",letterSpacing:"-1px",marginBottom:10}}>Simple, transparent pricing</h2>
-          <p style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>14-day free trial · No credit card required · Average customer recovers $3,200+/yr in payroll losses</p>
+          <p style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>14-day free trial. No credit card required.</p>
         </div>
-        <div className="sp-pricing">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(295px,1fr))",gap:13}}>
           {PLANS.map((plan,i)=>(
             <div key={i} style={{position:"relative",
               background:plan.hot?"rgba(245,158,11,0.05)":C.bg2,
@@ -963,15 +384,7 @@ function EmployerPage({onBack,onSignIn}){
                 <span style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>/mo</span>
               </div>
               <div style={{fontFamily:C.mono,fontSize:11,color:C.textD,marginBottom:2}}>{plan.cameras}</div>
-              <div style={{fontFamily:C.mono,fontSize:11,color:C.textD,marginBottom:plan.addLoc?2:22}}>{plan.locs}</div>
-              {plan.addLoc&&(
-                <div style={{fontFamily:C.mono,fontSize:10,color:plan.c,
-                  background:plan.c+"14",border:"1px solid "+plan.c+"30",
-                  borderRadius:4,padding:"3px 8px",marginBottom:18,
-                  display:"inline-block"}}>
-                  + {plan.addLoc}
-                </div>
-              )}
+              <div style={{fontFamily:C.mono,fontSize:11,color:C.textD,marginBottom:22}}>{plan.locs}</div>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:26}}>
                 {plan.feats.map((f,j)=>(
                   <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
@@ -987,7 +400,7 @@ function EmployerPage({onBack,onSignIn}){
                 color:plan.hot?"#030c14":plan.c,transition:"all 0.2s"}}
                 onMouseEnter={e=>{if(!plan.hot)e.currentTarget.style.background=plan.c+"15";}}
                 onMouseLeave={e=>{if(!plan.hot)e.currentTarget.style.background="transparent";}}>
-                {plan.name==="Enterprise"?"Contact Sales →":"Start Free Trial →"}
+                Start Free Trial
               </button>
             </div>
           ))}
@@ -1056,7 +469,7 @@ function EmployerPage({onBack,onSignIn}){
 }
 
 // ══ EMPLOYEE LANDING ═══════════════════════════
-function EmployeePage({onSignIn}){
+function EmployeePage({onBack,onSignIn}){
   const [showJoin,setShowJoin]=useState(false);
 
   const PERKS=[
@@ -1120,7 +533,7 @@ function EmployeePage({onSignIn}){
   return(
     <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#071428 0%,#0d2137 45%,#071428 100%)"}}>
       <nav style={{padding:"18px 40px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div><Logo/></div>
+        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer"}}><Logo/></button>
         <button onClick={onSignIn} style={{fontFamily:C.sans,fontWeight:700,fontSize:14,
           padding:"9px 22px",background:"linear-gradient(135deg,#10b981,#059669)",
           border:"none",borderRadius:8,color:"#fff",cursor:"pointer",
@@ -1179,7 +592,7 @@ function EmployeePage({onSignIn}){
           textAlign:"center",marginBottom:44,lineHeight:1.7}}>
           Six ways ShiftPro puts you in control of your work life — starting day one.
         </p>
-        <div className="sp-perks">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:13}}>
           {PERKS.map((p,i)=>(
             <div key={i} style={{background:"rgba(255,255,255,0.03)",
               border:"1px solid rgba(16,185,129,0.1)",borderRadius:13,
@@ -1227,9 +640,8 @@ function EmployeePage({onSignIn}){
       <footer style={{background:"rgba(0,0,0,0.25)",borderTop:"1px solid rgba(255,255,255,0.06)",
         padding:"22px 40px",display:"flex",justifyContent:"space-between",
         alignItems:"center",flexWrap:"wrap",gap:12}}>
-        <Logo size={30}/>
+        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer"}}><Logo size={30}/></button>
         <div style={{fontFamily:C.mono,fontSize:9,color:C.textF,letterSpacing:"1.5px"}}>© 2025 SHIFTPRO.AI</div>
-        <div style={{fontFamily:C.mono,fontSize:9,color:C.textF,letterSpacing:"1.5px"}}>Are you an employer? <span onClick={()=>window.location.href="/"} style={{color:C.green,cursor:"pointer",textDecoration:"underline"}}>Visit our business page</span></div>
       </footer>
     </div>
   );
@@ -1238,22 +650,13 @@ function EmployeePage({onSignIn}){
 // ══ ROOT ════════════════════════════════════════
 export default function ShiftProSite(){
   const [screen,setScreen]=useState("entry");
-  const [showEmpAuth,setShowEmpAuth]=useState(false);
-  const goToOwnerApp=()=>{ window.location.href="/login"; };
-  const goToEmployeeApp=()=>{ window.location.href="/employee-login"; };
+  const goToApp=()=>{ window.location.href="/login"; };
   return(
     <>
       <style>{FONTS}{GCSS}</style>
-      {showEmpAuth&&<EmployeeAuthModal
-        onClose={()=>setShowEmpAuth(false)}
-        onSuccess={()=>{setShowEmpAuth(false);goToEmployeeApp();}}
-      />}
       {screen==="entry" && <Entry onChoose={setScreen}/>}
-      {screen==="employer" && <EmployerPage onBack={()=>setScreen("entry")} onSignIn={goToOwnerApp}/>}
-      {screen==="employee" && <EmployeePage
-        onSignIn={()=>setShowEmpAuth(true)}
-        onSignInDirect={goToEmployeeApp}
-      />}
+      {screen==="employer" && <EmployerPage onBack={()=>setScreen("entry")} onSignIn={goToApp}/>}
+      {screen==="employee" && <EmployeePage onBack={()=>setScreen("entry")} onSignIn={goToApp}/>}
     </>
   );
 }
