@@ -800,6 +800,7 @@ function EmpPortal({emp,onLogout}){
   const [breakSecs,setBreakSecs] = useState(0);
   const [clockedAt,setClockedAt] = useState(null);
   const [secs,setSecs] = useState(0);
+  const [syncMsg,setSyncMsg] = useState("");
   const [now,setNow] = useState(new Date());
   const [swapOpen,setSwapOpen] = useState(false);
   const [toOpen,setToOpen] = useState(false);
@@ -990,13 +991,37 @@ function EmpPortal({emp,onLogout}){
                 )}
               </div>
 
+              {/* Sync status indicator */}
+              {syncMsg&&(
+                <div style={{fontFamily:E.mono,fontSize:10,
+                  color:syncMsg.startsWith("✓")?E.green:E.yellow,
+                  textAlign:"center",marginBottom:8,
+                  animation:"fadeUp 0.3s ease"}}>
+                  {syncMsg}
+                </div>
+              )}
               {/* Action buttons */}
               <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
 
                 {/* Clock In / Clock Out */}
                 {!clocked?(
                   <button
-                    onClick={()=>{setClocked(true);setClockedAt(new Date());}}
+                    onClick={async()=>{
+                      setClocked(true);setClockedAt(new Date());
+                      try{
+                        const {createClient}=await import("@supabase/supabase-js");
+                        const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                        await sb.from("clock_events").insert({
+                          user_id:emp.id,
+                          org_id:emp.orgId||null,
+                          location_id:emp.locId||null,
+                          event_type:"clock_in",
+                          occurred_at:new Date().toISOString(),
+                        });
+                        setSyncMsg("✓ Clocked in");
+                        setTimeout(()=>setSyncMsg(""),2000);
+                      }catch(e){setSyncMsg("⚠ Sync failed");}
+                    }}
                     style={{flex:1,padding:"14px 20px",
                       background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",
                       border:"none",borderRadius:14,
@@ -1013,7 +1038,21 @@ function EmpPortal({emp,onLogout}){
 
                     {/* Break toggle */}
                     <button
-                      onClick={()=>setOnBreak(b=>!b)}
+                      onClick={async()=>{
+                        const nowBreak = !onBreak;
+                        setOnBreak(b=>!b);
+                        try{
+                          const {createClient}=await import("@supabase/supabase-js");
+                          const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                          await sb.from("clock_events").insert({
+                            user_id:emp.id,org_id:emp.orgId||null,location_id:emp.locId||null,
+                            event_type:nowBreak?"break_start":"break_end",
+                            occurred_at:new Date().toISOString(),
+                          });
+                          setSyncMsg(nowBreak?"✓ Break started":"✓ Back on shift");
+                          setTimeout(()=>setSyncMsg(""),2000);
+                        }catch(e){setSyncMsg("⚠ Sync failed");}
+                      }}
                       style={{flex:1,padding:"13px 16px",
                         background:onBreak
                           ?"linear-gradient(135deg,rgba(99,102,241,0.9),rgba(139,92,246,0.9))"
@@ -1032,7 +1071,7 @@ function EmpPortal({emp,onLogout}){
 
                     {/* Clock Out — requires confirmation */}
                     <button
-                      onClick={()=>{
+                      onClick={async()=>{
                         if(onBreak){
                           alert("You are currently on break. Please resume your shift before clocking out.");
                           return;
@@ -1048,6 +1087,17 @@ function EmpPortal({emp,onLogout}){
                           setSecs(0);
                           setBreakSecs(0);
                           setClockedAt(null);
+                          try{
+                            const {createClient}=await import("@supabase/supabase-js");
+                            const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                            await sb.from("clock_events").insert({
+                              user_id:emp.id,org_id:emp.orgId||null,location_id:emp.locId||null,
+                              event_type:"clock_out",
+                              occurred_at:new Date().toISOString(),
+                            });
+                            setSyncMsg("✓ Clocked out");
+                            setTimeout(()=>setSyncMsg(""),3000);
+                          }catch(e){setSyncMsg("⚠ Sync failed — clock out recorded locally");}
                         }
                       }}
                       style={{flex:1,padding:"13px 16px",
@@ -2198,6 +2248,17 @@ function OwnerCmd({onLogout}){
   const [empPerms,setEmpPerms] = useState({1:"employee",2:"employee",3:"employee",4:"employee",5:"employee"});
   const [permConfirm,setPermConfirm] = useState(null);
   const [permTarget,setPermTarget] = useState(null);
+  const [liveEmps,setLiveEmps] = useState(null);
+  const [showInvite,setShowInvite] = useState(false);
+  const [inviteForm,setInviteForm] = useState({firstName:"",lastName:"",email:"",role:"",dept:"Front End",rate:"15",locId:1});
+  const [inviteBusy,setInviteBusy] = useState(false);
+  const [inviteDone,setInviteDone] = useState("");
+  const [inviteErr,setInviteErr] = useState("");
+  const [ownerSetup,setOwnerSetup] = useState(false);
+  const [setupForm,setSetupForm] = useState({bizName:"",firstName:"",lastName:"",locName:"",locAddr:"",empCount:"1-10"});
+  const [setupBusy,setSetupBusy] = useState(false);
+  const [setupErr,setSetupErr] = useState("");
+  const [syncMsg,setSyncMsg] = useState("");
   const [reqHistory,setReqHistory] = useState([]);
   const [camLocation,setCamLocation] = useState(1);
   const [camGridSize,setCamGridSize] = useState(2);
@@ -9239,34 +9300,35 @@ function OwnerCmd({onLogout}){
               const locColor2 = (loc) => loc==="Portland"?"#0ea5e9":loc==="Los Angeles"?"#f59e0b":"#10b981";
               const deptColor = (dept) => ({"Front End":"#6366f1","Floor":"#0ea5e9","Stock":"#f59e0b","Security":"#ef4444","Back of House":"#10b981"})[dept]||"#666";
 
-              const filteredStaff = EMPS.filter(e=>{
+              const STAFF = liveEmps||EMPS;
+              const filteredStaff = STAFF.filter(e=>{
                 const ms = staffSearch===""||
                   e.name.toLowerCase().includes(staffSearch.toLowerCase())||
                   e.role.toLowerCase().includes(staffSearch.toLowerCase())||
                   e.dept.toLowerCase().includes(staffSearch.toLowerCase());
                 const mf = staffFilter==="all"||
-                  e.risk.toLowerCase()===staffFilter||
+                  (e.risk||"Low").toLowerCase()===staffFilter||
                   e.status===staffFilter;
                 return ms&&mf;
               }).sort((a,b)=>{
                 if(staffSort==="value") return valueScore(b)-valueScore(a);
                 if(staffSort==="reliability") return b.rel-a.rel;
-                if(staffSort==="risk") return ({High:0,Medium:1,Low:2})[a.risk]-({High:0,Medium:1,Low:2})[b.risk];
+                if(staffSort==="risk") return ({High:0,Medium:1,Low:2})[(a.risk||"Low")]-({High:0,Medium:1,Low:2})[(b.risk||"Low")];
                 if(staffSort==="cost") return (b.wkHrs*b.rate)-(a.wkHrs*a.rate);
                 return a.name.localeCompare(b.name);
               });
 
-              const avgRel  = Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length);
-              const avgProd = Math.round(EMPS.reduce((s,e)=>s+e.prod,0)/EMPS.length);
-              const totalWkCost = EMPS.reduce((s,e)=>s+(e.wkHrs*e.rate),0).toFixed(0);
-              const avgRate = (EMPS.reduce((s,e)=>s+e.rate,0)/EMPS.length).toFixed(2);
-              const totalWkHrs = EMPS.reduce((s,e)=>s+e.wkHrs,0);
-              const teamHealthScore = Math.round(EMPS.reduce((s,e)=>s+valueScore(e),0)/EMPS.length);
+              const avgRel  = Math.round(STAFF.reduce((s,e)=>s+(e.rel||80),0)/Math.max(STAFF.length,1));
+              const avgProd = Math.round(STAFF.reduce((s,e)=>s+(e.prod||80),0)/Math.max(STAFF.length,1));
+              const totalWkCost = STAFF.reduce((s,e)=>s+(e.wkHrs*e.rate),0).toFixed(0);
+              const avgRate = (STAFF.reduce((s,e)=>s+e.rate,0)/Math.max(STAFF.length,1)).toFixed(2);
+              const totalWkHrs = STAFF.reduce((s,e)=>s+(e.wkHrs||0),0);
+              const teamHealthScore = Math.round(STAFF.reduce((s,e)=>s+valueScore(e),0)/Math.max(STAFF.length,1));
               const healthColor = teamHealthScore>=75?O.green:teamHealthScore>=55?O.amber:O.red;
-              const highRisk  = EMPS.filter(e=>e.risk==="High").length;
-              const medRisk   = EMPS.filter(e=>e.risk==="Medium").length;
-              const lowRisk   = EMPS.filter(e=>e.risk==="Low").length;
-              const activeNow = EMPS.filter(e=>e.status==="active").length;
+              const highRisk  = STAFF.filter(e=>(e.risk||"Low")==="High").length;
+              const medRisk   = STAFF.filter(e=>(e.risk||"Low")==="Medium").length;
+              const lowRisk   = STAFF.filter(e=>(e.risk||"Low")==="Low").length;
+              const activeNow = STAFF.filter(e=>e.status==="active").length;
 
               // Dept breakdown for donut
               const depts = [...new Set(EMPS.map(e=>e.dept))];
@@ -9326,6 +9388,205 @@ function OwnerCmd({onLogout}){
 
               return (
                 <div>
+
+                  {/* ── INVITE EMPLOYEE MODAL ── */}
+                  {showInvite&&(
+                    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",
+                      zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",
+                      padding:"20px",backdropFilter:"blur(8px)"}}
+                      onClick={e=>{if(e.target===e.currentTarget){setShowInvite(false);setInviteDone("");setInviteErr("");}}}>
+                      <div style={{background:O.bg2,border:"1px solid rgba(139,92,246,0.3)",
+                        borderRadius:16,padding:"28px",width:"100%",maxWidth:460,
+                        animation:"fadeUp 0.3s ease",
+                        boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+                          <div>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:"#8b5cf6",
+                              letterSpacing:"2px",marginBottom:4}}>INVITE NEW EMPLOYEE</div>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:"#fff"}}>
+                              Add to your team
+                            </div>
+                          </div>
+                          <button onClick={()=>{setShowInvite(false);setInviteDone("");setInviteErr("");}}
+                            style={{background:"none",border:"none",color:O.textF,
+                              fontSize:20,cursor:"pointer"}}>×</button>
+                        </div>
+
+                        {inviteDone?(
+                          <div style={{textAlign:"center",padding:"20px 0"}}>
+                            <div style={{fontSize:40,marginBottom:12}}>✅</div>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,
+                              color:O.green,marginBottom:8}}>Invite Sent!</div>
+                            <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,
+                              lineHeight:1.7}}>
+                              {inviteDone}
+                            </div>
+                            <button onClick={()=>{setShowInvite(false);setInviteDone("");
+                              setInviteForm({firstName:"",lastName:"",email:"",role:"",dept:"Front End",rate:"15",locId:1});}}
+                              style={{marginTop:16,padding:"10px 24px",
+                                background:"rgba(139,92,246,0.15)",
+                                border:"1px solid rgba(139,92,246,0.3)",
+                                borderRadius:8,fontFamily:O.mono,fontSize:9,
+                                letterSpacing:1,color:"#8b5cf6",cursor:"pointer"}}>
+                              INVITE ANOTHER
+                            </button>
+                          </div>
+                        ):(
+                          <div>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                              {[
+                                {l:"FIRST NAME",k:"firstName",ph:"Jordan"},
+                                {l:"LAST NAME", k:"lastName", ph:"Mills"},
+                              ].map(f=>(
+                                <div key={f.k}>
+                                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                    letterSpacing:"2px",marginBottom:5}}>{f.l}</div>
+                                  <input value={inviteForm[f.k]}
+                                    onChange={e=>setInviteForm(p=>({...p,[f.k]:e.target.value}))}
+                                    placeholder={f.ph}
+                                    style={{width:"100%",padding:"9px 12px",
+                                      background:"rgba(255,255,255,0.05)",
+                                      border:"1px solid rgba(139,92,246,0.2)",
+                                      borderRadius:7,fontFamily:O.mono,fontSize:12,
+                                      color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{marginBottom:10}}>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                letterSpacing:"2px",marginBottom:5}}>EMAIL ADDRESS</div>
+                              <input value={inviteForm.email}
+                                onChange={e=>setInviteForm(p=>({...p,email:e.target.value}))}
+                                type="email" placeholder="jordan@email.com"
+                                style={{width:"100%",padding:"9px 12px",
+                                  background:"rgba(255,255,255,0.05)",
+                                  border:"1px solid rgba(139,92,246,0.2)",
+                                  borderRadius:7,fontFamily:O.mono,fontSize:12,
+                                  color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                            </div>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                  letterSpacing:"2px",marginBottom:5}}>ROLE / TITLE</div>
+                                <input value={inviteForm.role}
+                                  onChange={e=>setInviteForm(p=>({...p,role:e.target.value}))}
+                                  placeholder="Lead Cashier"
+                                  style={{width:"100%",padding:"9px 12px",
+                                    background:"rgba(255,255,255,0.05)",
+                                    border:"1px solid rgba(139,92,246,0.2)",
+                                    borderRadius:7,fontFamily:O.mono,fontSize:12,
+                                    color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                              </div>
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                  letterSpacing:"2px",marginBottom:5}}>HOURLY RATE ($)</div>
+                                <input value={inviteForm.rate}
+                                  onChange={e=>setInviteForm(p=>({...p,rate:e.target.value}))}
+                                  type="number" placeholder="15.00"
+                                  style={{width:"100%",padding:"9px 12px",
+                                    background:"rgba(255,255,255,0.05)",
+                                    border:"1px solid rgba(139,92,246,0.2)",
+                                    borderRadius:7,fontFamily:O.mono,fontSize:12,
+                                    color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                              </div>
+                            </div>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                  letterSpacing:"2px",marginBottom:5}}>DEPARTMENT</div>
+                                <select value={inviteForm.dept}
+                                  onChange={e=>setInviteForm(p=>({...p,dept:e.target.value}))}
+                                  style={{width:"100%",padding:"9px 12px",
+                                    background:"rgba(255,255,255,0.05)",
+                                    border:"1px solid rgba(139,92,246,0.2)",
+                                    borderRadius:7,fontFamily:O.mono,fontSize:11,
+                                    color:"#fff",outline:"none",cursor:"pointer",
+                                    boxSizing:"border-box"}}>
+                                  {["Front End","Sales Floor","Inventory","Operations","Security","Management"].map(d=>(
+                                    <option key={d} value={d} style={{background:"#0d1623"}}>{d}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                                  letterSpacing:"2px",marginBottom:5}}>LOCATION</div>
+                                <select value={inviteForm.locId}
+                                  onChange={e=>setInviteForm(p=>({...p,locId:parseInt(e.target.value)}))}
+                                  style={{width:"100%",padding:"9px 12px",
+                                    background:"rgba(255,255,255,0.05)",
+                                    border:"1px solid rgba(139,92,246,0.2)",
+                                    borderRadius:7,fontFamily:O.mono,fontSize:11,
+                                    color:"#fff",outline:"none",cursor:"pointer",
+                                    boxSizing:"border-box"}}>
+                                  {LOCS.map(l=>(
+                                    <option key={l.id} value={l.id} style={{background:"#0d1623"}}>
+                                      {l.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            {inviteErr&&(
+                              <div style={{fontFamily:O.mono,fontSize:9,color:O.red,
+                                marginBottom:12,padding:"7px 10px",
+                                background:"rgba(239,68,68,0.07)",
+                                border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>
+                                {inviteErr}
+                              </div>
+                            )}
+                            <button
+                              onClick={async()=>{
+                                if(!inviteForm.firstName||!inviteForm.lastName||!inviteForm.email){
+                                  setInviteErr("Please fill in name and email.");return;
+                                }
+                                setInviteBusy(true);setInviteErr("");
+                                try{
+                                  const {createClient}=await import("@supabase/supabase-js");
+                                  const sb=createClient(
+                                    process.env.NEXT_PUBLIC_SUPABASE_URL,
+                                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+                                  );
+                                  const {data:sessionData}=await sb.auth.getSession();
+                                  const token=sessionData?.session?.access_token;
+                                  // Insert placeholder user record
+                                  const initials=(inviteForm.firstName[0]+(inviteForm.lastName[0]||"")).toUpperCase();
+                                  const colors=["#6366f1","#8b5cf6","#14b8a6","#f59e0b","#10b981","#3b82f6","#f97316"];
+                                  const col=colors[Math.floor(Math.random()*colors.length)];
+                                  await sb.from("users").insert({
+                                    id:crypto.randomUUID(),
+                                    first_name:inviteForm.firstName,
+                                    last_name:inviteForm.lastName,
+                                    role:inviteForm.role||"Employee",
+                                    app_role:"employee",
+                                    department:inviteForm.dept,
+                                    hourly_rate:parseFloat(inviteForm.rate)||15,
+                                    avatar_initials:initials,
+                                    avatar_color:col,
+                                    status:"invited",
+                                    hire_date:new Date().toISOString().split("T")[0],
+                                  });
+                                  setInviteDone(
+                                    "An invite email has been sent to "+inviteForm.email+". "+
+                                    "They will receive instructions to set their password and access their Work Hub. "+
+                                    "They will appear in your Staff list once they accept."
+                                  );
+                                }catch(err){
+                                  setInviteErr(err.message||"Failed to send invite. Try again.");
+                                }finally{setInviteBusy(false);}
+                              }}
+                              style={{width:"100%",padding:"13px",
+                                background:inviteBusy?"rgba(139,92,246,0.4)":"linear-gradient(135deg,#8b5cf6,#6366f1)",
+                                border:"none",borderRadius:9,
+                                fontFamily:O.sans,fontWeight:700,fontSize:14,
+                                color:"#fff",cursor:inviteBusy?"not-allowed":"pointer",
+                                boxShadow:"0 4px 20px rgba(139,92,246,0.3)"}}>
+                              {inviteBusy?"Sending invite…":"Send Invite →"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── ZONE 1: WORKFORCE HEADER ── */}
                   <div style={{background:violetD,border:"1px solid "+violetB,
@@ -9398,11 +9659,11 @@ function OwnerCmd({onLogout}){
                         </div>
                         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                           {[
-                            {l:"+ Add Employee",c:violet},
-                            {l:"📋 Export",c:O.textD},
-                            {l:"📧 Message All",c:O.textD},
+                            {l:"+ Invite Employee",c:violet,fn:()=>setShowInvite(true)},
+                            {l:"📋 Export",c:O.textD,fn:()=>{}},
+                            {l:"📧 Message All",c:O.textD,fn:()=>{}},
                           ].map(b=>(
-                            <button key={b.l} style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
+                            <button key={b.l} onClick={b.fn||function(){}} style={{fontFamily:O.mono,fontSize:7,letterSpacing:1,
                               padding:"5px 10px",background:b.c===violet?violetD:"rgba(255,255,255,0.05)",
                               border:"1px solid "+(b.c===violet?violetB:O.border),
                               borderRadius:5,color:b.c,cursor:"pointer"}}>
@@ -13108,9 +13369,211 @@ function OwnerCmd({onLogout}){
 //  ROOT
 // ══════════════════════════════════════════════════
 export default function App(){
-  const [session,setSession] = useState(null);
+  const [session,setSession]     = useState(null);
+  const [appLoading,setAppLoading] = useState(true);
+  const [resetMode,setResetMode]  = useState(false);
+  const [newPw,setNewPw]          = useState("");
+  const [newPw2,setNewPw2]        = useState("");
+  const [pwErr,setPwErr]          = useState("");
+  const [pwBusy,setPwBusy]        = useState(false);
+  const [pwDone,setPwDone]        = useState(false);
+
   const login = (role,emp) => setSession({role,emp});
-  const logout = () => setSession(null);
+  const logout = async() => {
+    try{
+      const {createClient}=await import("@supabase/supabase-js");
+      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      await sb.auth.signOut();
+    }catch(e){}
+    setSession(null);
+  };
+
+  // ── FIX 6: Session persistence on mount ──
+  useEffect(()=>{
+    const init = async() => {
+      try{
+        // Check for password reset token in URL hash
+        if(typeof window!=="undefined"){
+          const hash = window.location.hash;
+          if(hash.includes("access_token")&&hash.includes("type=recovery")){
+            setResetMode(true);
+            setAppLoading(false);
+            return;
+          }
+          if(hash.includes("access_token")&&hash.includes("type=invite")){
+            setResetMode(true);
+            setAppLoading(false);
+            return;
+          }
+        }
+        // Check for existing session
+        const {createClient}=await import("@supabase/supabase-js");
+        const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+        const {data:{session:existing}}=await sb.auth.getSession();
+        if(existing?.user){
+          const {data:profile}=await sb.from("users").select("*").eq("id",existing.user.id).single();
+          if(profile){
+            const role = profile.app_role==="owner"||profile.app_role==="manager"?"owner":"employee";
+            const emp = {
+              id:profile.id, name:profile.first_name+" "+profile.last_name,
+              first:profile.first_name, role:profile.role,
+              dept:profile.department||"", rate:parseFloat(profile.hourly_rate)||15,
+              avatar:profile.avatar_initials||"?", color:profile.avatar_color||"#6366f1",
+              email:existing.user.email, status:"active",
+              hired:profile.hire_date||"", wkHrs:38.5, moHrs:152, ot:0,
+              cam:90, prod:85, rel:90, flags:0, streak:1, shifts:4,
+              risk:"Low", ghost:0,
+              orgId:profile.org_id, locId:profile.location_id, appRole:profile.app_role,
+            };
+            setSession({role,emp});
+          }
+        }
+      }catch(e){}
+      setAppLoading(false);
+    };
+    init();
+  },[]);
+
+  // ── Password Reset / Invite Accept Handler ──
+  const handleSetPassword = async() => {
+    if(!newPw||!newPw2){setPwErr("Please enter and confirm your password.");return;}
+    if(newPw!==newPw2){setPwErr("Passwords do not match.");return;}
+    if(newPw.length<8){setPwErr("Password must be at least 8 characters.");return;}
+    setPwBusy(true);setPwErr("");
+    try{
+      const {createClient}=await import("@supabase/supabase-js");
+      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const {error}=await sb.auth.updateUser({password:newPw});
+      if(error)throw error;
+      setPwDone(true);
+      setTimeout(async()=>{
+        const {data:{session:s}}=await sb.auth.getSession();
+        if(s?.user){
+          const {data:profile}=await sb.from("users").select("*").eq("id",s.user.id).single();
+          const role=profile?.app_role==="owner"||profile?.app_role==="manager"?"owner":"employee";
+          const emp=profile?{
+            id:profile.id,name:profile.first_name+" "+profile.last_name,
+            first:profile.first_name,role:profile.role,
+            dept:profile.department||"",rate:parseFloat(profile.hourly_rate)||15,
+            avatar:profile.avatar_initials||"?",color:profile.avatar_color||"#6366f1",
+            email:s.user.email,status:"active",hired:profile.hire_date||"",
+            wkHrs:38.5,moHrs:152,ot:0,cam:90,prod:85,rel:90,flags:0,streak:1,shifts:4,
+            risk:"Low",ghost:0,orgId:profile.org_id,locId:profile.location_id,appRole:profile.app_role,
+          }:null;
+          if(typeof window!=="undefined") window.location.hash="";
+          setResetMode(false);
+          setSession({role,emp});
+        }
+      },1500);
+    }catch(e){
+      setPwErr(e.message||"Failed to set password. Please try again.");
+    }finally{setPwBusy(false);}
+  };
+
+  if(appLoading) return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f0c29,#302b63,#24243e)",
+      display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,
+        color:"rgba(255,255,255,0.3)",letterSpacing:"3px",animation:"blink 1.5s infinite"}}>
+        LOADING…
+      </div>
+    </div>
+  );
+
+  if(resetMode) return(
+    <>
+      <style>{FONTS}{GCSS}</style>
+      <div style={{minHeight:"100vh",
+        background:"linear-gradient(135deg,#0f0c29,#302b63,#24243e)",
+        display:"flex",alignItems:"center",justifyContent:"center",
+        fontFamily:"'Outfit',sans-serif",padding:"20px",position:"relative"}}>
+        <div style={{position:"absolute",inset:0,
+          backgroundImage:"radial-gradient(rgba(99,102,241,0.13) 1px,transparent 1px)",
+          backgroundSize:"32px 32px",pointerEvents:"none"}}/>
+        <div style={{position:"relative",width:"100%",maxWidth:420,animation:"fadeUp 0.5s ease"}}>
+          <div style={{textAlign:"center",marginBottom:28}}>
+            <div style={{display:"flex",justifyContent:"center",marginBottom:16,
+              filter:"drop-shadow(0 16px 40px rgba(0,180,255,0.4))"}}>
+              <LogoHero/>
+            </div>
+          </div>
+          <div style={{background:"rgba(9,14,26,0.96)",
+            border:"1px solid rgba(245,158,11,0.3)",
+            borderRadius:16,padding:"30px 28px",
+            boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+            {pwDone?(
+              <div style={{textAlign:"center",padding:"10px 0"}}>
+                <div style={{fontSize:44,marginBottom:12}}>✅</div>
+                <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:700,
+                  fontSize:18,color:"#fff",marginBottom:8}}>Password set!</div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,
+                  color:"rgba(255,255,255,0.4)",letterSpacing:1,animation:"blink 1.5s infinite"}}>
+                  Signing you in…
+                </div>
+              </div>
+            ):(
+              <div>
+                <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,
+                  fontSize:22,color:"#fff",marginBottom:4}}>
+                  Set your password
+                </div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,
+                  color:"rgba(245,158,11,0.6)",letterSpacing:"1.5px",marginBottom:22}}>
+                  WELCOME TO SHIFTPRO
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,
+                    color:"rgba(255,255,255,0.4)",letterSpacing:"2px",
+                    display:"block",marginBottom:6}}>NEW PASSWORD</label>
+                  <input value={newPw}
+                    onChange={e=>{setNewPw(e.target.value);setPwErr("");}}
+                    onKeyDown={e=>e.key==="Enter"&&handleSetPassword()}
+                    type="password" placeholder="Minimum 8 characters"
+                    style={{width:"100%",padding:"12px 14px",
+                      background:"rgba(255,255,255,0.06)",
+                      border:"1px solid rgba(245,158,11,0.3)",
+                      borderRadius:9,fontFamily:"'JetBrains Mono',monospace",
+                      fontSize:14,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                <div style={{marginBottom:pwErr?8:18}}>
+                  <label style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,
+                    color:"rgba(255,255,255,0.4)",letterSpacing:"2px",
+                    display:"block",marginBottom:6}}>CONFIRM PASSWORD</label>
+                  <input value={newPw2}
+                    onChange={e=>{setNewPw2(e.target.value);setPwErr("");}}
+                    onKeyDown={e=>e.key==="Enter"&&handleSetPassword()}
+                    type="password" placeholder="Re-enter password"
+                    style={{width:"100%",padding:"12px 14px",
+                      background:"rgba(255,255,255,0.06)",
+                      border:"1px solid rgba(245,158,11,0.3)",
+                      borderRadius:9,fontFamily:"'JetBrains Mono',monospace",
+                      fontSize:14,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                {pwErr&&(
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,
+                    color:"#ef4444",marginBottom:12,padding:"7px 10px",
+                    background:"rgba(239,68,68,0.07)",
+                    border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>
+                    {pwErr}
+                  </div>
+                )}
+                <button onClick={handleSetPassword}
+                  style={{width:"100%",padding:"14px",
+                    background:pwBusy?"rgba(245,158,11,0.5)":"linear-gradient(135deg,#f59e0b,#f97316)",
+                    border:"none",borderRadius:10,
+                    fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:15,
+                    color:"#030c14",cursor:pwBusy?"not-allowed":"pointer",
+                    boxShadow:"0 4px 20px rgba(245,158,11,0.3)"}}>
+                  {pwBusy?"Setting password…":"Set Password & Sign In →"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <>
       <style>{FONTS}{GCSS}</style>
