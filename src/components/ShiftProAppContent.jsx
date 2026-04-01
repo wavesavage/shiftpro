@@ -508,6 +508,7 @@ function Login({onLogin}){
 
         {/* ── PORTAL SELECTOR ── */}
         {!mode&&(
+          <div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
 
             {/* Owner */}
@@ -572,6 +573,7 @@ function Login({onLogin}){
               onMouseLeave={e=>e.target.style.color="rgba(245,158,11,0.5)"}>
               Create your account →
             </a>
+          </div>
           </div>
         )}
 
