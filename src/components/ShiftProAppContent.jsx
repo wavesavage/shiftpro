@@ -2723,7 +2723,7 @@ function OwnerCmd({onLogout}){
             )}
 
             {/* ── COMPUTED VARS (only when employees exist) ── */}
-            {liveEmps!==null&&liveEmps.length>0&&(()=>{
+            ()=>{
               const EMPS_DATA = liveEmps;
               const activeEmps = EMPS_DATA.filter(e=>e.status==="active");
               const burnRate = activeEmps.reduce((s,e)=>s+e.rate,0);
@@ -3361,7 +3361,6 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
-            )}
           </div>
         )}
 
@@ -3391,7 +3390,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {liveEmps!==null&&liveEmps.length>0&&(
+            <div>
 
             {/* Employee selector pills */}
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:10}}>SELECT EMPLOYEE FOR ANALYSIS</div>
@@ -4260,7 +4259,7 @@ function OwnerCmd({onLogout}){
                 ← Select an employee above to load their intelligence dossier
               </div>
             )}
-            )}
+            </div>
           </div>
         )}
 
@@ -4290,7 +4289,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {liveEmps!==null&&liveEmps.length>0&&(
+            
             {(() => {
               // ── COMPUTED DATA ──
               const avgRel  = Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length);
@@ -4984,7 +4983,6 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
-            )}
           </div>
         )}
 
@@ -5014,7 +5012,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {liveEmps!==null&&liveEmps.length>0&&(
+            
             {(() => {
               // ── COMPUTED DATA ──
               const fraudScore = (e) => Math.min(100, Math.round(
@@ -5740,7 +5738,6 @@ function OwnerCmd({onLogout}){
               );
             })()}
             )}
-            )}
           </div>
         )}
 
@@ -5770,7 +5767,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {liveEmps!==null&&liveEmps.length>0&&(
+            
             {(() => {
               const cyan = "#00d4ff";
               const cyanD = "rgba(0,212,255,0.08)";
@@ -6362,7 +6359,6 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
-            )}
           </div>
         )}
 
@@ -7356,7 +7352,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {liveEmps!==null&&liveEmps.length>0&&(
+            
             {(()=>{
               const critCount = alerts.filter(a=>a.sev==="critical"&&!a.seen).length;
               const warnCount = alerts.filter(a=>a.sev==="warning"&&!a.seen).length;
@@ -8084,7 +8080,6 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
-            )}
           </div>
         )}
 
@@ -8113,7 +8108,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {liveEmps!==null&&liveEmps.length>0&&(
+            
             {(()=>{
               // ── CORE DATA ──
               const indigo = "#6366f1";
@@ -8964,7 +8959,6 @@ function OwnerCmd({onLogout}){
                 </div>
               );
             })()}
-            )}
           </div>
         )}
 
