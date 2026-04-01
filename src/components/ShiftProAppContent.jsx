@@ -2349,7 +2349,14 @@ function OwnerCmd({onLogout}){
   const [empPerms,setEmpPerms] = useState({1:"employee",2:"employee",3:"employee",4:"employee",5:"employee"});
   const [permConfirm,setPermConfirm] = useState(null);
   const [permTarget,setPermTarget] = useState(null);
-  const [liveEmps,setLiveEmps] = useState(null);
+  const [liveEmps,setLiveEmps]           = useState(null);
+  const [ownerOrgs,setOwnerOrgs]         = useState([]);
+  const [activeOrg,setActiveOrg]         = useState(null);
+  const [orgSwitcherOpen,setOrgSwitcherOpen] = useState(false);
+  const [addOrgOpen,setAddOrgOpen]       = useState(false);
+  const [addOrgBusy,setAddOrgBusy]       = useState(false);
+  const [addOrgErr,setAddOrgErr]         = useState("");
+  const [addOrgForm,setAddOrgForm]       = useState({name:"",type:"Restaurant",address:"",empCount:"1-5"});
   const [showInvite,setShowInvite] = useState(false);
   const [inviteForm,setInviteForm] = useState({firstName:"",lastName:"",email:"",role:"",dept:"Front End",rate:"15",locId:1});
   const [inviteBusy,setInviteBusy] = useState(false);
@@ -2407,8 +2414,24 @@ function OwnerCmd({onLogout}){
     return ()=>clearInterval(t);
   },[]);
 
-  // Load real owner profile + org + employees on mount
+  // Load real owner profile + ALL orgs + employees on mount
   useEffect(()=>{
+    const mapEmp = e => ({
+      id:e.id,
+      name:e.first_name+" "+e.last_name,
+      first:e.first_name,
+      role:e.role||"Employee",
+      dept:e.department||"",
+      rate:parseFloat(e.hourly_rate)||15,
+      avatar:e.avatar_initials||(e.first_name[0]+(e.last_name||"")[0]||"?").toUpperCase(),
+      color:e.avatar_color||"#6366f1",
+      email:e.email||"",
+      status:e.status==="active"?"active":"invited",
+      hired:e.hire_date||"",
+      wkHrs:0,moHrs:0,ot:0,cam:85,prod:80,rel:85,
+      flags:0,streak:0,shifts:0,risk:"Low",ghost:0,
+      orgId:e.org_id,locId:e.location_id,appRole:e.app_role,pin:e.pin||"",
+    });
     const load = async() => {
       try{
         const {createClient} = await import("@supabase/supabase-js");
@@ -2423,54 +2446,49 @@ function OwnerCmd({onLogout}){
           .select("*").eq("id",session.user.id).single();
         if(profile){
           setOwnerProfile(profile);
-          // Load org
-          if(profile.org_id){
+          // Load ALL orgs this owner manages via junction table
+          const {data:ooRows} = await sb.from("owner_organizations")
+            .select("*, organizations(*)")
+            .eq("owner_id",session.user.id)
+            .order("created_at");
+          let orgs = [];
+          if(ooRows&&ooRows.length>0){
+            orgs = ooRows.map(r=>r.organizations).filter(Boolean);
+            setOwnerOrgs(orgs);
+          } else if(profile.org_id){
+            // Fallback: just load from profile.org_id if junction table empty
             const {data:org} = await sb.from("organizations")
               .select("*").eq("id",profile.org_id).single();
-            setOwnerOrg(org);
-            // Load employees
+            if(org){ orgs=[org]; setOwnerOrgs([org]); }
+          }
+          // Set active org (default to profile.org_id or first org)
+          const defaultOrg = orgs.find(o=>o.id===profile.org_id)||orgs[0]||null;
+          if(defaultOrg){
+            setActiveOrg(defaultOrg);
+            setOwnerOrg(defaultOrg);
+            // Load employees for active org
             const {data:emps} = await sb.from("users")
               .select("*")
-              .eq("org_id",profile.org_id)
+              .eq("org_id",defaultOrg.id)
               .in("status",["active","invited"])
               .in("app_role",["employee","supervisor"])
               .order("first_name");
-            if(emps&&emps.length>0){
-              const mapped = emps.map(e=>({
-                id:e.id,
-                name:e.first_name+" "+e.last_name,
-                first:e.first_name,
-                role:e.role||"Employee",
-                dept:e.department||"General",
-                rate:parseFloat(e.hourly_rate)||15,
-                avatar:e.avatar_initials||(e.first_name[0]+(e.last_name||"")[0]||"?").toUpperCase(),
-                color:e.avatar_color||"#6366f1",
-                email:e.email||"",
-                status:e.status==="active"?"active":"invited",
-                hired:e.hire_date||"",
-                wkHrs:0, moHrs:0, ot:0,
-                cam:85, prod:80, rel:85, flags:0, streak:0, shifts:0,
-                risk:"Low", ghost:0,
-                orgId:e.org_id, locId:e.location_id, appRole:e.app_role,
-                pin:e.pin||"",
-              }));
-              setLiveEmps(mapped);
-            } else {
-              setLiveEmps([]);
-            }
+            setLiveEmps(emps&&emps.length>0 ? emps.map(mapEmp) : []);
+          } else {
+            setLiveEmps([]);
           }
         }
       }catch(e){
-      console.error("Owner load error:",e);
-      setLiveEmps([]);
-    }
-  };
-  load();
-  const fallback = setTimeout(()=>{
-    setLiveEmps(prev => prev === null ? [] : prev);
-  }, 4000);
-  return () => clearTimeout(fallback);
-},[]);
+        console.error("Owner load error:",e);
+        setLiveEmps([]);
+      }
+    };
+    load();
+    const fallback = setTimeout(()=>{
+      setLiveEmps(prev => prev === null ? [] : prev);
+    }, 4000);
+    return () => clearTimeout(fallback);
+  },[]);
 
   // ── Load shifts for a week ──
   const loadShifts = async(orgId, weekStr) => {
@@ -2541,6 +2559,137 @@ function OwnerCmd({onLogout}){
 
   return (
     <div style={{minHeight:"100vh",background:O.bg,fontFamily:O.sans,color:O.text}}>
+
+      {/* ── ADD COMPANY MODAL ── */}
+      {addOrgOpen&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",
+          zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",
+          padding:"20px",backdropFilter:"blur(10px)"}}
+          onClick={e=>{if(e.target===e.currentTarget){setAddOrgOpen(false);setAddOrgErr("");}}}>
+          <div style={{background:"rgba(9,14,26,0.98)",border:"1px solid rgba(16,185,129,0.3)",
+            borderRadius:16,padding:"28px",width:"100%",maxWidth:440,
+            boxShadow:"0 20px 60px rgba(0,0,0,0.6)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.green,letterSpacing:"2px",marginBottom:4}}>
+                  ADD COMPANY
+                </div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:"#fff"}}>
+                  New Business Location
+                </div>
+              </div>
+              <button onClick={()=>{setAddOrgOpen(false);setAddOrgErr("");}}
+                style={{background:"none",border:"none",color:O.textF,fontSize:22,cursor:"pointer"}}>x</button>
+            </div>
+            <div style={{background:"rgba(16,185,129,0.06)",border:"1px solid rgba(16,185,129,0.2)",
+              borderRadius:8,padding:"10px 14px",marginBottom:20,
+              display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:16}}>💡</span>
+              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>
+                Each additional company is{" "}
+                <strong style={{color:O.green}}>$19.99/mo</strong> added to your plan.
+                Manage unlimited businesses from one login.
+              </div>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>
+                BUSINESS NAME
+              </div>
+              <input value={addOrgForm.name}
+                onChange={e=>setAddOrgForm(p=>({...p,name:e.target.value}))}
+                placeholder="Newport Coffee Roasters"
+                style={{width:"100%",padding:"10px 12px",background:"rgba(255,255,255,0.05)",
+                  border:"1px solid rgba(16,185,129,0.2)",borderRadius:7,fontFamily:O.mono,
+                  fontSize:12,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>
+                  BUSINESS TYPE
+                </div>
+                <select value={addOrgForm.type}
+                  onChange={e=>setAddOrgForm(p=>({...p,type:e.target.value}))}
+                  style={{width:"100%",padding:"10px 12px",background:"rgba(9,14,26,0.9)",
+                    border:"1px solid rgba(16,185,129,0.2)",borderRadius:7,fontFamily:O.mono,
+                    fontSize:11,color:"#fff",outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                  {["Restaurant","Bar","Retail","Hotel","Healthcare","Service","Other"].map(t=>(
+                    <option key={t} value={t} style={{background:"#0d1623"}}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>
+                  TEAM SIZE
+                </div>
+                <select value={addOrgForm.empCount}
+                  onChange={e=>setAddOrgForm(p=>({...p,empCount:e.target.value}))}
+                  style={{width:"100%",padding:"10px 12px",background:"rgba(9,14,26,0.9)",
+                    border:"1px solid rgba(16,185,129,0.2)",borderRadius:7,fontFamily:O.mono,
+                    fontSize:11,color:"#fff",outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                  {["1-5","6-15","16-30","31-50","50+"].map(t=>(
+                    <option key={t} value={t} style={{background:"#0d1623"}}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{marginBottom:20}}>
+              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>
+                ADDRESS
+              </div>
+              <input value={addOrgForm.address}
+                onChange={e=>setAddOrgForm(p=>({...p,address:e.target.value}))}
+                placeholder="456 Harbor St, Newport, OR 97365"
+                style={{width:"100%",padding:"10px 12px",background:"rgba(255,255,255,0.05)",
+                  border:"1px solid rgba(16,185,129,0.2)",borderRadius:7,fontFamily:O.mono,
+                  fontSize:12,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            {addOrgErr&&(
+              <div style={{fontFamily:O.mono,fontSize:9,color:O.red,marginBottom:12,
+                padding:"7px 10px",background:"rgba(239,68,68,0.07)",
+                border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>{addOrgErr}</div>
+            )}
+            <button
+              onClick={async()=>{
+                if(!addOrgForm.name){setAddOrgErr("Business name is required.");return;}
+                setAddOrgBusy(true);setAddOrgErr("");
+                try{
+                  const {createClient}=await import("@supabase/supabase-js");
+                  const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                  const {data:{session}}=await sb.auth.getSession();
+                  const slug=addOrgForm.name.toLowerCase().replace(/[^a-z0-9]+/g,"-")+"-"+Date.now();
+                  const {data:newOrg,error:orgErr}=await sb.from("organizations")
+                    .insert({name:addOrgForm.name,slug,plan:"lite_starter",
+                      industry:addOrgForm.type,monthly_price:19.99})
+                    .select().single();
+                  if(orgErr) throw orgErr;
+                  await sb.from("locations").insert({
+                    org_id:newOrg.id,name:addOrgForm.address||addOrgForm.name,
+                    address:addOrgForm.address||"",timezone:"America/Los_Angeles",active:true,
+                  });
+                  await sb.from("owner_organizations").insert({
+                    owner_id:session.user.id,org_id:newOrg.id,role:"owner",
+                  });
+                  setOwnerOrgs(prev=>[...prev,newOrg]);
+                  setActiveOrg(newOrg);
+                  setOwnerOrg(newOrg);
+                  setLiveEmps([]);setLiveShifts(null);setLivePayroll(null);
+                  setAddOrgOpen(false);
+                  setAddOrgForm({name:"",type:"Restaurant",address:"",empCount:"1-5"});
+                  setTab("command");
+                }catch(err){
+                  setAddOrgErr(err.message||"Failed to create company. Try again.");
+                }finally{setAddOrgBusy(false);}
+              }}
+              style={{width:"100%",padding:"13px",
+                background:addOrgBusy?"rgba(16,185,129,0.4)":"linear-gradient(135deg,#10b981,#059669)",
+                border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,
+                color:"#fff",cursor:addOrgBusy?"not-allowed":"pointer",
+                boxShadow:"0 4px 18px rgba(16,185,129,0.3)"}}>
+              {addOrgBusy?"Creating company...":"Create Company and Switch"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── BROADCAST MODAL ── */}
       {broadcastOpen&&(
@@ -2639,12 +2788,99 @@ function OwnerCmd({onLogout}){
       <div style={{background:"rgba(5,8,15,0.98)",borderBottom:"1px solid "+O.border,padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <OLogo/>
+          {/* Org Switcher */}
           {ownerOrg&&(
-            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,
-              background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",
-              borderRadius:4,padding:"2px 8px",letterSpacing:1,
-              maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-              {ownerOrg.name}
+            <div style={{position:"relative"}}>
+              <button onClick={()=>setOrgSwitcherOpen(o=>!o)}
+                style={{display:"flex",alignItems:"center",gap:7,padding:"4px 10px",
+                  background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",
+                  borderRadius:6,cursor:"pointer",transition:"all 0.2s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(245,158,11,0.15)"}
+                onMouseLeave={e=>e.currentTarget.style.background="rgba(245,158,11,0.08)"}>
+                <span style={{fontFamily:O.mono,fontSize:9,color:O.amber,letterSpacing:1,
+                  maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {ownerOrg.name}
+                </span>
+                <span style={{color:O.amber,fontSize:9,marginLeft:2}}>{orgSwitcherOpen?"▴":"▾"}</span>
+              </button>
+
+              {orgSwitcherOpen&&(
+                <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,
+                  background:"rgba(9,14,26,0.98)",border:"1px solid rgba(245,158,11,0.2)",
+                  borderRadius:12,padding:8,minWidth:260,zIndex:300,
+                  boxShadow:"0 16px 48px rgba(0,0,0,0.6)"}}>
+                  <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                    letterSpacing:"2px",padding:"4px 8px 8px"}}>YOUR COMPANIES</div>
+                  {ownerOrgs.map(org=>(
+                    <button key={org.id}
+                      onClick={async()=>{
+                        if(org.id===activeOrg?.id){setOrgSwitcherOpen(false);return;}
+                        setOrgSwitcherOpen(false);
+                        setActiveOrg(org);setOwnerOrg(org);
+                        setLiveEmps(null);setLiveShifts(null);setLivePayroll(null);
+                        try{
+                          const {createClient}=await import("@supabase/supabase-js");
+                          const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                          const {data:emps}=await sb.from("users").select("*")
+                            .eq("org_id",org.id).in("status",["active","invited"])
+                            .in("app_role",["employee","supervisor"]).order("first_name");
+                          setLiveEmps(emps&&emps.length>0?emps.map(e=>({
+                            id:e.id,name:e.first_name+" "+e.last_name,first:e.first_name,
+                            role:e.role||"Employee",dept:e.department||"",
+                            rate:parseFloat(e.hourly_rate)||15,
+                            avatar:e.avatar_initials||"?",color:e.avatar_color||"#6366f1",
+                            email:"",status:e.status,hired:"",wkHrs:0,moHrs:0,ot:0,
+                            cam:85,prod:80,rel:85,flags:0,streak:0,shifts:0,
+                            risk:"Low",ghost:0,orgId:e.org_id,locId:e.location_id,
+                            appRole:e.app_role,pin:"",
+                          })):[]);
+                        }catch(e){setLiveEmps([]);}
+                        setTab("command");
+                      }}
+                      style={{width:"100%",display:"flex",alignItems:"center",gap:10,
+                        padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",
+                        textAlign:"left",transition:"background 0.15s",
+                        background:activeOrg?.id===org.id?"rgba(245,158,11,0.1)":"none"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
+                      onMouseLeave={e=>e.currentTarget.style.background=activeOrg?.id===org.id?"rgba(245,158,11,0.1)":"none"}>
+                      <div style={{width:30,height:30,borderRadius:7,flexShrink:0,
+                        background:"linear-gradient(135deg,#f59e0b,#f97316)",
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#030c14"}}>
+                        {(org.name||"?")[0].toUpperCase()}
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",
+                          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                          {org.name}
+                        </div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:1}}>
+                          {org.industry||"Business"}
+                        </div>
+                      </div>
+                      {activeOrg?.id===org.id&&(
+                        <span style={{color:O.amber,fontSize:13,flexShrink:0}}>✓</span>
+                      )}
+                    </button>
+                  ))}
+                  <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",marginTop:6,paddingTop:6}}>
+                    <button onClick={()=>{setOrgSwitcherOpen(false);setAddOrgOpen(true);setAddOrgErr("");}}
+                      style={{width:"100%",display:"flex",alignItems:"center",gap:10,
+                        padding:"8px 10px",border:"none",borderRadius:8,
+                        cursor:"pointer",background:"none",transition:"background 0.15s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(16,185,129,0.08)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                      <div style={{width:30,height:30,borderRadius:7,flexShrink:0,
+                        background:"rgba(16,185,129,0.1)",border:"1px dashed rgba(16,185,129,0.35)",
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        fontSize:18,color:O.green}}>+</div>
+                      <span style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green}}>
+                        Add New Company
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
