@@ -2623,9 +2623,21 @@ function OwnerCmd({onLogout}){
               </div>
             )}
 
+            {/* ── LOADING STATE ── */}
+            {liveEmps===null&&(
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",
+                minHeight:300,gap:12}}>
+                <div style={{width:10,height:10,borderRadius:"50%",
+                  background:O.amber,animation:"blink 1s infinite"}}/>
+                <div style={{fontFamily:O.mono,fontSize:11,color:O.textD,letterSpacing:2}}>
+                  LOADING YOUR DASHBOARD…
+                </div>
+              </div>
+            )}
+
             {/* ── COMPUTED VARS (only when employees exist) ── */}
-            {(liveEmps===null||liveEmps.length>0)&&(()=>{
-              const EMPS_DATA = liveEmps||EMPS;
+            {liveEmps!==null&&liveEmps.length>0&&(()=>{
+              const EMPS_DATA = liveEmps;
               const activeEmps = EMPS_DATA.filter(e=>e.status==="active");
               const burnRate = activeEmps.reduce((s,e)=>s+e.rate,0);
               const hoursElapsed = now.getHours()+(now.getMinutes()/60)-(9);
@@ -3292,7 +3304,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {(liveEmps===null||liveEmps.length>0)&&(
+            {liveEmps!==null&&liveEmps.length>0&&(
 
             {/* Employee selector pills */}
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:2,marginBottom:10}}>SELECT EMPLOYEE FOR ANALYSIS</div>
@@ -4191,7 +4203,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {(liveEmps===null||liveEmps.length>0)&&(
+            {liveEmps!==null&&liveEmps.length>0&&(
             {(() => {
               // ── COMPUTED DATA ──
               const avgRel  = Math.round(EMPS.reduce((s,e)=>s+e.rel,0)/EMPS.length);
@@ -4915,7 +4927,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {(liveEmps===null||liveEmps.length>0)&&(
+            {liveEmps!==null&&liveEmps.length>0&&(
             {(() => {
               // ── COMPUTED DATA ──
               const fraudScore = (e) => Math.min(100, Math.round(
@@ -5671,7 +5683,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {(liveEmps===null||liveEmps.length>0)&&(
+            {liveEmps!==null&&liveEmps.length>0&&(
             {(() => {
               const cyan = "#00d4ff";
               const cyanD = "rgba(0,212,255,0.08)";
@@ -7239,7 +7251,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {(liveEmps===null||liveEmps.length>0)&&(
+            {liveEmps!==null&&liveEmps.length>0&&(
             {(()=>{
               const critCount = alerts.filter(a=>a.sev==="critical"&&!a.seen).length;
               const warnCount = alerts.filter(a=>a.sev==="warning"&&!a.seen).length;
@@ -7996,7 +8008,7 @@ function OwnerCmd({onLogout}){
                 </button>
               </div>
             )}
-            {(liveEmps===null||liveEmps.length>0)&&(
+            {liveEmps!==null&&liveEmps.length>0&&(
             {(()=>{
               // ── CORE DATA ──
               const indigo = "#6366f1";
