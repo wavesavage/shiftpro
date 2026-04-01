@@ -2681,7 +2681,12 @@ function OwnerCmd({onLogout}){
                 if(!addLocForm.name){setAddLocErr("Location name is required.");return;}
                 setAddLocBusy(true);setAddLocErr("");
                 try{
-                  const orgId=activeOrg?.id||ownerProfile?.org_id;
+                  let orgId=activeOrg?.id||ownerProfile?.org_id;
+                  if(!orgId){
+                    const {data:{session:s}}=await sb.auth.getSession();
+                    const {data:p}=await sb.from("users").select("org_id").eq("id",s.user.id).single();
+                    orgId=p?.org_id;
+                  }
                   if(!orgId) throw new Error("No company selected. Please refresh and try again.");
                   // Get auth token for server-side ownership check
                   const {createClient}=await import("@supabase/supabase-js");
