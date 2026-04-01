@@ -846,7 +846,7 @@ function EmpPortal({emp,onLogout}){
   const [now,setNow] = useState(new Date());
   const [swapOpen,setSwapOpen] = useState(false);
   const [toOpen,setToOpen] = useState(false);
-  const [msgs,setMsgs] = useState(MSGS);
+  const [msgs,setMsgs] = useState([]);
   const [openMsg,setOpenMsg] = useState(null);
 
   useEffect(()=>{
@@ -1978,7 +1978,7 @@ function EmpPortal({emp,onLogout}){
             </div>
             <div style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"18px",boxShadow:E.shadow}}>
               <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text,marginBottom:12}}>👥 Team This Week</div>
-              {EMPS.filter(e=>e.id!==empSafe.id).map(e => (
+              {[].filter(e=>e.id!==empSafe.id).map(e => (
                 <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 0",borderBottom:`1px solid ${E.border}`}}>
                   <Av emp={e} size={34}/>
                   <div style={{flex:1}}>
@@ -2040,7 +2040,7 @@ function EmpPortal({emp,onLogout}){
             <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Your manager will review and confirm</div>
             {[
               {label:"Which shift?",el:<select style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text}}>{myShifts.map(({d,ss})=><option key={d}>{d} · {fH(ss[0].s)}–{fH(ss[0].e)}</option>)}</select>},
-              {label:"Swap with?",el:<select style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text}}>{EMPS.filter(e=>e.id!==empSafe.id).map(e=><option key={e.id}>{e.name}</option>)}</select>},
+              {label:"Swap with?",el:<select style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text}}><option value="">No teammates yet</option></select>},
               {label:"Notes (optional)",el:<input placeholder="Any details…" style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text}}/>},
             ].map(f => (
               <div key={f.label} style={{marginBottom:12}}>
@@ -2581,10 +2581,7 @@ function OwnerCmd({onLogout}){
     return new Date(new Date(d).setDate(diff)).toISOString().split("T")[0];
   };
 
-  const unseen = alerts.filter(a=>!a.seen).length;
-  const STAFF_DATA = liveEmps||EMPS;
-  const totalGhost = STAFF_DATA.reduce((s,e)=>s+(e.ghost||0),0);
-  const ghostCost = STAFF_DATA.reduce((s,e)=>s+(e.ghost||0)*(e.rate||15),0).toFixed(2);
+  const unseen = 0;
   const sc = s => ({critical:O.red,warning:O.amber,info:O.blue})[s]||O.textD;
 
   const TABS = [
@@ -2627,7 +2624,7 @@ function OwnerCmd({onLogout}){
               <span style={{fontSize:16}}>🏢</span>
               <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>
                 Adding location to{" "}
-                <strong style={{color:"#fff"}}>{activeOrg?.name||ownerOrg?.name}</strong>.
+                <strong style={{color:"#fff"}}>{activeOrg?.name||ownerOrg?.name||"your company"}</strong>.
                 Each location has its own team, schedule, and payroll.
               </div>
             </div>
@@ -2899,7 +2896,7 @@ function OwnerCmd({onLogout}){
                       resize:"vertical",boxSizing:"border-box"}}/>
                 </div>
                 <div style={{fontFamily:O.mono,fontSize:9,color:O.textD,marginBottom:14}}>
-                  Will be sent to <span style={{color:"#fff",fontWeight:600}}>{(liveEmps||EMPS).filter(e=>e.status==="active").length} active employees</span>
+                  Will be sent to <span style={{color:"#fff",fontWeight:600}}>{(liveEmps||[]).filter(e=>e.status==="active").length} active employees</span>
                 </div>
                 <button
                   onClick={async()=>{
@@ -2909,7 +2906,7 @@ function OwnerCmd({onLogout}){
                       const {createClient}=await import("@supabase/supabase-js");
                       const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
                       const {data:{session}}=await sb.auth.getSession();
-                      const activeEmps=(liveEmps||EMPS).filter(e=>e.status==="active");
+                      const activeEmps=(liveEmps||[]).filter(e=>e.status==="active");
                       const msgs=activeEmps.map(emp=>({
                         org_id:ownerProfile?.org_id||null,
                         from_id:session?.user?.id||null,
@@ -3190,12 +3187,7 @@ function OwnerCmd({onLogout}){
         </div>
       </div>
 
-      {unseen>0 && (
-        <div style={{background:"rgba(239,68,68,0.07)",borderBottom:`1px solid rgba(239,68,68,0.2)`,padding:"6px 20px",display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:O.red,animation:"glow 1.2s infinite"}}/>
-          <span style={{fontFamily:O.mono,fontSize:9,color:O.red,letterSpacing:1.5}}>{unseen} CRITICAL SIGNALS REQUIRE REVIEW</span>
-        </div>
-      )}
+
 
       <div style={{padding:"12px 16px"}}>
         {/* Tabs */}
