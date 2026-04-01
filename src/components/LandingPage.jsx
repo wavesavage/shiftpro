@@ -214,10 +214,382 @@ function Entry({onChoose}){
 }
 
 // ══ EMPLOYER LANDING ═══════════════════════════
+
+// ══ LITE PRICING DATA ══════════════════════════════
+const LITE_PLANS=[
+  {
+    name:"Lite Starter",
+    price:39,
+    tag:"MOST POPULAR",
+    employees:"Up to 15 employees",
+    locs:"1 location",
+    addLoc:"+ $29/additional location",
+    trial:"14-day free trial",
+    feats:[
+      "Time clock (clock in/out/break)",
+      "Weekly schedule builder",
+      "Employee mobile portal",
+      "Shift swap & time-off requests",
+      "My Growth career tracker",
+      "Achievement badges & streaks",
+      "Pay stubs & W-2 document vault",
+      "Email support",
+    ],
+    c:"#10b981",
+    hot:true,
+  },
+  {
+    name:"Lite Pro",
+    price:79,
+    tag:null,
+    employees:"Up to 40 employees",
+    locs:"Up to 3 locations",
+    addLoc:"+ $29/additional location",
+    trial:"14-day free trial",
+    feats:[
+      "Everything in Lite Starter",
+      "Multi-location dashboard",
+      "Manager + supervisor roles",
+      "Schedule templates",
+      "CSV time history export",
+      "Priority email support",
+    ],
+    c:"#6366f1",
+    hot:false,
+  },
+];
+
+// ══ EMPLOYER AUTH MODAL ══════════════════════════════
+function EmployerAuthModal({onClose,onSuccess}){
+  const [mode,setMode]=useState("signin"); // signin | signup
+  const [step,setStep]=useState(1);        // signup step 1 or 2
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState("");
+  // Sign in fields
+  const [email,setEmail]=useState("");
+  const [pass,setPass]=useState("");
+  // Sign up fields
+  const [bizName,setBizName]=useState("");
+  const [firstName,setFirstName]=useState("");
+  const [lastName,setLastName]=useState("");
+  const [empCount,setEmpCount]=useState("1-10");
+  const [signupEmail,setSignupEmail]=useState("");
+  const [signupPass,setSignupPass]=useState("");
+  const [signupPass2,setSignupPass2]=useState("");
+
+  const handleSignIn=async()=>{
+    if(!email||!pass){setErr("Please enter email and password.");return;}
+    setBusy(true);setErr("");
+    try{
+      // Import supabase dynamically to avoid SSR issues
+      const {signIn}=await import("../lib/supabase");
+      await signIn(email,pass);
+      onSuccess();
+    }catch(e){
+      setErr(e.message||"Sign in failed. Check your email and password.");
+    }finally{setBusy(false);}
+  };
+
+  const handleSignUp=async()=>{
+    if(!signupEmail||!signupPass||!signupPass2||!bizName||!firstName||!lastName){
+      setErr("Please fill in all fields.");return;
+    }
+    if(signupPass!==signupPass2){setErr("Passwords do not match.");return;}
+    if(signupPass.length<8){setErr("Password must be at least 8 characters.");return;}
+    setBusy(true);setErr("");
+    try{
+      const {supabase}=await import("../lib/supabase");
+      // 1. Create auth user
+      const {data:authData,error:authErr}=await supabase.auth.signUp({
+        email:signupEmail,password:signupPass,
+        options:{data:{first_name:firstName,last_name:lastName}}
+      });
+      if(authErr)throw authErr;
+      // 2. Create org
+      const slug=bizName.toLowerCase().replace(/[^a-z0-9]/g,"-").replace(/-+/g,"-");
+      const {data:org,error:orgErr}=await supabase.from("organizations")
+        .insert({name:bizName,slug:slug+"-"+Date.now(),plan:"lite_starter"})
+        .select().single();
+      if(orgErr)throw orgErr;
+      // 3. Create user profile
+      const {error:profileErr}=await supabase.from("users").insert({
+        id:authData.user.id,
+        org_id:org.id,
+        first_name:firstName,
+        last_name:lastName,
+        role:"owner",
+        app_role:"owner",
+        avatar_initials:(firstName[0]+lastName[0]).toUpperCase(),
+        avatar_color:"#f59e0b",
+        hourly_rate:0,
+      });
+      if(profileErr)throw profileErr;
+      onSuccess();
+    }catch(e){
+      setErr(e.message||"Sign up failed. Please try again.");
+    }finally{setBusy(false);}
+  };
+
+  const IN=({label,val,set,type="text",ph=""})=>(
+    <div style={{marginBottom:12}}>
+      <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.4)",
+        letterSpacing:"2px",marginBottom:5}}>{label}</div>
+      <input value={val} onChange={e=>{set(e.target.value);setErr("");}}
+        type={type} placeholder={ph}
+        onKeyDown={e=>{if(e.key==="Enter"){mode==="signin"?handleSignIn():handleSignUp();}}}
+        style={{width:"100%",padding:"11px 14px",
+          background:"rgba(255,255,255,0.06)",
+          border:"1px solid rgba(255,255,255,0.12)",
+          borderRadius:8,fontFamily:C.mono,fontSize:13,color:"#fff",
+          outline:"none",boxSizing:"border-box"}}/>
+    </div>
+  );
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",
+      zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",
+      padding:"20px",backdropFilter:"blur(8px)"}}
+      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:"#0d1623",
+        border:"1px solid rgba(245,158,11,0.25)",
+        borderRadius:18,padding:"32px",width:"100%",maxWidth:440,
+        animation:"fadeUp 0.3s ease",position:"relative",
+        boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+
+        {/* Close */}
+        <button onClick={onClose}
+          style={{position:"absolute",top:16,right:16,
+            background:"none",border:"none",color:"rgba(255,255,255,0.3)",
+            fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
+
+        {/* Logo */}
+        <div style={{display:"flex",justifyContent:"center",marginBottom:22}}>
+          <Logo/>
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{display:"flex",gap:0,background:"rgba(255,255,255,0.05)",
+          borderRadius:10,padding:3,marginBottom:24}}>
+          {["signin","signup"].map(m=>(
+            <button key={m} onClick={()=>{setMode(m);setErr("");setStep(1);}}
+              style={{flex:1,padding:"9px",borderRadius:8,border:"none",
+                cursor:"pointer",
+                background:mode===m?"rgba(245,158,11,0.15)":"transparent",
+                fontFamily:C.sans,fontWeight:700,fontSize:13,
+                color:mode===m?C.amber:"rgba(255,255,255,0.35)",
+                transition:"all 0.2s"}}>
+              {m==="signin"?"Sign In":"Start Free Trial"}
+            </button>
+          ))}
+        </div>
+
+        {/* SIGN IN */}
+        {mode==="signin"&&(
+          <div>
+            <IN label="EMAIL" val={email} set={setEmail} type="email" ph="you@business.com"/>
+            <IN label="PASSWORD" val={pass} set={setPass} type="password" ph="••••••••"/>
+            {err&&<div style={{fontFamily:C.mono,fontSize:10,color:"#ef4444",
+              marginBottom:12}}>{err}</div>}
+            <button onClick={handleSignIn}
+              style={{width:"100%",padding:"13px",
+                background:busy?"rgba(245,158,11,0.4)":"linear-gradient(135deg,#f59e0b,#f97316)",
+                border:"none",borderRadius:10,fontFamily:C.sans,fontWeight:700,
+                fontSize:15,color:"#030c14",cursor:busy?"not-allowed":"pointer",
+                boxShadow:"0 4px 20px rgba(245,158,11,0.3)",marginBottom:14}}>
+              {busy?"Signing in…":"Enter Command Center →"}
+            </button>
+            <div style={{textAlign:"center",fontFamily:C.sans,fontSize:12,
+              color:"rgba(255,255,255,0.3)"}}>
+              No account?{" "}
+              <span onClick={()=>{setMode("signup");setErr("");}}
+                style={{color:C.amber,cursor:"pointer",textDecoration:"underline"}}>
+                Start your free trial
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* SIGN UP step 1 — business info */}
+        {mode==="signup"&&step===1&&(
+          <div>
+            <div style={{fontFamily:C.sans,fontWeight:700,fontSize:16,
+              color:"#fff",marginBottom:4}}>Create your account</div>
+            <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.3)",
+              marginBottom:18,letterSpacing:1}}>14-DAY FREE TRIAL · NO CREDIT CARD REQUIRED</div>
+            <IN label="BUSINESS NAME" val={bizName} set={setBizName} ph="Marine Discovery Tours"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.4)",
+                  letterSpacing:"2px",marginBottom:5}}>FIRST NAME</div>
+                <input value={firstName} onChange={e=>setFirstName(e.target.value)}
+                  placeholder="Alex"
+                  style={{width:"100%",padding:"11px 14px",
+                    background:"rgba(255,255,255,0.06)",
+                    border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,
+                    fontFamily:C.mono,fontSize:13,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.4)",
+                  letterSpacing:"2px",marginBottom:5}}>LAST NAME</div>
+                <input value={lastName} onChange={e=>setLastName(e.target.value)}
+                  placeholder="Rivera"
+                  style={{width:"100%",padding:"11px 14px",
+                    background:"rgba(255,255,255,0.06)",
+                    border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,
+                    fontFamily:C.mono,fontSize:13,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontFamily:C.mono,fontSize:9,color:"rgba(255,255,255,0.4)",
+                letterSpacing:"2px",marginBottom:5}}>TEAM SIZE</div>
+              <select value={empCount} onChange={e=>setEmpCount(e.target.value)}
+                style={{width:"100%",padding:"11px 14px",
+                  background:"rgba(255,255,255,0.06)",
+                  border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,
+                  fontFamily:C.mono,fontSize:13,color:"#fff",outline:"none",
+                  boxSizing:"border-box",cursor:"pointer"}}>
+                {["1-5","6-10","11-20","21-40","41-100","100+"].map(v=>(
+                  <option key={v} value={v} style={{background:"#0d1623"}}>{v} employees</option>
+                ))}
+              </select>
+            </div>
+            {err&&<div style={{fontFamily:C.mono,fontSize:10,color:"#ef4444",marginBottom:12}}>{err}</div>}
+            <button onClick={()=>{
+              if(!bizName||!firstName||!lastName){setErr("Please fill in all fields.");return;}
+              setErr("");setStep(2);
+            }}
+              style={{width:"100%",padding:"13px",
+                background:"linear-gradient(135deg,#f59e0b,#f97316)",
+                border:"none",borderRadius:10,fontFamily:C.sans,fontWeight:700,
+                fontSize:15,color:"#030c14",cursor:"pointer",
+                boxShadow:"0 4px 20px rgba(245,158,11,0.3)"}}>
+              Continue →
+            </button>
+          </div>
+        )}
+
+        {/* SIGN UP step 2 — credentials */}
+        {mode==="signup"&&step===2&&(
+          <div>
+            <button onClick={()=>setStep(1)}
+              style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",
+                fontFamily:C.mono,fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:16}}>
+              ← BACK
+            </button>
+            <div style={{fontFamily:C.sans,fontWeight:700,fontSize:16,
+              color:"#fff",marginBottom:4}}>Set your login credentials</div>
+            <div style={{fontFamily:C.mono,fontSize:9,color:C.amber,
+              marginBottom:18,letterSpacing:1}}>
+              {bizName} · {firstName} {lastName}
+            </div>
+            <IN label="EMAIL ADDRESS" val={signupEmail} set={setSignupEmail} type="email" ph="you@yourbusiness.com"/>
+            <IN label="PASSWORD (min 8 characters)" val={signupPass} set={setSignupPass} type="password" ph="••••••••"/>
+            <IN label="CONFIRM PASSWORD" val={signupPass2} set={setSignupPass2} type="password" ph="••••••••"/>
+            {err&&<div style={{fontFamily:C.mono,fontSize:10,color:"#ef4444",marginBottom:12}}>{err}</div>}
+            <button onClick={handleSignUp}
+              style={{width:"100%",padding:"13px",
+                background:busy?"rgba(16,185,129,0.4)":"linear-gradient(135deg,#10b981,#059669)",
+                border:"none",borderRadius:10,fontFamily:C.sans,fontWeight:700,
+                fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",
+                boxShadow:"0 4px 20px rgba(16,185,129,0.3)",marginBottom:12}}>
+              {busy?"Creating your account…":"Start My Free Trial →"}
+            </button>
+            <div style={{fontFamily:C.sans,fontSize:11,color:"rgba(255,255,255,0.25)",
+              textAlign:"center",lineHeight:1.6}}>
+              By creating an account you agree to our Terms of Service.
+              No credit card required for the 14-day trial.
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══ EMPLOYEE AUTH MODAL ══════════════════════════════
+function EmployeeAuthModal({onClose,onSuccess}){
+  const [email,setEmail]=useState("");
+  const [pass,setPass]=useState("");
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+
+  const handleSignIn=async()=>{
+    if(!email||!pass){setErr("Please enter your email and password.");return;}
+    setBusy(true);setErr("");
+    try{
+      const {signIn}=await import("../lib/supabase");
+      await signIn(email,pass);
+      onSuccess();
+    }catch(e){
+      setErr("Sign in failed. Check your email and password.");
+    }finally{setBusy(false);}
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",
+      zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",
+      padding:"20px",backdropFilter:"blur(8px)"}}
+      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:"#fff",borderRadius:18,padding:"32px",
+        width:"100%",maxWidth:400,animation:"fadeUp 0.3s ease",position:"relative",
+        boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        <button onClick={onClose}
+          style={{position:"absolute",top:14,right:16,
+            background:"none",border:"none",color:"#9ca3af",
+            fontSize:20,cursor:"pointer"}}>×</button>
+        <div style={{textAlign:"center",marginBottom:22}}>
+          <Swirl size={48} c1="#10b981" c2="#059669" c3="#065f46" accent="#6ee7b7"/>
+          <div style={{fontFamily:C.sans,fontWeight:800,fontSize:22,
+            color:"#0f172a",marginTop:10,marginBottom:4}}>Welcome back 👋</div>
+          <div style={{fontFamily:C.body,fontSize:13,color:"#6b7280"}}>
+            Sign in to your Work Hub
+          </div>
+        </div>
+        <div style={{marginBottom:12}}>
+          <div style={{fontFamily:C.body,fontWeight:600,fontSize:12,
+            color:"#374151",marginBottom:5}}>Email Address</div>
+          <input value={email} onChange={e=>{setEmail(e.target.value);setErr("");}}
+            type="email" placeholder="you@email.com"
+            onKeyDown={e=>e.key==="Enter"&&handleSignIn()}
+            style={{width:"100%",padding:"11px 14px",
+              background:"#f9fafb",border:"1.5px solid #e5e7eb",
+              borderRadius:8,fontFamily:C.body,fontSize:14,color:"#111827",
+              outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{marginBottom:err?8:16}}>
+          <div style={{fontFamily:C.body,fontWeight:600,fontSize:12,
+            color:"#374151",marginBottom:5}}>Password</div>
+          <input value={pass} onChange={e=>{setPass(e.target.value);setErr("");}}
+            type="password" placeholder="••••••••"
+            onKeyDown={e=>e.key==="Enter"&&handleSignIn()}
+            style={{width:"100%",padding:"11px 14px",
+              background:"#f9fafb",border:"1.5px solid #e5e7eb",
+              borderRadius:8,fontFamily:C.body,fontSize:14,color:"#111827",
+              outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        {err&&<div style={{fontFamily:C.body,fontSize:12,color:"#ef4444",marginBottom:12}}>{err}</div>}
+        <button onClick={handleSignIn}
+          style={{width:"100%",padding:"13px",
+            background:busy?"#9ca3af":"linear-gradient(135deg,#10b981,#059669)",
+            border:"none",borderRadius:10,fontFamily:C.sans,fontWeight:700,
+            fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",
+            boxShadow:"0 4px 20px rgba(16,185,129,0.3)",marginBottom:10}}>
+          {busy?"Signing in…":"Go to My Work Hub →"}
+        </button>
+        <div style={{fontFamily:C.body,fontSize:12,color:"#9ca3af",textAlign:"center"}}>
+          Need access? Ask your manager to add you to ShiftPro.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmployerPage({onBack,onSignIn}){
   const [navSolid,setNavSolid]=useState(false);
   const [email,setEmail]=useState("");
   const [sent,setSent]=useState(false);
+  const [showAuth,setShowAuth]=useState(false);
+  const [authMode,setAuthMode]=useState("signin");
   useEffect(()=>{const h=()=>setNavSolid(window.scrollY>60);window.addEventListener("scroll",h);return()=>window.removeEventListener("scroll",h);},[]);
 
   const FEATS=[
@@ -250,6 +622,10 @@ function EmployerPage({onBack,onSignIn}){
 
   return(
     <div style={{minHeight:"100vh",background:C.bg}}>
+      {showAuth&&<EmployerAuthModal
+        onClose={()=>setShowAuth(false)}
+        onSuccess={()=>{setShowAuth(false);onSignIn();}}
+      />}
       <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:200,height:62,
         background:navSolid?"rgba(5,8,15,0.97)":"transparent",
         borderBottom:navSolid?`1px solid ${C.border}`:"none",
@@ -265,12 +641,24 @@ function EmployerPage({onBack,onSignIn}){
               onMouseEnter={e=>e.target.style.color=C.amber}
               onMouseLeave={e=>e.target.style.color=C.textD}>{item}</a>
           ))}
-          <button onClick={onSignIn} style={{fontFamily:C.sans,fontWeight:700,fontSize:14,
-            padding:"9px 22px",background:C.amber,border:"none",borderRadius:8,
-            color:"#030c14",cursor:"pointer",boxShadow:"0 0 18px rgba(245,158,11,0.4)",
-            transition:"all 0.2s"}}
-            onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}
-            onMouseLeave={e=>e.currentTarget.style.transform="none"}>Sign In →</button>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setAuthMode("signup");setShowAuth(true);}}
+              style={{fontFamily:C.sans,fontWeight:600,fontSize:13,
+                padding:"9px 18px",background:"transparent",
+                border:"1px solid rgba(245,158,11,0.35)",borderRadius:8,
+                color:C.amber,cursor:"pointer",transition:"all 0.2s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(245,158,11,0.08)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              Free Trial
+            </button>
+            <button onClick={()=>{setAuthMode("signin");setShowAuth(true);}}
+              style={{fontFamily:C.sans,fontWeight:700,fontSize:14,
+                padding:"9px 22px",background:C.amber,border:"none",borderRadius:8,
+                color:"#030c14",cursor:"pointer",boxShadow:"0 0 18px rgba(245,158,11,0.4)",
+                transition:"all 0.2s"}}
+              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}
+              onMouseLeave={e=>e.currentTarget.style.transform="none"}>Sign In →</button>
+          </div>
         </div>
       </nav>
 
@@ -316,6 +704,16 @@ function EmployerPage({onBack,onSignIn}){
               onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 44px rgba(245,158,11,0.6)";}}
               onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 0 32px rgba(245,158,11,0.45)";}}>
               Start Free Trial →
+            </button>
+            <button onClick={()=>{window.location.href="/demo";}}
+              style={{fontFamily:C.sans,fontWeight:600,fontSize:15,
+                padding:"16px 38px",background:"transparent",
+                border:"1px solid rgba(255,255,255,0.15)",borderRadius:50,
+                color:C.textD,cursor:"pointer",transition:"all 0.2s",letterSpacing:0.3,
+                marginLeft:8}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.35)";e.currentTarget.style.color="#fff";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.15)";e.currentTarget.style.color=C.textD;}}>
+              View Live Demo →
             </button>
             <a href="#el-features" style={{fontFamily:C.sans,fontWeight:600,fontSize:16,
               padding:"15px 42px",background:"transparent",
@@ -392,6 +790,147 @@ function EmployerPage({onBack,onSignIn}){
                 <div style={{fontFamily:C.mono,fontSize:11,color:C.textD,lineHeight:1.7}}>{s.d}</div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+
+      {/* ── LITE PRICING ── */}
+      <section id="el-lite" style={{padding:"80px 40px",maxWidth:1100,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:48}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:10,marginBottom:16,
+            fontFamily:C.mono,fontSize:10,color:C.green,letterSpacing:"2px",
+            background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.2)",
+            borderRadius:20,padding:"5px 16px"}}>
+            ✓ AVAILABLE NOW — GO LIVE TODAY
+          </div>
+          <h2 style={{fontFamily:C.sans,fontWeight:800,
+            fontSize:"clamp(22px,3vw,38px)",color:"#fff",
+            letterSpacing:"-1px",marginBottom:10}}>
+            ShiftPro Lite — Time Clock & Scheduling
+          </h2>
+          <p style={{fontFamily:C.mono,fontSize:12,color:C.textD,maxWidth:580,
+            margin:"0 auto",lineHeight:1.7}}>
+            Start using ShiftPro for your team tomorrow. Full time clock, scheduling,
+            employee portal with career tools, and achievements — all live today.
+          </p>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",
+          gap:16,marginBottom:36}}>
+          {LITE_PLANS.map((plan,i)=>(
+            <div key={i} style={{position:"relative",
+              background:plan.hot?"rgba(16,185,129,0.05)":"rgba(9,14,26,0.8)",
+              border:"1px solid "+(plan.hot?"rgba(16,185,129,0.4)":"rgba(255,255,255,0.07)"),
+              borderRadius:16,padding:"32px 28px",
+              boxShadow:plan.hot?"0 0 44px rgba(16,185,129,0.12)":"none",
+              transition:"all 0.2s"}}
+              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-3px)"}
+              onMouseLeave={e=>e.currentTarget.style.transform="none"}>
+              {plan.tag&&(
+                <div style={{position:"absolute",top:-12,left:"50%",
+                  transform:"translateX(-50%)",fontFamily:C.mono,fontSize:9,
+                  color:"#fff",background:C.green,padding:"3px 14px",
+                  borderRadius:20,letterSpacing:"2px",whiteSpace:"nowrap"}}>
+                  {plan.tag}
+                </div>
+              )}
+              <div style={{fontFamily:C.mono,fontSize:9,color:plan.c,
+                letterSpacing:"3px",marginBottom:9,textTransform:"uppercase"}}>
+                {plan.name}
+              </div>
+              <div style={{display:"flex",alignItems:"baseline",gap:5,marginBottom:4}}>
+                <span style={{fontFamily:C.sans,fontWeight:800,fontSize:48,color:"#fff"}}>
+                  ${plan.price}
+                </span>
+                <span style={{fontFamily:C.mono,fontSize:12,color:C.textD}}>/mo</span>
+              </div>
+              <div style={{fontFamily:C.mono,fontSize:10,color:C.textD,marginBottom:2}}>
+                {plan.employees}
+              </div>
+              <div style={{fontFamily:C.mono,fontSize:10,color:C.textD,marginBottom:2}}>
+                {plan.locs}
+              </div>
+              <div style={{fontFamily:C.mono,fontSize:9,color:plan.c,
+                background:plan.c+"14",border:"1px solid "+plan.c+"30",
+                borderRadius:4,padding:"2px 8px",marginBottom:20,
+                display:"inline-block"}}>
+                {plan.addLoc}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:24}}>
+                {plan.feats.map((f,j)=>(
+                  <div key={j} style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                    <span style={{color:plan.c,fontSize:12,flexShrink:0,marginTop:1}}>✓</span>
+                    <span style={{fontFamily:C.mono,fontSize:11,color:C.textD,lineHeight:1.4}}>
+                      {f}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div style={{fontFamily:C.mono,fontSize:9,color:plan.c,
+                textAlign:"center",marginBottom:12,letterSpacing:1}}>
+                {plan.trial}
+              </div>
+              <button onClick={()=>{setAuthMode("signup");setShowAuth(true);}}
+                style={{width:"100%",padding:"13px",borderRadius:9,cursor:"pointer",
+                  fontFamily:C.sans,fontWeight:700,fontSize:14,
+                  background:plan.hot?C.green:"transparent",
+                  border:"1px solid "+(plan.hot?C.green:plan.c+"50"),
+                  color:plan.hot?"#fff":plan.c,transition:"all 0.2s"}}
+                onMouseEnter={e=>{if(!plan.hot)e.currentTarget.style.background=plan.c+"15";}}
+                onMouseLeave={e=>{if(!plan.hot)e.currentTarget.style.background="transparent";}}>
+                Start Free Trial →
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* vs competitors */}
+        <div style={{background:"rgba(9,14,26,0.8)",
+          border:"1px solid rgba(255,255,255,0.06)",
+          borderRadius:14,padding:"22px 28px"}}>
+          <div style={{fontFamily:C.mono,fontSize:9,color:C.textF,
+            letterSpacing:"2px",marginBottom:14,textAlign:"center"}}>
+            HOW SHIFTPRO LITE COMPARES
+          </div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",
+              fontFamily:C.mono,fontSize:11}}>
+              <thead>
+                <tr>
+                  {["Feature","ShiftPro Lite","When I Work","Homebase","Deputy"].map((h,i)=>(
+                    <th key={h} style={{padding:"8px 12px",textAlign:"left",
+                      color:i===1?C.green:C.textD,
+                      borderBottom:"1px solid rgba(255,255,255,0.06)",
+                      fontWeight:i===1?700:400,letterSpacing:1}}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ["Time Clock","✅","✅","✅","✅"],
+                  ["Scheduling","✅","✅","✅","✅"],
+                  ["Employee Portal","✅","Basic","Basic","Basic"],
+                  ["Career Growth Tools","✅","❌","❌","❌"],
+                  ["Achievement System","✅","❌","❌","❌"],
+                  ["W-2 Document Vault","✅","❌","❌","❌"],
+                  ["Pricing (15 staff)","$39/mo","$60/mo","$55/mo","$68/mo"],
+                ].map((row,ri)=>(
+                  <tr key={ri} style={{background:ri%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
+                    {row.map((cell,ci)=>(
+                      <td key={ci} style={{padding:"9px 12px",
+                        color:ci===1?C.green:ci===0?"#fff":C.textD,
+                        borderBottom:"1px solid rgba(255,255,255,0.04)",
+                        fontWeight:ci===1?600:400}}>
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -699,14 +1238,22 @@ function EmployeePage({onSignIn}){
 // ══ ROOT ════════════════════════════════════════
 export default function ShiftProSite(){
   const [screen,setScreen]=useState("entry");
+  const [showEmpAuth,setShowEmpAuth]=useState(false);
   const goToOwnerApp=()=>{ window.location.href="/login"; };
   const goToEmployeeApp=()=>{ window.location.href="/employee-login"; };
   return(
     <>
       <style>{FONTS}{GCSS}</style>
+      {showEmpAuth&&<EmployeeAuthModal
+        onClose={()=>setShowEmpAuth(false)}
+        onSuccess={()=>{setShowEmpAuth(false);goToEmployeeApp();}}
+      />}
       {screen==="entry" && <Entry onChoose={setScreen}/>}
       {screen==="employer" && <EmployerPage onBack={()=>setScreen("entry")} onSignIn={goToOwnerApp}/>}
-      {screen==="employee" && <EmployeePage onSignIn={goToEmployeeApp}/>}
+      {screen==="employee" && <EmployeePage
+        onSignIn={()=>setShowEmpAuth(true)}
+        onSignInDirect={goToEmployeeApp}
+      />}
     </>
   );
 }
