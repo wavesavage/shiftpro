@@ -3960,8 +3960,7 @@ function OwnerCmd({onLogout}){
                         totalPay.toFixed(2)
                       ].join(","));
                     });
-                    const blob=new Blob([rows.join("
-")],{type:"text/csv"});
+                    const blob=new Blob([rows.join("\n")],{type:"text/csv"});
                     const url=URL.createObjectURL(blob);
                     const a=document.createElement("a");
                     a.href=url;a.download="payroll-export.csv";a.click();
@@ -4240,9 +4239,6 @@ function OwnerCmd({onLogout}){
         )}
 
 
-      </div>
-    </div>
-  );
 
 
       </div>
