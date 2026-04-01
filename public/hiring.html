@@ -109,7 +109,7 @@
     teal:"#10b981",tealL:"#34d399",red:"#f85149"};
 
   const COMPANIES={
-    sealion:{name:"Sea Lion Dockside Bar",short:"Sea Lion",icon:"🦁",
+    sealion:{name:"Sea Lion Dockside Bar",short:"Sea Lion",icon:"🦭",
       color:"#e07b39",colorL:"#f59e42",colorBg:"rgba(224,123,57,0.1)",
       address:"Newport, OR",positions:["bartender","barista","giftshop","all"]},
     surftown:{name:"Surftown Coffee Company",short:"Surftown Coffee",icon:"☕",
@@ -387,7 +387,7 @@
         <div style={{background:C.mid,border:`1px solid ${C.amber}`,borderRadius:14,padding:"36px 28px",
           width:"100%",maxWidth:400,textAlign:"center",transform:shake?"translateX(6px)":"none",transition:"transform 0.1s"}}>
           <div style={{fontSize:12,color:C.dim,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:14}}>Newport Hospitality Group</div>
-          <div style={{display:"flex",justifyContent:"center",gap:14,fontSize:30,marginBottom:14}}>🦁☕⚓</div>
+          <div style={{display:"flex",justifyContent:"center",gap:14,fontSize:30,marginBottom:14}}>🦭☕⚓</div>
           <div style={{fontSize:21,fontWeight:"bold",color:C.amberL,marginBottom:4}}>Staff Hiring Portal</div>
           <div style={{fontSize:11,color:C.dim,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:24}}>Internal Use Only</div>
           <input style={{background:C.bg,border:`1px solid ${error?C.red:C.border}`,borderRadius:6,padding:"13px 14px",
@@ -638,7 +638,7 @@
         <div style={{background:C.mid,borderBottom:`2px solid ${C.amber}`,padding:"12px 16px",position:"sticky",top:0,zIndex:100}}>
           <div className="hdr-inner">
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{fontSize:18,letterSpacing:2}}>🦁☕⚓</div>
+              <div style={{fontSize:18,letterSpacing:2}}>🦭☕⚓</div>
               <div>
                 <div style={{fontSize:14,fontWeight:"bold",color:C.amberL,letterSpacing:"0.04em",lineHeight:1.2}}>NEWPORT HOSPITALITY GROUP</div>
                 <div style={{fontSize:10,color:C.dim,letterSpacing:"0.12em",textTransform:"uppercase"}}>Staff Hiring — Internal</div>
@@ -960,7 +960,7 @@
 
               {candidates.length===0&&(
                 <div style={{...cardS,textAlign:"center",padding:"44px 20px"}}>
-                  <div style={{fontSize:32,marginBottom:10}}>🦁☕⚓</div>
+                  <div style={{fontSize:32,marginBottom:10}}>🦭☕⚓</div>
                   <div style={{color:C.dim,fontSize:14}}>No interviews yet.</div>
                   <button onClick={()=>setView("gateway")} style={{...pBtn,marginTop:18}}>+ Start Interview</button>
                 </div>
