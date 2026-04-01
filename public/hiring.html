@@ -2,31 +2,103 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
   <title>Staff Hiring — Newport Hospitality Group</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    body{background:#0d1117;font-family:Georgia,serif;color:#f0f6fc;}
-    button,textarea,input,select{font-family:Georgia,serif;}
-    ::-webkit-scrollbar{width:6px;}
+    html{-webkit-text-size-adjust:100%;}
+    body{background:#0d1117;font-family:Georgia,serif;color:#f0f6fc;min-height:100vh;}
+    button,textarea,input,select{font-family:Georgia,serif;-webkit-appearance:none;appearance:none;}
+    input,textarea,select{font-size:16px!important;} /* prevents iOS zoom on focus */
+    ::-webkit-scrollbar{width:4px;}
     ::-webkit-scrollbar-track{background:#0d1117;}
     ::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
-    .check-row{display:flex;align-items:flex-start;gap:12px;padding:11px 8px;
+
+    .check-row{display:flex;align-items:flex-start;gap:12px;padding:13px 8px;
       border-bottom:1px solid #161b22;cursor:pointer;border-radius:6px;transition:background 0.1s;}
     .check-row:last-child{border-bottom:none;}
-    .check-row:hover{background:rgba(240,180,41,0.05);}
-    .chkbox{width:20px;height:20px;min-width:20px;border-radius:4px;border:2px solid #30363d;
-      display:flex;align-items:center;justify-content:center;transition:all 0.15s;margin-top:2px;}
+    .check-row:active{background:rgba(240,180,41,0.07);}
+    @media(hover:hover){.check-row:hover{background:rgba(240,180,41,0.05);}}
+
+    .chkbox{width:22px;height:22px;min-width:22px;border-radius:4px;border:2px solid #30363d;
+      display:flex;align-items:center;justify-content:center;transition:all 0.15s;margin-top:1px;}
     .chkbox.on{background:#10b981;border-color:#34d399;}
-    .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;
-      align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;}
-    .modal{background:#161b22;border:1px solid #f0b429;border-radius:14px;padding:28px;width:100%;max-width:600px;}
-    .tab-btn{padding:7px 16px;border-radius:20px;border:1px solid #30363d;background:transparent;
-      color:#8b949e;font-size:12px;cursor:pointer;letter-spacing:0.04em;transition:all 0.15s;}
+
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:200;display:flex;
+      align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .modal{background:#161b22;border:1px solid #f0b429;border-radius:14px;padding:22px;width:100%;max-width:600px;margin:auto;}
+
+    .tab-btn{padding:8px 14px;border-radius:20px;border:1px solid #30363d;background:transparent;
+      color:#8b949e;font-size:12px;cursor:pointer;letter-spacing:0.04em;transition:all 0.15s;white-space:nowrap;}
     .tab-btn.active{background:#f0b429;color:#0d1117;border-color:#f0b429;font-weight:bold;}
+
+    /* Header responsive */
+    .hdr-inner{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+    .hdr-btns{display:flex;gap:8px;flex-shrink:0;}
+    @media(max-width:480px){
+      .hdr-inner{flex-wrap:wrap;}
+      .hdr-btns{width:100%;justify-content:flex-end;}
+    }
+
+    /* Stats grid */
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px;}
+    @media(max-width:400px){.stats-grid{grid-template-columns:1fr 1fr;}}
+
+    /* Gateway position buttons */
+    .pos-btns{display:flex;flex-wrap:wrap;gap:10px;}
+    .pos-btn{display:flex;align-items:center;gap:8px;padding:11px 16px;border-radius:8px;
+      cursor:pointer;transition:all 0.15s;border-width:1px;border-style:solid;flex:1;min-width:140px;
+      justify-content:center;}
+    @media(max-width:400px){.pos-btn{min-width:100%;}}
+
+    /* Rating buttons */
+    .rating-row{display:flex;gap:8px;}
+    .rating-btn{flex:1;padding:12px 4px;border-radius:6px;font-weight:bold;font-size:13px;
+      cursor:pointer;border-width:2px;border-style:solid;font-family:Georgia,serif;transition:all 0.15s;
+      text-align:center;min-height:48px;}
+    @media(max-width:360px){.rating-btn{font-size:11px;padding:10px 2px;}}
+
+    /* Candidate card action row */
+    .card-actions{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+    .card-action-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    @media(max-width:480px){
+      .card-actions{flex-direction:column;align-items:stretch;}
+      .card-action-btns{justify-content:flex-end;}
+    }
+
+    /* Company header stats */
+    .co-hdr-stats{display:flex;gap:12px;font-size:12px;}
+    @media(max-width:500px){.co-hdr-stats{display:none;}}
+
+    /* Edit grid */
+    .edit-date-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    @media(max-width:400px){.edit-date-grid{grid-template-columns:1fr;}}
+
+    /* Nav buttons */
+    .nav-btn-row{display:flex;gap:10px;margin-top:4px;}
+    .nav-btn-row button{flex:1;}
+
+    /* Summary status buttons */
+    .status-btn-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:16px;}
+
+    /* Availability day row */
+    .avail-day-row{display:flex;align-items:center;gap:8px;border-radius:7px;padding:8px 10px;transition:all 0.15s;}
+    .shift-btns{display:flex;gap:5px;flex-wrap:wrap;}
+    @media(max-width:380px){.shift-btns{gap:3px;}}
+
+    /* Contract modal pay row */
+    .pay-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media(max-width:400px){.pay-row{grid-template-columns:1fr;}}
+
+    /* Confirm delete */
+    .confirm-del{display:flex;align-items:center;gap:8px;background:rgba(248,81,73,0.1);
+      border:1px solid #f85149;border-radius:8px;padding:8px 12px;flex-wrap:wrap;}
+    @media(max-width:480px){.confirm-del{flex-direction:column;align-items:stretch;text-align:center;}}
+    .confirm-del-btns{display:flex;gap:6px;}
+    @media(max-width:480px){.confirm-del-btns{justify-content:center;}}
   </style>
 </head>
 <body>
@@ -126,6 +198,9 @@
     pass:{label:"✗ Passed",color:"#f85149",bg:"rgba(248,81,73,0.1)",border:"#f85149"},
   };
   const WRAPUP=11;
+  const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const COMMIT=["Full Season","Most of Season","Weekends Only","Flexible / TBD"];
 
   function calcScore(answers,questions){
     let total=0,max=0;
@@ -138,173 +213,144 @@
     return{label:"🔴 Pass",color:C.red};
   }
 
-  const pBtn={background:C.amber,color:C.bg,border:"none",borderRadius:7,padding:"11px 22px",fontSize:14,fontWeight:"bold",cursor:"pointer",letterSpacing:"0.03em"};
-  const nBtn={background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:7,padding:"10px 18px",fontSize:14,cursor:"pointer"};
-  const cardS={background:C.mid,border:`1px solid ${C.border}`,borderRadius:10,padding:"22px"};
-  const inputS={background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px 12px",color:C.cream,fontSize:14,outline:"none",width:"100%"};
+  /* shared styles */
+  const pBtn={background:C.amber,color:C.bg,border:"none",borderRadius:7,padding:"12px 20px",fontSize:14,fontWeight:"bold",cursor:"pointer",letterSpacing:"0.03em",minHeight:44};
+  const nBtn={background:"transparent",color:C.dim,border:`1px solid ${C.border}`,borderRadius:7,padding:"11px 16px",fontSize:14,cursor:"pointer",minHeight:44};
+  const cardS={background:C.mid,border:`1px solid ${C.border}`,borderRadius:10,padding:"18px"};
+  const inputS={background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"11px 12px",color:C.cream,fontSize:16,outline:"none",width:"100%"};
   const labelS={display:"flex",flexDirection:"column",gap:7,fontSize:13,color:C.dim};
 
+  /* ── CONTRACT GENERATOR ── */
   function generateContract(c,data){
-    const co=COMPANIES[c.company]||{name:"Newport Hospitality Group",address:"Newport, OR",icon:"🏢",short:"NHG"};
+    const co=COMPANIES[c.company]||{name:"Newport Hospitality Group",address:"Newport, OR",icon:"🏢"};
     const pos=POS_LABELS[c.position]||{title:c.position};
     const today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
     const dutiesMap={
-      bartender:`<li>Mix and serve beverages in full compliance with OLCC regulations and responsible alcohol service standards</li>
-        <li>Maintain a clean, organized, and professional bar environment throughout each shift</li>
-        <li>Provide exceptional guest service to tourists and locals alike — the bar experience starts with you</li>
-        <li>Handle cash and POS transactions accurately and honestly at all times</li>
-        <li>Monitor guest consumption and confidently enforce responsible alcohol service policies</li>
-        <li>Collaborate with kitchen and front-of-house staff to ensure smooth coordinated operations</li>
-        <li>Maintain a current OLCC Alcohol Server Permit throughout employment</li>`,
-      barista:`<li>Prepare espresso drinks, drip coffee, cold brew, and specialty beverages to consistent quality standards</li>
-        <li>Maintain a clean, organized, and food-safe coffee station throughout each shift</li>
-        <li>Deliver fast, friendly, and accurate service during high-traffic tourist periods</li>
-        <li>Operate commercial espresso machines, grinders, and brewing equipment with care and skill</li>
-        <li>Follow all Oregon food safety and health code requirements at all times</li>
-        <li>Support the broader team across front-of-house duties as directed by management</li>
-        <li>Maintain a current Oregon Food Handler's Card throughout employment</li>`,
-      giftshop:`<li>Welcome and assist guests in a warm, knowledgeable, and professional manner</li>
-        <li>Operate the POS system and handle all cash and card transactions with accuracy</li>
-        <li>Maintain organized, clean, well-stocked, and visually attractive product displays at all times</li>
-        <li>Assist with inventory management, receiving shipments, and restocking shelves</li>
-        <li>Represent ${co.name} as a welcoming ambassador for Newport's local culture and products</li>
-        <li>Handle guest concerns, returns, and complaints with professionalism and care</li>
-        <li>Support fellow team members during peak tourist hours as directed by management</li>`,
-      all:`<li>Serve in a rotating capacity across bar, coffee station, and gift shop operations as scheduled</li>
-        <li>Adapt quickly between roles based on daily staffing needs and business volume</li>
-        <li>Maintain all required certifications for each area of work (OLCC, food handler's card, etc.)</li>
-        <li>Provide consistent, exceptional guest experiences across all positions and venues</li>
-        <li>Support team leads and management with a flexible, solutions-first attitude</li>
-        <li>Contribute to a collaborative, guest-first work culture across all Sea Lion properties</li>`,
+      bartender:`<li>Mix and serve beverages in full compliance with OLCC regulations and responsible alcohol service standards</li><li>Maintain a clean, organized, and professional bar environment throughout each shift</li><li>Provide exceptional guest service to tourists and locals alike</li><li>Handle cash and POS transactions accurately and honestly at all times</li><li>Monitor guest consumption and confidently enforce responsible alcohol service policies</li><li>Collaborate with kitchen and front-of-house staff to ensure smooth operations</li><li>Maintain a current OLCC Alcohol Server Permit throughout employment</li>`,
+      barista:`<li>Prepare espresso drinks, drip coffee, cold brew, and specialty beverages to consistent quality standards</li><li>Maintain a clean, organized, and food-safe coffee station throughout each shift</li><li>Deliver fast, friendly, and accurate service during high-traffic tourist periods</li><li>Operate commercial espresso machines, grinders, and brewing equipment with care</li><li>Follow all Oregon food safety and health code requirements at all times</li><li>Support the broader team across front-of-house duties as directed</li><li>Maintain a current Oregon Food Handler's Card throughout employment</li>`,
+      giftshop:`<li>Welcome and assist guests in a warm, knowledgeable, and professional manner</li><li>Operate the POS system and handle all cash and card transactions with accuracy</li><li>Maintain organized, clean, well-stocked, and visually attractive product displays</li><li>Assist with inventory management, receiving shipments, and restocking shelves</li><li>Represent ${co.name} as a welcoming ambassador for Newport's local culture</li><li>Handle guest concerns, returns, and complaints with professionalism and care</li><li>Support fellow team members during peak tourist hours as directed</li>`,
+      all:`<li>Serve in a rotating capacity across bar, coffee station, and gift shop operations as scheduled</li><li>Adapt quickly between roles based on daily staffing needs and business volume</li><li>Maintain all required certifications for each area of work (OLCC, food handler's card, etc.)</li><li>Provide consistent, exceptional guest experiences across all positions and venues</li><li>Support team leads and management with a flexible, solutions-first attitude</li><li>Contribute to a collaborative, guest-first work culture across all Sea Lion properties</li>`,
     };
     const duties=dutiesMap[c.position]||dutiesMap.giftshop;
-    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Offer Letter — ${c.name}</title>
-      <style>body{font-family:Georgia,serif;color:#111;padding:0;max-width:740px;margin:0 auto;}
-      .page{padding:48px 52px;}.lh{border-bottom:3px solid #0d1117;padding-bottom:18px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-end;}
-      .cn{font-size:22px;font-weight:bold;color:#0d1117;letter-spacing:0.04em;}.cs{font-size:11px;color:#555;margin-top:3px;letter-spacing:0.06em;}
-      .cc{font-size:11px;color:#666;text-align:right;line-height:1.7;}h2{font-size:18px;color:#0d1117;margin-bottom:18px;border-bottom:1px solid #ddd;padding-bottom:8px;}
-      p{font-size:13px;color:#222;line-height:1.8;margin-bottom:14px;}
-      table{width:100%;border-collapse:collapse;margin:20px 0;}td{padding:9px 12px;font-size:13px;border-bottom:1px solid #eee;vertical-align:top;}
-      td:first-child{font-weight:bold;color:#0d1117;width:200px;white-space:nowrap;}
-      ul{margin:10px 0 14px 20px;}li{font-size:13px;line-height:1.8;color:#222;margin-bottom:4px;}
-      .badge{display:inline-block;background:#0d1117;color:#f0b429;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:bold;letter-spacing:0.06em;margin-bottom:20px;}
-      .aw{background:#f9f9f6;border-left:3px solid #0d1117;padding:12px 16px;margin:16px 0;font-size:12px;color:#444;font-style:italic;line-height:1.7;}
-      .sr{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:24px;}
-      .sb{border-bottom:1px solid #333;padding-bottom:6px;margin-bottom:6px;min-height:48px;}.sl{font-size:11px;color:#666;letter-spacing:0.04em;}
-      .footer{margin-top:32px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px;}
-      @media print{.np{display:none!important;}}</style></head>
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Offer Letter — ${c.name}</title>
+    <style>body{font-family:Georgia,serif;color:#111;padding:0;max-width:740px;margin:0 auto;}
+    .page{padding:32px 40px;}@media(max-width:600px){.page{padding:20px;}}
+    .lh{border-bottom:3px solid #0d1117;padding-bottom:16px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;}
+    .cn{font-size:20px;font-weight:bold;color:#0d1117;}.cs{font-size:11px;color:#555;margin-top:3px;}
+    .cc{font-size:11px;color:#666;text-align:right;line-height:1.7;}
+    h2{font-size:17px;color:#0d1117;margin-bottom:14px;border-bottom:1px solid #ddd;padding-bottom:6px;}
+    p{font-size:13px;color:#222;line-height:1.8;margin-bottom:12px;}
+    table{width:100%;border-collapse:collapse;margin:16px 0;}td{padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;vertical-align:top;}
+    td:first-child{font-weight:bold;color:#0d1117;width:180px;white-space:nowrap;}
+    @media(max-width:500px){td:first-child{width:120px;font-size:12px;}td{font-size:12px;padding:7px 8px;}}
+    ul{margin:8px 0 12px 18px;}li{font-size:13px;line-height:1.8;color:#222;margin-bottom:3px;}
+    .badge{display:inline-block;background:#0d1117;color:#f0b429;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:bold;letter-spacing:0.06em;margin-bottom:16px;}
+    .aw{background:#f9f9f6;border-left:3px solid #0d1117;padding:10px 14px;margin:14px 0;font-size:12px;color:#444;font-style:italic;line-height:1.7;}
+    .sr{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:20px;}
+    @media(max-width:500px){.sr{grid-template-columns:1fr;gap:20px;}}
+    .sb{border-bottom:1px solid #333;padding-bottom:6px;margin-bottom:6px;min-height:44px;}.sl{font-size:11px;color:#666;letter-spacing:0.04em;}
+    .footer{margin-top:28px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px;}
+    @media print{.np{display:none!important;}}</style></head>
     <body><div class="page">
-      <div class="np" style="background:#f0b429;color:#0d1117;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:24px;">
-        <span style="font-size:13px;font-weight:bold;">📄 Offer Letter — Ready to Print</span>
-        <button onclick="window.print()" style="background:#0d1117;color:#f0b429;border:none;border-radius:6px;padding:8px 20px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Georgia,serif;">🖨 Print / Save PDF</button>
+    <div class="np" style="background:#f0b429;color:#0d1117;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:20px;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:13px;font-weight:bold;">📄 Offer Letter — Ready to Print</span>
+      <button onclick="window.print()" style="background:#0d1117;color:#f0b429;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Georgia,serif;">🖨 Print / Save PDF</button>
+    </div>
+    <div class="lh"><div><div class="cn">${co.icon} ${co.name.toUpperCase()}</div><div class="cs">NEWPORT HOSPITALITY GROUP</div></div>
+      <div class="cc">${co.address}<br/>Newport Hospitality Group</div></div>
+    <div style="font-size:13px;color:#444;margin-bottom:20px;">${today}</div>
+    <p>Dear <strong>${c.name}</strong>,</p>
+    <p>We are pleased to extend this offer of seasonal employment with <strong>${co.name}</strong>, a proud member of the Newport Hospitality Group family of companies.</p>
+    <div class="badge">${pos.title.toUpperCase()}</div>
+    <h2>Terms of Employment</h2>
+    <table><tr><td>Position</td><td>${pos.title}</td></tr><tr><td>Company</td><td>${co.name}</td></tr>
+      <tr><td>Employment Type</td><td>Seasonal — At-Will</td></tr>
+      <tr><td>Start Date</td><td>${data.startDate||"_____________________"}</td></tr>
+      <tr><td>Season Duration</td><td>April – October (subject to operational needs)</td></tr>
+      <tr><td>Compensation</td><td>${data.payRate?`$${data.payRate} per ${data.payPeriod||"hour"}`:"_____________________"}</td></tr>
+      <tr><td>Schedule</td><td>Weekends required; schedule based on business needs</td></tr>
+      <tr><td>Location</td><td>${co.address}</td></tr></table>
+    <h2>Duties &amp; Responsibilities</h2><ul>${duties}</ul>
+    <h2>Conditions of Employment</h2>
+    <ul><li>This offer is contingent upon successful completion of any required background or reference checks</li>
+      <li>Employee must maintain all required certifications throughout the season</li>
+      <li>Employee agrees to adhere to all ${co.name} policies and guest service standards</li>
+      <li>Dress code requirements must be maintained at all times while on duty</li></ul>
+    <div class="aw"><strong>At-Will Employment:</strong> Employment with ${co.name} is at-will, meaning either party may terminate the employment relationship at any time, with or without cause or advance notice.</div>
+    <p>We are excited to welcome you to the team. Please sign below and return a copy by <strong>${data.returnBy||"_____________________"}</strong>. Welcome aboard!</p>
+    <div style="border-top:1px solid #ddd;padding-top:24px;margin-top:36px;">
+      <p style="font-size:13px;color:#333;">By signing below, you acknowledge that you have read, understood, and agree to the terms outlined in this offer letter.</p>
+      <div class="sr">
+        <div><div class="sb"></div><div class="sl">EMPLOYEE SIGNATURE</div>
+          <div style="margin-top:14px;"><div class="sb"></div><div class="sl">PRINTED NAME</div></div>
+          <div style="margin-top:14px;"><div class="sb"></div><div class="sl">DATE</div></div></div>
+        <div><div class="sb"></div><div class="sl">EMPLOYER SIGNATURE</div>
+          <div style="margin-top:14px;"><div class="sb" style="display:flex;align-items:flex-end;padding-bottom:4px;"><span style="font-size:13px;">${co.name}</span></div><div class="sl">COMPANY</div></div>
+          <div style="margin-top:14px;"><div class="sb"></div><div class="sl">DATE</div></div></div>
       </div>
-      <div class="lh"><div><div class="cn">${co.icon} ${co.name.toUpperCase()}</div><div class="cs">NEWPORT HOSPITALITY GROUP</div></div>
-        <div class="cc">${co.address}<br/>Newport Hospitality Group</div></div>
-      <div style="font-size:13px;color:#444;margin-bottom:24px;">${today}</div>
-      <p>Dear <strong>${c.name}</strong>,</p>
-      <p>We are pleased to extend this offer of seasonal employment with <strong>${co.name}</strong>, a proud member of the Newport Hospitality Group family of companies.</p>
-      <div class="badge">${pos.title.toUpperCase()}</div>
-      <h2>Terms of Employment</h2>
-      <table><tr><td>Position</td><td>${pos.title}</td></tr><tr><td>Company</td><td>${co.name}</td></tr>
-        <tr><td>Employment Type</td><td>Seasonal — At-Will</td></tr>
-        <tr><td>Start Date</td><td>${data.startDate||"_______________________"}</td></tr>
-        <tr><td>Season Duration</td><td>April – October (subject to operational needs)</td></tr>
-        <tr><td>Compensation</td><td>${data.payRate?`$${data.payRate} per ${data.payPeriod||"hour"}`:"_______________________"}</td></tr>
-        <tr><td>Schedule</td><td>Weekends required; schedule based on business needs</td></tr>
-        <tr><td>Location</td><td>${co.address}</td></tr></table>
-      <h2>Duties &amp; Responsibilities</h2><ul>${duties}</ul>
-      <h2>Conditions of Employment</h2>
-      <ul><li>This offer is contingent upon successful completion of any required background or reference checks</li>
-        <li>Employee must maintain all required certifications throughout the season</li>
-        <li>Employee agrees to adhere to all ${co.name} policies and guest service standards</li>
-        <li>Uniform or dress code requirements must be maintained at all times while on duty</li></ul>
-      <div class="aw"><strong>At-Will Employment:</strong> Employment with ${co.name} is at-will, meaning either party may terminate the employment relationship at any time, with or without cause or advance notice.</div>
-      <p>We are excited to welcome you to the team. Please sign below and return a copy by <strong>${data.returnBy||"_______________________"}</strong>. Welcome aboard!</p>
-      <div style="border-top:1px solid #ddd;padding-top:28px;margin-top:40px;">
-        <p style="font-size:13px;color:#333;">By signing below, you acknowledge that you have read, understood, and agree to the terms outlined in this offer letter.</p>
-        <div class="sr">
-          <div><div class="sb"></div><div class="sl">EMPLOYEE SIGNATURE</div>
-            <div style="margin-top:14px;"><div class="sb"></div><div class="sl">PRINTED NAME</div></div>
-            <div style="margin-top:14px;"><div class="sb"></div><div class="sl">DATE</div></div></div>
-          <div><div class="sb"></div><div class="sl">EMPLOYER SIGNATURE</div>
-            <div style="margin-top:14px;"><div class="sb" style="display:flex;align-items:flex-end;padding-bottom:4px;"><span style="font-size:13px;color:#333;">${co.name}</span></div><div class="sl">COMPANY</div></div>
-            <div style="margin-top:14px;"><div class="sb"></div><div class="sl">DATE</div></div></div>
-        </div>
-      </div>
-      <div class="footer">${co.name} &nbsp;·&nbsp; Newport Hospitality Group &nbsp;·&nbsp; Internal Use Only</div>
+    </div>
+    <div class="footer">${co.name} &nbsp;·&nbsp; Newport Hospitality Group &nbsp;·&nbsp; Internal Use Only</div>
     </div></body></html>`;
     const w=window.open("","_blank");w.document.write(html);w.document.close();
   }
 
+  /* ── PDF DOWNLOAD ── */
   function downloadPDF(c){
     const questions=POS_QUESTIONS[c.position]||[];
-    const t=tier(c.pct);
-    const co=COMPANIES[c.company]||{};
-    const pos=POS_LABELS[c.position]||{title:c.position};
+    const t=tier(c.pct);const co=COMPANIES[c.company]||{};const pos=POS_LABELS[c.position]||{title:c.position};
     const checkedCount=Object.values(c.checklist||{}).filter(Boolean).length;
-    const rows=questions.map((q,i)=>{
-      const a=c.answers[q.id]||{};const rl=RATINGS[a.rating||0];
-      const rc=a.rating===3?"#1a6b5e":a.rating===2?"#8a6800":a.rating===1?"#aa2200":"#888";
-      return`<tr style="border-bottom:1px solid #ddd;"><td style="padding:8px 6px;font-size:12px;color:#444;vertical-align:top;width:26px;text-align:center;">${i+1}</td>
-        <td style="padding:8px 6px;font-size:12px;color:#222;vertical-align:top;">${q.text}${a.note?`<div style="margin-top:4px;font-style:italic;color:#555;">"${a.note}"</div>`:""}</td>
-        <td style="padding:8px 6px;font-size:12px;font-weight:bold;color:${rc};white-space:nowrap;text-align:right;">${rl.label}</td></tr>`;
-    }).join("");
-    const checkRows=CHECKLIST.map(item=>{
-      const checked=c.checklist&&c.checklist[item.id];
-      return`<div style="display:inline-flex;align-items:center;gap:5px;margin:3px 12px 3px 0;font-size:11px;color:${checked?"#1a6b5e":"#999"};"><span>${checked?"✅":"⬜"}</span><span>${item.label}</span></div>`;
-    }).join("");
-    const av=c.avail||{};const months=Object.keys(av.months||{}).filter(m=>av.months[m]);
-    const days=Object.keys(av.days||{}).filter(d=>av.days[d]&&av.days[d].on);
-    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Interview — ${c.name}</title>
-      <style>body{font-family:Georgia,serif;color:#111;padding:32px;max-width:720px;margin:0 auto;}
-      h1{font-size:22px;color:#0d1117;}table{width:100%;border-collapse:collapse;margin-bottom:20px;}
-      th{background:#0d1117;color:#f0b429;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 6px;text-align:left;}
-      .st{font-size:13px;font-weight:bold;color:#0d1117;letter-spacing:.06em;text-transform:uppercase;margin:18px 0 8px;border-bottom:2px solid #0d1117;padding-bottom:4px;}
-      .nb{background:#f9f9f6;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:12px;color:#444;font-style:italic;line-height:1.6;white-space:pre-wrap;}
-      .footer{margin-top:28px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px;}
-      @media print{.np{display:none;}}</style></head>
+    const av=c.avail||{};const months=Object.keys(av.months||{}).filter(m=>av.months[m]);const days=Object.keys(av.days||{}).filter(d=>av.days[d]&&av.days[d].on);
+    const rows=questions.map((q,i)=>{const a=c.answers[q.id]||{};const rl=RATINGS[a.rating||0];const rc=a.rating===3?"#1a6b5e":a.rating===2?"#8a6800":a.rating===1?"#aa2200":"#888";
+      return`<tr style="border-bottom:1px solid #ddd;"><td style="padding:7px 5px;font-size:12px;color:#444;vertical-align:top;width:22px;text-align:center;">${i+1}</td><td style="padding:7px 5px;font-size:12px;color:#222;vertical-align:top;">${q.text}${a.note?`<div style="margin-top:3px;font-style:italic;color:#555;">"${a.note}"</div>`:""}</td><td style="padding:7px 5px;font-size:12px;font-weight:bold;color:${rc};white-space:nowrap;text-align:right;">${rl.label}</td></tr>`;}).join("");
+    const checkRows=CHECKLIST.map(item=>{const checked=c.checklist&&c.checklist[item.id];return`<div style="display:inline-flex;align-items:center;gap:4px;margin:3px 10px 3px 0;font-size:11px;color:${checked?"#1a6b5e":"#999"};"><span>${checked?"✅":"⬜"}</span><span>${item.label}</span></div>`;}).join("");
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Interview — ${c.name}</title>
+    <style>body{font-family:Georgia,serif;color:#111;padding:24px;max-width:720px;margin:0 auto;}
+    h1{font-size:20px;color:#0d1117;}table{width:100%;border-collapse:collapse;margin-bottom:18px;}
+    th{background:#0d1117;color:#f0b429;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:7px 5px;text-align:left;}
+    .st{font-size:12px;font-weight:bold;color:#0d1117;letter-spacing:.06em;text-transform:uppercase;margin:16px 0 7px;border-bottom:2px solid #0d1117;padding-bottom:3px;}
+    .nb{background:#f9f9f6;border:1px solid #ddd;border-radius:5px;padding:10px 12px;font-size:12px;color:#444;font-style:italic;line-height:1.6;white-space:pre-wrap;}
+    .footer{margin-top:24px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px;}
+    @media print{.np{display:none;}}</style></head>
     <body>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
-        <div><h1>${co.icon||""} ${c.name}</h1>
-          <div style="font-size:12px;color:#666;">${pos.title} @ ${co.name||c.company} &nbsp;·&nbsp; ${c.date} at ${c.time}${c.phone?" &nbsp;·&nbsp; "+c.phone:""}</div></div>
-        <button class="np" onclick="window.print()" style="background:#f0b429;color:#0d1117;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Georgia,serif;">🖨 Print</button>
-      </div>
-      <div style="background:#f5f5f0;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:20px;display:flex;align-items:center;gap:20px;">
-        <div style="font-size:38px;font-weight:bold;color:${t.color}">${c.pct}%</div>
-        <div><div style="font-size:14px;font-weight:bold;">${t.label}</div>
-          <div style="font-size:12px;color:#666;margin-top:3px;">Score: ${c.score}/${c.max} &nbsp;·&nbsp; Checklist: ${checkedCount}/${CHECKLIST.length}</div></div>
-      </div>
-      ${c.notes?`<div class="st">First Impression</div><div class="nb">${c.notes}</div>`:""}
-      ${months.length>0||days.length>0||av.commitment?`<div class="st">Availability</div><div style="margin-bottom:12px;">${months.length>0?`<div style="margin-bottom:6px;">${months.map(m=>`<span style="background:#e0f7f3;border:1px solid #10b981;color:#065f46;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:bold;margin-right:4px;">${m}</span>`).join("")}</div>`:""} ${days.length>0?`<div style="margin-bottom:4px;">${days.map(d=>`<span style="font-size:12px;color:#111;margin-right:12px;"><b>${d}</b> — ${av.days[d].shift||"Full Day"}</span>`).join("")}</div>`:""} ${av.commitment?`<div style="font-size:13px;font-weight:bold;color:#92400e;">${av.commitment}</div>`:""} ${av.availNotes?`<div style="font-size:12px;color:#555;font-style:italic;margin-top:4px;">${av.availNotes}</div>`:""}</div>`:""}
-      <div class="st">Interview Questions</div>
-      <table><thead><tr><th style="width:26px;">#</th><th>Question &amp; Answer</th><th style="text-align:right;">Rating</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="st">Wrap-Up Checklist</div><div style="padding:10px 0;">${checkRows}</div>
-      ${c.finalNotes?`<div class="st">Final Notes</div><div class="nb">${c.finalNotes}</div>`:""}
-      <div class="footer">${co.name||"Newport Hospitality Group"} &nbsp;·&nbsp; Newport, OR &nbsp;·&nbsp; Internal Use Only</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div><h1>${co.icon||""} ${c.name}</h1><div style="font-size:12px;color:#666;">${pos.title} @ ${co.name||c.company} · ${c.date} at ${c.time}${c.phone?" · "+c.phone:""}</div></div>
+      <button class="np" onclick="window.print()" style="background:#f0b429;color:#0d1117;border:none;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Georgia,serif;">🖨 Print</button>
+    </div>
+    <div style="background:#f5f5f0;border:1px solid #ddd;border-radius:7px;padding:14px;margin-bottom:18px;display:flex;align-items:center;gap:16px;">
+      <div style="font-size:34px;font-weight:bold;color:${t.color}">${c.pct}%</div>
+      <div><div style="font-size:13px;font-weight:bold;">${t.label}</div><div style="font-size:12px;color:#666;margin-top:2px;">Score: ${c.score}/${c.max} · Checklist: ${checkedCount}/${CHECKLIST.length}</div></div>
+    </div>
+    ${c.notes?`<div class="st">First Impression</div><div class="nb">${c.notes}</div>`:""}
+    ${months.length>0||days.length>0||av.commitment?`<div class="st">Availability</div><div style="margin-bottom:10px;">${months.length>0?`<div style="margin-bottom:5px;">${months.map(m=>`<span style="background:#e0f7f3;border:1px solid #10b981;color:#065f46;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:bold;margin-right:3px;">${m}</span>`).join("")}</div>`:""} ${days.length>0?`<div style="margin-bottom:3px;">${days.map(d=>`<span style="font-size:12px;color:#111;margin-right:10px;"><b>${d}</b> — ${av.days[d].shift||"Full Day"}</span>`).join("")}</div>`:""} ${av.commitment?`<div style="font-size:12px;font-weight:bold;color:#92400e;">${av.commitment}</div>`:""} ${av.availNotes?`<div style="font-size:11px;color:#555;font-style:italic;margin-top:3px;">${av.availNotes}</div>`:""}</div>`:""}
+    <div class="st">Interview Questions</div>
+    <table><thead><tr><th style="width:22px;">#</th><th>Question &amp; Answer</th><th style="text-align:right;">Rating</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="st">Wrap-Up Checklist</div><div style="padding:8px 0;">${checkRows}</div>
+    ${c.finalNotes?`<div class="st">Final Notes</div><div class="nb">${c.finalNotes}</div>`:""}
+    <div class="footer">${co.name||"Newport Hospitality Group"} · Newport, OR · Internal Use Only</div>
     </body></html>`;
     const w=window.open("","_blank");w.document.write(html);w.document.close();
   }
 
+  /* ── CONTRACT MODAL ── */
   function ContractModal({candidate,onClose}){
     const [startDate,setStartDate]=React.useState("");
     const [payRate,setPayRate]=React.useState("");
     const [payPeriod,setPayPeriod]=React.useState("hour");
     const [returnBy,setReturnBy]=React.useState("");
-    const co=COMPANIES[candidate.company]||{};
-    const pos=POS_LABELS[candidate.position]||{title:candidate.position};
+    const co=COMPANIES[candidate.company]||{};const pos=POS_LABELS[candidate.position]||{title:candidate.position};
     return(
       <div className="overlay" onClick={onClose}>
         <div className="modal" onClick={e=>e.stopPropagation()}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-            <div><div style={{fontSize:18,fontWeight:"bold",color:C.amberL}}>📄 Generate Offer Letter</div>
-              <div style={{fontSize:13,color:C.dim,marginTop:3}}>{candidate.name} · {co.name} · {pos.title}</div></div>
-            <button onClick={onClose} style={{...nBtn,padding:"6px 12px",fontSize:13}}>✕</button>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+            <div><div style={{fontSize:17,fontWeight:"bold",color:C.amberL}}>📄 Generate Offer Letter</div>
+              <div style={{fontSize:12,color:C.dim,marginTop:3}}>{candidate.name} · {co.name} · {pos.title}</div></div>
+            <button onClick={onClose} style={{...nBtn,padding:"8px 12px",fontSize:14,minHeight:40}}>✕</button>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             <label style={labelS}>Start Date<input style={inputS} type="date" onChange={e=>setStartDate(new Date(e.target.value+"T12:00:00").toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}))}/></label>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div className="pay-row">
               <label style={labelS}>Pay Rate
-                <div style={{display:"flex"}}><span style={{background:C.light,border:`1px solid ${C.border}`,borderRight:"none",borderRadius:"6px 0 0 6px",padding:"10px 10px",color:C.dim,fontSize:14}}>$</span>
+                <div style={{display:"flex"}}><span style={{background:C.light,border:`1px solid ${C.border}`,borderRight:"none",borderRadius:"6px 0 0 6px",padding:"11px 10px",color:C.dim,fontSize:14}}>$</span>
                   <input style={{...inputS,borderRadius:"0 6px 6px 0",borderLeft:"none"}} placeholder="0.00" value={payRate} onChange={e=>setPayRate(e.target.value)}/></div>
               </label>
               <label style={labelS}>Pay Period<select style={{...inputS,cursor:"pointer"}} value={payPeriod} onChange={e=>setPayPeriod(e.target.value)}>
@@ -313,11 +359,11 @@
             </div>
             <label style={labelS}>Return Signed By<input style={inputS} type="date" onChange={e=>setReturnBy(new Date(e.target.value+"T12:00:00").toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}))}/></label>
           </div>
-          <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",marginTop:16}}>
-            <div style={{fontSize:11,color:C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:6}}>What's included</div>
-            <div style={{fontSize:12,color:C.dim,lineHeight:1.7}}>{co.name} letterhead · Employment terms · Role-specific duties · At-will clause · Dual signature lines</div>
+          <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 13px",marginTop:14}}>
+            <div style={{fontSize:11,color:C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:5}}>What's included</div>
+            <div style={{fontSize:12,color:C.dim,lineHeight:1.7}}>{co.name} letterhead · Employment terms · Role duties · At-will clause · Signature lines</div>
           </div>
-          <div style={{display:"flex",gap:12,marginTop:20}}>
+          <div style={{display:"flex",gap:10,marginTop:18}}>
             <button onClick={onClose} style={{...nBtn,flex:1}}>Cancel</button>
             <button onClick={()=>{generateContract(candidate,{startDate,payRate,payPeriod,returnBy});onClose();}} style={{...pBtn,flex:2}}>Generate &amp; Open →</button>
           </div>
@@ -326,6 +372,7 @@
     );
   }
 
+  /* ── LOGIN GATE ── */
   const PASSWORD="sea2026";
   function LoginGate({onUnlock}){
     const [input,setInput]=React.useState("");
@@ -337,24 +384,25 @@
     }
     return(
       <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-        <div style={{background:C.mid,border:`1px solid ${C.amber}`,borderRadius:14,padding:"40px 36px",
-          width:"100%",maxWidth:420,textAlign:"center",transform:shake?"translateX(6px)":"none",transition:"transform 0.1s"}}>
-          <div style={{fontSize:13,color:C.dim,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:16}}>Newport Hospitality Group</div>
-          <div style={{display:"flex",justifyContent:"center",gap:16,fontSize:32,marginBottom:16}}>🦁☕⚓</div>
-          <div style={{fontSize:22,fontWeight:"bold",color:C.amberL,marginBottom:4}}>Staff Hiring Portal</div>
-          <div style={{fontSize:11,color:C.dim,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:28}}>Internal Use Only</div>
-          <input style={{background:C.bg,border:`1px solid ${error?C.red:C.border}`,borderRadius:6,padding:"12px 14px",
-            color:C.cream,fontSize:16,outline:"none",width:"100%",textAlign:"center",letterSpacing:"0.1em",boxSizing:"border-box"}}
+        <div style={{background:C.mid,border:`1px solid ${C.amber}`,borderRadius:14,padding:"36px 28px",
+          width:"100%",maxWidth:400,textAlign:"center",transform:shake?"translateX(6px)":"none",transition:"transform 0.1s"}}>
+          <div style={{fontSize:12,color:C.dim,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:14}}>Newport Hospitality Group</div>
+          <div style={{display:"flex",justifyContent:"center",gap:14,fontSize:30,marginBottom:14}}>🦁☕⚓</div>
+          <div style={{fontSize:21,fontWeight:"bold",color:C.amberL,marginBottom:4}}>Staff Hiring Portal</div>
+          <div style={{fontSize:11,color:C.dim,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:24}}>Internal Use Only</div>
+          <input style={{background:C.bg,border:`1px solid ${error?C.red:C.border}`,borderRadius:6,padding:"13px 14px",
+            color:C.cream,fontSize:18,outline:"none",width:"100%",textAlign:"center",letterSpacing:"0.12em"}}
             type="password" placeholder="Enter password" value={input}
             onChange={e=>{setInput(e.target.value);setError(false);}}
             onKeyDown={e=>e.key==="Enter"&&attempt()} autoFocus/>
           {error&&<div style={{fontSize:12,color:C.red,marginTop:8}}>Incorrect password — try again</div>}
-          <button onClick={attempt} style={{...pBtn,marginTop:14,width:"100%",fontSize:15,padding:"12px 0"}}>Unlock →</button>
+          <button onClick={attempt} style={{...pBtn,marginTop:14,width:"100%",fontSize:15,padding:"13px 0"}}>Unlock →</button>
         </div>
       </div>
     );
   }
 
+  /* ── MAIN APP ── */
   function App(){
     const [view,setView]=React.useState("gateway");
     const [company,setCompany]=React.useState(null);
@@ -375,7 +423,7 @@
     const [editData,setEditData]=React.useState({});
     const [contractFor,setContractFor]=React.useState(null);
     const [dashTab,setDashTab]=React.useState("all");
-    const [dashCo,setDashCo]=React.useState("all");
+    const [search,setSearch]=React.useState("");
 
     React.useEffect(()=>{
       fetch("/api/staff-candidates").then(r=>r.json())
@@ -423,77 +471,210 @@
       const updated=candidates.map(c=>c.id===id?{...c,...editData}:c);setCandidates(updated);persist(updated);setEditId(null);setEditData({});
     }
 
-    const allSorted=[...candidates].sort((a,b)=>b.pct-a.pct);
-    const filtered=allSorted.filter(c=>dashCo==="all"||c.company===dashCo)
-      .filter(c=>dashTab==="all"||(dashTab==="pending"?(!c.status||c.status==="pass"):c.status===dashTab));
     const hiredCount=candidates.filter(c=>c.status==="hired").length;
     const holdCount=candidates.filter(c=>c.status==="hold").length;
+
+    function matchSearch(c){
+      if(!search) return true;
+      const q=search.toLowerCase();
+      return c.name?.toLowerCase().includes(q)||c.phone?.includes(q)||
+        (COMPANIES[c.company]?.name||"").toLowerCase().includes(q)||
+        (POS_LABELS[c.position]?.title||"").toLowerCase().includes(q);
+    }
 
     function StatusBtns({c}){
       return(<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {[{key:"hired",label:"✅ Hire"},{key:"hold",label:"⏸ Hold"},{key:"pass",label:"✗ Pass"}].map(opt=>{
           const active=c.status===opt.key;const cfg=STATUS_CFG[opt.key];
           return(<button key={opt.key} onClick={e=>{e.stopPropagation();setStatus(c.id,opt.key);}} style={{
-            padding:"5px 12px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:active?"bold":"normal",
+            padding:"7px 12px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:active?"bold":"normal",minHeight:36,
             border:`1px solid ${active?cfg.border:C.border}`,background:active?cfg.bg:"transparent",
             color:active?cfg.color:C.dim,fontFamily:"Georgia,serif",transition:"all 0.15s"}}>{opt.label}</button>);
         })}
       </div>);
     }
 
-    const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-    const COMMIT=["Full Season","Most of Season","Weekends Only","Flexible / TBD"];
+    /* candidate detail/card renderer — shared between dashboard sections */
+    function CandidateCard({c}){
+      const t=tier(c.pct);const co=COMPANIES[c.company]||{color:C.amber};const pos=POS_LABELS[c.position]||{title:c.position};
+      const isOpen=detailId===c.id;const statusCfg=c.status?STATUS_CFG[c.status]:null;
+      const qs=POS_QUESTIONS[c.position]||[];
+      const checkedCount=Object.values(c.checklist||{}).filter(Boolean).length;
+      const av=c.avail||{};const months=Object.keys(av.months||{}).filter(m=>av.months[m]);
+      const days=Object.keys(av.days||{}).filter(d=>av.days[d]&&av.days[d].on);
+      return(
+        <div>
+          {/* Card header row */}
+          <div onClick={()=>setDetailId(isOpen?null:c.id)} style={{
+            ...cardS,padding:"13px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,
+            border:isOpen?`1px solid ${co.color||C.amber}`:statusCfg?`1px solid ${statusCfg.border}`:`1px solid ${C.border}`,
+            background:statusCfg?statusCfg.bg:C.mid}}>
+            <div style={{fontSize:22,flexShrink:0}}>{co.icon||"👤"}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                <div style={{fontWeight:"bold",color:C.cream,fontSize:15}}>{c.name}</div>
+                {statusCfg&&<span style={{fontSize:11,fontWeight:"bold",color:statusCfg.color,background:statusCfg.bg,
+                  border:`1px solid ${statusCfg.border}`,borderRadius:10,padding:"2px 7px"}}>{statusCfg.label}</span>}
+              </div>
+              <div style={{fontSize:12,color:C.dim,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {pos.icon} {pos.title} · {c.date}{c.phone&&` · ${c.phone}`}
+              </div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:20,fontWeight:"bold",color:t.color}}>{c.pct}%</div>
+              <div style={{fontSize:11,color:t.color,whiteSpace:"nowrap"}}>{t.label.replace(/🟢|🟡|🔴/,"").trim()}</div>
+            </div>
+            <div style={{color:C.dim,fontSize:11,flexShrink:0}}>{isOpen?"▲":"▼"}</div>
+          </div>
+
+          {/* Expanded detail */}
+          {isOpen&&(
+            <div style={{...cardS,borderTop:"none",borderRadius:"0 0 10px 10px",padding:"16px",background:C.light}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,
+                marginBottom:14,paddingBottom:14,borderBottom:`1px solid ${C.bg}`}}>
+                <StatusBtns c={c}/>
+                {c.status==="hired"&&<button onClick={e=>{e.stopPropagation();setContractFor(c);}}
+                  style={{...pBtn,background:C.teal,padding:"8px 14px",fontSize:12,minHeight:38}}>📄 Offer Letter</button>}
+              </div>
+
+              {c.notes&&<div style={{fontSize:13,color:C.dim,fontStyle:"italic",marginBottom:12,
+                paddingBottom:12,borderBottom:`1px solid ${C.bg}`}}>First impression: {c.notes}</div>}
+
+              {/* Q&A */}
+              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
+                {qs.map(q=>{const a=c.answers[q.id]||{};const rl=RATINGS[a.rating||0];
+                  return(<div key={q.id} style={{display:"flex",gap:10}}>
+                    <span style={{fontSize:11,color:rl.color,fontWeight:"bold",minWidth:48,paddingTop:1}}>{rl.label}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,color:C.dim,lineHeight:1.5}}>{q.text}</div>
+                      {a.note&&<div style={{fontSize:11,color:C.cream,fontStyle:"italic",marginTop:3}}>"{a.note}"</div>}
+                    </div>
+                  </div>);})}
+              </div>
+
+              {/* Availability */}
+              {(months.length>0||days.length>0||av.commitment)&&(
+                <div style={{borderTop:`1px solid ${C.bg}`,paddingTop:12,marginBottom:12}}>
+                  <div style={{fontSize:11,color:C.amber,marginBottom:7,letterSpacing:"0.05em",textTransform:"uppercase"}}>🗓 Availability</div>
+                  {months.length>0&&<div style={{marginBottom:5,display:"flex",flexWrap:"wrap",gap:4}}>
+                    {months.map(m=><span key={m} style={{background:`${C.tealL}22`,border:`1px solid ${C.tealL}`,color:C.tealL,borderRadius:10,padding:"2px 7px",fontSize:11,fontWeight:"bold"}}>{m}</span>)}</div>}
+                  {days.length>0&&<div style={{marginBottom:4,flexWrap:"wrap",display:"flex",gap:"2px 10px"}}>
+                    {days.map(d=><span key={d} style={{fontSize:11,color:C.cream}}><b>{d}</b> <span style={{color:C.dim}}>{av.days[d].shift||"Full Day"}</span></span>)}</div>}
+                  {av.commitment&&<div style={{fontSize:12,color:C.amberL,fontWeight:"bold"}}>{av.commitment}</div>}
+                  {av.availNotes&&<div style={{fontSize:11,color:C.dim,fontStyle:"italic",marginTop:3}}>{av.availNotes}</div>}
+                </div>
+              )}
+
+              {/* Checklist */}
+              <div style={{borderTop:`1px solid ${C.bg}`,paddingTop:12,marginBottom:12}}>
+                <div style={{fontSize:11,color:C.amber,marginBottom:7,letterSpacing:"0.05em",textTransform:"uppercase"}}>Wrap-Up — {checkedCount}/{CHECKLIST.length} covered</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:"4px 14px"}}>
+                  {CHECKLIST.map(item=>{const checked=c.checklist&&c.checklist[item.id];
+                    return(<div key={item.id} style={{display:"flex",gap:4,alignItems:"center",fontSize:11,color:checked?C.tealL:C.dim}}>
+                      <span>{checked?"✅":"⬜"}</span><span>{item.label}</span></div>);})}
+                </div>
+              </div>
+
+              {c.finalNotes&&<div style={{borderTop:`1px solid ${C.bg}`,paddingTop:12,marginBottom:12}}>
+                <div style={{fontSize:11,color:C.amber,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>Final Notes</div>
+                <div style={{fontSize:12,color:C.dim,fontStyle:"italic",lineHeight:1.6}}>{c.finalNotes}</div>
+              </div>}
+
+              {/* Edit panel */}
+              {editId===c.id&&(
+                <div onClick={e=>e.stopPropagation()} style={{borderTop:`1px solid ${C.bg}`,paddingTop:14,marginBottom:12}}>
+                  <div style={{fontSize:11,color:C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:12}}>✏️ Edit Candidate Details</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                    <label style={labelS}>Full Name<input style={inputS} value={editData.name||""} onChange={e=>setEditData(p=>({...p,name:e.target.value}))}/></label>
+                    <label style={labelS}>Phone<input style={inputS} value={editData.phone||""} onChange={e=>setEditData(p=>({...p,phone:e.target.value}))}/></label>
+                    <label style={labelS}>First Impression<textarea style={{...inputS,height:56,resize:"vertical"}} value={editData.notes||""} onChange={e=>setEditData(p=>({...p,notes:e.target.value}))}/></label>
+                    <label style={labelS}>Final Notes<textarea style={{...inputS,height:56,resize:"vertical"}} value={editData.finalNotes||""} onChange={e=>setEditData(p=>({...p,finalNotes:e.target.value}))}/></label>
+                    <label style={labelS}>Commitment<select style={{...inputS,cursor:"pointer"}} value={editData.avail?.commitment||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,commitment:e.target.value}}))}>
+                      <option value="">— Select —</option>
+                      {["Full Season","Most of Season","Weekends Only","Flexible / TBD"].map(cl=><option key={cl} value={cl}>{cl}</option>)}
+                    </select></label>
+                    <div className="edit-date-grid">
+                      <label style={labelS}>Start Date<input type="date" style={inputS} value={editData.avail?.startDate||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,startDate:e.target.value}}))}/></label>
+                      <label style={labelS}>End Date<input type="date" style={inputS} value={editData.avail?.endDate||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,endDate:e.target.value}}))}/></label>
+                    </div>
+                    <label style={labelS}>Scheduling Notes<textarea style={{...inputS,height:48,resize:"vertical"}} value={editData.avail?.availNotes||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,availNotes:e.target.value}}))}/></label>
+                  </div>
+                  <div style={{display:"flex",gap:8,marginTop:12}}>
+                    <button onClick={e=>{e.stopPropagation();setEditId(null);}} style={{...nBtn,flex:1,padding:"10px 0",fontSize:13}}>Cancel</button>
+                    <button onClick={e=>{e.stopPropagation();saveEdit(c.id);}} style={{...pBtn,flex:2,padding:"10px 0",fontSize:13,background:C.teal}}>✓ Save Changes</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="card-actions">
+                <button onClick={e=>{e.stopPropagation();downloadPDF(c);}} style={{...nBtn,color:C.tealL,borderColor:C.tealL,fontSize:12,padding:"9px 14px",minHeight:38}}>📄 PDF</button>
+                <div className="card-action-btns">
+                  {editId!==c.id&&<button onClick={e=>{e.stopPropagation();setConfirmDel(null);openEdit(c);}} style={{...nBtn,color:C.amber,borderColor:C.amber,fontSize:12,padding:"9px 14px",minHeight:38}}>✏️ Edit</button>}
+                  {confirmDel===c.id?(
+                    <div className="confirm-del" onClick={e=>e.stopPropagation()}>
+                      <span style={{fontSize:12,color:C.red}}>Remove this candidate?</span>
+                      <div className="confirm-del-btns">
+                        <button onClick={e=>{e.stopPropagation();deleteCand(c.id);}} style={{background:C.red,color:"#fff",border:"none",borderRadius:5,padding:"7px 12px",fontSize:12,fontWeight:"bold",cursor:"pointer",fontFamily:"Georgia,serif",minHeight:36}}>Yes, Remove</button>
+                        <button onClick={e=>{e.stopPropagation();setConfirmDel(null);}} style={{...nBtn,padding:"7px 10px",fontSize:12,minHeight:36}}>Cancel</button>
+                      </div>
+                    </div>
+                  ):(
+                    <button onClick={e=>{e.stopPropagation();setEditId(null);setConfirmDel(c.id);}} style={{...nBtn,color:C.red,borderColor:C.red,fontSize:12,padding:"9px 14px",minHeight:38}}>🗑 Remove</button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
 
     return(
       <div style={{background:C.bg,minHeight:"100vh"}}>
         {contractFor&&<ContractModal candidate={contractFor} onClose={()=>setContractFor(null)}/>}
 
         {/* HEADER */}
-        <div style={{background:C.mid,borderBottom:`2px solid ${C.amber}`,padding:"14px 24px",
-          display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{fontSize:20}}>🦁☕⚓</div>
-            <div>
-              <div style={{fontSize:15,fontWeight:"bold",color:C.amberL,letterSpacing:"0.04em"}}>NEWPORT HOSPITALITY GROUP</div>
-              <div style={{fontSize:11,color:C.dim,letterSpacing:"0.12em",textTransform:"uppercase"}}>Staff Hiring — Internal</div>
+        <div style={{background:C.mid,borderBottom:`2px solid ${C.amber}`,padding:"12px 16px",position:"sticky",top:0,zIndex:100}}>
+          <div className="hdr-inner">
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{fontSize:18,letterSpacing:2}}>🦁☕⚓</div>
+              <div>
+                <div style={{fontSize:14,fontWeight:"bold",color:C.amberL,letterSpacing:"0.04em",lineHeight:1.2}}>NEWPORT HOSPITALITY GROUP</div>
+                <div style={{fontSize:10,color:C.dim,letterSpacing:"0.12em",textTransform:"uppercase"}}>Staff Hiring — Internal</div>
+              </div>
             </div>
-          </div>
-          <div style={{display:"flex",gap:8}}>
-            {view!=="gateway"&&<button onClick={()=>setView("gateway")} style={nBtn}>← Companies</button>}
-            {view!=="dashboard"&&<button onClick={()=>setView("dashboard")} style={nBtn}>Dashboard</button>}
-            {view==="dashboard"&&<button onClick={()=>setView("gateway")} style={pBtn}>+ New Interview</button>}
+            <div className="hdr-btns">
+              {view!=="gateway"&&<button onClick={()=>setView("gateway")} style={{...nBtn,padding:"8px 12px",fontSize:12,minHeight:38}}>← Companies</button>}
+              {view!=="dashboard"&&<button onClick={()=>setView("dashboard")} style={{...nBtn,padding:"8px 12px",fontSize:12,minHeight:38}}>Dashboard</button>}
+              {view==="dashboard"&&<button onClick={()=>setView("gateway")} style={{...pBtn,padding:"8px 14px",fontSize:13,minHeight:38}}>+ New</button>}
+            </div>
           </div>
         </div>
 
-        <div style={{maxWidth:780,margin:"0 auto",padding:"28px 20px"}}>
+        <div style={{maxWidth:780,margin:"0 auto",padding:"20px 14px"}}>
 
-          {/* GATEWAY */}
+          {/* ── GATEWAY ── */}
           {view==="gateway"&&(
             <div>
-              <h2 style={{fontSize:22,color:C.amberL,marginBottom:6}}>Select a Company to Begin</h2>
-              <div style={{fontSize:13,color:C.dim,marginBottom:28}}>Choose the company you're hiring for, then select a position.</div>
-              <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              <h2 style={{fontSize:20,color:C.amberL,marginBottom:5}}>Select a Company</h2>
+              <div style={{fontSize:13,color:C.dim,marginBottom:22}}>Choose the company you're hiring for, then select a position.</div>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 {Object.entries(COMPANIES).map(([key,co])=>(
-                  <div key={key} style={{...cardS,border:`1px solid ${C.border}`}}>
-                    <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:14}}>
-                      <div style={{fontSize:40}}>{co.icon}</div>
+                  <div key={key} style={{...cardS}}>
+                    <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+                      <div style={{fontSize:36}}>{co.icon}</div>
                       <div style={{flex:1}}>
-                        <div style={{fontSize:20,fontWeight:"bold",color:co.colorL}}>{co.name}</div>
-                        <div style={{fontSize:12,color:C.dim,marginTop:2}}>{co.address} · {co.positions.length} position{co.positions.length!==1?"s":""} available</div>
-                      </div>
-                      <div style={{fontSize:13,color:C.dim}}>
-                        {candidates.filter(c=>c.company===key).length} interviewed
+                        <div style={{fontSize:18,fontWeight:"bold",color:co.colorL}}>{co.name}</div>
+                        <div style={{fontSize:12,color:C.dim,marginTop:2}}>{co.address} · {candidates.filter(c=>c.company===key).length} interviewed</div>
                       </div>
                     </div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
+                    <div className="pos-btns">
                       {co.positions.map(pos=>{
                         const p=POS_LABELS[pos];
                         return(
-                          <button key={pos} onClick={()=>startInterview(key,pos)} style={{
-                            background:co.colorBg,border:`1px solid ${co.color}`,borderRadius:8,
-                            padding:"10px 18px",cursor:"pointer",fontFamily:"Georgia,serif",
-                            display:"flex",alignItems:"center",gap:8,transition:"all 0.15s"}}>
+                          <button key={pos} onClick={()=>startInterview(key,pos)} className="pos-btn"
+                            style={{background:co.colorBg,border:`1px solid ${co.color}`,fontFamily:"Georgia,serif"}}>
                             <span style={{fontSize:16}}>{p.icon}</span>
                             <span style={{fontSize:14,color:co.colorL,fontWeight:"bold"}}>{p.title}</span>
                           </button>
@@ -503,38 +684,39 @@
                   </div>
                 ))}
               </div>
-              <div style={{marginTop:20,textAlign:"center"}}>
+              <div style={{marginTop:18,textAlign:"center"}}>
                 <button onClick={()=>setView("dashboard")} style={{...nBtn,fontSize:13}}>📊 View All Candidates →</button>
               </div>
             </div>
           )}
 
-          {/* INTERVIEW */}
+          {/* ── INTERVIEW ── */}
           {view==="interview"&&(()=>{
             const co=COMPANIES[company]||{};const pos=POS_LABELS[position]||{};
             return(
               <div>
-                <div style={{marginBottom:24}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                    <span style={{fontSize:12,color:C.dim,textTransform:"uppercase",letterSpacing:"0.1em"}}>{co.icon} {co.short} — {pos.icon} {pos.title}</span>
-                    <span style={{fontSize:12,color:C.amber}}>{step===0?"Candidate Info":step===WRAPUP?"Wrap-Up":`Question ${step} of ${questions.length}`}</span>
+                {/* Progress bar */}
+                <div style={{marginBottom:20}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
+                    <span style={{fontSize:11,color:C.dim,textTransform:"uppercase",letterSpacing:"0.08em"}}>{co.icon} {co.short} — {pos.icon} {pos.title}</span>
+                    <span style={{fontSize:11,color:C.amber}}>{step===0?"Info":step===WRAPUP?"Wrap-Up":`Q${step}/${questions.length}`}</span>
                   </div>
-                  <div style={{background:C.light,borderRadius:4,height:4,overflow:"hidden"}}>
-                    <div style={{background:co.color||C.amber,height:"100%",borderRadius:4,width:`${step===0?2:(step/totalSteps)*100}%`,transition:"width 0.3s ease"}}/>
+                  <div style={{background:C.light,borderRadius:4,height:4}}>
+                    <div style={{background:co.color||C.amber,height:"100%",borderRadius:4,width:`${step===0?2:(step/totalSteps)*100}%`,transition:"width 0.3s"}}/>
                   </div>
                 </div>
 
                 {/* Step 0 */}
                 {step===0&&(
                   <div style={cardS}>
-                    <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:20}}>📋 Candidate Information</div>
-                    <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                      <label style={labelS}>Full Name *<input style={inputS} placeholder="e.g. Jane Smith" value={candName} onChange={e=>setCandName(e.target.value)}/></label>
-                      <label style={labelS}>Phone Number<input style={inputS} placeholder="e.g. (541) 555-0199" value={candPhone} onChange={e=>setCandPhone(e.target.value)}/></label>
-                      <label style={labelS}>Initial Impressions / Notes<textarea style={{...inputS,height:80,resize:"vertical"}} placeholder="First impression, referral source, energy level, etc." value={candNotes} onChange={e=>setCandNotes(e.target.value)}/></label>
+                    <div style={{fontSize:15,fontWeight:"bold",color:C.amberL,marginBottom:18}}>📋 Candidate Information</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                      <label style={labelS}>Full Name *<input style={inputS} placeholder="e.g. Jane Smith" value={candName} onChange={e=>setCandName(e.target.value)} autoFocus/></label>
+                      <label style={labelS}>Phone Number<input style={inputS} type="tel" placeholder="(541) 555-0199" value={candPhone} onChange={e=>setCandPhone(e.target.value)}/></label>
+                      <label style={labelS}>Initial Impressions<textarea style={{...inputS,height:76,resize:"vertical"}} placeholder="First impression, referral source, energy level…" value={candNotes} onChange={e=>setCandNotes(e.target.value)}/></label>
                     </div>
                     <button onClick={()=>setStep(1)} disabled={!candName.trim()}
-                      style={{...pBtn,marginTop:24,width:"100%",opacity:candName.trim()?1:0.4,background:co.color||C.amber,color:"#fff"}}>
+                      style={{...pBtn,marginTop:20,width:"100%",opacity:candName.trim()?1:0.4,background:co.color||C.amber,color:"#fff"}}>
                       Begin Interview →
                     </button>
                   </div>
@@ -545,23 +727,22 @@
                   const q=questions[step-1];const ans=answers[q.id]||{};
                   return(
                     <div style={cardS}>
-                      <div style={{fontSize:12,color:co.colorL||C.amber,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Question {step} of {questions.length}</div>
-                      <div style={{fontSize:19,color:C.cream,lineHeight:1.5,fontWeight:"bold",marginBottom:10}}>{q.text}</div>
-                      <div style={{fontSize:12,color:C.tealL,fontStyle:"italic",marginBottom:20}}>💡 {q.hint}</div>
+                      <div style={{fontSize:11,color:co.colorL||C.amber,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}}>Question {step} of {questions.length}</div>
+                      <div style={{fontSize:17,color:C.cream,lineHeight:1.55,fontWeight:"bold",marginBottom:10}}>{q.text}</div>
+                      <div style={{fontSize:12,color:C.tealL,fontStyle:"italic",marginBottom:18,lineHeight:1.5}}>💡 {q.hint}</div>
                       <label style={labelS}>Candidate's Answer / Notes
                         <textarea style={{...inputS,height:80,resize:"vertical"}} placeholder="Type what they say…"
-                          value={ans.note||""} onChange={e=>setAns(q.id,"note",e.target.value)} autoFocus/>
+                          value={ans.note||""} onChange={e=>setAns(q.id,"note",e.target.value)}/>
                       </label>
                       <div style={{marginTop:14}}>
-                        <div style={{fontSize:12,color:C.dim,marginBottom:8,letterSpacing:"0.05em"}}>RATE THIS ANSWER</div>
-                        <div style={{display:"flex",gap:10}}>
+                        <div style={{fontSize:11,color:C.dim,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"}}>Rate this answer</div>
+                        <div className="rating-row">
                           {[1,2,3].map(r=>(
-                            <button key={r} onClick={()=>setAns(q.id,"rating",r)} style={{
-                              flex:1,padding:"10px 0",borderRadius:6,fontWeight:"bold",fontSize:13,cursor:"pointer",
+                            <button key={r} onClick={()=>setAns(q.id,"rating",r)} className="rating-btn" style={{
                               border:ans.rating===r?`2px solid ${RATINGS[r].color}`:`2px solid ${C.border}`,
                               background:ans.rating===r?`${RATINGS[r].color}22`:C.light,
-                              color:ans.rating===r?RATINGS[r].color:C.dim,fontFamily:"Georgia,serif"}}>
-                              {r===1?"1 – Weak":r===2?"2 – Good":"3 – Strong"}
+                              color:ans.rating===r?RATINGS[r].color:C.dim}}>
+                              {r===1?"1 — Weak":r===2?"2 — Good":"3 — Strong"}
                             </button>
                           ))}
                         </div>
@@ -569,33 +750,32 @@
 
                       {/* Q1 Availability Widget */}
                       {step===1&&(
-                        <div style={{marginTop:22,borderTop:`1px solid ${C.border}`,paddingTop:20}}>
-                          <div style={{fontSize:12,color:co.colorL||C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:14}}>🗓 Fill In Their Availability</div>
-                          <div style={{fontSize:12,color:C.dim,marginBottom:8,letterSpacing:"0.04em"}}>AVAILABLE MONTHS</div>
-                          <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:18}}>
+                        <div style={{marginTop:20,borderTop:`1px solid ${C.border}`,paddingTop:18}}>
+                          <div style={{fontSize:11,color:co.colorL||C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:13}}>🗓 Fill In Their Availability</div>
+                          <div style={{fontSize:11,color:C.dim,marginBottom:7,letterSpacing:"0.04em",textTransform:"uppercase"}}>Available Months</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
                             {MONTHS.map(m=>{const on=avail.months[m];return(
                               <button key={m} onClick={()=>setAvail(p=>({...p,months:{...p.months,[m]:!p.months[m]}}))} style={{
-                                padding:"5px 12px",borderRadius:16,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",
+                                padding:"6px 11px",borderRadius:16,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",minHeight:36,
                                 border:`1px solid ${on?C.tealL:C.border}`,background:on?`${C.tealL}22`:C.light,
                                 color:on?C.tealL:C.dim,fontWeight:on?"bold":"normal"}}>{m}</button>
                             );})}
                           </div>
-                          <div style={{fontSize:12,color:C.dim,marginBottom:8,letterSpacing:"0.04em"}}>AVAILABLE DAYS & SHIFT</div>
-                          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:18}}>
+                          <div style={{fontSize:11,color:C.dim,marginBottom:7,letterSpacing:"0.04em",textTransform:"uppercase"}}>Available Days & Shift</div>
+                          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
                             {DAYS.map(d=>{const dd=avail.days[d]||{on:false,shift:""};return(
-                              <div key={d} style={{display:"flex",alignItems:"center",gap:10,background:dd.on?`${C.tealL}11`:C.bg,
-                                border:`1px solid ${dd.on?C.tealL:C.border}`,borderRadius:7,padding:"7px 10px",transition:"all 0.15s"}}>
+                              <div key={d} className="avail-day-row" style={{background:dd.on?`${C.tealL}11`:C.bg,border:`1px solid ${dd.on?C.tealL:C.border}`}}>
                                 <button onClick={()=>setAvail(p=>({...p,days:{...p.days,[d]:{...p.days[d],on:!dd.on,shift:dd.shift||"Full Day"}}}))} style={{
-                                  width:18,height:18,minWidth:18,borderRadius:3,cursor:"pointer",
+                                  width:22,height:22,minWidth:22,borderRadius:3,cursor:"pointer",
                                   border:`2px solid ${dd.on?C.tealL:C.border}`,background:dd.on?C.teal:"transparent",
                                   display:"flex",alignItems:"center",justifyContent:"center"}}>
-                                  {dd.on&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                  {dd.on&&<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                                 </button>
-                                <span style={{fontSize:12,fontWeight:"bold",color:dd.on?C.cream:C.dim,width:28}}>{d}</span>
-                                {dd.on&&<div style={{display:"flex",gap:5}}>
+                                <span style={{fontSize:12,fontWeight:"bold",color:dd.on?C.cream:C.dim,width:30}}>{d}</span>
+                                {dd.on&&<div className="shift-btns">
                                   {["Morning","Afternoon","Full Day"].map(s=>(
                                     <button key={s} onClick={()=>setAvail(p=>({...p,days:{...p.days,[d]:{...p.days[d],shift:s}}}))} style={{
-                                      padding:"3px 9px",borderRadius:10,fontSize:11,cursor:"pointer",fontFamily:"Georgia,serif",
+                                      padding:"4px 9px",borderRadius:10,fontSize:11,cursor:"pointer",fontFamily:"Georgia,serif",minHeight:30,
                                       border:`1px solid ${dd.shift===s?C.amber:C.border}`,background:dd.shift===s?`${C.amber}22`:"transparent",
                                       color:dd.shift===s?C.amberL:C.dim}}>{s}</button>
                                   ))}
@@ -603,30 +783,30 @@
                               </div>
                             );})}
                           </div>
-                          <div style={{fontSize:12,color:C.dim,marginBottom:8,letterSpacing:"0.04em"}}>COMMITMENT LEVEL</div>
-                          <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:18}}>
+                          <div style={{fontSize:11,color:C.dim,marginBottom:7,letterSpacing:"0.04em",textTransform:"uppercase"}}>Commitment Level</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:16}}>
                             {COMMIT.map(cl=>{const on=avail.commitment===cl;return(
                               <button key={cl} onClick={()=>setAvail(p=>({...p,commitment:on?"":cl}))} style={{
-                                padding:"6px 14px",borderRadius:16,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",
+                                padding:"7px 14px",borderRadius:16,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",minHeight:36,
                                 border:`1px solid ${on?C.amberL:C.border}`,background:on?`${C.amber}22`:C.light,
                                 color:on?C.amberL:C.dim,fontWeight:on?"bold":"normal"}}>{cl}</button>
                             );})}
                           </div>
-                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                            <label style={labelS}>Earliest Start Date<input type="date" style={inputS} value={avail.startDate} onChange={e=>setAvail(p=>({...p,startDate:e.target.value}))}/></label>
-                            <label style={labelS}>Latest End Date<input type="date" style={inputS} value={avail.endDate} onChange={e=>setAvail(p=>({...p,endDate:e.target.value}))}/></label>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                            <label style={labelS}>Earliest Start<input type="date" style={inputS} value={avail.startDate} onChange={e=>setAvail(p=>({...p,startDate:e.target.value}))}/></label>
+                            <label style={labelS}>Latest End<input type="date" style={inputS} value={avail.endDate} onChange={e=>setAvail(p=>({...p,endDate:e.target.value}))}/></label>
                           </div>
                           <label style={labelS}>Scheduling Notes
-                            <textarea style={{...inputS,height:60,resize:"vertical"}} placeholder="e.g. Available after May 15th, can't work Sundays..."
+                            <textarea style={{...inputS,height:56,resize:"vertical"}} placeholder="e.g. Available after May 15, can't work Sundays…"
                               value={avail.availNotes} onChange={e=>setAvail(p=>({...p,availNotes:e.target.value}))}/>
                           </label>
                         </div>
                       )}
 
-                      <div style={{display:"flex",gap:12,marginTop:22}}>
-                        <button onClick={()=>setStep(step-1)} style={{...nBtn,flex:1}}>← Back</button>
-                        <button onClick={()=>setStep(step+1)} style={{...pBtn,flex:2,background:co.color||C.amber,color:"#fff"}}>
-                          {step<questions.length?"Next Question →":"Wrap-Up →"}
+                      <div className="nav-btn-row" style={{marginTop:20}}>
+                        <button onClick={()=>setStep(step-1)} style={nBtn}>← Back</button>
+                        <button onClick={()=>setStep(step+1)} style={{...pBtn,background:co.color||C.amber,color:"#fff"}}>
+                          {step<questions.length?"Next →":"Wrap-Up →"}
                         </button>
                       </div>
                     </div>
@@ -636,9 +816,9 @@
                 {/* Wrap-Up */}
                 {step===WRAPUP&&(
                   <div>
-                    <div style={{...cardS,marginBottom:16}}>
-                      <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:4}}>✅ Interview Wrap-Up Checklist</div>
-                      <div style={{fontSize:12,color:C.dim,marginBottom:18,fontStyle:"italic"}}>Check off each item covered with the candidate before ending the call.</div>
+                    <div style={{...cardS,marginBottom:14}}>
+                      <div style={{fontSize:15,fontWeight:"bold",color:C.amberL,marginBottom:4}}>✅ Wrap-Up Checklist</div>
+                      <div style={{fontSize:12,color:C.dim,marginBottom:16,fontStyle:"italic"}}>Check off each topic covered before ending the call.</div>
                       {CHECKLIST.map(item=>(
                         <div key={item.id} className="check-row" onClick={()=>toggleCheck(item.id)}>
                           <div className={`chkbox${checklist[item.id]?" on":""}`}>
@@ -650,18 +830,18 @@
                           </div>
                         </div>
                       ))}
-                      <div style={{marginTop:14,fontSize:12,color:C.amber,fontWeight:"bold"}}>{Object.values(checklist).filter(Boolean).length} of {CHECKLIST.length} items covered</div>
+                      <div style={{marginTop:12,fontSize:12,color:C.amber,fontWeight:"bold"}}>{Object.values(checklist).filter(Boolean).length} of {CHECKLIST.length} covered</div>
                     </div>
-                    <div style={{...cardS,marginBottom:16}}>
-                      <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:6}}>📝 Final Notes</div>
-                      <div style={{fontSize:12,color:C.dim,marginBottom:14,fontStyle:"italic"}}>Gut feeling, red flags, standout moments, follow-up items.</div>
-                      <textarea style={{...inputS,height:120,resize:"vertical"}}
-                        placeholder="e.g. 3 years at McMenamins, OLCC current, wants to start May 1st, very personable..."
+                    <div style={{...cardS,marginBottom:14}}>
+                      <div style={{fontSize:15,fontWeight:"bold",color:C.amberL,marginBottom:6}}>📝 Final Notes</div>
+                      <div style={{fontSize:12,color:C.dim,marginBottom:12,fontStyle:"italic"}}>Gut feeling, red flags, standout moments, follow-up items.</div>
+                      <textarea style={{...inputS,height:110,resize:"vertical"}}
+                        placeholder="e.g. 3 years at McMenamins, OLCC current, wants May 1st, very personable…"
                         value={finalNotes} onChange={e=>setFinalNotes(e.target.value)} autoFocus/>
                     </div>
-                    <div style={{display:"flex",gap:12}}>
-                      <button onClick={()=>setStep(questions.length)} style={{...nBtn,flex:1}}>← Back</button>
-                      <button onClick={finish} style={{...pBtn,flex:2,background:C.teal}}>✓ Finish & Score</button>
+                    <div className="nav-btn-row">
+                      <button onClick={()=>setStep(questions.length)} style={nBtn}>← Back</button>
+                      <button onClick={finish} style={{...pBtn,background:C.teal}}>✓ Finish & Score</button>
                     </div>
                   </div>
                 )}
@@ -669,10 +849,9 @@
             );
           })()}
 
-          {/* SUMMARY */}
+          {/* ── SUMMARY ── */}
           {view==="summary"&&current&&(()=>{
-            const t=tier(current.pct);
-            const co=COMPANIES[current.company]||{};const pos=POS_LABELS[current.position]||{};
+            const t=tier(current.pct);const co=COMPANIES[current.company]||{};const pos=POS_LABELS[current.position]||{};
             const qs=POS_QUESTIONS[current.position]||[];
             const checkedCount=Object.values(current.checklist||{}).filter(Boolean).length;
             const av=current.avail||{};
@@ -680,21 +859,21 @@
             const days=Object.keys(av.days||{}).filter(d=>av.days[d]&&av.days[d].on);
             return(
               <div>
-                <div style={{...cardS,marginBottom:16,textAlign:"center"}}>
-                  <div style={{fontSize:48,marginBottom:8}}>{current.pct>=80?"🟢":current.pct>=55?"🟡":"🔴"}</div>
-                  <div style={{fontSize:28,fontWeight:"bold",color:C.amberL}}>{current.name}</div>
-                  <div style={{fontSize:13,color:C.dim,marginTop:4}}>{co.icon} {co.name} · {pos.icon} {pos.title} · {current.date}</div>
-                  <div style={{fontSize:36,fontWeight:"bold",color:t.color,margin:"16px 0 4px"}}>{current.pct}%</div>
-                  <div style={{fontSize:14,color:t.color}}>{t.label}</div>
-                  <div style={{fontSize:12,color:C.dim,marginTop:4}}>Score: {current.score}/{current.max} · Checklist: {checkedCount}/{CHECKLIST.length}</div>
-                  <div style={{marginTop:18,display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={{...cardS,marginBottom:14,textAlign:"center",padding:"24px 18px"}}>
+                  <div style={{fontSize:44,marginBottom:7}}>{current.pct>=80?"🟢":current.pct>=55?"🟡":"🔴"}</div>
+                  <div style={{fontSize:24,fontWeight:"bold",color:C.amberL}}>{current.name}</div>
+                  <div style={{fontSize:12,color:C.dim,marginTop:4}}>{co.icon} {co.name} · {pos.icon} {pos.title} · {current.date}</div>
+                  <div style={{fontSize:34,fontWeight:"bold",color:t.color,margin:"14px 0 4px"}}>{current.pct}%</div>
+                  <div style={{fontSize:13,color:t.color}}>{t.label}</div>
+                  <div style={{fontSize:12,color:C.dim,marginTop:3}}>Score: {current.score}/{current.max} · Checklist: {checkedCount}/{CHECKLIST.length}</div>
+                  <div className="status-btn-row">
                     <span style={{fontSize:12,color:C.dim,alignSelf:"center"}}>Mark as:</span>
                     {[{key:"hired",label:"✅ Hire"},{key:"hold",label:"⏸ Hold"},{key:"pass",label:"✗ Pass"}].map(opt=>{
                       const active=current.status===opt.key;const cfg=STATUS_CFG[opt.key];
                       return(<button key={opt.key} onClick={()=>{
                         const updated=candidates.map(c=>c.id===current.id?{...c,status:c.status===opt.key?null:opt.key}:c);
                         setCandidates(updated);persist(updated);setCurrent(p=>({...p,status:p.status===opt.key?null:opt.key}));
-                      }} style={{padding:"6px 14px",borderRadius:20,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",fontWeight:active?"bold":"normal",
+                      }} style={{padding:"8px 14px",borderRadius:20,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",fontWeight:active?"bold":"normal",minHeight:38,
                         border:`1px solid ${active?cfg.border:C.border}`,background:active?cfg.bg:"transparent",color:active?cfg.color:C.dim}}>{opt.label}</button>);
                     })}
                   </div>
@@ -704,72 +883,86 @@
                 </div>
 
                 {(months.length>0||days.length>0||av.commitment)&&(
-                  <div style={{...cardS,marginBottom:16}}>
-                    <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:14}}>🗓 Availability</div>
-                    {months.length>0&&<div style={{marginBottom:8,display:"flex",flexWrap:"wrap",gap:5}}>
-                      {months.map(m=><span key={m} style={{background:`${C.tealL}22`,border:`1px solid ${C.tealL}`,color:C.tealL,borderRadius:10,padding:"2px 9px",fontSize:11,fontWeight:"bold"}}>{m}</span>)}</div>}
-                    {days.length>0&&<div style={{marginBottom:6}}>{days.map(d=><span key={d} style={{fontSize:12,color:C.cream,marginRight:14}}><b>{d}</b> <span style={{color:C.dim,fontSize:11}}>— {av.days[d].shift||"Full Day"}</span></span>)}</div>}
+                  <div style={{...cardS,marginBottom:14}}>
+                    <div style={{fontSize:15,fontWeight:"bold",color:C.amberL,marginBottom:12}}>🗓 Availability</div>
+                    {months.length>0&&<div style={{marginBottom:7,display:"flex",flexWrap:"wrap",gap:5}}>
+                      {months.map(m=><span key={m} style={{background:`${C.tealL}22`,border:`1px solid ${C.tealL}`,color:C.tealL,borderRadius:10,padding:"2px 8px",fontSize:11,fontWeight:"bold"}}>{m}</span>)}</div>}
+                    {days.length>0&&<div style={{marginBottom:5,display:"flex",flexWrap:"wrap",gap:"3px 12px"}}>
+                      {days.map(d=><span key={d} style={{fontSize:12,color:C.cream}}><b>{d}</b> <span style={{color:C.dim,fontSize:11}}>— {av.days[d].shift||"Full Day"}</span></span>)}</div>}
                     {av.commitment&&<div style={{fontSize:13,color:C.amberL,fontWeight:"bold",marginBottom:av.availNotes?4:0}}>{av.commitment}</div>}
                     {av.availNotes&&<div style={{fontSize:12,color:C.dim,fontStyle:"italic"}}>{av.availNotes}</div>}
                   </div>
                 )}
 
-                <div style={{...cardS,marginBottom:16}}>
-                  <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:16}}>Interview Breakdown</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div style={{...cardS,marginBottom:14}}>
+                  <div style={{fontSize:15,fontWeight:"bold",color:C.amberL,marginBottom:14}}>Interview Breakdown</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
                     {qs.map((q,i)=>{const a=current.answers[q.id]||{};const rl=RATINGS[a.rating||0];
-                      return(<div key={q.id} style={{borderBottom:`1px solid ${C.border}`,paddingBottom:14}}>
-                        <div style={{display:"flex",justifyContent:"space-between",gap:12}}>
-                          <div style={{fontSize:13,color:C.cream,flex:1}}><span style={{color:C.dim,marginRight:6}}>{i+1}.</span>{q.text}</div>
+                      return(<div key={q.id} style={{borderBottom:`1px solid ${C.border}`,paddingBottom:12}}>
+                        <div style={{display:"flex",justifyContent:"space-between",gap:10}}>
+                          <div style={{fontSize:13,color:C.cream,flex:1,lineHeight:1.5}}><span style={{color:C.dim,marginRight:5}}>{i+1}.</span>{q.text}</div>
                           <span style={{fontSize:12,fontWeight:"bold",color:rl.color,whiteSpace:"nowrap"}}>{rl.label}</span>
                         </div>
-                        {a.note&&<div style={{fontSize:12,color:C.dim,marginTop:6,fontStyle:"italic",paddingLeft:14}}>"{a.note}"</div>}
-                      </div>);
-                    })}
+                        {a.note&&<div style={{fontSize:12,color:C.dim,marginTop:5,fontStyle:"italic",paddingLeft:14}}>"{a.note}"</div>}
+                      </div>);})}
                   </div>
                 </div>
 
-                {current.finalNotes&&<div style={{...cardS,marginBottom:16}}>
-                  <div style={{fontSize:16,fontWeight:"bold",color:C.amberL,marginBottom:10}}>📝 Final Notes</div>
+                {current.finalNotes&&<div style={{...cardS,marginBottom:14}}>
+                  <div style={{fontSize:15,fontWeight:"bold",color:C.amberL,marginBottom:8}}>📝 Final Notes</div>
                   <div style={{fontSize:13,color:C.dim,fontStyle:"italic",lineHeight:1.7}}>{current.finalNotes}</div>
                 </div>}
 
-                <div style={{display:"flex",gap:12,marginTop:4}}>
-                  <button onClick={()=>setView("gateway")} style={{...pBtn,flex:1,background:co.color||C.amber,color:"#fff"}}>+ Interview Another</button>
-                  <button onClick={()=>setView("dashboard")} style={{...nBtn,flex:1}}>View Rankings</button>
+                <div className="nav-btn-row">
+                  <button onClick={()=>setView("gateway")} style={{...pBtn,background:co.color||C.amber,color:"#fff"}}>+ Another</button>
+                  <button onClick={()=>setView("dashboard")} style={nBtn}>Rankings</button>
                 </div>
               </div>
             );
           })()}
 
-          {/* DASHBOARD */}
+          {/* ── DASHBOARD ── */}
           {view==="dashboard"&&(
             <div>
-              {/* Stats bar */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
-                {[{label:"Total Interviewed",val:candidates.length,color:C.amberL},{label:"Hired",val:hiredCount,color:C.tealL},{label:"On Hold",val:holdCount,color:C.amber}].map(s=>(
-                  <div key={s.label} style={{...cardS,textAlign:"center",padding:"14px 10px"}}>
-                    <div style={{fontSize:26,fontWeight:"bold",color:s.color}}>{s.val}</div>
+              {/* Stats */}
+              <div className="stats-grid">
+                {[{label:"Total",val:candidates.length,color:C.amberL},{label:"Hired",val:hiredCount,color:C.tealL},{label:"On Hold",val:holdCount,color:C.amber}].map(s=>(
+                  <div key={s.label} style={{...cardS,textAlign:"center",padding:"13px 8px"}}>
+                    <div style={{fontSize:24,fontWeight:"bold",color:s.color}}>{s.val}</div>
                     <div style={{fontSize:11,color:C.dim,marginTop:3}}>{s.label}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Status filter only */}
-              <div style={{display:"flex",gap:8,marginBottom:24,flexWrap:"wrap"}}>
+              {/* Search */}
+              <div style={{position:"relative",marginBottom:14}}>
+                <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:C.dim,pointerEvents:"none"}}>🔍</span>
+                <input style={{...inputS,paddingLeft:36,borderRadius:8,border:`1px solid ${search?C.amber:C.border}`}}
+                  placeholder="Search by name, phone, position or company…"
+                  value={search} onChange={e=>setSearch(e.target.value)}/>
+                {search&&<button onClick={()=>setSearch("")} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+                  background:"transparent",border:"none",color:C.dim,fontSize:16,cursor:"pointer",padding:"6px",minHeight:36}}>✕</button>}
+              </div>
+
+              {/* Status filter */}
+              <div style={{display:"flex",gap:7,marginBottom:22,flexWrap:"wrap"}}>
                 {[{key:"all",label:`All (${candidates.length})`},
-                  {key:"hired",label:`✅ Hired (${candidates.filter(c=>c.status==="hired").length})`},
-                  {key:"hold",label:`⏸ Hold (${candidates.filter(c=>c.status==="hold").length})`},
-                  {key:"pending",label:"Pending Review"}].map(t=>(
+                  {key:"hired",label:`✅ Hired (${hiredCount})`},
+                  {key:"hold",label:`⏸ Hold (${holdCount})`},
+                  {key:"pending",label:"Pending"}].map(t=>(
                   <button key={t.key} className={`tab-btn${dashTab===t.key?" active":""}`} onClick={()=>setDashTab(t.key)}>{t.label}</button>
                 ))}
               </div>
 
+              {search&&<div style={{fontSize:12,color:C.amber,marginBottom:14,fontStyle:"italic"}}>
+                Results for "{search}" — {candidates.filter(matchSearch).length} match{candidates.filter(matchSearch).length!==1?"es":""}
+              </div>}
+
               {candidates.length===0&&(
-                <div style={{...cardS,textAlign:"center",padding:"48px 24px"}}>
-                  <div style={{fontSize:36,marginBottom:12}}>🦁☕⚓</div>
-                  <div style={{color:C.dim,fontSize:15}}>No interviews yet.</div>
-                  <button onClick={()=>setView("gateway")} style={{...pBtn,marginTop:20}}>+ Start Interview</button>
+                <div style={{...cardS,textAlign:"center",padding:"44px 20px"}}>
+                  <div style={{fontSize:32,marginBottom:10}}>🦁☕⚓</div>
+                  <div style={{color:C.dim,fontSize:14}}>No interviews yet.</div>
+                  <button onClick={()=>setView("gateway")} style={{...pBtn,marginTop:18}}>+ Start Interview</button>
                 </div>
               )}
 
@@ -778,151 +971,31 @@
                 const coFiltered=[...candidates]
                   .filter(c=>c.company===coKey)
                   .filter(c=>dashTab==="all"||(dashTab==="pending"?(!c.status||c.status==="pass"):c.status===dashTab))
+                  .filter(matchSearch)
                   .sort((a,b)=>b.pct-a.pct);
                 const coTotal=candidates.filter(c=>c.company===coKey).length;
-                if(coTotal===0&&dashTab==="all") return null;
-                if(coFiltered.length===0&&dashTab!=="all") return null;
+                if(coTotal===0&&dashTab==="all"&&!search) return null;
+                if(coFiltered.length===0) return null;
                 return(
-                  <div key={coKey} style={{marginBottom:32}}>
-                    {/* Company header */}
+                  <div key={coKey} style={{marginBottom:28}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
-                      borderBottom:`2px solid ${coData.color}`,paddingBottom:10,marginBottom:14}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <span style={{fontSize:24}}>{coData.icon}</span>
+                      borderBottom:`2px solid ${coData.color}`,paddingBottom:9,marginBottom:12}}>
+                      <div style={{display:"flex",alignItems:"center",gap:9}}>
+                        <span style={{fontSize:22}}>{coData.icon}</span>
                         <div>
-                          <div style={{fontSize:16,fontWeight:"bold",color:coData.colorL}}>{coData.name}</div>
-                          <div style={{fontSize:11,color:C.dim,marginTop:1}}>{coData.address}</div>
+                          <div style={{fontSize:15,fontWeight:"bold",color:coData.colorL}}>{coData.name}</div>
+                          <div style={{fontSize:11,color:C.dim}}>{coData.address}</div>
                         </div>
                       </div>
-                      <div style={{display:"flex",gap:12,fontSize:12,color:C.dim}}>
+                      <div className="co-hdr-stats">
                         <span style={{color:C.amberL,fontWeight:"bold"}}>{candidates.filter(c=>c.company===coKey).length} interviewed</span>
                         <span style={{color:C.tealL}}>{candidates.filter(c=>c.company===coKey&&c.status==="hired").length} hired</span>
-                        <span style={{color:C.amber}}>{candidates.filter(c=>c.company===coKey&&c.status==="hold").length} on hold</span>
+                        <span style={{color:C.amber}}>{candidates.filter(c=>c.company===coKey&&c.status==="hold").length} hold</span>
                       </div>
                     </div>
-
-                    {coFiltered.length===0?(
-                      <div style={{color:C.dim,fontSize:13,fontStyle:"italic",padding:"12px 4px"}}>No candidates in this category.</div>
-                    ):(
-                      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                        {coFiltered.map((c)=>{
-                  const t=tier(c.pct);const co=COMPANIES[c.company]||{color:C.amber};const pos=POS_LABELS[c.position]||{title:c.position};
-                  const isOpen=detailId===c.id;const statusCfg=c.status?STATUS_CFG[c.status]:null;
-                  const qs=POS_QUESTIONS[c.position]||[];
-                  const checkedCount=Object.values(c.checklist||{}).filter(Boolean).length;
-                  const av=c.avail||{};const months=Object.keys(av.months||{}).filter(m=>av.months[m]);
-                  const days=Object.keys(av.days||{}).filter(d=>av.days[d]&&av.days[d].on);
-                  return(
-                    <div key={c.id}>
-                      <div onClick={()=>setDetailId(isOpen?null:c.id)} style={{
-                        ...cardS,padding:"14px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,
-                        border:isOpen?`1px solid ${co.color||C.amber}`:statusCfg?`1px solid ${statusCfg.border}`:`1px solid ${C.border}`,
-                        background:statusCfg?statusCfg.bg:C.mid}}>
-                        <div style={{fontSize:24}}>{co.icon||"👤"}</div>
-                        <div style={{flex:1}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                            <div style={{fontWeight:"bold",color:C.cream,fontSize:15}}>{c.name}</div>
-                            {statusCfg&&<span style={{fontSize:11,fontWeight:"bold",color:statusCfg.color,background:statusCfg.bg,border:`1px solid ${statusCfg.border}`,borderRadius:10,padding:"2px 8px"}}>{statusCfg.label}</span>}
-                          </div>
-                          <div style={{fontSize:12,color:C.dim,marginTop:2}}>{pos.icon} {pos.title} @ {co.short||c.company} · {c.date}{c.phone&&` · ${c.phone}`}</div>
-                        </div>
-                        <div style={{textAlign:"right"}}>
-                          <div style={{fontSize:20,fontWeight:"bold",color:t.color}}>{c.pct}%</div>
-                          <div style={{fontSize:11,color:t.color}}>{t.label}</div>
-                        </div>
-                        <div style={{color:C.dim,fontSize:12}}>{isOpen?"▲":"▼"}</div>
-                      </div>
-
-                      {isOpen&&(
-                        <div style={{...cardS,borderTop:"none",borderRadius:"0 0 10px 10px",padding:"16px 18px",background:C.light}}>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:16,paddingBottom:16,borderBottom:`1px solid ${C.bg}`}}>
-                            <StatusBtns c={c}/>
-                            {c.status==="hired"&&<button onClick={e=>{e.stopPropagation();setContractFor(c);}} style={{...pBtn,background:C.teal,padding:"7px 14px",fontSize:12}}>📄 Offer Letter</button>}
-                          </div>
-
-                          {c.notes&&<div style={{fontSize:13,color:C.dim,fontStyle:"italic",marginBottom:14,paddingBottom:14,borderBottom:`1px solid ${C.bg}`}}>First impression: {c.notes}</div>}
-
-                          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
-                            {qs.map(q=>{const a=c.answers[q.id]||{};const rl=RATINGS[a.rating||0];
-                              return(<div key={q.id} style={{display:"flex",gap:10}}>
-                                <span style={{fontSize:11,color:rl.color,fontWeight:"bold",minWidth:52}}>{rl.label}</span>
-                                <div><div style={{fontSize:12,color:C.dim}}>{q.text}</div>
-                                  {a.note&&<div style={{fontSize:11,color:C.cream,fontStyle:"italic",marginTop:3}}>"{a.note}"</div>}</div>
-                              </div>);
-                            })}
-                          </div>
-
-                          {(months.length>0||days.length>0||av.commitment)&&(
-                            <div style={{borderTop:`1px solid ${C.bg}`,paddingTop:14,marginBottom:14}}>
-                              <div style={{fontSize:12,color:C.amber,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"}}>🗓 Availability</div>
-                              {months.length>0&&<div style={{marginBottom:6,display:"flex",flexWrap:"wrap",gap:4}}>
-                                {months.map(m=><span key={m} style={{background:`${C.tealL}22`,border:`1px solid ${C.tealL}`,color:C.tealL,borderRadius:10,padding:"2px 8px",fontSize:11,fontWeight:"bold"}}>{m}</span>)}</div>}
-                              {days.length>0&&<div style={{marginBottom:4}}>{days.map(d=><span key={d} style={{fontSize:11,color:C.cream,marginRight:12}}><b>{d}</b> <span style={{color:C.dim}}>{av.days[d].shift||"Full Day"}</span></span>)}</div>}
-                              {av.commitment&&<div style={{fontSize:12,color:C.amberL,fontWeight:"bold"}}>{av.commitment}</div>}
-                              {av.availNotes&&<div style={{fontSize:11,color:C.dim,fontStyle:"italic",marginTop:4}}>{av.availNotes}</div>}
-                            </div>
-                          )}
-
-                          <div style={{borderTop:`1px solid ${C.bg}`,paddingTop:14,marginBottom:14}}>
-                            <div style={{fontSize:12,color:C.amber,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"}}>Wrap-Up — {checkedCount}/{CHECKLIST.length} covered</div>
-                            <div style={{display:"flex",flexWrap:"wrap",gap:"5px 16px"}}>
-                              {CHECKLIST.map(item=>{const checked=c.checklist&&c.checklist[item.id];
-                                return(<div key={item.id} style={{display:"flex",gap:5,alignItems:"center",fontSize:12,color:checked?C.tealL:C.dim}}><span>{checked?"✅":"⬜"}</span><span>{item.label}</span></div>);})}
-                            </div>
-                          </div>
-
-                          {c.finalNotes&&<div style={{borderTop:`1px solid ${C.bg}`,paddingTop:14,marginBottom:14}}>
-                            <div style={{fontSize:12,color:C.amber,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Final Notes</div>
-                            <div style={{fontSize:12,color:C.dim,fontStyle:"italic",lineHeight:1.6}}>{c.finalNotes}</div>
-                          </div>}
-
-                          {editId===c.id&&(
-                            <div onClick={e=>e.stopPropagation()} style={{borderTop:`1px solid ${C.bg}`,paddingTop:16,marginBottom:14}}>
-                              <div style={{fontSize:12,color:C.amber,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:12}}>✏️ Edit Candidate Details</div>
-                              <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                                <label style={labelS}>Full Name<input style={inputS} value={editData.name||""} onChange={e=>setEditData(p=>({...p,name:e.target.value}))}/></label>
-                                <label style={labelS}>Phone<input style={inputS} value={editData.phone||""} onChange={e=>setEditData(p=>({...p,phone:e.target.value}))}/></label>
-                                <label style={labelS}>First Impression<textarea style={{...inputS,height:60,resize:"vertical"}} value={editData.notes||""} onChange={e=>setEditData(p=>({...p,notes:e.target.value}))}/></label>
-                                <label style={labelS}>Final Notes<textarea style={{...inputS,height:60,resize:"vertical"}} value={editData.finalNotes||""} onChange={e=>setEditData(p=>({...p,finalNotes:e.target.value}))}/></label>
-                                <label style={labelS}>Commitment<select style={{...inputS,cursor:"pointer"}} value={editData.avail?.commitment||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,commitment:e.target.value}}))}>
-                                  <option value="">— Select —</option>
-                                  {["Full Season","Most of Season","Weekends Only","Flexible / TBD"].map(cl=><option key={cl} value={cl}>{cl}</option>)}
-                                </select></label>
-                                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                                  <label style={labelS}>Start Date<input type="date" style={inputS} value={editData.avail?.startDate||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,startDate:e.target.value}}))}/></label>
-                                  <label style={labelS}>End Date<input type="date" style={inputS} value={editData.avail?.endDate||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,endDate:e.target.value}}))}/></label>
-                                </div>
-                                <label style={labelS}>Scheduling Notes<textarea style={{...inputS,height:50,resize:"vertical"}} value={editData.avail?.availNotes||""} onChange={e=>setEditData(p=>({...p,avail:{...p.avail,availNotes:e.target.value}}))}/></label>
-                              </div>
-                              <div style={{display:"flex",gap:8,marginTop:14}}>
-                                <button onClick={e=>{e.stopPropagation();setEditId(null);}} style={{...nBtn,flex:1,padding:"8px 0",fontSize:12}}>Cancel</button>
-                                <button onClick={e=>{e.stopPropagation();saveEdit(c.id);}} style={{...pBtn,flex:2,padding:"8px 0",fontSize:12,background:C.teal}}>✓ Save Changes</button>
-                              </div>
-                            </div>
-                          )}
-
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-                            <button onClick={e=>{e.stopPropagation();downloadPDF(c);}} style={{...nBtn,color:C.tealL,borderColor:C.tealL,fontSize:12}}>📄 Download PDF</button>
-                            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                              {editId!==c.id&&<button onClick={e=>{e.stopPropagation();setConfirmDel(null);openEdit(c);}} style={{...nBtn,color:C.amber,borderColor:C.amber,fontSize:12}}>✏️ Edit Details</button>}
-                              {confirmDel===c.id?(
-                                <div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(248,81,73,0.1)",border:`1px solid ${C.red}`,borderRadius:8,padding:"8px 12px"}}>
-                                  <span style={{fontSize:12,color:C.red}}>Remove this candidate?</span>
-                                  <button onClick={e=>{e.stopPropagation();deleteCand(c.id);}} style={{background:C.red,color:"#fff",border:"none",borderRadius:5,padding:"5px 12px",fontSize:12,fontWeight:"bold",cursor:"pointer",fontFamily:"Georgia,serif"}}>Yes, Remove</button>
-                                  <button onClick={e=>{e.stopPropagation();setConfirmDel(null);}} style={{...nBtn,padding:"5px 10px",fontSize:12}}>Cancel</button>
-                                </div>
-                              ):(
-                                <button onClick={e=>{e.stopPropagation();setEditId(null);setConfirmDel(c.id);}} style={{...nBtn,color:C.red,borderColor:C.red,fontSize:12}}>🗑 Remove</button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                    <div style={{display:"flex",flexDirection:"column",gap:9}}>
+                      {coFiltered.map(c=><CandidateCard key={c.id} c={c}/>)}
                     </div>
-                  );
-                        })}
-                      </div>
-                    )}
                   </div>
                 );
               })}
