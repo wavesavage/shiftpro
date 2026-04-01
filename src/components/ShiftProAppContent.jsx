@@ -826,6 +826,28 @@ function EmpPortal({emp,onLogout}){
   const h = now.getHours();
   const greet = h<12 ? "Good morning" : h<17 ? "Good afternoon" : "Good evening";
   const myShifts = Object.entries(SCHED).map(([d,ss])=>({d,ss:ss.filter(s=>s.eId===emp.id)})).filter(x=>x.ss.length>0);
+  // Real shifts from Supabase (loaded below)
+  const [empShifts,setEmpShifts] = useState(null);
+  useEffect(()=>{
+    if(!emp?.id||!emp?.orgId) return;
+    const load=async()=>{
+      try{
+        const {createClient}=await import("@supabase/supabase-js");
+        const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+        const today=new Date().toISOString().split("T")[0];
+        const future=new Date();future.setDate(future.getDate()+14);
+        const {data:shifts}=await sb.from("shifts")
+          .select("*").eq("user_id",emp.id)
+          .gte("shift_date",today)
+          .lte("shift_date",future.toISOString().split("T")[0])
+          .in("status",["scheduled","published","confirmed"])
+          .order("shift_date");
+        setEmpShifts(shifts||[]);
+      }catch(e){ setEmpShifts([]); }
+    };
+    load();
+  },[emp?.id]);
+  const realShifts = empShifts||[];
   const unread = msgs.filter(m=>!m.read).length;
   const gross = (emp.wkHrs * emp.rate).toFixed(2);
   const sc = emp.streak>=10?"⭐ Star Performer":emp.streak>=5?"🔷 Consistent":"✅ Reliable";
@@ -1159,7 +1181,7 @@ function EmpPortal({emp,onLogout}){
             </div>
 
             {/* ── NEXT SHIFT CARD ── */}
-            {myShifts[0]&&(
+            {(realShifts[0]||myShifts[0])&&(
               <div style={{background:E.bg2,border:"1.5px solid "+E.border,
                 borderRadius:16,padding:"16px 18px",marginBottom:14,
                 boxShadow:E.shadow,display:"flex",
@@ -1173,13 +1195,27 @@ function EmpPortal({emp,onLogout}){
                 <div style={{flex:1}}>
                   <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,
                     letterSpacing:"2px",marginBottom:3}}>NEXT SHIFT</div>
-                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,
-                    color:E.text,marginBottom:2}}>
-                    {myShifts[0].d} · {fH(myShifts[0].ss[0].s)} – {fH(myShifts[0].ss[0].e)}
-                  </div>
-                  <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>
-                    {myShifts[0].ss[0].e-myShifts[0].ss[0].s} hours · {emp.role}
-                  </div>
+                  {realShifts[0]?(
+                    <div>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,
+                        color:E.text,marginBottom:2}}>
+                        {realShifts[0].day_of_week} · {fH(realShifts[0].start_hour)} – {fH(realShifts[0].end_hour)}
+                      </div>
+                      <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>
+                        {realShifts[0].end_hour-realShifts[0].start_hour} hours · {emp.role}
+                      </div>
+                    </div>
+                  ):(
+                    <div>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,
+                        color:E.text,marginBottom:2}}>
+                        {myShifts[0].d} · {fH(myShifts[0].ss[0].s)} – {fH(myShifts[0].ss[0].e)}
+                      </div>
+                      <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>
+                        {myShifts[0].ss[0].e-myShifts[0].ss[0].s} hours · {emp.role}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <EBadge label="Confirmed ✓" color={E.green}/>
               </div>
@@ -2389,6 +2425,57 @@ function OwnerCmd({onLogout}){
     };
     load();
   },[]);
+
+  // ── Load shifts for a week ──
+  const loadShifts = async(orgId, weekStr) => {
+    try{
+      const {createClient}=await import("@supabase/supabase-js");
+      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const {data:shifts}=await sb.from("shifts")
+        .select("*, users(first_name,last_name,avatar_initials,avatar_color,role)")
+        .eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
+      setLiveShifts(shifts||[]);
+    }catch(e){ setLiveShifts([]); }
+  };
+
+  const addShift = async(sd) => {
+    try{
+      const {createClient}=await import("@supabase/supabase-js");
+      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      await sb.from("shifts").insert({
+        org_id:ownerProfile?.org_id, location_id:ownerProfile?.location_id,
+        user_id:sd.userId, week_start:sd.weekStart, day_of_week:sd.day,
+        shift_date:sd.date, start_hour:sd.start, end_hour:sd.end,
+        role_label:sd.role||"", status:"scheduled", created_by:ownerProfile?.id,
+      });
+      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, sd.weekStart);
+    }catch(e){}
+  };
+
+  const removeShift = async(shiftId, weekStart) => {
+    try{
+      const {createClient}=await import("@supabase/supabase-js");
+      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      await sb.from("shifts").delete().eq("id",shiftId);
+      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart);
+    }catch(e){}
+  };
+
+  const publishSchedule = async(weekStart) => {
+    try{
+      const {createClient}=await import("@supabase/supabase-js");
+      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      await sb.from("shifts").update({status:"published"})
+        .eq("org_id",ownerProfile?.org_id).eq("week_start",weekStart);
+      setSchedPublished(true);
+      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart);
+    }catch(e){}
+  };
+
+  const getMonday = (d=new Date()) => {
+    const day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1);
+    return new Date(new Date(d).setDate(diff)).toISOString().split("T")[0];
+  };
 
   const unseen = alerts.filter(a=>!a.seen).length;
   const STAFF_DATA = liveEmps||EMPS;
@@ -6283,6 +6370,24 @@ function OwnerCmd({onLogout}){
                 {/* ── ROI REPORT (Prompt 11) ── */}
         {tab==="roi" && (
           <div style={{animation:"fadeUp 0.3s ease"}}>
+            {/* Load real clock events when tab opens */}
+            {livePayroll===null&&ownerProfile?.org_id&&(()=>{
+              const load=async()=>{
+                try{
+                  const {createClient}=await import("@supabase/supabase-js");
+                  const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                  const start=new Date();start.setDate(start.getDate()-14);
+                  const {data:events}=await sb.from("clock_events")
+                    .select("*, users(first_name,last_name,hourly_rate,role)")
+                    .eq("org_id",ownerProfile.org_id)
+                    .gte("occurred_at",start.toISOString())
+                    .order("occurred_at",{ascending:true});
+                  setLivePayroll(events||[]);
+                }catch(e){ setLivePayroll([]); }
+              };
+              load();
+              return null;
+            })()}
             {liveEmps!==null&&liveEmps.length===0&&(
               <div style={{textAlign:"center",padding:"60px 20px"}}>
                 <div style={{fontSize:52,marginBottom:14}}>💵</div>
@@ -10885,23 +10990,52 @@ function OwnerCmd({onLogout}){
               const cyanD = "rgba(6,182,212,0.08)";
               const cyanB = "rgba(6,182,212,0.22)";
 
+              // ── USE LIVE SHIFTS OR FALL BACK TO SCHED ──
+              const STAFF = liveEmps||EMPS;
+              const currentWeekStr = getMonday();
+
+              // Convert liveShifts array to SCHED-like object for grid
+              const LIVE_SCHED = {};
+              if(liveShifts!==null){
+                DAYS.forEach(d=>{ LIVE_SCHED[d]=[]; });
+                (liveShifts||[]).forEach(sh=>{
+                  const day=sh.day_of_week;
+                  if(!LIVE_SCHED[day]) LIVE_SCHED[day]=[];
+                  LIVE_SCHED[day].push({
+                    id:sh.id, eId:sh.user_id,
+                    s:sh.start_hour, e:sh.end_hour,
+                    role:sh.role_label||"",
+                    status:sh.status,
+                    empName:sh.users?sh.users.first_name+" "+sh.users.last_name:"",
+                    avatar:sh.users?.avatar_initials||"?",
+                    color:sh.users?.avatar_color||"#6366f1",
+                  });
+                });
+              }
+              const ACTIVE_SCHED = liveShifts!==null ? LIVE_SCHED : SCHED;
+
+              // Load shifts on tab open if not loaded
+              if(liveShifts===null&&ownerProfile?.org_id){
+                loadShifts(ownerProfile.org_id, currentWeekStr);
+              }
+
               // ── CORE CALCULATIONS ──
               const empWeekHrs = (eId) =>
-                Object.values(SCHED).flat().filter(s=>s.eId===eId)
+                Object.values(ACTIVE_SCHED).flat().filter(s=>s.eId===eId)
                   .reduce((sum,s)=>sum+(s.e-s.s),0);
               const dayCost = (day) =>
-                (SCHED[day]||[]).reduce((sum,s)=>{
-                  const e=byId(s.eId);
-                  return sum+(e?(s.e-s.s)*e.rate:0);
+                (ACTIVE_SCHED[day]||[]).reduce((sum,s)=>{
+                  const emp2=STAFF.find(e=>e.id===s.eId)||byId(s.eId);
+                  return sum+(emp2?(s.e-s.s)*(emp2.rate||15):0);
                 },0);
               const weekCost = DAYS.reduce((sum,d)=>sum+dayCost(d),0);
               const coverageAt = (day,hour) =>
-                (SCHED[day]||[]).filter(s=>s.s<=hour&&s.e>hour).length;
+                (ACTIVE_SCHED[day]||[]).filter(s=>s.s<=hour&&s.e>hour).length;
               const otRisk = (eId) => empWeekHrs(eId)>=38;
-              const totalShifts = Object.values(SCHED).flat().length;
-              const unscheduled = EMPS.filter(e=>empWeekHrs(e.id)===0).length;
-              const totalSchedHrs = EMPS.reduce((s,e)=>s+empWeekHrs(e.id),0);
-              const totalOTHrs = EMPS.filter(e=>empWeekHrs(e.id)>40)
+              const totalShifts = Object.values(ACTIVE_SCHED).flat().length;
+              const unscheduled = STAFF.filter(e=>empWeekHrs(e.id)===0).length;
+              const totalSchedHrs = STAFF.reduce((s,e)=>s+empWeekHrs(e.id),0);
+              const totalOTHrs = STAFF.filter(e=>empWeekHrs(e.id)>40)
                 .reduce((s,e)=>s+(empWeekHrs(e.id)-40),0);
 
               const SHIFT_TEMPLATES = [
