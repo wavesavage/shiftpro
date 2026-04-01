@@ -8,7 +8,7 @@ export default function DemoPage() {
   const [err, setErr] = useState(false);
 
   const attempt = () => {
-    if (pw.toLowerCase() === "shiftpro2025") {
+    if (pw.toLowerCase() === "shift") {
       setUnlocked(true);
     } else {
       setErr(true);
