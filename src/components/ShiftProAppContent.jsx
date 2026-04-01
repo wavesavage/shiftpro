@@ -796,6 +796,7 @@ function Login({onLogin}){
 function EmpPortal({emp,onLogout}){
   const [tab,setTab] = useState("home");
   const [clocked,setClocked] = useState(false);
+  const [empShifts,setEmpShifts] = useState(null);
   const [onBreak,setOnBreak] = useState(false);
   const [breakSecs,setBreakSecs] = useState(0);
   const [clockedAt,setClockedAt] = useState(null);
@@ -822,31 +823,28 @@ function EmpPortal({emp,onLogout}){
     return ()=>clearInterval(t);
   },[clocked,onBreak]);
 
-  const fmt = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
-  const h = now.getHours();
-  const greet = h<12 ? "Good morning" : h<17 ? "Good afternoon" : "Good evening";
-  const myShifts = Object.entries(SCHED).map(([d,ss])=>({d,ss:ss.filter(s=>s.eId===emp.id)})).filter(x=>x.ss.length>0);
-  // Real shifts from Supabase (loaded below)
-  const [empShifts,setEmpShifts] = useState(null);
   useEffect(()=>{
-    if(!emp?.id||!emp?.orgId) return;
-    const load=async()=>{
+    if(!emp?.id) return;
+    const loadEmpShifts=async()=>{
       try{
         const {createClient}=await import("@supabase/supabase-js");
         const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
         const today=new Date().toISOString().split("T")[0];
-        const future=new Date();future.setDate(future.getDate()+14);
         const {data:shifts}=await sb.from("shifts")
           .select("*").eq("user_id",emp.id)
           .gte("shift_date",today)
-          .lte("shift_date",future.toISOString().split("T")[0])
           .in("status",["scheduled","published","confirmed"])
           .order("shift_date");
         setEmpShifts(shifts||[]);
       }catch(e){ setEmpShifts([]); }
     };
-    load();
+    loadEmpShifts();
   },[emp?.id]);
+
+  const fmt = s => `${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor((s%3600)/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  const h = now.getHours();
+  const greet = h<12 ? "Good morning" : h<17 ? "Good afternoon" : "Good evening";
+  const myShifts = Object.entries(SCHED).map(([d,ss])=>({d,ss:ss.filter(s=>s.eId===emp.id)})).filter(x=>x.ss.length>0);
   const realShifts = empShifts||[];
   const unread = msgs.filter(m=>!m.read).length;
   const gross = (emp.wkHrs * emp.rate).toFixed(2);
@@ -13327,20 +13325,5 @@ export default function App(){
       {session?.role==="owner" && <OwnerCmd onLogout={logout}/>}
     </>
   );
-}      {/* Subtle footer links */}
-      <div style={{position:"relative",textAlign:"center",marginTop:22,
-        display:"flex",justifyContent:"center",gap:20,flexWrap:"wrap"}}>
-        {[
-          {label:"ABOUT",href:"/about"},
-          {label:"PRICING",href:"/about#el-lite"},
-          {label:"VIEW DEMO",href:"/demo",c:"rgba(0,212,255,0.35)"},
-        ].map((l,i)=>(
-          <a key={i} href={l.href}
-            style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,
-              color:l.c||"rgba(255,255,255,0.2)",letterSpacing:"1.5px",
-              textDecoration:"none"}}>
-            {l.label}
-          </a>
-        ))}
-      </div>
+}
 
