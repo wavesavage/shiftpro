@@ -2357,6 +2357,13 @@ function OwnerCmd({onLogout}){
   const [addOrgBusy,setAddOrgBusy]       = useState(false);
   const [addOrgErr,setAddOrgErr]         = useState("");
   const [addOrgForm,setAddOrgForm]       = useState({name:"",type:"Restaurant",address:"",empCount:"1-5"});
+  const [liveLocations,setLiveLocations]   = useState([]);
+  const [activeLocation,setActiveLocation] = useState(null);
+  const [locSwitcherOpen,setLocSwitcherOpen] = useState(false);
+  const [addLocOpen,setAddLocOpen]         = useState(false);
+  const [addLocBusy,setAddLocBusy]         = useState(false);
+  const [addLocErr,setAddLocErr]           = useState("");
+  const [addLocForm,setAddLocForm]         = useState({name:"",address:"",timezone:"America/Los_Angeles"});
   const [showInvite,setShowInvite] = useState(false);
   const [inviteForm,setInviteForm] = useState({firstName:"",lastName:"",email:"",role:"",dept:"Front End",rate:"15",locId:1});
   const [inviteBusy,setInviteBusy] = useState(false);
@@ -2473,6 +2480,13 @@ function OwnerCmd({onLogout}){
               .in("status",["active","invited"])
               .in("app_role",["employee","supervisor"])
               .order("first_name");
+            // Load all locations for this org
+            const {data:locs}=await sb.from("locations")
+              .select("*").eq("org_id",defaultOrg.id).eq("active",true).order("created_at");
+            if(locs&&locs.length>0){
+              setLiveLocations(locs);
+              setActiveLocation(locs[0]);
+            }
             setLiveEmps(emps&&emps.length>0 ? emps.map(mapEmp) : []);
           } else {
             setLiveEmps([]);
@@ -2491,15 +2505,41 @@ function OwnerCmd({onLogout}){
   },[]);
 
   // ── Load shifts for a week ──
-  const loadShifts = async(orgId, weekStr) => {
+  const loadShifts = async(orgId, weekStr, locId) => {
     try{
       const {createClient}=await import("@supabase/supabase-js");
       const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-      const {data:shifts}=await sb.from("shifts")
+      let q=sb.from("shifts")
         .select("*, users(first_name,last_name,avatar_initials,avatar_color,role)")
         .eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
+      if(locId) q=q.eq("location_id",locId);
+      const {data:shifts}=await q;
       setLiveShifts(shifts||[]);
     }catch(e){ setLiveShifts([]); }
+  };
+
+  const loadEmployeesForLocation = async(orgId, locationId) => {
+    try{
+      const {createClient}=await import("@supabase/supabase-js");
+      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const mapE=e=>({
+        id:e.id,name:e.first_name+" "+e.last_name,first:e.first_name,
+        role:e.role||"Employee",dept:e.department||"",
+        rate:parseFloat(e.hourly_rate)||15,
+        avatar:e.avatar_initials||(e.first_name[0]+(e.last_name||"")[0]||"?").toUpperCase(),
+        color:e.avatar_color||"#6366f1",email:e.email||"",
+        status:e.status==="active"?"active":"invited",hired:e.hire_date||"",
+        wkHrs:0,moHrs:0,ot:0,cam:85,prod:80,rel:85,flags:0,streak:0,
+        shifts:0,risk:"Low",ghost:0,orgId:e.org_id,locId:e.location_id,
+        appRole:e.app_role,pin:e.pin||"",
+      });
+      let q=sb.from("users").select("*").eq("org_id",orgId)
+        .in("status",["active","invited"])
+        .in("app_role",["employee","supervisor"]).order("first_name");
+      if(locationId) q=q.eq("location_id",locationId);
+      const {data:emps}=await q;
+      setLiveEmps(emps&&emps.length>0?emps.map(mapE):[]);
+    }catch(e){ setLiveEmps([]); }
   };
 
   const addShift = async(sd) => {
@@ -2507,12 +2547,12 @@ function OwnerCmd({onLogout}){
       const {createClient}=await import("@supabase/supabase-js");
       const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       await sb.from("shifts").insert({
-        org_id:ownerProfile?.org_id, location_id:ownerProfile?.location_id,
+        org_id:ownerProfile?.org_id, location_id:activeLocation?.id||ownerProfile?.location_id,
         user_id:sd.userId, week_start:sd.weekStart, day_of_week:sd.day,
         shift_date:sd.date, start_hour:sd.start, end_hour:sd.end,
         role_label:sd.role||"", status:"scheduled", created_by:ownerProfile?.id,
       });
-      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, sd.weekStart);
+      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id,sd.weekStart,activeLocation?.id||null);
     }catch(e){}
   };
 
@@ -2521,7 +2561,7 @@ function OwnerCmd({onLogout}){
       const {createClient}=await import("@supabase/supabase-js");
       const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       await sb.from("shifts").delete().eq("id",shiftId);
-      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart);
+      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id,weekStart,activeLocation?.id||null);
     }catch(e){}
   };
 
@@ -2532,7 +2572,7 @@ function OwnerCmd({onLogout}){
       await sb.from("shifts").update({status:"published"})
         .eq("org_id",ownerProfile?.org_id).eq("week_start",weekStart);
       setSchedPublished(true);
-      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart);
+      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id,weekStart,activeLocation?.id||null);
     }catch(e){}
   };
 
@@ -2559,6 +2599,119 @@ function OwnerCmd({onLogout}){
 
   return (
     <div style={{minHeight:"100vh",background:O.bg,fontFamily:O.sans,color:O.text}}>
+
+      {/* ── ADD LOCATION MODAL ── */}
+      {addLocOpen&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",
+          zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",
+          padding:"20px",backdropFilter:"blur(10px)"}}
+          onClick={e=>{if(e.target===e.currentTarget){setAddLocOpen(false);setAddLocErr("");}}}>
+          <div style={{background:"rgba(9,14,26,0.98)",border:"1px solid rgba(6,182,212,0.3)",
+            borderRadius:16,padding:"28px",width:"100%",maxWidth:440,
+            boxShadow:"0 20px 60px rgba(0,0,0,0.6)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:"#06b6d4",letterSpacing:"2px",marginBottom:4}}>
+                  ADD LOCATION
+                </div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:"#fff"}}>
+                  New Physical Location
+                </div>
+              </div>
+              <button onClick={()=>{setAddLocOpen(false);setAddLocErr("");}}
+                style={{background:"none",border:"none",color:O.textF,fontSize:22,cursor:"pointer"}}>x</button>
+            </div>
+            <div style={{background:"rgba(6,182,212,0.06)",border:"1px solid rgba(6,182,212,0.15)",
+              borderRadius:8,padding:"10px 14px",marginBottom:20,
+              display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:16}}>🏢</span>
+              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>
+                Adding location to{" "}
+                <strong style={{color:"#fff"}}>{activeOrg?.name||ownerOrg?.name}</strong>.
+                Each location has its own team, schedule, and payroll.
+              </div>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>
+                LOCATION NAME *
+              </div>
+              <input value={addLocForm.name}
+                onChange={e=>setAddLocForm(p=>({...p,name:e.target.value}))}
+                placeholder="Main Bar, Patio, Warehouse, Downtown..."
+                style={{width:"100%",padding:"10px 12px",background:"rgba(255,255,255,0.05)",
+                  border:"1px solid rgba(6,182,212,0.2)",borderRadius:7,fontFamily:O.mono,
+                  fontSize:12,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>
+                STREET ADDRESS
+              </div>
+              <input value={addLocForm.address}
+                onChange={e=>setAddLocForm(p=>({...p,address:e.target.value}))}
+                placeholder="123 Main St, Newport, OR 97365"
+                style={{width:"100%",padding:"10px 12px",background:"rgba(255,255,255,0.05)",
+                  border:"1px solid rgba(6,182,212,0.2)",borderRadius:7,fontFamily:O.mono,
+                  fontSize:12,color:"#fff",outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{marginBottom:20}}>
+              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",marginBottom:5}}>
+                TIMEZONE
+              </div>
+              <select value={addLocForm.timezone}
+                onChange={e=>setAddLocForm(p=>({...p,timezone:e.target.value}))}
+                style={{width:"100%",padding:"10px 12px",background:"rgba(9,14,26,0.9)",
+                  border:"1px solid rgba(6,182,212,0.2)",borderRadius:7,fontFamily:O.mono,
+                  fontSize:11,color:"#fff",outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                {[
+                  ["America/Los_Angeles","Pacific Time (PT)"],
+                  ["America/Denver","Mountain Time (MT)"],
+                  ["America/Chicago","Central Time (CT)"],
+                  ["America/New_York","Eastern Time (ET)"],
+                  ["America/Anchorage","Alaska Time (AKT)"],
+                  ["Pacific/Honolulu","Hawaii Time (HST)"],
+                ].map(([val,label])=>(
+                  <option key={val} value={val} style={{background:"#0d1623"}}>{label}</option>
+                ))}
+              </select>
+            </div>
+            {addLocErr&&(
+              <div style={{fontFamily:O.mono,fontSize:9,color:O.red,marginBottom:12,
+                padding:"7px 10px",background:"rgba(239,68,68,0.07)",
+                border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>{addLocErr}</div>
+            )}
+            <button
+              onClick={async()=>{
+                if(!addLocForm.name){setAddLocErr("Location name is required.");return;}
+                setAddLocBusy(true);setAddLocErr("");
+                try{
+                  const {createClient}=await import("@supabase/supabase-js");
+                  const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                  const orgId=activeOrg?.id||ownerProfile?.org_id;
+                  const {data:newLoc,error:locErr}=await sb.from("locations")
+                    .insert({org_id:orgId,name:addLocForm.name,
+                      address:addLocForm.address||"",timezone:addLocForm.timezone,active:true})
+                    .select().single();
+                  if(locErr) throw locErr;
+                  setLiveLocations(prev=>[...prev,newLoc]);
+                  setActiveLocation(newLoc);
+                  setLiveEmps([]);setLiveShifts(null);setLivePayroll(null);
+                  setAddLocOpen(false);
+                  setAddLocForm({name:"",address:"",timezone:"America/Los_Angeles"});
+                  setTab("staff");
+                }catch(err){
+                  setAddLocErr(err.message||"Failed to create location.");
+                }finally{setAddLocBusy(false);}
+              }}
+              style={{width:"100%",padding:"13px",
+                background:addLocBusy?"rgba(6,182,212,0.4)":"linear-gradient(135deg,#06b6d4,#0891b2)",
+                border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,
+                color:"#fff",cursor:addLocBusy?"not-allowed":"pointer",
+                boxShadow:"0 4px 18px rgba(6,182,212,0.3)"}}>
+              {addLocBusy?"Creating location...":"Create Location and Switch"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── ADD COMPANY MODAL ── */}
       {addOrgOpen&&(
@@ -2834,6 +2987,11 @@ function OwnerCmd({onLogout}){
                             risk:"Low",ghost:0,orgId:e.org_id,locId:e.location_id,
                             appRole:e.app_role,pin:"",
                           })):[]);
+                          // Reload locations for new company
+                          const {data:orgLocs}=await sb.from("locations")
+                            .select("*").eq("org_id",org.id).eq("active",true).order("created_at");
+                          setLiveLocations(orgLocs||[]);
+                          setActiveLocation(orgLocs&&orgLocs.length>0?orgLocs[0]:null);
                         }catch(e){setLiveEmps([]);}
                         setTab("command");
                       }}
@@ -2881,6 +3039,111 @@ function OwnerCmd({onLogout}){
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          {/* ── Location Switcher ── */}
+          {liveLocations.length>0&&(
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{color:"rgba(255,255,255,0.15)",fontSize:12}}>›</span>
+              <div style={{position:"relative"}}>
+                <button onClick={()=>setLocSwitcherOpen(o=>!o)}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",
+                    background:"rgba(6,182,212,0.08)",border:"1px solid rgba(6,182,212,0.2)",
+                    borderRadius:6,cursor:"pointer",transition:"all 0.2s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(6,182,212,0.15)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="rgba(6,182,212,0.08)"}>
+                  <span style={{fontSize:10}}>📍</span>
+                  <span style={{fontFamily:O.mono,fontSize:9,color:"#06b6d4",letterSpacing:1,
+                    maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {activeLocation?.name||"All Locations"}
+                  </span>
+                  <span style={{color:"#06b6d4",fontSize:9}}>{locSwitcherOpen?"▴":"▾"}</span>
+                </button>
+                {locSwitcherOpen&&(
+                  <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,
+                    background:"rgba(9,14,26,0.98)",border:"1px solid rgba(6,182,212,0.2)",
+                    borderRadius:12,padding:8,minWidth:240,zIndex:300,
+                    boxShadow:"0 16px 48px rgba(0,0,0,0.6)"}}
+                    onClick={e=>e.stopPropagation()}>
+                    <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                      letterSpacing:"2px",padding:"4px 8px 8px"}}>LOCATIONS</div>
+                    {liveLocations.length>1&&(
+                      <button
+                        onClick={async()=>{
+                          setLocSwitcherOpen(false);setActiveLocation(null);
+                          setLiveShifts(null);setLivePayroll(null);
+                          await loadEmployeesForLocation(activeOrg?.id||ownerProfile?.org_id,null);
+                        }}
+                        style={{width:"100%",display:"flex",alignItems:"center",gap:10,
+                          padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",
+                          textAlign:"left",background:!activeLocation?"rgba(6,182,212,0.1)":"none"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
+                        onMouseLeave={e=>e.currentTarget.style.background=!activeLocation?"rgba(6,182,212,0.1)":"none"}>
+                        <div style={{width:30,height:30,borderRadius:7,flexShrink:0,
+                          background:"rgba(6,182,212,0.15)",border:"1px solid rgba(6,182,212,0.3)",
+                          display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🌐</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff"}}>All Locations</div>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:1}}>
+                            {liveLocations.length} locations
+                          </div>
+                        </div>
+                        {!activeLocation&&<span style={{color:"#06b6d4",fontSize:13}}>✓</span>}
+                      </button>
+                    )}
+                    {liveLocations.map((loc,idx)=>(
+                      <button key={loc.id}
+                        onClick={async()=>{
+                          setLocSwitcherOpen(false);
+                          if(loc.id===activeLocation?.id) return;
+                          setActiveLocation(loc);setLiveShifts(null);setLivePayroll(null);
+                          await loadEmployeesForLocation(activeOrg?.id||ownerProfile?.org_id,loc.id);
+                        }}
+                        style={{width:"100%",display:"flex",alignItems:"center",gap:10,
+                          padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",
+                          textAlign:"left",
+                          background:activeLocation?.id===loc.id?"rgba(6,182,212,0.1)":"none"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
+                        onMouseLeave={e=>e.currentTarget.style.background=activeLocation?.id===loc.id?"rgba(6,182,212,0.1)":"none"}>
+                        <div style={{width:30,height:30,borderRadius:7,flexShrink:0,
+                          background:"linear-gradient(135deg,#06b6d4,#0891b2)",
+                          display:"flex",alignItems:"center",justifyContent:"center",
+                          fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff"}}>
+                          {idx+1}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",
+                            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {loc.name}
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {loc.address||"No address set"}
+                          </div>
+                        </div>
+                        {activeLocation?.id===loc.id&&(
+                          <span style={{color:"#06b6d4",fontSize:13,flexShrink:0}}>✓</span>
+                        )}
+                      </button>
+                    ))}
+                    <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",marginTop:6,paddingTop:6}}>
+                      <button onClick={()=>{setLocSwitcherOpen(false);setAddLocOpen(true);setAddLocErr("");}}
+                        style={{width:"100%",display:"flex",alignItems:"center",gap:10,
+                          padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",background:"none"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(16,185,129,0.08)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <div style={{width:30,height:30,borderRadius:7,flexShrink:0,
+                          background:"rgba(16,185,129,0.1)",border:"1px dashed rgba(16,185,129,0.35)",
+                          display:"flex",alignItems:"center",justifyContent:"center",
+                          fontSize:18,color:O.green}}>+</div>
+                        <span style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green}}>
+                          Add New Location
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -3053,6 +3316,64 @@ function OwnerCmd({onLogout}){
 
               return (
                 <div>
+                  {/* Location cards overview */}
+                  {liveLocations.length>1&&(
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,
+                        letterSpacing:"2.5px",marginBottom:8}}>YOUR LOCATIONS</div>
+                      <div style={{display:"grid",
+                        gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8}}>
+                        {liveLocations.map((loc,idx)=>(
+                          <button key={loc.id}
+                            onClick={async()=>{
+                              if(loc.id===activeLocation?.id) return;
+                              setActiveLocation(loc);setLiveShifts(null);setLivePayroll(null);
+                              await loadEmployeesForLocation(activeOrg?.id||ownerProfile?.org_id,loc.id);
+                            }}
+                            style={{padding:"14px",textAlign:"left",cursor:"pointer",
+                              borderRadius:10,transition:"all 0.15s",
+                              background:activeLocation?.id===loc.id?"rgba(6,182,212,0.1)":"rgba(255,255,255,0.03)",
+                              border:"1px solid "+(activeLocation?.id===loc.id?"rgba(6,182,212,0.35)":"rgba(255,255,255,0.08)")}}
+                            onMouseEnter={e=>{e.currentTarget.style.background="rgba(6,182,212,0.08)";e.currentTarget.style.borderColor="rgba(6,182,212,0.3)";}}
+                            onMouseLeave={e=>{e.currentTarget.style.background=activeLocation?.id===loc.id?"rgba(6,182,212,0.1)":"rgba(255,255,255,0.03)";e.currentTarget.style.borderColor=activeLocation?.id===loc.id?"rgba(6,182,212,0.35)":"rgba(255,255,255,0.08)";}}>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                              <div style={{width:24,height:24,borderRadius:5,
+                                background:"linear-gradient(135deg,#06b6d4,#0891b2)",
+                                display:"flex",alignItems:"center",justifyContent:"center",
+                                fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff"}}>
+                                {idx+1}
+                              </div>
+                              {activeLocation?.id===loc.id&&(
+                                <div style={{fontFamily:O.mono,fontSize:6,color:"#06b6d4",
+                                  letterSpacing:1,background:"rgba(6,182,212,0.12)",
+                                  border:"1px solid rgba(6,182,212,0.25)",
+                                  borderRadius:8,padding:"2px 6px"}}>ACTIVE</div>
+                              )}
+                            </div>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",
+                              marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                              {loc.name}
+                            </div>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,
+                              overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                              {loc.address||"No address"}
+                            </div>
+                          </button>
+                        ))}
+                        <button onClick={()=>setAddLocOpen(true)}
+                          style={{padding:"14px",background:"none",cursor:"pointer",
+                            border:"1px dashed rgba(16,185,129,0.25)",borderRadius:10,
+                            display:"flex",flexDirection:"column",alignItems:"center",
+                            justifyContent:"center",gap:5,minHeight:76,transition:"all 0.15s"}}
+                          onMouseEnter={e=>{e.currentTarget.style.background="rgba(16,185,129,0.06)";e.currentTarget.style.borderColor="rgba(16,185,129,0.4)";}}
+                          onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.borderColor="rgba(16,185,129,0.25)";}}>
+                          <span style={{fontSize:20,color:O.green}}>+</span>
+                          <span style={{fontFamily:O.mono,fontSize:7,color:O.green,letterSpacing:1}}>ADD LOCATION</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Company context banner */}
                   <div style={{display:"flex",alignItems:"center",gap:12,
                     padding:"12px 16px",background:O.bg2,
@@ -3338,7 +3659,7 @@ function OwnerCmd({onLogout}){
                               headers:{"Content-Type":"application/json"},
                               body:JSON.stringify({email:inviteForm.email,firstName:inviteForm.firstName,
                                 lastName:inviteForm.lastName,orgId:ownerProfile?.org_id||null,
-                                locationId:ownerProfile?.location_id||null,
+                                locationId:activeLocation?.id||ownerProfile?.location_id||null,
                                 role:inviteForm.role||"Employee",
                                 department:inviteForm.dept,hourlyRate:inviteForm.rate})});
                             const result=await res.json();
@@ -3375,6 +3696,31 @@ function OwnerCmd({onLogout}){
                 </div>
               </div>
             )}
+
+            {/* Location context strip */}
+            <div style={{display:"flex",alignItems:"center",gap:10,
+              padding:"10px 14px",background:"rgba(6,182,212,0.05)",
+              border:"1px solid rgba(6,182,212,0.12)",
+              borderRadius:9,marginBottom:16}}>
+              <span style={{fontSize:13}}>📍</span>
+              <span style={{fontFamily:O.mono,fontSize:9,color:"#06b6d4",letterSpacing:1,flex:1}}>
+                {activeLocation?.name||"All Locations"} — {liveEmps?.length||0} employee{(liveEmps?.length||0)!==1?"s":""}
+              </span>
+              {liveLocations.length>1&&(
+                <button onClick={()=>setLocSwitcherOpen(true)}
+                  style={{fontFamily:O.mono,fontSize:8,color:"#06b6d4",background:"none",
+                    border:"1px solid rgba(6,182,212,0.2)",borderRadius:5,
+                    padding:"4px 10px",cursor:"pointer",letterSpacing:1}}>
+                  SWITCH
+                </button>
+              )}
+              <button onClick={()=>setAddLocOpen(true)}
+                style={{fontFamily:O.mono,fontSize:8,color:O.green,background:"none",
+                  border:"1px solid rgba(16,185,129,0.2)",borderRadius:5,
+                  padding:"4px 10px",cursor:"pointer",letterSpacing:1}}>
+                + ADD LOCATION
+              </button>
+            </div>
 
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
               <div>
@@ -3560,6 +3906,30 @@ function OwnerCmd({onLogout}){
               </div>
             )}
 
+            {/* Location context */}
+            <div style={{display:"flex",alignItems:"center",gap:10,
+              padding:"8px 14px",background:"rgba(6,182,212,0.04)",
+              border:"1px solid rgba(6,182,212,0.1)",borderRadius:8,marginBottom:14}}>
+              <span style={{fontSize:12}}>📍</span>
+              <span style={{fontFamily:O.mono,fontSize:9,color:"#06b6d4",letterSpacing:1,flex:1}}>
+                {activeLocation?.name||"All Locations"}
+              </span>
+              {liveLocations.length>1&&(
+                <button onClick={()=>setLocSwitcherOpen(true)}
+                  style={{fontFamily:O.mono,fontSize:8,color:O.textF,background:"none",
+                    border:"1px solid "+O.border,borderRadius:4,padding:"3px 8px",
+                    cursor:"pointer",letterSpacing:1}}>
+                  SWITCH LOCATION
+                </button>
+              )}
+              <button onClick={()=>setAddLocOpen(true)}
+                style={{fontFamily:O.mono,fontSize:8,color:O.green,background:"none",
+                  border:"1px solid rgba(16,185,129,0.2)",borderRadius:4,
+                  padding:"3px 8px",cursor:"pointer",letterSpacing:1}}>
+                + ADD
+              </button>
+            </div>
+
             {/* Header */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
               <div>
@@ -3615,7 +3985,7 @@ function OwnerCmd({onLogout}){
 
             {/* Loading shifts */}
             {liveShifts===null&&ownerProfile?.org_id&&(()=>{
-              loadShifts(ownerProfile.org_id, getMonday());
+              loadShifts(ownerProfile.org_id, getMonday(), activeLocation?.id||null);
               return (
                 <div style={{textAlign:"center",padding:"40px 20px"}}>
                   <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,letterSpacing:2,animation:"blink 1.5s infinite"}}>
@@ -3737,17 +4107,37 @@ function OwnerCmd({onLogout}){
                   const {createClient}=await import("@supabase/supabase-js");
                   const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
                   const start=new Date();start.setDate(start.getDate()-14);
-                  const {data:events}=await sb.from("clock_events")
+                  let payQ=sb.from("clock_events")
                     .select("*, users(first_name,last_name,hourly_rate,role,avatar_initials,avatar_color)")
                     .eq("org_id",ownerProfile.org_id)
                     .gte("occurred_at",start.toISOString())
                     .order("occurred_at",{ascending:true});
+                  if(activeLocation) payQ=payQ.eq("location_id",activeLocation.id);
+                  const {data:events}=await payQ;
                   setLivePayroll(events||[]);
                 }catch(e){ setLivePayroll([]); }
               };
               load();
               return null;
             })()}
+
+            {/* Location context */}
+            <div style={{display:"flex",alignItems:"center",gap:10,
+              padding:"8px 14px",background:"rgba(6,182,212,0.04)",
+              border:"1px solid rgba(6,182,212,0.1)",borderRadius:8,marginBottom:14}}>
+              <span style={{fontSize:12}}>📍</span>
+              <span style={{fontFamily:O.mono,fontSize:9,color:"#06b6d4",letterSpacing:1,flex:1}}>
+                {activeLocation?.name||"All Locations"}
+              </span>
+              {liveLocations.length>1&&(
+                <button onClick={()=>setLocSwitcherOpen(true)}
+                  style={{fontFamily:O.mono,fontSize:8,color:O.textF,background:"none",
+                    border:"1px solid "+O.border,borderRadius:4,padding:"3px 8px",
+                    cursor:"pointer",letterSpacing:1}}>
+                  SWITCH
+                </button>
+              )}
+            </div>
 
             {/* Header */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
