@@ -1925,21 +1925,25 @@ function SettingsTab({
 
   const saveProfile = async () => {
     setSettingsSaveBusy(true);
+    // Always save to localStorage immediately (works even if Supabase RLS blocks)
+    try{ localStorage.setItem("shiftpro_org_profile", JSON.stringify(settingsProfile)); }catch(e){}
     try {
       const {createClient} = await import("@supabase/supabase-js");
       const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       const orgId = activeOrg?.id;
       if(orgId) {
-        await sb.from("organizations").update({
+        const {error, count} = await sb.from("organizations").update({
           name: settingsProfile.name,
           industry: settingsProfile.type,
           address: settingsProfile.address,
           phone: settingsProfile.phone,
         }).eq("id", orgId);
+        if(error) throw error;
       }
       toast("Settings saved ✓", "success");
     } catch(e) {
-      toast("Failed to save: "+e.message, "error");
+      // localStorage save already happened — data will persist locally
+      toast("Saved locally. To sync across devices, run the RLS fix in Supabase (see Settings).","success");
     } finally {
       setSettingsSaveBusy(false);
     }
@@ -1969,21 +1973,40 @@ function SettingsTab({
   const addDept = () => {
     const trimmed = settingsNewDept.trim();
     if(!trimmed || settingsDepts.includes(trimmed)) return;
-    setSettingsDepts(prev=>[...prev, trimmed]);
+    const updated = [...settingsDepts, trimmed];
+    setSettingsDepts(updated);
+    try{ localStorage.setItem("shiftpro_departments", JSON.stringify(updated)); }catch(e){}
     setSettingsNewDept("");
     setSettingsAddingDept(false);
     toast("Department added ✓", "success");
   };
 
   const removeDept = (dept) => {
-    setSettingsDepts(prev=>prev.filter(d=>d!==dept));
+    const updated = settingsDepts.filter(d=>d!==dept);
+    setSettingsDepts(updated);
+    try{ localStorage.setItem("shiftpro_departments", JSON.stringify(updated)); }catch(e){}
   };
 
   return (
     <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
-      <div style={{marginBottom:22}}>
+      <div style={{marginBottom:16}}>
         <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Settings</div>
         <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Business Settings</div>
+      </div>
+
+      {/* Supabase sync notice */}
+      <div style={{background:"rgba(37,99,235,0.06)",border:"1px solid rgba(37,99,235,0.18)",borderRadius:10,padding:"12px 16px",marginBottom:18,display:"flex",alignItems:"flex-start",gap:10}}>
+        <span style={{fontSize:16,flexShrink:0}}>💾</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.blue,marginBottom:3}}>Settings save locally instantly</div>
+          <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.5}}>
+            Your data persists on this device right away. To sync across all devices run this in your{" "}
+            <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" style={{color:O.blue}}>Supabase SQL Editor</a>:
+          </div>
+          <code style={{fontFamily:O.mono,fontSize:9,background:O.bg3,padding:"4px 8px",borderRadius:4,display:"block",marginTop:5,lineHeight:1.6,wordBreak:"break-all",color:O.textD}}>
+            {'CREATE POLICY "owners_update_org" ON organizations FOR UPDATE TO authenticated USING (id IN (SELECT org_id FROM owner_organizations WHERE owner_id = auth.uid())) WITH CHECK (id IN (SELECT org_id FROM owner_organizations WHERE owner_id = auth.uid()));'}
+          </code>
+        </div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:16}}>
@@ -2613,9 +2636,19 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [payPeriod,setPayPeriod] = useState("current");
 
   // ── Settings state ──
-  const [settingsProfile,setSettingsProfile] = useState({name:"",type:"Restaurant",address:"",phone:""});
+  const [settingsProfile,setSettingsProfile] = useState(()=>{
+    try{
+      const cached = typeof window!=="undefined" && localStorage.getItem("shiftpro_org_profile");
+      return cached ? JSON.parse(cached) : {name:"",type:"Restaurant",address:"",phone:""};
+    }catch(e){ return {name:"",type:"Restaurant",address:"",phone:""}; }
+  });
   const [settingsPay,setSettingsPay] = useState({period:"Bi-weekly",otThreshold:"40",shiftLen:"8",weekStart:"Mon"});
-  const [settingsDepts,setSettingsDepts] = useState(["Front End","Sales Floor","Inventory","Operations","Kitchen","Bar"]);
+  const [settingsDepts,setSettingsDepts] = useState(()=>{
+    try{
+      const cached = typeof window!=="undefined" && localStorage.getItem("shiftpro_departments");
+      return cached ? JSON.parse(cached) : ["Front End","Sales Floor","Inventory","Operations","Kitchen","Bar"];
+    }catch(e){ return ["Front End","Sales Floor","Inventory","Operations","Kitchen","Bar"]; }
+  });
   const [settingsNewDept,setSettingsNewDept] = useState("");
   const [settingsAddingDept,setSettingsAddingDept] = useState(false);
   const [settingsSaveBusy,setSettingsSaveBusy] = useState(false);
@@ -2748,13 +2781,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         if(defaultOrg){
           setActiveOrg(defaultOrg);
           setOwnerOrg(defaultOrg);
-          setSettingsProfile(p=>({
-            ...p,
+          const profileData = {
             name: defaultOrg.name||"",
             type: defaultOrg.industry||"Restaurant",
             address: defaultOrg.address||"",
             phone: defaultOrg.phone||"",
-          }));
+          };
+          setSettingsProfile(p=>({...p,...profileData}));
+          // Cache to localStorage so it survives page refreshes
+          try{ localStorage.setItem("shiftpro_org_profile", JSON.stringify(profileData)); }catch(e){}
         }
 
         if(orgId){
@@ -2768,7 +2803,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             setLiveLocations(locs);
             // Check sessionStorage for previously selected location
             const savedLocId = typeof window!=="undefined" ? localStorage.getItem("shiftpro_active_loc") : null;
-            const savedLoc = savedLocId ? locs.find(l=>l.id===savedLocId) : null;
+            // Try to find from Supabase results first, fallback to cached full object
+            const savedLoc = savedLocId ? (locs.find(l=>l.id===savedLocId) || (() => {
+              try{ const c=localStorage.getItem("shiftpro_active_loc_obj"); return c?JSON.parse(c):null; }catch(e){return null;}
+            })()) : null;
             if(savedLoc){
               setActiveLocation(savedLoc);
               setLocationGate("ready");
@@ -2862,7 +2900,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const selectLocation = (loc) => {
     setActiveLocation(loc);
-    if(typeof window!=="undefined") localStorage.setItem("shiftpro_active_loc", loc.id);
+    if(typeof window!=="undefined"){
+      localStorage.setItem("shiftpro_active_loc", loc.id);
+      try{ localStorage.setItem("shiftpro_active_loc_obj", JSON.stringify(loc)); }catch(e){}
+    }
     setLocationGate("ready");
     setLiveShifts(null);
     setLivePayroll(null);
