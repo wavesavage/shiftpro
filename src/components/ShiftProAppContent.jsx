@@ -396,8 +396,7 @@ function Login({onLogin}){
     if(!email||!pass){setErr("Please enter your email and password.");return;}
     setBusy(true); setErr("");
     try{
-      const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
       let profile = null;
@@ -431,8 +430,7 @@ function Login({onLogin}){
     if(!email||!pass){setErr("Please enter your email and password.");return;}
     setBusy(true); setErr("");
     try{
-      const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
       const {data:profile} = await sb.from("users").select("*").eq("id",data.user.id).single();
@@ -468,8 +466,7 @@ function Login({onLogin}){
     if(!email){setErr("Enter your email first.");return;}
     setBusy(true); setErr("");
     try{
-      const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       await sb.auth.resetPasswordForEmail(email,{redirectTo: window.location.origin+"/login"});
       setResetSent(true);
     }catch(e){
@@ -654,8 +651,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
   const finish = async() => {
     setBusy(true);
     try{
-      const {createClient}=await import("@supabase/supabase-js");
-      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb=await getSB();
       await sb.from("users").update({
         first_name:form.firstName, last_name:form.lastName,
         preferred_name:form.preferredName||null,
@@ -850,8 +846,7 @@ function EmpPortal({emp,onLogout}){
     if(!empSafe.id) return;
     const load=async()=>{
       try{
-        const {createClient}=await import("@supabase/supabase-js");
-        const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+        const sb=await getSB();
         const today=new Date().toISOString().split("T")[0];
         const {data:shifts}=await sb.from("shifts").select("*").eq("user_id",empSafe.id).gte("shift_date",today).in("status",["scheduled","published","confirmed"]).order("shift_date");
         setEmpShifts(shifts||[]);
@@ -946,8 +941,7 @@ function EmpPortal({emp,onLogout}){
                   <button onClick={async()=>{
                     setClocked(true);setClockedAt(new Date());
                     try{
-                      const {createClient}=await import("@supabase/supabase-js");
-                      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                      const sb=await getSB();
                       await sb.from("clock_events").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,event_type:"clock_in",occurred_at:new Date().toISOString()});
                       setSyncMsg("✓ Clocked in");setTimeout(()=>setSyncMsg(""),2000);
                     }catch(e){setSyncMsg("⚠ Sync failed");}
@@ -959,8 +953,7 @@ function EmpPortal({emp,onLogout}){
                     <button onClick={async()=>{
                       const nowBreak=!onBreak;setOnBreak(b=>!b);
                       try{
-                        const {createClient}=await import("@supabase/supabase-js");
-                        const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                        const sb=await getSB();
                         await sb.from("clock_events").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,event_type:nowBreak?"break_start":"break_end",occurred_at:new Date().toISOString()});
                         setSyncMsg(nowBreak?"✓ Break started":"✓ Back on shift");setTimeout(()=>setSyncMsg(""),2000);
                       }catch(e){setSyncMsg("⚠ Sync failed");}
@@ -972,8 +965,7 @@ function EmpPortal({emp,onLogout}){
                       if(window.confirm("Clock out now?\n\nShift: "+fmt(secs)+"\nBreak: "+fmt(breakSecs)+"\n\nOK to confirm.")){
                         setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
                         try{
-                          const {createClient}=await import("@supabase/supabase-js");
-                          const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                          const sb=await getSB();
                           await sb.from("clock_events").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,event_type:"clock_out",occurred_at:new Date().toISOString()});
                           setSyncMsg("✓ Clocked out");setTimeout(()=>setSyncMsg(""),3000);
                         }catch(e){setSyncMsg("⚠ Sync failed");}
@@ -1031,8 +1023,7 @@ function EmpPortal({emp,onLogout}){
           const saveAvail = async() => {
             setAvailBusy(true);
             try{
-              const {createClient}=await import("@supabase/supabase-js");
-              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+              const sb=await getSB();
               const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({user_id:empSafe.id,org_id:empSafe.orgId||null,day_of_week:day,status,recurring:availRecurring}));
               if(rows.length>0){
                 await sb.from("availability").upsert(rows,{onConflict:"user_id,day_of_week"});
@@ -1330,8 +1321,7 @@ function LocationGateNone({ activeOrg, ownerProfile, setLiveLocations, toast, se
             if(!form.name){setErr("Location name is required.");return;}
             setBusy(true);setErr("");
             try{
-              const {createClient}=await import("@supabase/supabase-js");
-              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+              const sb=await getSB();
               const {data:{session}}=await sb.auth.getSession();
               let orgId=activeOrg?.id||ownerProfile?.org_id;
               if(!orgId){
@@ -1515,7 +1505,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
     setSaveBusy(true);
     try {
       const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       await sb.from("users").update({
         role: editForm.role,
         department: editForm.dept,
@@ -1540,7 +1530,7 @@ They will lose access to ShiftPro. You can reactivate them later.`)) return;
     setDeactivateBusy(true);
     try {
       const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       await sb.from("users").update({status:"inactive"}).eq("id",emp.id);
       if(ownerProfile?.org_id) {
         const {data:emps} = await sb.from("users").select("*").eq("org_id",ownerProfile.org_id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
@@ -1615,8 +1605,7 @@ They will lose access to ShiftPro. You can reactivate them later.`)) return;
                   if(!msgText.trim()) return;
                   setMsgBusy(true);
                   try{
-                    const {createClient}=await import("@supabase/supabase-js");
-                    const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                    const sb=await getSB();
                     const {data:{session}}=await sb.auth.getSession();
                     await sb.from("messages").insert({org_id:ownerProfile?.org_id||null,from_id:session?.user?.id||null,to_id:emp.id,subject:"Message from manager",body:msgText.trim(),read:false});
                     setMsgSent(true);setMsgText("");
@@ -2175,7 +2164,7 @@ function SettingsTab({
     try{ localStorage.setItem("shiftpro_org_profile", JSON.stringify(settingsProfile)); }catch(e){}
     try {
       const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       const orgId = activeOrg?.id;
       if(orgId) {
         const {error, count} = await sb.from("organizations").update({
@@ -2202,7 +2191,7 @@ function SettingsTab({
     setSettingsPwBusy(true); setSettingsPwMsg("");
     try {
       const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       const {error} = await sb.auth.updateUser({password: settingsPw1});
       if(error) throw error;
       setSettingsPwMsg("✓ Password updated successfully!");
@@ -2478,7 +2467,7 @@ function SettingsTab({
             <button
               onClick={async()=>{
                 if(!window.confirm("Sign out of ShiftPro?")) return;
-                try{const {createClient}=await import("@supabase/supabase-js");const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);await sb.auth.signOut();}catch(e){}
+                try{const sb=await getSB();await sb.auth.signOut();}catch(e){}
                 onLogout();
               }}
               style={{width:"100%",padding:"10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.red,cursor:"pointer"}}>
@@ -2563,8 +2552,7 @@ function AddLocationModal({
             if(!addLocForm.name){setAddLocErr("Location name is required.");return;}
             setAddLocBusy(true);setAddLocErr("");
             try{
-              const {createClient}=await import("@supabase/supabase-js");
-              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+              const sb=await getSB();
               const {data:{session}}=await sb.auth.getSession();
               let orgId=activeOrg?.id||ownerProfile?.org_id;
               if(!orgId){
@@ -2714,8 +2702,7 @@ function InviteModal({
                   });
                   const result=await res.json();
                   if(!res.ok) throw new Error(result.error||"Invite failed");
-                  const {createClient}=await import("@supabase/supabase-js");
-                  const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                  const sb=await getSB();
                   const {data:emps}=await sb.from("users").select("*").eq("org_id",ownerProfile?.org_id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
                   if(emps) setLiveEmps(emps.map(mapEmp));
                   setInviteDone("Invite sent to "+inviteForm.email+"!");
@@ -2794,8 +2781,7 @@ function BroadcastModal({
                 if(!broadcastForm.subject||!broadcastForm.body) return;
                 setBroadcastBusy(true);
                 try{
-                  const {createClient}=await import("@supabase/supabase-js");
-                  const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                  const sb=await getSB();
                   const {data:{session}}=await sb.auth.getSession();
                   const activeEmps=(liveEmps||[]).filter(e=>e.status==="active");
                   const msgs=activeEmps.map(emp=>({org_id:ownerProfile?.org_id||null,from_id:session?.user?.id||null,to_id:emp.id,subject:broadcastForm.subject,body:broadcastForm.body,read:false}));
@@ -3046,8 +3032,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
     const load = async () => {
       try{
-        const {createClient} = await import("@supabase/supabase-js");
-        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+        const sb = await getSB();
         const {data:{session}} = await sb.auth.getSession();
         if(!session) return;
 
@@ -3255,7 +3240,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     const items = [];
     try{
       const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       // Try swap requests
       try{
         const {data:swaps} = await sb.from("shift_swap_requests").select("*, requester:users!requester_id(first_name,last_name), target:users!target_id(first_name,last_name)").eq("org_id",orgId).eq("status","pending").order("created_at",{ascending:false}).limit(10);
@@ -3276,7 +3261,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const loadPayroll = async(orgId, locId, periodDays=14) => {
     try{
       const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       const start = new Date();
       start.setDate(start.getDate() - periodDays);
       let q = sb.from("clock_events")
@@ -3294,8 +3279,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const loadShifts = async(orgId, weekStr, locId) => {
     try{
-      const {createClient}=await import("@supabase/supabase-js");
-      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb=await getSB();
       let q=sb.from("shifts").select("*, users(first_name,last_name,avatar_initials,avatar_color,role)").eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
       if(locId) q=q.eq("location_id",locId);
       const {data:shifts}=await q;
@@ -3305,8 +3289,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const loadEmployeesForLocation = async(orgId, locationId) => {
     try{
-      const {createClient}=await import("@supabase/supabase-js");
-      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb=await getSB();
       let q=sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
       if(locationId) q=q.eq("location_id",locationId);
       const {data:emps}=await q;
@@ -3338,8 +3321,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const addShift = async(sd) => {
     try{
-      const {createClient}=await import("@supabase/supabase-js");
-      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb=await getSB();
       await sb.from("shifts").insert({
         org_id:ownerProfile?.org_id, location_id:activeLocation?.id||ownerProfile?.location_id,
         user_id:sd.userId, week_start:sd.weekStart, day_of_week:sd.day,
@@ -3353,8 +3335,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const removeShift = async(shiftId, weekStart) => {
     try{
-      const {createClient}=await import("@supabase/supabase-js");
-      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb=await getSB();
       await sb.from("shifts").delete().eq("id",shiftId);
       if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart, activeLocation?.id||null);
     }catch(e){ toast("Failed to remove shift", "error"); }
@@ -3362,8 +3343,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const publishSchedule = async(weekStart) => {
     try{
-      const {createClient}=await import("@supabase/supabase-js");
-      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb=await getSB();
       await sb.from("shifts").update({status:"published"}).eq("org_id",ownerProfile?.org_id).eq("week_start",weekStart);
       setSchedPublished(true);
       setShowConfetti(true);
@@ -3375,7 +3355,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const copyLastWeek = async () => {
     try{
       const {createClient} = await import("@supabase/supabase-js");
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb = await getSB();
       const lastMon = getMonday(currentWeekOffset - 1);
       const thisMon = getMonday(currentWeekOffset);
       const orgId = ownerProfile?.org_id;
@@ -3573,8 +3553,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       setOrgSwitcherOpen(false);setActiveOrg(org);setOwnerOrg(org);
                       setLiveEmps(null);setLiveShifts(null);setLivePayroll(null);
                       try{
-                        const {createClient}=await import("@supabase/supabase-js");
-                        const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                        const sb=await getSB();
                         const {data:emps}=await sb.from("users").select("*").eq("org_id",org.id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
                         setLiveEmps(emps&&emps.length>0?emps.map(mapEmp):[]);
                         const {data:orgLocs}=await sb.from("locations").select("*").eq("org_id",org.id).eq("active",true).order("created_at");
@@ -3679,7 +3658,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             </div>
           )}
           <button onClick={async()=>{
-            try{const {createClient}=await import("@supabase/supabase-js");const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);await sb.auth.signOut();}catch(e){}
+            try{const sb=await getSB();await sb.auth.signOut();}catch(e){}
             onLogout();
           }} style={{padding:mobile?"6px 10px":"6px 12px",background:"none",border:"1px solid "+O.border,borderRadius:6,fontFamily:O.mono,fontSize:9,letterSpacing:1,color:O.textD,cursor:"pointer"}}
           onMouseEnter={e=>{e.currentTarget.style.background=O.bg3;}}
@@ -4157,8 +4136,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{display:"flex",gap:8,flexShrink:0}}>
                           <button onClick={async()=>{
                             try{
-                              const {createClient}=await import("@supabase/supabase-js");
-                              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                              const sb=await getSB();
                               await sb.from("shift_swap_requests").update({status:"approved"}).eq("id",req.id);
                               setSwapRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Swap approved ✓","success");
@@ -4166,8 +4144,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>✓ Approve</button>
                           <button onClick={async()=>{
                             try{
-                              const {createClient}=await import("@supabase/supabase-js");
-                              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                              const sb=await getSB();
                               await sb.from("shift_swap_requests").update({status:"denied"}).eq("id",req.id);
                               setSwapRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Swap denied","success");
@@ -4206,8 +4183,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{display:"flex",gap:8,flexShrink:0}}>
                           <button onClick={async()=>{
                             try{
-                              const {createClient}=await import("@supabase/supabase-js");
-                              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                              const sb=await getSB();
                               await sb.from("time_off_requests").update({status:"approved"}).eq("id",req.id);
                               setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Time off approved ✓","success");
@@ -4215,8 +4191,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>✓ Approve</button>
                           <button onClick={async()=>{
                             try{
-                              const {createClient}=await import("@supabase/supabase-js");
-                              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                              const sb=await getSB();
                               await sb.from("time_off_requests").update({status:"denied"}).eq("id",req.id);
                               setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Request denied","success");
@@ -4770,7 +4745,7 @@ export default function App(){
     try{ if(emp?.id) localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
   };
   const logout = async() => {
-    try{const {createClient}=await import("@supabase/supabase-js");const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);await sb.auth.signOut();}catch(e){}
+    try{const sb=await getSB();await sb.auth.signOut();}catch(e){}
     setSession(null);
   // cached_emp_<id> keys persist intentionally for display speed
   };
@@ -4785,8 +4760,7 @@ export default function App(){
             setResetMode(true);setAppLoading(false);return;
           }
         }
-        const {createClient}=await import("@supabase/supabase-js");
-        const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+        const sb=await getSB();
 
         // Step 1: Get Supabase session — this uses the stored JWT token
         const {data:{session:existing}} = await sb.auth.getSession();
@@ -4858,8 +4832,7 @@ export default function App(){
     if(newPw.length<8){setPwErr("Password must be at least 8 characters.");return;}
     setPwBusy(true);setPwErr("");
     try{
-      const {createClient}=await import("@supabase/supabase-js");
-      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const sb=await getSB();
       const {error}=await sb.auth.updateUser({password:newPw});
       if(error)throw error;
       setPwDone(true);
