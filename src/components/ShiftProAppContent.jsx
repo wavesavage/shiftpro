@@ -620,6 +620,14 @@ function EmpPortal({emp,onLogout}){
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
 
+  // Close dropdowns on outside click (must be AFTER all state declarations)
+  useEffect(()=>{
+    if(!orgSwitcherOpen && !locSwitcherOpen && !notifOpen) return;
+    const handler = ()=>{ setOrgSwitcherOpen(false); setLocSwitcherOpen(false); setNotifOpen(false); };
+    const t = setTimeout(()=>document.addEventListener("click", handler), 0);
+    return()=>{ clearTimeout(t); document.removeEventListener("click", handler); };
+  },[orgSwitcherOpen, locSwitcherOpen, notifOpen]);
+
   // Load shifts when tab switches to schedule or command
   useEffect(()=>{
     if((tab==="schedule"||tab==="command") && liveShifts===null && ownerProfile?.org_id){
@@ -2627,14 +2635,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [orgSwitcherOpen,setOrgSwitcherOpen] = useState(false);
   const [locSwitcherOpen,setLocSwitcherOpen] = useState(false);
 
-  // Close dropdowns on outside click
-  useEffect(()=>{
-    if(!orgSwitcherOpen && !locSwitcherOpen && !notifOpen) return;
-    const handler = ()=>{ setOrgSwitcherOpen(false); setLocSwitcherOpen(false); setNotifOpen(false); };
-    const t = setTimeout(()=>document.addEventListener("click", handler), 0);
-    return()=>{ clearTimeout(t); document.removeEventListener("click", handler); };
-  },[orgSwitcherOpen, locSwitcherOpen, notifOpen]);
-
   // ── Waitlist ──
   const [waitlistForm,setWaitlistForm] = useState({name:"",email:"",biz:""});
   const [waitlistDone,setWaitlistDone] = useState(false);
@@ -2664,6 +2664,14 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [requestsLoaded,setRequestsLoaded] = useState(false);
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
+
+  // Close dropdowns on outside click (must be AFTER all state declarations)
+  useEffect(()=>{
+    if(!orgSwitcherOpen && !locSwitcherOpen && !notifOpen) return;
+    const handler = ()=>{ setOrgSwitcherOpen(false); setLocSwitcherOpen(false); setNotifOpen(false); };
+    const t = setTimeout(()=>document.addEventListener("click", handler), 0);
+    return()=>{ clearTimeout(t); document.removeEventListener("click", handler); };
+  },[orgSwitcherOpen, locSwitcherOpen, notifOpen]);
 
   // Load shifts when tab switches to schedule or command
   useEffect(()=>{
