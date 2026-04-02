@@ -3078,7 +3078,20 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           // Save orgId so pre-seed can find caches on next load
           try{ localStorage.setItem("shiftpro_active_orgid", orgId); }catch(e){}
           loadNotifications(orgId);
-          const {data:locs} = await sb.from("locations").select("*").eq("org_id",orgId).eq("active",true).order("created_at");
+          // Fetch locations via service-role API (bypasses RLS completely)
+          let locs = null;
+          try{
+            const {data:{session:ss}} = await sb.auth.getSession();
+            const locsRes = await fetch("/api/locations?orgId="+orgId, {
+              headers: ss?.access_token ? {"Authorization":"Bearer "+ss.access_token} : {}
+            });
+            if(locsRes.ok){ const d=await locsRes.json(); locs=d.locations||null; }
+          }catch(e){}
+          // Fallback: direct Supabase query (works if RLS is set up)
+          if(!locs){
+            const {data:locsData} = await sb.from("locations").select("*").eq("org_id",orgId).eq("active",true).order("created_at");
+            locs = locsData;
+          }
           const {data:emps} = await sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
 
           const mappedEmps = emps&&emps.length>0 ? emps.map(mapEmp) : [];
