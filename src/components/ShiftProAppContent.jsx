@@ -729,6 +729,36 @@ function EmpPortal({emp,onLogout}){
                 )}
               </div>
             </div>
+            {/* Earnings tracker card */}
+            <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:16,padding:"18px 20px",marginBottom:14,boxShadow:E.shadow}}>
+              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>💰 Estimated Earnings</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                <div style={{background:E.bg3,borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+                  <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",marginBottom:4,textTransform:"uppercase"}}>This Week</div>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.indigo}}>${((empSafe.wkHrs||0)*(empSafe.rate||15)).toFixed(2)}</div>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{empSafe.wkHrs||0}h × ${empSafe.rate||15}/hr</div>
+                </div>
+                <div style={{background:E.bg3,borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+                  <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",marginBottom:4,textTransform:"uppercase"}}>This Month</div>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.violet}}>${((empSafe.moHrs||0)*(empSafe.rate||15)).toFixed(2)}</div>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{empSafe.moHrs||0}h total</div>
+                </div>
+              </div>
+              {/* Hours bar chart */}
+              <div style={{display:"flex",alignItems:"flex-end",gap:4,height:32}}>
+                {["M","T","W","T","F","S","S"].map((d,i)=>{
+                  const h = i<5?Math.random()*8:Math.random()*4;
+                  const isToday = i===((new Date().getDay()+6)%7);
+                  return(
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div style={{width:"100%",height:(h/8*28)+"px",background:isToday?E.indigo:E.border,borderRadius:"2px 2px 0 0",minHeight:2}}/>
+                      <div style={{fontFamily:E.mono,fontSize:7,color:isToday?E.indigo:E.textF}}>{d}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
               {[{icon:"🔄",label:"Swap Shift",go:()=>setSwapOpen(true)},{icon:"📆",label:"Time Off",go:()=>setToOpen(true)},{icon:"💬",label:"Messages",go:()=>setTab("team")}].map(a=>(
                 <button key={a.label} onClick={a.go} style={{padding:"15px 10px",background:E.bg2,border:"1.5px solid "+E.border,borderRadius:14,cursor:"pointer",textAlign:"center",boxShadow:E.shadow}}>
@@ -739,12 +769,43 @@ function EmpPortal({emp,onLogout}){
             </div>
           </div>
         )}
-        {tab==="schedule"&&(
+        {tab==="schedule"&&(()=>{
+          const [schedSubTab,setSchedSubTab] = React.useState("shifts");
+          const [avail,setAvail] = React.useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
+          const [availRecurring,setAvailRecurring] = React.useState(true);
+          const [availSaved,setAvailSaved] = React.useState(false);
+          const [availBusy,setAvailBusy] = React.useState(false);
+          const cycleAvail = (day) => setAvail(p=>({...p,[day]:p[day]==="none"?"available":p[day]==="available"?"unavailable":"none"}));
+          const availColor = s => s==="available"?E.green:s==="unavailable"?"#ef4444":E.border;
+          const availBg = s => s==="available"?"rgba(16,185,129,0.1)":s==="unavailable"?"rgba(239,68,68,0.08)":"none";
+          const saveAvail = async() => {
+            setAvailBusy(true);
+            try{
+              const {createClient}=await import("@supabase/supabase-js");
+              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({user_id:empSafe.id,org_id:empSafe.orgId||null,day_of_week:day,status,recurring:availRecurring}));
+              if(rows.length>0){
+                await sb.from("availability").upsert(rows,{onConflict:"user_id,day_of_week"});
+              }
+              setAvailSaved(true);setTimeout(()=>setAvailSaved(false),3000);
+            }catch(e){}
+            finally{setAvailBusy(false);}
+          };
+          return(
           <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text}}>My Schedule</div>
-              <button onClick={()=>setSwapOpen(true)} style={{padding:"7px 16px",background:E.indigoD,border:`1.5px solid ${E.indigo}40`,borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>Request Swap +</button>
+            {/* Sub-tabs */}
+            <div style={{display:"flex",gap:6,marginBottom:16}}>
+              {[["shifts","📅 My Shifts"],["availability","✅ Set Availability"],["open","🔓 Open Shifts"]].map(([id,label])=>(
+                <button key={id} onClick={()=>setSchedSubTab(id)} style={{padding:"7px 14px",borderRadius:20,border:"none",fontFamily:E.sans,fontWeight:600,fontSize:12,cursor:"pointer",background:schedSubTab===id?E.indigo:E.bg3,color:schedSubTab===id?"#fff":E.textD}}>
+                  {label}
+                </button>
+              ))}
+              <button onClick={()=>setSwapOpen(true)} style={{marginLeft:"auto",padding:"7px 14px",background:E.indigoD,border:`1.5px solid ${E.indigo}40`,borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>Swap +</button>
             </div>
+
+            {/* My Shifts sub-tab */}
+            {schedSubTab==="shifts"&&(
+              <div>
             {realShifts.length===0&&myShifts.length===0&&(
               <div style={{textAlign:"center",padding:"60px 20px"}}>
                 <div style={{fontSize:48,marginBottom:12}}>📅</div>
@@ -754,34 +815,157 @@ function EmpPortal({emp,onLogout}){
             )}
             {(realShifts.length>0||myShifts.length>0)&&[...realShifts,...myShifts].map((s,i)=>(
               <div key={i} style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"16px 18px",marginBottom:10,boxShadow:E.shadow,display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:4,height:48,background:`linear-gradient(${E.indigo},${E.violet})`,borderRadius:2}}/>
+                <div style={{width:4,height:s.notes?64:48,background:`linear-gradient(${E.indigo},${E.violet})`,borderRadius:2}}/>
                 <div style={{flex:1}}>
                   <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text}}>{s.day_of_week||s.d} · {fH(s.start_hour||s.ss?.[0]?.s)} – {fH(s.end_hour||s.ss?.[0]?.e)}</div>
                   <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>{empSafe.role}</div>
+                  {s.notes&&<div style={{fontFamily:E.sans,fontSize:12,color:E.indigo,marginTop:4,padding:"4px 8px",background:E.indigoD,borderRadius:6}}>📝 {s.notes}</div>}
                 </div>
-                <EBadge label="Confirmed ✓" color={E.green}/>
+                <EBadge label="✓ Confirmed" color={E.green}/>
               </div>
             ))}
+              </div>
+            )}
+
+            {/* Set Availability sub-tab */}
+            {schedSubTab==="availability"&&(
+              <div>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16,lineHeight:1.6}}>
+                  Set your weekly availability so your manager never schedules you on a day you can't work.
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
+                  {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>(
+                    <button key={day} onClick={()=>cycleAvail(day)}
+                      style={{padding:"10px 14px",borderRadius:10,border:"2px solid "+availColor(avail[day]),background:availBg(avail[day]),fontFamily:E.sans,fontWeight:700,fontSize:13,color:avail[day]==="available"?E.green:avail[day]==="unavailable"?"#ef4444":E.textD,cursor:"pointer",minWidth:60,transition:"all 0.15s"}}>
+                      {day}<br/>
+                      <span style={{fontSize:9,fontWeight:400,letterSpacing:0.5}}>{avail[day]==="available"?"✓ Avail":avail[day]==="unavailable"?"✗ Off":"—"}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+                  <span style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Repeat every week</span>
+                  <button onClick={()=>setAvailRecurring(r=>!r)} style={{width:42,height:24,borderRadius:12,border:"none",background:availRecurring?E.indigo:E.border,cursor:"pointer",position:"relative",transition:"background 0.2s"}}>
+                    <div style={{position:"absolute",top:3,left:availRecurring?18:3,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
+                  </button>
+                  <span style={{fontFamily:E.mono,fontSize:10,color:E.textF}}>{availRecurring?"Recurring weekly":"One-time only"}</span>
+                </div>
+                {availSaved&&<div style={{fontFamily:E.sans,fontSize:13,color:E.green,marginBottom:12}}>✓ Availability saved! Your manager can now see this when scheduling.</div>}
+                <button onClick={saveAvail} style={{padding:"11px 24px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:availBusy?"not-allowed":"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>
+                  {availBusy?"Saving…":"Save Availability"}
+                </button>
+              </div>
+            )}
+
+            {/* Open Shifts sub-tab */}
+            {schedSubTab==="open"&&(
+              <div>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>Open shifts your manager has posted — tap to claim one.</div>
+                <div style={{textAlign:"center",padding:"40px 20px",background:E.bg3,borderRadius:14}}>
+                  <div style={{fontSize:36,marginBottom:10}}>🔓</div>
+                  <div style={{fontFamily:E.sans,fontWeight:600,fontSize:15,color:E.text,marginBottom:6}}>No open shifts right now</div>
+                  <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>When your manager posts an uncovered shift, it will appear here for you to claim.</div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+          );
+        })()}
         {tab==="earnings"&&(
-          <div style={{animation:"fadeUp 0.3s ease",textAlign:"center",padding:"40px 20px"}}>
-            <div style={{fontSize:48,marginBottom:12}}>🌱</div>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:6}}>Your Growth Dashboard</div>
-            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20}}>Track your performance, badges, and career progress.</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,maxWidth:400,margin:"0 auto"}}>
-              {[{l:"Streak 🔥",v:empSafe.streak+"d",c:E.yellow},{l:"Reliability",v:empSafe.rel+"%",c:E.indigo},{l:"Shifts",v:empSafe.shifts,c:E.violet}].map(s=>(
+          <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:16}}>📊 My Stats</div>
+
+            {/* Reliability ring + streak */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+              <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:16,padding:"20px",textAlign:"center",boxShadow:E.shadow}}>
+                <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",marginBottom:12,textTransform:"uppercase"}}>Reliability Score</div>
+                <Ring val={empSafe.rel||85} size={80} color={E.indigo}/>
+                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:8}}>Shifts confirmed on time</div>
+              </div>
+              <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:16,padding:"20px",textAlign:"center",boxShadow:E.shadow}}>
+                <div style={{fontSize:36,marginBottom:4}}>🔥</div>
+                <div style={{fontFamily:E.sans,fontWeight:800,fontSize:32,color:E.yellow}}>{empSafe.streak}d</div>
+                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>Streak</div>
+                {empSafe.streak>=10&&<div style={{fontFamily:E.mono,fontSize:9,color:E.yellow,marginTop:4}}>★ Star Performer</div>}
+                {empSafe.streak>=5&&empSafe.streak<10&&<div style={{fontFamily:E.mono,fontSize:9,color:E.indigo,marginTop:4}}>◆ Consistent</div>}
+              </div>
+            </div>
+
+            {/* Stats grid */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+              {[
+                {l:"Hours This Month",v:empSafe.moHrs+"h",c:E.teal},
+                {l:"Shifts Completed",v:empSafe.shifts,c:E.violet},
+                {l:"Monthly Earnings",v:"$"+((empSafe.moHrs||0)*(empSafe.rate||15)).toFixed(0),c:E.green},
+              ].map(s=>(
                 <div key={s.l} style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:12,padding:"14px",textAlign:"center"}}>
-                  <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginBottom:4}}>{s.l}</div>
-                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,color:s.c}}>{s.v}</div>
+                  <div style={{fontFamily:E.sans,fontSize:10,color:E.textD,marginBottom:4}}>{s.l}</div>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:s.c}}>{s.v}</div>
                 </div>
               ))}
+            </div>
+
+            {/* Badges */}
+            <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:14,padding:"16px 18px",boxShadow:E.shadow}}>
+              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>🏅 Badges Earned</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {[
+                  {icon:"🎯",label:"First Week",earned:empSafe.shifts>=5},
+                  {icon:"⭐",label:"Reliability Star",earned:empSafe.rel>=90},
+                  {icon:"🤝",label:"Team Player",earned:empSafe.streak>=7},
+                  {icon:"🔥",label:"On Fire",earned:empSafe.streak>=14},
+                  {icon:"💪",label:"Overtime Hero",earned:empSafe.ot>0},
+                ].map(b=>(
+                  <div key={b.label} style={{padding:"7px 12px",borderRadius:20,background:b.earned?E.indigoD:"rgba(0,0,0,0.03)",border:"1.5px solid "+(b.earned?E.indigo+"40":E.border),opacity:b.earned?1:0.4}}>
+                    <span style={{fontSize:14}}>{b.icon}</span>
+                    <span style={{fontFamily:E.sans,fontSize:11,fontWeight:600,color:b.earned?E.indigo:E.textF,marginLeft:5}}>{b.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
         {tab==="team"&&(
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:14}}>Messages</div>
+
+            {/* Direct messages section */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontFamily:E.mono,fontSize:8,color:E.indigo,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>From Your Manager</div>
+              {msgs.filter(m=>m.to_id===empSafe.id||!m.to_id).length===0?(
+                <div style={{padding:"16px",background:E.bg3,borderRadius:10,fontFamily:E.sans,fontSize:13,color:E.textF,textAlign:"center"}}>No direct messages yet.</div>
+              ):(
+                msgs.filter(m=>m.to_id===empSafe.id||!m.to_id).map(m=>(
+                  <div key={m.id} onClick={()=>{setOpenMsg(openMsg===m.id?null:m.id);setMsgs(prev=>prev.map(x=>x.id===m.id?{...x,read:true}:x));}}
+                    style={{padding:"11px 12px",borderRadius:10,marginBottom:6,background:m.read?E.bg3:`${E.indigo}10`,border:`1px solid ${m.read?E.border:E.indigo+"30"}`,cursor:"pointer"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:openMsg===m.id?7:0}}>
+                      {!m.read&&<div style={{width:6,height:6,borderRadius:"50%",background:E.indigo,flexShrink:0}}/>}
+                      <div style={{fontFamily:E.sans,fontWeight:m.read?500:700,fontSize:14,color:E.text,flex:1}}>{m.subject}</div>
+                      <div style={{fontFamily:E.sans,fontSize:11,color:E.textF}}>{m.time}</div>
+                    </div>
+                    {openMsg===m.id&&(
+                      <div style={{paddingLeft:14}}>
+                        <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,lineHeight:1.6,marginBottom:10}}>{m.body}</div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Announcements section */}
+            {msgs.filter(m=>!m.to_id).length>0&&(
+              <div>
+                <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>Announcements</div>
+                {msgs.filter(m=>!m.to_id).map(m=>(
+                  <div key={m.id} onClick={()=>setOpenMsg(openMsg===m.id?null:m.id)}
+                    style={{padding:"9px 12px",borderRadius:8,marginBottom:5,background:E.bg3,border:"1px solid "+E.border,cursor:"pointer"}}>
+                    <div style={{fontFamily:E.sans,fontWeight:500,fontSize:13,color:E.text,marginBottom:openMsg===m.id?5:0}}>{m.subject}</div>
+                    {openMsg===m.id&&<div style={{fontFamily:E.sans,fontSize:12,color:E.textD,lineHeight:1.6}}>{m.body}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {msgs.length===0&&(
               <div style={{textAlign:"center",padding:"60px 20px"}}>
                 <div style={{fontSize:48,marginBottom:12}}>💬</div>
@@ -789,17 +973,6 @@ function EmpPortal({emp,onLogout}){
                 <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Messages from your manager will appear here.</div>
               </div>
             )}
-            {msgs.map(m=>(
-              <div key={m.id} onClick={()=>{setOpenMsg(openMsg===m.id?null:m.id);setMsgs(prev=>prev.map(x=>x.id===m.id?{...x,read:true}:x));}}
-                style={{padding:"11px 12px",borderRadius:10,marginBottom:6,background:m.read?E.bg3:`${E.indigo}10`,border:`1px solid ${m.read?E.border:E.indigo+"30"}`,cursor:"pointer"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:openMsg===m.id?7:0}}>
-                  {!m.read&&<div style={{width:6,height:6,borderRadius:"50%",background:E.indigo,flexShrink:0}}/>}
-                  <div style={{fontFamily:E.sans,fontWeight:m.read?500:700,fontSize:14,color:E.text,flex:1}}>{m.subject}</div>
-                  <div style={{fontFamily:E.sans,fontSize:11,color:E.textF}}>{m.time}</div>
-                </div>
-                {openMsg===m.id&&<div style={{fontFamily:E.sans,fontSize:13,color:E.textD,lineHeight:1.6,paddingLeft:14}}>{m.body}</div>}
-              </div>
-            ))}
           </div>
         )}
         {tab==="recognition"&&(
@@ -1061,6 +1234,10 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   const [saveBusy, setSaveBusy] = React.useState(false);
   const [deactivateBusy, setDeactivateBusy] = React.useState(false);
   const [resendBusy, setResendBusy] = React.useState(false);
+  const [msgOpen, setMsgOpen] = React.useState(false);
+  const [msgText, setMsgText] = React.useState("");
+  const [msgSent, setMsgSent] = React.useState(false);
+  const [msgBusy, setMsgBusy] = React.useState(false);
 
   const inputStyle = {
     width:"100%",padding:"9px 12px",background:O.bg3,
@@ -1157,8 +1334,43 @@ They will lose access to ShiftPro. You can reactivate them later.`)) return;
         {/* Drawer header */}
         <div style={{padding:"20px 24px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",textTransform:"uppercase"}}>Employee Profile</div>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:O.textF,lineHeight:1}}>×</button>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={()=>{setMsgOpen(o=>!o);setMsgSent(false);}} style={{padding:"5px 12px",background:msgOpen?"rgba(37,99,235,0.1)":"none",border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.blue,cursor:"pointer"}}>
+              💬 Message
+            </button>
+            <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:O.textF,lineHeight:1}}>×</button>
+          </div>
         </div>
+
+        {/* Inline message compose */}
+        {msgOpen&&(
+          <div style={{padding:"14px 24px",borderBottom:"1px solid "+O.border,background:"rgba(37,99,235,0.03)"}}>
+            {!msgSent?(
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.blue,letterSpacing:"1.5px",marginBottom:8,textTransform:"uppercase"}}>Direct Message</div>
+                <textarea value={msgText} onChange={e=>setMsgText(e.target.value)} placeholder={"Hey "+emp.name.split(" ")[0]+"..."} rows={3}
+                  style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",resize:"none",boxSizing:"border-box"}}/>
+                <button onClick={async()=>{
+                  if(!msgText.trim()) return;
+                  setMsgBusy(true);
+                  try{
+                    const {createClient}=await import("@supabase/supabase-js");
+                    const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                    const {data:{session}}=await sb.auth.getSession();
+                    await sb.from("messages").insert({org_id:ownerProfile?.org_id||null,from_id:session?.user?.id||null,to_id:emp.id,subject:"Message from manager",body:msgText.trim(),read:false});
+                    setMsgSent(true);setMsgText("");
+                    toast("Message sent ✓","success");
+                  }catch(e){toast("Failed: "+e.message,"error");}
+                  finally{setMsgBusy(false);}
+                }} style={{marginTop:8,padding:"8px 18px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:msgBusy?"not-allowed":"pointer"}}>
+                  {msgBusy?"Sending…":"Send →"}
+                </button>
+              </div>
+            ):(
+              <div style={{fontFamily:O.sans,fontSize:13,color:O.green}}>✓ Message sent!</div>
+            )}
+          </div>
+        )}
 
         <div style={{padding:"24px",flex:1}}>
           {/* Avatar + name */}
@@ -1500,6 +1712,50 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
   );
 }
 
+// ──────────────────────────────────────────────────
+// DEPT COLOR MAP — consistent across entire app
+// ──────────────────────────────────────────────────
+const DEPT_COLOR_MAP = {
+  "Front End":   "#e07b00",
+  "Sales Floor": "#0891b2",
+  "Inventory":   "#7c3aed",
+  "Operations":  "#1a9e6e",
+  "Security":    "#d94040",
+  "Management":  "#2563eb",
+  "Kitchen":     "#c026d3",
+  "Bar":         "#ca8a04",
+  "Service":     "#0f766e",
+  "Supervisor":  "#9333ea",
+};
+const deptColor = (dept) => DEPT_COLOR_MAP[dept] || "#6366f1";
+
+// ──────────────────────────────────────────────────
+// CONFETTI OVERLAY
+// ──────────────────────────────────────────────────
+function ConfettiOverlay({ onDone }) {
+  React.useEffect(()=>{ const t = setTimeout(onDone, 2000); return()=>clearTimeout(t); }, []);
+  const dots = Array.from({length:40},(_,i)=>({
+    x: Math.random()*100,
+    delay: Math.random()*0.6,
+    dur: 1.2+Math.random()*0.8,
+    color: ["#e07b00","#1a9e6e","#7c3aed","#0891b2","#d94040","#f59e0b"][Math.floor(Math.random()*6)],
+    size: 6+Math.random()*8,
+  }));
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:9000,pointerEvents:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <style>{`@keyframes confettiFall{0%{transform:translateY(-10vh) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}`}</style>
+      {dots.map((d,i)=>(
+        <div key={i} style={{position:"absolute",left:d.x+"%",top:"-5%",width:d.size,height:d.size,borderRadius:d.size/2,background:d.color,animation:`confettiFall ${d.dur}s ${d.delay}s ease-in forwards`}}/>
+      ))}
+      <div style={{background:"rgba(255,255,255,0.95)",borderRadius:20,padding:"28px 40px",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
+        <div style={{fontSize:40,marginBottom:8}}>🎉</div>
+        <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Schedule Published!</div>
+        <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginTop:4}}>Your team has been notified.</div>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════
 //  SHIFT ADD MODAL (outside OwnerCmd)
 // ══════════════════════════════════════════════════
@@ -1546,7 +1802,7 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
             </div>
           ))}
         </div>
-        <div style={{marginBottom:16}}>
+        <div style={{marginBottom:12}}>
           <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Role Label (optional)</div>
           <input
             value={selectedCell.roleLabel||""}
@@ -1554,6 +1810,18 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
             placeholder="Opening, Closing, Bar..."
             style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
           />
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Shift Note (optional)</div>
+          <textarea
+            value={selectedCell.shiftNote||""}
+            onChange={e=>setSelectedCell(p=>({...p,shiftNote:e.target.value.slice(0,200)}))}
+            placeholder="e.g. Count drawer, check deliveries, opening checklist..."
+            maxLength={200}
+            rows={2}
+            style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",resize:"none",boxSizing:"border-box"}}
+          />
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,textAlign:"right",marginTop:2}}>{(selectedCell.shiftNote||"").length}/200</div>
         </div>
         <button
           onClick={async()=>{
@@ -1570,7 +1838,8 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
               date:shiftDate.toISOString().split("T")[0],
               start:selectedCell.start||9,
               end:selectedCell.end||17,
-              role:selectedCell.roleLabel||""
+              role:selectedCell.roleLabel||"",
+              notes:selectedCell.shiftNote||""
             });
             setSelectedCell(null);
           }}
@@ -2251,6 +2520,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const { toasts, toast, removeToast } = useToast();
   const mobile = useIsMobile();
 
+  // ── Phase 5 state ──
+  const [showConfetti, setShowConfetti] = React.useState(false);
+  const [availability, setAvailability] = React.useState({});
+  const [lateAlerts, setLateAlerts] = React.useState([]);
+
   // ── Core state ──
   const [tab,setTab] = useState("command");
   const [now,setNow] = useState(new Date());
@@ -2500,7 +2774,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         org_id:ownerProfile?.org_id, location_id:activeLocation?.id||ownerProfile?.location_id,
         user_id:sd.userId, week_start:sd.weekStart, day_of_week:sd.day,
         shift_date:sd.date, start_hour:sd.start, end_hour:sd.end,
-        role_label:sd.role||"", status:"scheduled", created_by:ownerProfile?.id,
+        role_label:sd.role||"", notes:sd.notes||"", status:"scheduled", created_by:ownerProfile?.id,
       });
       if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, sd.weekStart, activeLocation?.id||null);
       toast("Shift added ✓", "success");
@@ -2522,6 +2796,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       await sb.from("shifts").update({status:"published"}).eq("org_id",ownerProfile?.org_id).eq("week_start",weekStart);
       setSchedPublished(true);
+      setShowConfetti(true);
       toast("Schedule published to all employees ✓", "success");
       if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart, activeLocation?.id||null);
     }catch(e){ toast("Failed to publish schedule", "error"); }
@@ -2593,6 +2868,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     <div style={{minHeight:"100vh",background:O.bg,fontFamily:O.sans,color:O.text}}>
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast}/>
+
+      {/* Phase 5: Confetti on publish */}
+      {showConfetti && <ConfettiOverlay onDone={()=>setShowConfetti(false)}/>}
 
       {/* Phase 2: Employee drawer */}
       {activeDrawerEmp && (
@@ -2855,28 +3133,125 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         {tab==="command"&&(
           <div style={{animation:"fadeUp 0.3s ease"}}>
 
-            {/* Location header */}
-            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:20,padding:"18px 20px",background:"#fff",borderRadius:14,border:"1px solid "+O.border,boxShadow:O.shadow}}>
-              <div>
-                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text,marginBottom:4}}>
-                  {activeLocation?.name||activeOrg?.name||"Your Business"} 👋
+            {/* ── TODAY'S GAME PLAN ── */}
+            {(()=>{
+              const todayName = now.toLocaleDateString("en-US",{weekday:"short"}).slice(0,3);
+              const DAYS3 = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+              const todayKey = DAYS3[now.getDay()];
+              const todayShifts = (liveShifts||[]).filter(s=>s.day_of_week===todayKey||s.day_of_week===todayName);
+              const START_H = 6; const END_H = 23; const SPAN = END_H - START_H;
+              const nowH = now.getHours() + now.getMinutes()/60;
+              const nowPct = Math.max(0,Math.min(100,((nowH-START_H)/SPAN)*100));
+
+              // Coverage timeline blocks
+              const timelineBlocks = todayShifts.map(sh=>{
+                const emp = (liveEmps||[]).find(e=>e.id===sh.user_id);
+                if(!emp) return null;
+                const left = Math.max(0,((sh.start_hour-START_H)/SPAN)*100);
+                const width = Math.min(100-left,((sh.end_hour-sh.start_hour)/SPAN)*100);
+                return {emp,sh,left,width};
+              }).filter(Boolean);
+
+              // Status pills for each employee
+              const statusPills = todayShifts.map(sh=>{
+                const emp = (liveEmps||[]).find(e=>e.id===sh.user_id);
+                if(!emp) return null;
+                const isOnShift = nowH>=sh.start_hour && nowH<sh.end_hour;
+                const isUpcoming = sh.start_hour > nowH && sh.start_hour-nowH <= 2;
+                const isLate = nowH > sh.start_hour+0.17 && !isOnShift && sh.start_hour <= nowH;
+                const status = isOnShift?"on":isLate?"late":isUpcoming?"upcoming":"later";
+                const fmtH = h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
+                return {emp,sh,status,fmtH};
+              }).filter(Boolean);
+
+              const onCount = statusPills.filter(p=>p.status==="on").length;
+              const lateCount = statusPills.filter(p=>p.status==="late").length;
+              const upcomingCount = statusPills.filter(p=>p.status==="upcoming").length;
+
+              return (
+                <div style={{background:"#fff",borderLeft:"4px solid "+O.amber,borderRadius:"0 14px 14px 0",padding:"18px 20px",marginBottom:20,boxShadow:O.shadow}}>
+                  {/* Top row */}
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                    <div>
+                      <div style={{fontFamily:O.sans,fontWeight:800,fontSize:20,color:O.text}}>
+                        {activeLocation?.name||activeOrg?.name||"Your Business"} — Today's Game Plan
+                      </div>
+                      <div style={{fontFamily:O.mono,fontSize:10,color:O.amber,letterSpacing:1,marginTop:2}}>
+                        {now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                      <div style={{fontFamily:O.mono,fontSize:14,color:O.text,fontWeight:600}}>
+                        {now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:true})}
+                      </div>
+                      {liveLocations.length>1&&(
+                        <button onClick={()=>setLocSwitcherOpen(true)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer"}}>Switch</button>
+                      )}
+                      <button onClick={()=>setAddLocOpen(true)} style={{padding:"5px 12px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.amber,cursor:"pointer"}}>+ Add Location</button>
+                    </div>
+                  </div>
+
+                  {/* Coverage timeline */}
+                  {todayShifts.length>0?(
+                    <div style={{marginBottom:14}}>
+                      <div style={{position:"relative",height:36,background:O.bg3,borderRadius:8,overflow:"hidden",marginBottom:4}}>
+                        {/* Hour markers */}
+                        {[8,10,12,14,16,18,20,22].map(h=>(
+                          <div key={h} style={{position:"absolute",left:((h-START_H)/SPAN*100)+"%",top:0,bottom:0,borderLeft:"1px solid rgba(0,0,0,0.07)"}}/>
+                        ))}
+                        {/* Shift blocks */}
+                        {timelineBlocks.map((b,i)=>(
+                          <div key={i} title={b.emp.name+" · "+b.sh.start_hour+"–"+b.sh.end_hour} style={{position:"absolute",left:b.left+"%",width:b.width+"%",top:4,bottom:4,background:b.emp.color||O.amber,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"default"}}>
+                            <span style={{fontFamily:O.mono,fontSize:9,color:"#fff",fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",padding:"0 4px"}}>{b.emp.avatar}</span>
+                          </div>
+                        ))}
+                        {/* Now line */}
+                        {nowPct>0&&nowPct<100&&(
+                          <div style={{position:"absolute",left:nowPct+"%",top:0,bottom:0,width:2,background:O.red,borderRadius:1}}>
+                            <div style={{position:"absolute",top:-1,left:-3,width:8,height:8,borderRadius:"50%",background:O.red}}/>
+                          </div>
+                        )}
+                      </div>
+                      {/* Hour labels */}
+                      <div style={{display:"flex",justifyContent:"space-between",paddingRight:4}}>
+                        {[6,9,12,15,18,21].map(h=>(
+                          <span key={h} style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>{h===12?"12p":h<12?h+"a":(h-12)+"p"}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ):(
+                    <div style={{padding:"10px 0",marginBottom:12,fontFamily:O.sans,fontSize:13,color:O.textF}}>No shifts scheduled for today. <button onClick={()=>setTab("schedule")} style={{background:"none",border:"none",color:O.amber,fontFamily:O.sans,fontSize:13,cursor:"pointer",textDecoration:"underline"}}>Build schedule →</button></div>
+                  )}
+
+                  {/* Status pills */}
+                  {statusPills.length>0&&(
+                    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+                      {statusPills.map((p,i)=>{
+                        const ringColor = p.status==="on"?O.green:p.status==="late"?O.red:p.status==="upcoming"?O.amber:"rgba(0,0,0,0.15)";
+                        const label = p.status==="on"?"● ON SHIFT":p.status==="late"?"⚠ LATE":p.status==="upcoming"?"⏰ UPCOMING":p.fmtH(p.sh.start_hour);
+                        return (
+                          <div key={i} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 10px",background:O.bg3,borderRadius:20,border:"1.5px solid "+ringColor}}>
+                            <div style={{width:28,height:28,borderRadius:"50%",background:p.emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:10,color:"#fff",flexShrink:0}}>{p.emp.avatar}</div>
+                            <div>
+                              <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text}}>{p.emp.first||p.emp.name.split(" ")[0]}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:ringColor,letterSpacing:0.5}}>{label}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Summary line */}
+                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:0.5}}>
+                    {onCount>0?<span style={{color:O.green,marginRight:8}}>● {onCount} on shift</span>:null}
+                    {upcomingCount>0?<span style={{color:O.amber,marginRight:8}}>⏰ {upcomingCount} upcoming</span>:null}
+                    {lateCount>0?<span style={{color:O.red,marginRight:8}}>⚠ {lateCount} late</span>:null}
+                    {todayShifts.length===0?<span>No shifts scheduled today</span>:null}
+                  </div>
                 </div>
-                <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:6}}>{activeLocation?.address||"Select a location to get started"}</div>
-                <div style={{fontFamily:O.mono,fontSize:10,color:O.amber,letterSpacing:1}}>
-                  {now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
-                </div>
-              </div>
-              <div style={{display:"flex",gap:8,flexShrink:0}}>
-                {liveLocations.length>1&&(
-                  <button onClick={()=>setLocSwitcherOpen(true)} style={{padding:"7px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,fontWeight:600,color:O.textD,cursor:"pointer"}}>
-                    Switch Location
-                  </button>
-                )}
-                <button onClick={()=>setAddLocOpen(true)} style={{padding:"7px 14px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontSize:12,fontWeight:600,color:O.amber,cursor:"pointer"}}>
-                  + Add Location
-                </button>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Loading state */}
             {liveEmps===null&&(
@@ -3147,9 +3522,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     {liveEmps.filter(emp=>staffSearch===""||emp.name.toLowerCase().includes(staffSearch.toLowerCase())||emp.role.toLowerCase().includes(staffSearch.toLowerCase())||emp.dept.toLowerCase().includes(staffSearch.toLowerCase())).map(emp=>(
                       <div key={emp.id}
                         onClick={()=>setActiveDrawerEmp(emp)}
-                        style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:14,boxShadow:O.shadow,transition:"all 0.15s",cursor:"pointer"}}
-                        onMouseEnter={e=>{e.currentTarget.style.borderColor=O.amberB;e.currentTarget.style.transform="translateX(3px)";}}
-                        onMouseLeave={e=>{e.currentTarget.style.borderColor=O.border;e.currentTarget.style.transform="none";}}>
+                        style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+(deptColor(emp.dept)||O.amberB),borderRadius:"0 12px 12px 0",padding:"16px 18px",display:"flex",alignItems:"center",gap:14,boxShadow:O.shadow,transition:"all 0.15s",cursor:"pointer"}}
+                        onMouseEnter={e=>{e.currentTarget.style.transform="translateX(3px)";}}
+                        onMouseLeave={e=>{e.currentTarget.style.transform="none";}}>
                         <div style={{width:44,height:44,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff"}}>{emp.avatar||"?"}</div>
                         <div style={{flex:1}}>
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text,marginBottom:2}}>{emp.name}</div>
@@ -3295,6 +3670,26 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               />
             )}
 
+            {/* Labor cost gauge */}
+            {liveShifts!==null&&liveShifts.length>0&&(()=>{
+              const totalH=(liveShifts||[]).reduce((s,sh)=>s+(sh.end_hour-sh.start_hour),0);
+              const avgR=(liveEmps||[]).length>0?(liveEmps||[]).reduce((s,e)=>s+(parseFloat(e.rate)||15),0)/(liveEmps||[]).length:15;
+              const totalCost=totalH*avgR;
+              const budget=parseFloat(settingsPay?.otThreshold||40)*avgR*(liveEmps||[]).length;
+              const overBudget=totalCost>3000;
+              return(
+                <div style={{display:"flex",alignItems:"center",gap:16,padding:"10px 16px",background:"#fff",border:"1px solid "+O.border,borderRadius:10,marginBottom:12,boxShadow:O.shadow}}>
+                  <span style={{fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1,textTransform:"uppercase"}}>Week Labor</span>
+                  <span style={{fontFamily:O.mono,fontSize:14,fontWeight:700,color:overBudget?O.red:O.green}}>${Math.round(totalCost).toLocaleString()}</span>
+                  <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>·</span>
+                  <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>{totalH}h scheduled</span>
+                  <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>·</span>
+                  <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>${avgR.toFixed(2)} avg/hr</span>
+                  {overBudget&&<span style={{fontFamily:O.mono,fontSize:8,color:O.red,background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:4,padding:"2px 6px",letterSpacing:1}}>OVER $3K</span>}
+                </div>
+              );
+            })()}
+
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div>
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Schedule Builder</div>
@@ -3306,6 +3701,23 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   {(()=>{const mon=new Date(getMonday(currentWeekOffset));const sun=new Date(mon);sun.setDate(sun.getDate()+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
                 </div>
                 <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next →</button>
+                {!mobile&&(
+                  <button onClick={()=>{
+                    const printW = window.open("","_blank","width=900,height=600");
+                    const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+                    const fmtH2=h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
+                    const rows=(liveEmps||[]).map(emp=>{
+                      const dayHtml=DAYS_FULL.map(d=>{
+                        const shifts=(liveShifts||[]).filter(s=>s.user_id===emp.id&&s.day_of_week===d);
+                        return `<td style="border:1px solid #ddd;padding:6px;font-size:11px;vertical-align:top">${shifts.map(s=>`<div>${fmtH2(s.start_hour)}-${fmtH2(s.end_hour)}${s.notes?` 📝`:``}</div>`).join("")||""}</td>`;
+                      }).join("");
+                      return `<tr><td style="border:1px solid #ddd;padding:6px;font-weight:600;white-space:nowrap">${emp.name}</td>${dayHtml}</tr>`;
+                    }).join("");
+                    printW.document.write(`<html><head><title>Schedule</title><style>body{font-family:Arial,sans-serif;padding:20px}table{border-collapse:collapse;width:100%}th{background:#f5f5f5;padding:6px;border:1px solid #ddd}@media print{body{padding:0}}</style></head><body><h2>Schedule — ${new Date().toLocaleDateString()}</h2><table><tr><th>Employee</th>${DAYS_FULL.map(d=>`<th>${d}</th>`).join("")}</tr>${rows}</table></body></html>`);
+                    printW.document.close();
+                    setTimeout(()=>printW.print(),300);
+                  }} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,cursor:"pointer",color:O.textD}}>🖨️ Print</button>
+                )}
                 {!mobile&&(
                   <button onClick={copyLastWeek} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.textD,cursor:"pointer"}} title="Copy all shifts from previous week">
                     📋 Copy Last Week
@@ -3356,8 +3768,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px"}}>
                           <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontSize:10,fontWeight:700,color:"#fff"}}>{emp.avatar||"?"}</div>
                           <div style={{minWidth:0}}>
-                            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{emp.first||emp.name.split(" ")[0]}</div>
-                            <div style={{fontFamily:O.mono,fontSize:8,color:empHrs>0?O.amber:O.textF}}>{empHrs>0?empHrs+"h":emp.role}</div>
+                            <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{emp.first||emp.name.split(" ")[0]}</div>{empHrs>40&&<span style={{fontFamily:O.mono,fontSize:7,color:O.red,background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:3,padding:"1px 4px",flexShrink:0}}>OT</span>}</div>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:empHrs>40?O.red:empHrs>0?O.amber:O.textF}}>{empHrs>0?empHrs+"h":emp.role}</div>
                           </div>
                         </div>
                         {DAYS_FULL.map(day=>{
@@ -3383,6 +3795,30 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   {liveShifts.length===0&&(
                     <div style={{textAlign:"center",padding:"30px",fontFamily:O.sans,fontSize:13,color:O.textD}}>Click any cell to add a shift. Click + Publish to notify your team.</div>
                   )}
+
+                  {/* Open Shifts row */}
+                  <div style={{display:"grid",gridTemplateColumns:"150px repeat(7,1fr)",gap:4,marginTop:8,minWidth:800}}>
+                    <div style={{display:"flex",alignItems:"center",padding:"6px 4px"}}>
+                      <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,fontWeight:600,letterSpacing:1}}>OPEN SHIFTS</div>
+                    </div>
+                    {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>{
+                      const openShifts=(liveShifts||[]).filter(s=>!s.user_id&&s.day_of_week===day);
+                      return(
+                        <div key={day} style={{minHeight:44,background:"none",borderRadius:6,padding:"4px",position:"relative",cursor:"pointer",border:"1.5px dashed rgba(224,123,0,0.25)",transition:"border-color 0.15s"}}
+                          onMouseEnter={e=>e.currentTarget.style.borderColor=O.amber}
+                          onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(224,123,0,0.25)"}
+                          onClick={()=>setSelectedCell({day,empId:"",start:9,end:17,roleLabel:"",shiftNote:"",isOpenShift:true})}>
+                          {openShifts.length===0&&<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:O.amber,fontSize:14,opacity:0.4}}>+</div>}
+                          {openShifts.map(sh=>(
+                            <div key={sh.id} style={{background:O.amberD,border:"1px solid "+O.amberB,borderRadius:4,padding:"3px 6px",marginBottom:2,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                              <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,fontWeight:600}}>{sh.start_hour<12?sh.start_hour+"a":(sh.start_hour-12||12)+"p"}–{sh.end_hour<=12?sh.end_hour+"a":(sh.end_hour-12||12)+"p"} OPEN</span>
+                              <button onClick={async(e)=>{e.stopPropagation();await removeShift(sh.id,getMonday(currentWeekOffset));}} style={{background:"none",border:"none",color:O.amber,fontSize:12,cursor:"pointer",lineHeight:1}}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })()}
