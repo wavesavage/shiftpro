@@ -1347,12 +1347,15 @@ function LocationGateNone({ activeOrg, ownerProfile, setLiveLocations, toast, se
               const result=await res.json();
               if(!res.ok) throw new Error(result.error||"Failed to create location");
               const newLoc=result.location;
-              setLiveLocations([newLoc]);
-              // Save to localStorage so it persists
+              // Merge with existing locations — never overwrite with single item
+              const existingLocsRaw = localStorage.getItem("shiftpro_all_locs");
+              const existingLocs = (() => { try{ return existingLocsRaw ? JSON.parse(existingLocsRaw) : []; }catch(e){ return []; } })();
+              const mergedNew = [...existingLocs.filter(l=>l.id!==newLoc.id), newLoc];
+              setLiveLocations(mergedNew);
               try{
-                localStorage.setItem("shiftpro_all_locs", JSON.stringify([newLoc]));
+                localStorage.setItem("shiftpro_all_locs", JSON.stringify(mergedNew));
                 const orgId3=newLoc.org_id||activeOrg?.id||ownerProfile?.org_id;
-                if(orgId3) localStorage.setItem("shiftpro_cached_locs_"+orgId3, JSON.stringify([newLoc]));
+                if(orgId3) localStorage.setItem("shiftpro_cached_locs_"+orgId3, JSON.stringify(mergedNew));
               }catch(e){}
               toast("Location created! ✓","success");
               selectLocation(newLoc);
@@ -3129,6 +3132,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           let savedLocObj = null;
           try{ savedLocObj = JSON.parse(localStorage.getItem("shiftpro_active_loc_obj")||"null"); }catch(e){}
 
+          console.log('[ShiftPro] Locations from API:', locs?.length, 'locs:', locs?.map(l=>l.name));
           if(locs&&locs.length>0){
             // MERGE with cached locations — never let a partial Supabase response
             // overwrite a more complete locally-cached list
@@ -3319,13 +3323,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       try{
         const raw = localStorage.getItem("shiftpro_all_locs");
         const existing = raw ? JSON.parse(raw) : [];
-        const already = existing.find(l=>l.id===loc.id);
-        if(!already){
-          const updated = [...existing, loc];
-          localStorage.setItem("shiftpro_all_locs", JSON.stringify(updated));
-          const orgId4 = loc.org_id||activeOrg?.id||ownerProfile?.org_id;
-          if(orgId4) localStorage.setItem("shiftpro_cached_locs_"+orgId4, JSON.stringify(updated));
-        }
+        // Always ensure selected loc is in the list
+        const merged = [...existing.filter(l=>l.id!==loc.id), loc];
+        localStorage.setItem("shiftpro_all_locs", JSON.stringify(merged));
+        const orgId4 = loc.org_id||activeOrg?.id||ownerProfile?.org_id;
+        if(orgId4) localStorage.setItem("shiftpro_cached_locs_"+orgId4, JSON.stringify(merged));
       }catch(e){}
     }
     setLocationGate("ready");
