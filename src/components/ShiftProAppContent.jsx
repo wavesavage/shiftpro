@@ -978,6 +978,287 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
 }
 
 // ══════════════════════════════════════════════════
+//  NOTIFICATIONS DROPDOWN (outside OwnerCmd)
+// ══════════════════════════════════════════════════
+function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, setTab, setStaffSubTab }) {
+  const unread = notifications.filter(n=>!n.read);
+
+  // Mark all read when opened
+  React.useEffect(()=>{
+    setNotifications(prev=>prev.map(n=>({...n,read:true})));
+  },[]);
+
+  const iconFor = type => type==="swap"?"🔄":type==="timeoff"?"📆":"👋";
+  const colorFor = type => type==="swap"?O.amber:type==="timeoff"?O.purple:O.green;
+
+  return (
+    <div style={{
+      position:"fixed",top:62,right:20,width:340,
+      background:"#fff",border:"1px solid "+O.border,
+      borderRadius:14,boxShadow:"0 8px 32px rgba(0,0,0,0.12)",
+      zIndex:500,overflow:"hidden",animation:"fadeUp 0.2s ease",
+    }}>
+      {/* Header */}
+      <div style={{padding:"14px 16px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>Notifications</div>
+        {unread.length>0&&(
+          <span style={{fontFamily:O.mono,fontSize:9,color:O.red,background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:10,padding:"2px 8px"}}>
+            {unread.length} new
+          </span>
+        )}
+      </div>
+
+      {/* List */}
+      <div style={{maxHeight:360,overflowY:"auto"}}>
+        {notifications.length===0&&(
+          <div style={{padding:"32px 20px",textAlign:"center"}}>
+            <div style={{fontSize:32,marginBottom:10}}>✅</div>
+            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text,marginBottom:4}}>You're all caught up!</div>
+            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>No pending requests or alerts right now.</div>
+          </div>
+        )}
+        {notifications.map((n,i)=>(
+          <div key={n.id} style={{
+            padding:"12px 16px",
+            borderBottom:i<notifications.length-1?"1px solid "+O.border:"none",
+            borderLeft:"3px solid "+colorFor(n.type),
+            background:n.read?"#fff":colorFor(n.type)+"08",
+            display:"flex",gap:10,alignItems:"flex-start",
+          }}>
+            <span style={{fontSize:18,flexShrink:0,marginTop:1}}>{iconFor(n.type)}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,marginBottom:2}}>{n.from}</div>
+              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.4}}>{n.detail}</div>
+              <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:4}}>{n.time}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div style={{padding:"10px 16px",borderTop:"1px solid "+O.border}}>
+        <button
+          onClick={()=>{ setNotifOpen(false); setTab("staff"); setStaffSubTab("requests"); }}
+          style={{width:"100%",padding:"9px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.amber,cursor:"pointer"}}>
+          View All Requests →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
+//  EMPLOYEE DRAWER (outside OwnerCmd)
+// ══════════════════════════════════════════════════
+function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, mapEmp, toast }) {
+  const [editing, setEditing] = React.useState(false);
+  const [editForm, setEditForm] = React.useState({
+    role: emp.role||"",
+    dept: emp.dept||"",
+    rate: String(emp.rate||15),
+  });
+  const [saveBusy, setSaveBusy] = React.useState(false);
+  const [deactivateBusy, setDeactivateBusy] = React.useState(false);
+  const [resendBusy, setResendBusy] = React.useState(false);
+
+  const inputStyle = {
+    width:"100%",padding:"9px 12px",background:O.bg3,
+    border:"1px solid "+O.border,borderRadius:8,
+    fontFamily:O.sans,fontSize:13,color:O.text,
+    outline:"none",boxSizing:"border-box",
+  };
+  const labelStyle = {
+    fontFamily:O.mono,fontSize:8,color:O.textF,
+    letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase",
+  };
+
+  const saveChanges = async () => {
+    setSaveBusy(true);
+    try {
+      const {createClient} = await import("@supabase/supabase-js");
+      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      await sb.from("users").update({
+        role: editForm.role,
+        department: editForm.dept,
+        hourly_rate: parseFloat(editForm.rate)||15,
+      }).eq("id", emp.id);
+      // Refresh employee list
+      if(ownerProfile?.org_id) {
+        const {data:emps} = await sb.from("users").select("*").eq("org_id",ownerProfile.org_id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
+        if(emps) setLiveEmps(emps.map(mapEmp));
+      }
+      toast("Employee updated ✓","success");
+      setEditing(false);
+    } catch(e) {
+      toast("Failed to save: "+e.message,"error");
+    } finally { setSaveBusy(false); }
+  };
+
+  const deactivate = async () => {
+    if(!window.confirm(`Deactivate ${emp.name}?
+
+They will lose access to ShiftPro. You can reactivate them later.`)) return;
+    setDeactivateBusy(true);
+    try {
+      const {createClient} = await import("@supabase/supabase-js");
+      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      await sb.from("users").update({status:"inactive"}).eq("id",emp.id);
+      if(ownerProfile?.org_id) {
+        const {data:emps} = await sb.from("users").select("*").eq("org_id",ownerProfile.org_id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
+        if(emps) setLiveEmps(emps.map(mapEmp));
+      }
+      toast(emp.name+" deactivated","success");
+      onClose();
+    } catch(e) {
+      toast("Failed: "+e.message,"error");
+    } finally { setDeactivateBusy(false); }
+  };
+
+  const resendInvite = async () => {
+    setResendBusy(true);
+    try {
+      const res = await fetch("/api/invite",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          email:emp.email,
+          firstName:emp.first||emp.name.split(" ")[0],
+          lastName:emp.name.split(" ").slice(1).join(" "),
+          orgId:ownerProfile?.org_id||null,
+          locationId:emp.locId||null,
+          role:emp.role||"Employee",
+          department:emp.dept||"",
+          hourlyRate:String(emp.rate||15),
+        }),
+      });
+      toast("Invite resent to "+emp.email+" ✓","success");
+    } catch(e) {
+      toast("Failed to resend invite","error");
+    } finally { setResendBusy(false); }
+  };
+
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        onClick={onClose}
+        style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",zIndex:700,animation:"fadeIn 0.2s ease"}}
+      />
+      {/* Drawer panel */}
+      <div style={{
+        position:"fixed",top:0,right:0,bottom:0,width:400,
+        background:"#fff",zIndex:701,
+        boxShadow:"-8px 0 40px rgba(0,0,0,0.12)",
+        display:"flex",flexDirection:"column",
+        animation:"slideInRight 0.28s ease",
+        overflowY:"auto",
+      }}>
+        {/* Drawer header */}
+        <div style={{padding:"20px 24px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",textTransform:"uppercase"}}>Employee Profile</div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:O.textF,lineHeight:1}}>×</button>
+        </div>
+
+        <div style={{padding:"24px",flex:1}}>
+          {/* Avatar + name */}
+          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
+            <div style={{width:64,height:64,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:20,color:"#fff"}}>
+              {emp.avatar||"?"}
+            </div>
+            <div>
+              <div style={{fontFamily:O.sans,fontWeight:800,fontSize:18,color:O.text,marginBottom:4}}>{emp.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                {emp.dept&&<span style={{fontFamily:O.mono,fontSize:9,color:O.cyan,background:"rgba(8,145,178,0.08)",border:"1px solid rgba(8,145,178,0.15)",borderRadius:4,padding:"2px 8px"}}>{emp.dept}</span>}
+                <span style={{fontFamily:O.mono,fontSize:9,padding:"2px 8px",borderRadius:10,fontWeight:600,background:emp.status==="active"?O.greenD:O.amberD,border:"1px solid "+(emp.status==="active"?"rgba(26,158,110,0.25)":O.amberB),color:emp.status==="active"?O.green:O.amber}}>
+                  {emp.status==="active"?"ACTIVE":"INVITED"}
+                </span>
+              </div>
+              {emp.email&&(
+                <a href={"mailto:"+emp.email} style={{fontFamily:O.mono,fontSize:10,color:O.cyan,textDecoration:"none",display:"block",marginTop:4}}>{emp.email}</a>
+              )}
+            </div>
+          </div>
+
+          {/* Stats strip */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
+            {[
+              {label:"Hourly Rate",value:"$"+(emp.rate||15).toFixed(2)+"/hr",color:O.amber},
+              {label:"Department",value:emp.dept||"—",color:O.cyan},
+              {label:"Role",value:emp.role||"Employee",color:O.purple},
+              {label:"Hire Date",value:emp.hired||"—",color:O.textD},
+            ].map(s=>(
+              <div key={s.label} style={{background:O.bg3,borderRadius:10,padding:"12px 14px"}}>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:4,textTransform:"uppercase"}}>{s.label}</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:s.color,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Edit section */}
+          {!editing ? (
+            <button
+              onClick={()=>setEditing(true)}
+              style={{width:"100%",padding:"11px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.amber,cursor:"pointer",marginBottom:16}}>
+              ✏️ Edit Employee
+            </button>
+          ) : (
+            <div style={{background:O.bg3,borderRadius:12,padding:"16px",marginBottom:16}}>
+              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:14}}>Edit Details</div>
+
+              <div style={{marginBottom:12}}>
+                <label style={labelStyle}>Role</label>
+                <input value={editForm.role} onChange={e=>setEditForm(p=>({...p,role:e.target.value}))} placeholder="Lead Cashier" style={inputStyle}
+                  onFocus={e=>e.target.style.borderColor=O.amber} onBlur={e=>e.target.style.borderColor=O.border}/>
+              </div>
+
+              <div style={{marginBottom:12}}>
+                <label style={labelStyle}>Department</label>
+                <select value={editForm.dept} onChange={e=>setEditForm(p=>({...p,dept:e.target.value}))}
+                  style={{...inputStyle,cursor:"pointer"}}>
+                  {["Front End","Sales Floor","Inventory","Operations","Security","Management","Kitchen","Bar","Service"].map(d=>(
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{marginBottom:16}}>
+                <label style={labelStyle}>Hourly Rate ($)</label>
+                <input value={editForm.rate} onChange={e=>setEditForm(p=>({...p,rate:e.target.value}))} type="number" placeholder="15.00" style={inputStyle}
+                  onFocus={e=>e.target.style.borderColor=O.amber} onBlur={e=>e.target.style.borderColor=O.border}/>
+              </div>
+
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={saveChanges} style={{flex:1,padding:"10px",background:saveBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:saveBusy?"not-allowed":"pointer"}}>
+                  {saveBusy?"Saving…":"Save Changes"}
+                </button>
+                <button onClick={()=>setEditing(false)} style={{padding:"10px 16px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.textD,cursor:"pointer"}}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Resend invite (only for invited) */}
+          {emp.status==="invited"&&(
+            <button onClick={resendInvite} style={{width:"100%",padding:"10px",background:O.bg3,border:"1px solid "+O.border,borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.textD,cursor:"pointer",marginBottom:16}}>
+              {resendBusy?"Sending…":"📧 Resend Invite Email"}
+            </button>
+          )}
+        </div>
+
+        {/* Danger zone */}
+        <div style={{padding:"16px 24px",borderTop:"1px solid "+O.border,flexShrink:0}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.red,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Danger Zone</div>
+          <button
+            onClick={deactivate}
+            style={{width:"100%",padding:"10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.red,cursor:deactivateBusy?"not-allowed":"pointer"}}>
+            {deactivateBusy?"Deactivating…":"Deactivate "+emp.first}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════
 //  SHIFT ADD MODAL (outside OwnerCmd)
 // ══════════════════════════════════════════════════
 function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOffset, addShift, getMonday }) {
@@ -1790,6 +2071,20 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [waitlistForm,setWaitlistForm] = useState({name:"",email:"",biz:""});
   const [waitlistDone,setWaitlistDone] = useState(false);
 
+  // ── Phase 2: Notifications ──
+  const [notifOpen,setNotifOpen] = useState(false);
+  const [notifications,setNotifications] = useState([]);
+  const [notifLoaded,setNotifLoaded] = useState(false);
+
+  // ── Phase 2: Employee drawer ──
+  const [activeDrawerEmp,setActiveDrawerEmp] = useState(null);
+
+  // ── Phase 2: Staff sub-tab ──
+  const [staffSubTab,setStaffSubTab] = useState("team");
+  const [swapRequests,setSwapRequests] = useState([]);
+  const [timeOffRequests,setTimeOffRequests] = useState([]);
+  const [requestsLoaded,setRequestsLoaded] = useState(false);
+
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
 
   // ── Helper: get Monday of offset week ──
@@ -1849,6 +2144,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         }
 
         if(orgId){
+          loadNotifications(orgId);
           const {data:locs} = await sb.from("locations").select("*").eq("org_id",orgId).eq("active",true).order("created_at");
           const {data:emps} = await sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
 
@@ -1882,6 +2178,31 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     const fallback = setTimeout(()=>{ setLocationGate(g=>g===null?"pick":g); setLiveEmps(e=>e===null?[]:e); }, 5000);
     return()=>clearTimeout(fallback);
   },[]);
+
+  // Load notifications
+  const loadNotifications = async(orgId) => {
+    if(!orgId || notifLoaded) return;
+    setNotifLoaded(true);
+    const items = [];
+    try{
+      const {createClient} = await import("@supabase/supabase-js");
+      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      // Try swap requests
+      try{
+        const {data:swaps} = await sb.from("shift_swap_requests").select("*, requester:users!requester_id(first_name,last_name), target:users!target_id(first_name,last_name)").eq("org_id",orgId).eq("status","pending").order("created_at",{ascending:false}).limit(10);
+        (swaps||[]).forEach(s=>items.push({id:"swap_"+s.id,type:"swap",from:(s.requester?.first_name||"")+" "+(s.requester?.last_name||""),detail:"Wants to swap shift with "+(s.target?.first_name||"someone"),time:"Recently",read:false,raw:s}));
+        setSwapRequests(swaps||[]);
+      }catch(e){}
+      // Try time off requests
+      try{
+        const {data:toffs} = await sb.from("time_off_requests").select("*, users(first_name,last_name)").eq("org_id",orgId).eq("status","pending").order("created_at",{ascending:false}).limit(10);
+        (toffs||[]).forEach(t=>items.push({id:"toff_"+t.id,type:"timeoff",from:(t.users?.first_name||"")+" "+(t.users?.last_name||""),detail:(t.dates||t.date_range||"Time off")+" · "+(t.reason||"Personal"),time:"Recently",read:false,raw:t}));
+        setTimeOffRequests(toffs||[]);
+      }catch(e){}
+      setRequestsLoaded(true);
+    }catch(e){}
+    setNotifications(items);
+  };
 
   const loadShifts = async(orgId, weekStr, locId) => {
     try{
@@ -1976,6 +2297,36 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     <div style={{minHeight:"100vh",background:O.bg,fontFamily:O.sans,color:O.text}}>
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast}/>
+
+      {/* Phase 2: Employee drawer */}
+      {activeDrawerEmp && (
+        <EmployeeDrawer
+          emp={activeDrawerEmp}
+          onClose={()=>setActiveDrawerEmp(null)}
+          activeOrg={activeOrg}
+          ownerProfile={ownerProfile}
+          setLiveEmps={setLiveEmps}
+          mapEmp={mapEmp}
+          toast={toast}
+        />
+      )}
+
+      {/* Phase 2: Notifications dropdown overlay */}
+      {notifOpen && (
+        <div
+          style={{position:"fixed",inset:0,zIndex:490}}
+          onClick={()=>setNotifOpen(false)}
+        />
+      )}
+      {notifOpen && (
+        <NotificationsDropdown
+          notifications={notifications}
+          setNotifications={setNotifications}
+          setNotifOpen={setNotifOpen}
+          setTab={setTab}
+          setStaffSubTab={setStaffSubTab}
+        />
+      )}
 
       {/* Location gates */}
       {locationGate==="none" && (
@@ -2157,6 +2508,21 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         <div style={{display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>
             {now.toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit"})}
+          </div>
+          {/* Bell */}
+          <div style={{position:"relative"}}>
+            <button
+              onClick={()=>setNotifOpen(o=>!o)}
+              style={{width:36,height:36,borderRadius:"50%",background:notifOpen?O.amberD:"none",border:"1px solid "+(notifOpen?O.amberB:O.border),display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,position:"relative",transition:"all 0.15s"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=O.amberD;e.currentTarget.style.borderColor=O.amberB;}}
+              onMouseLeave={e=>{if(!notifOpen){e.currentTarget.style.background="none";e.currentTarget.style.borderColor=O.border;}}}>
+              🔔
+              {notifications.filter(n=>!n.read).length>0&&(
+                <div style={{position:"absolute",top:-2,right:-2,width:16,height:16,borderRadius:"50%",background:O.red,border:"2px solid #fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontSize:8,fontWeight:700,color:"#fff"}}>
+                  {notifications.filter(n=>!n.read).length}
+                </div>
+              )}
+            </button>
           </div>
           {ownerProfile&&(
             <div style={{width:34,height:34,borderRadius:"50%",background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>
@@ -2390,6 +2756,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         {/* ══ STAFF TAB ══ */}
         {tab==="staff"&&(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+            {/* Header */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div>
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Staff Management</div>
@@ -2398,51 +2765,170 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               <button onClick={()=>setShowInvite(true)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>+ Invite Employee</button>
             </div>
 
-            {/* Search */}
-            {liveEmps&&liveEmps.length>0&&(
-              <div style={{marginBottom:16,position:"relative"}}>
-                <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:O.textF}}>🔍</span>
-                <input value={staffSearch} onChange={e=>setStaffSearch(e.target.value)} placeholder="Search by name or role..."
-                  style={{width:"100%",padding:"10px 12px 10px 36px",background:"#fff",border:"1px solid "+O.border,borderRadius:10,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box",boxShadow:O.shadow}}
-                  onFocus={e=>e.target.style.borderColor=O.amber} onBlur={e=>e.target.style.borderColor=O.border}/>
+            {/* Sub-tab pills */}
+            <div style={{display:"flex",gap:6,marginBottom:18}}>
+              {[["team","👥 Team"],["requests","📋 Requests"+(swapRequests.length+timeOffRequests.length>0?" ("+( swapRequests.length+timeOffRequests.length)+")":"")]].map(([id,label])=>(
+                <button key={id} onClick={()=>{ setStaffSubTab(id); if(id==="requests"&&!requestsLoaded&&activeOrg?.id) loadNotifications(activeOrg.id); }}
+                  style={{padding:"7px 16px",borderRadius:20,border:"none",fontFamily:O.sans,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.15s",background:staffSubTab===id?"#7c3aed":O.bg3,color:staffSubTab===id?"#fff":O.textD}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* ── TEAM sub-tab ── */}
+            {staffSubTab==="team"&&(
+              <div>
+                {liveEmps&&liveEmps.length>0&&(
+                  <div style={{marginBottom:16,position:"relative"}}>
+                    <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:O.textF}}>🔍</span>
+                    <input value={staffSearch} onChange={e=>setStaffSearch(e.target.value)} placeholder="Search by name, role, or department..."
+                      style={{width:"100%",padding:"10px 12px 10px 36px",background:"#fff",border:"1px solid "+O.border,borderRadius:10,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box",boxShadow:O.shadow}}
+                      onFocus={e=>e.target.style.borderColor=O.amber} onBlur={e=>e.target.style.borderColor=O.border}/>
+                  </div>
+                )}
+                {liveEmps===null&&<SkeletonLoader rows={5}/>}
+                {liveEmps!==null&&liveEmps.length===0&&(
+                  <div style={{textAlign:"center",padding:"80px 20px"}}>
+                    <div style={{fontSize:56,marginBottom:16}}>👥</div>
+                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,color:O.text,marginBottom:8}}>No employees yet</div>
+                    <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.7,maxWidth:360,margin:"0 auto 24px"}}>Click Invite Employee to add your first team member. They'll get an email to set their password and access their Work Hub.</div>
+                    <button onClick={()=>setShowInvite(true)} style={{padding:"13px 28px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.25)"}}>Invite Your First Employee</button>
+                  </div>
+                )}
+                {liveEmps!==null&&liveEmps.length>0&&(
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {liveEmps.filter(emp=>staffSearch===""||emp.name.toLowerCase().includes(staffSearch.toLowerCase())||emp.role.toLowerCase().includes(staffSearch.toLowerCase())||emp.dept.toLowerCase().includes(staffSearch.toLowerCase())).map(emp=>(
+                      <div key={emp.id}
+                        onClick={()=>setActiveDrawerEmp(emp)}
+                        style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:14,boxShadow:O.shadow,transition:"all 0.15s",cursor:"pointer"}}
+                        onMouseEnter={e=>{e.currentTarget.style.borderColor=O.amberB;e.currentTarget.style.transform="translateX(3px)";}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor=O.border;e.currentTarget.style.transform="none";}}>
+                        <div style={{width:44,height:44,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff"}}>{emp.avatar||"?"}</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text,marginBottom:2}}>{emp.name}</div>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                            <span style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>{emp.role}</span>
+                            {emp.dept&&<span style={{fontFamily:O.mono,fontSize:9,color:O.cyan,background:"rgba(8,145,178,0.08)",border:"1px solid rgba(8,145,178,0.15)",borderRadius:4,padding:"1px 6px",letterSpacing:0.5}}>{emp.dept}</span>}
+                            {emp.hired&&<span style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>Since {emp.hired}</span>}
+                          </div>
+                        </div>
+                        <div style={{textAlign:"right",flexShrink:0}}>
+                          <div style={{fontFamily:O.mono,fontSize:13,color:O.amber,fontWeight:600}}>${(emp.rate||15).toFixed(2)}/hr</div>
+                        </div>
+                        <div style={{flexShrink:0,padding:"4px 10px",borderRadius:20,fontFamily:O.mono,fontSize:8,letterSpacing:"1.5px",fontWeight:600,background:emp.status==="active"?O.greenD:"rgba(224,123,0,0.08)",border:"1px solid "+(emp.status==="active"?"rgba(26,158,110,0.25)":O.amberB),color:emp.status==="active"?O.green:O.amber}}>
+                          {emp.status==="active"?"ACTIVE":"INVITED"}
+                        </div>
+                        <div style={{color:O.textF,fontSize:16,flexShrink:0}}>›</div>
+                      </div>
+                    ))}
+                    {staffSearch&&liveEmps.filter(emp=>emp.name.toLowerCase().includes(staffSearch.toLowerCase())||emp.role.toLowerCase().includes(staffSearch.toLowerCase())).length===0&&(
+                      <div style={{textAlign:"center",padding:"40px 20px",fontFamily:O.sans,fontSize:14,color:O.textD}}>No employees match "{staffSearch}"</div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
-            {liveEmps===null&&<SkeletonLoader rows={5}/>}
-            {liveEmps!==null&&liveEmps.length===0&&(
-              <div style={{textAlign:"center",padding:"80px 20px"}}>
-                <div style={{fontSize:56,marginBottom:16}}>👥</div>
-                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,color:O.text,marginBottom:8}}>No employees yet</div>
-                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.7,maxWidth:360,margin:"0 auto 24px"}}>Click Invite Employee to add your first team member. They'll receive an email to set their password and access their Work Hub.</div>
-                <button onClick={()=>setShowInvite(true)} style={{padding:"13px 28px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.25)"}}>Invite Your First Employee</button>
-              </div>
-            )}
-            {liveEmps!==null&&liveEmps.length>0&&(
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {liveEmps.filter(emp=>staffSearch===""||emp.name.toLowerCase().includes(staffSearch.toLowerCase())||emp.role.toLowerCase().includes(staffSearch.toLowerCase())||emp.dept.toLowerCase().includes(staffSearch.toLowerCase())).map(emp=>(
-                  <div key={emp.id} style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:14,boxShadow:O.shadow,transition:"all 0.15s"}}
-                    onMouseEnter={e=>e.currentTarget.style.borderColor=O.amberB}
-                    onMouseLeave={e=>e.currentTarget.style.borderColor=O.border}>
-                    <div style={{width:44,height:44,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff"}}>{emp.avatar||"?"}</div>
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text,marginBottom:2}}>{emp.name}</div>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>{emp.role}</span>
-                        {emp.dept&&<span style={{fontFamily:O.mono,fontSize:9,color:O.cyan,background:"rgba(8,145,178,0.08)",border:"1px solid rgba(8,145,178,0.15)",borderRadius:4,padding:"1px 6px",letterSpacing:0.5}}>{emp.dept}</span>}
-                        {emp.hired&&<span style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>Since {emp.hired}</span>}
+            {/* ── REQUESTS sub-tab ── */}
+            {staffSubTab==="requests"&&(
+              <div>
+                {/* Shift Swap Requests */}
+                <div style={{marginBottom:24}}>
+                  <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:O.text,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+                    🔄 Shift Swap Requests
+                    {swapRequests.length>0&&<span style={{fontFamily:O.mono,fontSize:9,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:10,padding:"2px 8px"}}>{swapRequests.length} pending</span>}
+                  </div>
+                  {!requestsLoaded&&<SkeletonLoader rows={3}/>}
+                  {requestsLoaded&&swapRequests.length===0&&(
+                    <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"28px",textAlign:"center",boxShadow:O.shadow}}>
+                      <div style={{fontSize:36,marginBottom:8}}>🎉</div>
+                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text,marginBottom:4}}>No pending swap requests</div>
+                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Swap requests from employees will appear here for your approval.</div>
+                    </div>
+                  )}
+                  {swapRequests.map(req=>(
+                    <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                        <span style={{fontSize:20,flexShrink:0}}>🔄</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:3}}>
+                            {req.requester?.first_name||"Employee"} {req.requester?.last_name||""} wants to swap with {req.target?.first_name||"another employee"}
+                          </div>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{req.shift_date||"Upcoming shift"}</div>
+                        </div>
+                        <div style={{display:"flex",gap:8,flexShrink:0}}>
+                          <button onClick={async()=>{
+                            try{
+                              const {createClient}=await import("@supabase/supabase-js");
+                              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                              await sb.from("shift_swap_requests").update({status:"approved"}).eq("id",req.id);
+                              setSwapRequests(p=>p.filter(r=>r.id!==req.id));
+                              toast("Swap approved ✓","success");
+                            }catch(e){ toast("Failed: "+e.message,"error"); }
+                          }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>✓ Approve</button>
+                          <button onClick={async()=>{
+                            try{
+                              const {createClient}=await import("@supabase/supabase-js");
+                              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                              await sb.from("shift_swap_requests").update({status:"denied"}).eq("id",req.id);
+                              setSwapRequests(p=>p.filter(r=>r.id!==req.id));
+                              toast("Swap denied","success");
+                            }catch(e){ toast("Failed: "+e.message,"error"); }
+                          }} style={{padding:"6px 12px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.red,cursor:"pointer"}}>✕ Deny</button>
+                        </div>
                       </div>
                     </div>
-                    <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontFamily:O.mono,fontSize:13,color:O.amber,fontWeight:600}}>${(emp.rate||15).toFixed(2)}/hr</div>
-                    </div>
-                    <div style={{flexShrink:0,padding:"4px 10px",borderRadius:20,fontFamily:O.mono,fontSize:8,letterSpacing:"1.5px",fontWeight:600,background:emp.status==="active"?O.greenD:"rgba(224,123,0,0.08)",border:"1px solid "+(emp.status==="active"?"rgba(26,158,110,0.25)":O.amberB),color:emp.status==="active"?O.green:O.amber}}>
-                      {emp.status==="active"?"ACTIVE":"INVITED"}
-                    </div>
+                  ))}
+                </div>
+
+                {/* Time Off Requests */}
+                <div>
+                  <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:O.text,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+                    📆 Time Off Requests
+                    {timeOffRequests.length>0&&<span style={{fontFamily:O.mono,fontSize:9,color:O.purple,background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:10,padding:"2px 8px"}}>{timeOffRequests.length} pending</span>}
                   </div>
-                ))}
-                {staffSearch&&liveEmps.filter(emp=>emp.name.toLowerCase().includes(staffSearch.toLowerCase())||emp.role.toLowerCase().includes(staffSearch.toLowerCase())).length===0&&(
-                  <div style={{textAlign:"center",padding:"40px 20px",fontFamily:O.sans,fontSize:14,color:O.textD}}>No employees match "{staffSearch}"</div>
-                )}
+                  {!requestsLoaded&&<SkeletonLoader rows={3}/>}
+                  {requestsLoaded&&timeOffRequests.length===0&&(
+                    <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"28px",textAlign:"center",boxShadow:O.shadow}}>
+                      <div style={{fontSize:36,marginBottom:8}}>✅</div>
+                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text,marginBottom:4}}>No pending time off requests</div>
+                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Time off requests from employees will appear here.</div>
+                    </div>
+                  )}
+                  {timeOffRequests.map(req=>(
+                    <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid #7c3aed",borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                        <span style={{fontSize:20,flexShrink:0}}>📆</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:3}}>
+                            {req.users?.first_name||"Employee"} {req.users?.last_name||""} · {req.dates||req.date_range||"Dates TBD"}
+                          </div>
+                          <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>{req.reason||"Personal"}</div>
+                        </div>
+                        <div style={{display:"flex",gap:8,flexShrink:0}}>
+                          <button onClick={async()=>{
+                            try{
+                              const {createClient}=await import("@supabase/supabase-js");
+                              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                              await sb.from("time_off_requests").update({status:"approved"}).eq("id",req.id);
+                              setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
+                              toast("Time off approved ✓","success");
+                            }catch(e){ toast("Failed: "+e.message,"error"); }
+                          }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>✓ Approve</button>
+                          <button onClick={async()=>{
+                            try{
+                              const {createClient}=await import("@supabase/supabase-js");
+                              const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                              await sb.from("time_off_requests").update({status:"denied"}).eq("id",req.id);
+                              setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
+                              toast("Request denied","success");
+                            }catch(e){ toast("Failed: "+e.message,"error"); }
+                          }} style={{padding:"6px 12px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.red,cursor:"pointer"}}>✕ Deny</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
