@@ -4173,19 +4173,87 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
         {/* ══ INTELLIGENCE TAB ══ */}
         {tab==="intel"&&(
-          <IntelligenceTab
-            liveEmps={liveEmps}
-            liveShifts={liveShifts}
-            activeOrg={activeOrg}
-            activeLocation={activeLocation}
-            intelPrompt={intelPrompt}
-            setIntelPrompt={setIntelPrompt}
-            intelOutput={intelOutput}
-            setIntelOutput={setIntelOutput}
-            intelBusy={intelBusy}
-            setIntelBusy={setIntelBusy}
-            toast={toast}
-          />
+          <div style={{animation:"fadeUp 0.3s ease"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+              <span style={{fontSize:32}}>🧠</span>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2.5px",marginBottom:3,textTransform:"uppercase"}}>AI Intelligence · Coming Soon</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:22,color:O.text}}>ShiftPro Intelligence Platform</div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:16}}>
+
+              {/* What's Coming card */}
+              <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:16,padding:"24px",boxShadow:O.shadow}}>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2px",marginBottom:6,textTransform:"uppercase"}}>Heavy Plan · Corporate Plan</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text,marginBottom:4}}>What's Coming</div>
+                <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:20,lineHeight:1.6}}>
+                  The AI brain behind ShiftPro — behavioral pattern detection, predictive scheduling, and labor intelligence that no other platform offers.
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+                  {[
+                    "AI scheduling assistant — build a week in plain English",
+                    "Behavioral pattern detection & ghost hour forensics",
+                    "Predictive labor cost forecasting",
+                    "Overtime risk alerts before they happen",
+                    "Employee morale trend analysis",
+                    "Auto-scheduler based on availability + history",
+                    "Shift feedback & retention intelligence",
+                    "Live camera cross-reference (requires Camera plan)"
+                  ].map((f,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:14}}>🔒</span>
+                      <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:O.mono,fontSize:9,color:O.purple,letterSpacing:"2px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:20,padding:"5px 14px"}}>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:O.purple}}/> LAUNCHING Q1 2027
+                </div>
+              </div>
+
+              {/* Waitlist card */}
+              <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:16,padding:"24px",boxShadow:O.shadow}}>
+                {waitlistDone?(
+                  <div style={{textAlign:"center",padding:"40px 20px"}}>
+                    <div style={{fontSize:44,marginBottom:12}}>🎉</div>
+                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text,marginBottom:8}}>You're on the list!</div>
+                    <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,lineHeight:1.7}}>We'll notify you when Intelligence launches. Current ShiftPro customers get priority access and early-bird pricing.</div>
+                  </div>
+                ):(
+                  <div>
+                    <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:6,textTransform:"uppercase"}}>Join the Waitlist</div>
+                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text,marginBottom:4}}>Get Early Access</div>
+                    <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:20,lineHeight:1.6}}>
+                      Current ShiftPro customers get priority access and early-bird pricing when Intelligence launches.
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+                      {[
+                        {l:"Your Name",k:"name",ph:"Alex Rivera"},
+                        {l:"Email",k:"email",ph:"you@business.com"},
+                        {l:"Business Name",k:"biz",ph:"Sea Lion Dockside Bar"}
+                      ].map(f=>(
+                        <div key={f.k}>
+                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>{f.l}</div>
+                          <input
+                            value={waitlistForm[f.k]}
+                            onChange={e=>setWaitlistForm(p=>({...p,[f.k]:e.target.value}))}
+                            placeholder={f.ph}
+                            style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={()=>{ if(waitlistForm.name&&waitlistForm.email){ setWaitlistDone(true); toast("You're on the Intelligence waitlist! ✓","success"); }}}
+                      style={{width:"100%",padding:"12px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 16px rgba(124,58,237,0.25)"}}>
+                      Join Waitlist →
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ══ CAMERAS TAB ══ */}
