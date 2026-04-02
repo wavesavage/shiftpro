@@ -4,6 +4,18 @@ import React, { useState, useEffect, useRef } from "react";
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');`;
 
+// Supabase singleton — avoids creating new client on every async call
+let _sbClient = null;
+const getSB = async () => {
+  if(_sbClient) return _sbClient;
+  const {createClient} = await import("@supabase/supabase-js");
+  _sbClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+  return _sbClient;
+};
+
 function useIsMobile(breakpoint=768){
   const [mobile,setMobile] = useState(false);
   useEffect(()=>{
@@ -597,10 +609,40 @@ function EmpPortal({emp,onLogout}){
   const [now,setNow] = useState(new Date());
   const [swapOpen,setSwapOpen] = useState(false);
   const [toOpen,setToOpen] = useState(false);
+  // Schedule sub-tab state (must be here, not inside render IIFE)
+  const [schedSubTab,setSchedSubTab] = useState("shifts");
+  const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
+  const [availRecurring,setAvailRecurring] = useState(true);
+  const [availSaved,setAvailSaved] = useState(false);
+  const [availBusy,setAvailBusy] = useState(false);
   const [msgs,setMsgs] = useState([]);
   const [openMsg,setOpenMsg] = useState(null);
 
-  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
+
+  // Load shifts when tab switches to schedule or command
+  useEffect(()=>{
+    if((tab==="schedule"||tab==="command") && liveShifts===null && ownerProfile?.org_id){
+      loadShifts(ownerProfile.org_id, getMonday(currentWeekOffset), activeLocation?.id||null);
+    }
+  },[tab, ownerProfile?.org_id, currentWeekOffset]);
+
+  // Load payroll when tab switches to roi
+  useEffect(()=>{
+    if(tab==="roi" && livePayroll===null && ownerProfile?.org_id){
+      const days = payPeriod==="month"?30:payPeriod==="last"?28:14;
+      loadPayroll(ownerProfile.org_id, activeLocation?.id||null, days);
+    }
+  },[tab, ownerProfile?.org_id]);
+
+  // Reload payroll when pay period changes
+  useEffect(()=>{
+    if(tab==="roi" && ownerProfile?.org_id){
+      setLivePayroll(null);
+      const days = payPeriod==="month"?30:payPeriod==="last"?28:14;
+      loadPayroll(ownerProfile.org_id, activeLocation?.id||null, days);
+    }
+  },[payPeriod]);
   useEffect(()=>{
     if(!clocked){setSecs(0);setBreakSecs(0);setOnBreak(false);return;}
     if(onBreak){const t=setInterval(()=>setBreakSecs(s=>s+1),1000);return()=>clearInterval(t);}
@@ -770,11 +812,6 @@ function EmpPortal({emp,onLogout}){
           </div>
         )}
         {tab==="schedule"&&(()=>{
-          const [schedSubTab,setSchedSubTab] = React.useState("shifts");
-          const [avail,setAvail] = React.useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
-          const [availRecurring,setAvailRecurring] = React.useState(true);
-          const [availSaved,setAvailSaved] = React.useState(false);
-          const [availBusy,setAvailBusy] = React.useState(false);
           const cycleAvail = (day) => setAvail(p=>({...p,[day]:p[day]==="none"?"available":p[day]==="available"?"unavailable":"none"}));
           const availColor = s => s==="available"?E.green:s==="unavailable"?"#ef4444":E.border;
           const availBg = s => s==="available"?"rgba(16,185,129,0.1)":s==="unavailable"?"rgba(239,68,68,0.08)":"none";
@@ -1154,6 +1191,7 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
 //  NOTIFICATIONS DROPDOWN (outside OwnerCmd)
 // ══════════════════════════════════════════════════
 function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, setTab, setStaffSubTab }) {
+  const mobile = useIsMobile();
   const unread = notifications.filter(n=>!n.read);
 
   // Mark all read when opened
@@ -1166,11 +1204,11 @@ function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, 
 
   return (
     <div style={{
-      position:"fixed",top:62,right:20,width:340,
+      positin:"fixed",top:62,right:mobile?8:20,width:mobile?"calc(100vw - 16px)":340,
       background:"#fff",border:"1px solid "+O.border,
       borderRadius:14,boxShadow:"0 8px 32px rgba(0,0,0,0.12)",
       zIndex:500,overflow:"hidden",animation:"fadeUp 0.2s ease",
-    }}>
+    }}>}>
       {/* Header */}
       <div style={{padding:"14px 16px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>Notifications</div>
@@ -1480,6 +1518,7 @@ function IntelligenceTab({
   intelOutput, setIntelOutput,
   intelBusy, setIntelBusy, toast
 }) {
+  const mobile = useIsMobile();
   const LIVE = liveEmps||[];
   const totalScheduledHrs = (liveShifts||[]).reduce((s,sh)=>s+(sh.end_hour-sh.start_hour),0);
   const avgRate = LIVE.length>0 ? LIVE.reduce((s,e)=>s+(parseFloat(e.rate)||15),0)/LIVE.length : 15;
@@ -2588,6 +2627,14 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [orgSwitcherOpen,setOrgSwitcherOpen] = useState(false);
   const [locSwitcherOpen,setLocSwitcherOpen] = useState(false);
 
+  // Close dropdowns on outside click
+  useEffect(()=>{
+    if(!orgSwitcherOpen && !locSwitcherOpen && !notifOpen) return;
+    const handler = ()=>{ setOrgSwitcherOpen(false); setLocSwitcherOpen(false); setNotifOpen(false); };
+    const t = setTimeout(()=>document.addEventListener("click", handler), 0);
+    return()=>{ clearTimeout(t); document.removeEventListener("click", handler); };
+  },[orgSwitcherOpen, locSwitcherOpen, notifOpen]);
+
   // ── Waitlist ──
   const [waitlistForm,setWaitlistForm] = useState({name:"",email:"",biz:""});
   const [waitlistDone,setWaitlistDone] = useState(false);
@@ -2616,7 +2663,31 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [timeOffRequests,setTimeOffRequests] = useState([]);
   const [requestsLoaded,setRequestsLoaded] = useState(false);
 
-  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
+
+  // Load shifts when tab switches to schedule or command
+  useEffect(()=>{
+    if((tab==="schedule"||tab==="command") && liveShifts===null && ownerProfile?.org_id){
+      loadShifts(ownerProfile.org_id, getMonday(currentWeekOffset), activeLocation?.id||null);
+    }
+  },[tab, ownerProfile?.org_id, currentWeekOffset]);
+
+  // Load payroll when tab switches to roi
+  useEffect(()=>{
+    if(tab==="roi" && livePayroll===null && ownerProfile?.org_id){
+      const days = payPeriod==="month"?30:payPeriod==="last"?28:14;
+      loadPayroll(ownerProfile.org_id, activeLocation?.id||null, days);
+    }
+  },[tab, ownerProfile?.org_id]);
+
+  // Reload payroll when pay period changes
+  useEffect(()=>{
+    if(tab==="roi" && ownerProfile?.org_id){
+      setLivePayroll(null);
+      const days = payPeriod==="month"?30:payPeriod==="last"?28:14;
+      loadPayroll(ownerProfile.org_id, activeLocation?.id||null, days);
+    }
+  },[payPeriod]);
 
   // ── Helper: get Monday of offset week ──
   const getMonday = (offset=0) => {
@@ -2733,6 +2804,25 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       setRequestsLoaded(true);
     }catch(e){}
     setNotifications(items);
+  };
+
+  const loadPayroll = async(orgId, locId, periodDays=14) => {
+    try{
+      const {createClient} = await import("@supabase/supabase-js");
+      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const start = new Date();
+      start.setDate(start.getDate() - periodDays);
+      let q = sb.from("clock_events")
+        .select("*")
+        .eq("org_id", orgId)
+        .gte("occurred_at", start.toISOString())
+        .order("occurred_at", {ascending: true});
+      if(locId) q = q.eq("location_id", locId);
+      const {data: events} = await q;
+      setLivePayroll(events || []);
+    }catch(e){
+      setLivePayroll([]);
+    }
   };
 
   const loadShifts = async(orgId, weekStr, locId) => {
@@ -3346,10 +3436,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>📅 This Week's Schedule</div>
                           <button onClick={()=>setTab("schedule")} style={{fontFamily:O.sans,fontSize:12,fontWeight:600,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>View Full →</button>
                         </div>
-                        {liveShifts===null&&ownerProfile?.org_id&&(()=>{
-                          loadShifts(ownerProfile.org_id, getMonday(0), activeLocation?.id||null);
-                          return <SkeletonLoader rows={3}/>;
-                        })()}
+                        {liveShifts===null&&<SkeletonLoader rows={3}/>}
                         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
                           {DAYS_FULL.map(d=>{
                             const count = shiftsPerDay[d]||0;
@@ -3739,7 +3826,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               </div>
             )}
 
-            {liveShifts===null&&ownerProfile?.org_id&&(()=>{loadShifts(ownerProfile.org_id,getMonday(currentWeekOffset),activeLocation?.id||null);return <SkeletonLoader rows={4}/>;})()}
+            {liveShifts===null&&<SkeletonLoader rows={4}/>}
 
             {liveEmps!==null&&liveEmps.length>0&&liveShifts!==null&&(()=>{
               const STAFF=liveEmps;
@@ -3828,22 +3915,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         {/* ══ PAYROLL TAB ══ */}
         {tab==="roi"&&(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
-            {livePayroll===null&&ownerProfile?.org_id&&(()=>{
-              const load=async()=>{
-                try{
-                  const {createClient}=await import("@supabase/supabase-js");
-                  const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-                  const start=new Date();start.setDate(start.getDate()-14);
-                  let q=sb.from("clock_events").select("*, users(first_name,last_name,hourly_rate,role,avatar_initials,avatar_color)").eq("org_id",ownerProfile.org_id).gte("occurred_at",start.toISOString()).order("occurred_at",{ascending:true});
-                  if(activeLocation) q=q.eq("location_id",activeLocation.id);
-                  const {data:events}=await q;
-                  setLivePayroll(events||[]);
-                }catch(e){setLivePayroll([]);}
-              };
-              load();
-              return null;
-            })()}
-
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
               <div>
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.green,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Payroll Tracking</div>
@@ -3860,7 +3931,21 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 {livePayroll!==null&&livePayroll.length>0&&(
                   <button onClick={()=>{
                     const byUser={};
-                    livePayroll.forEach(ev=>{if(!byUser[ev.user_id])byUser[ev.user_id]={events:[],user:ev.users};byUser[ev.user_id].events.push(ev);});
+                    livePayroll.forEach(ev=>{
+        if(!byUser[ev.user_id]){
+          const empMatch=(liveEmps||[]).find(e=>e.id===ev.user_id);
+          const userFallback=empMatch?{
+            first_name:empMatch.first||empMatch.name.split(" ")[0],
+            last_name:empMatch.name.split(" ").slice(1).join(" "),
+            hourly_rate:empMatch.rate||15,
+            role:empMatch.role||"Employee",
+            avatar_initials:empMatch.avatar||"?",
+            avatar_color:empMatch.color||"#6366f1",
+          }:null;
+          byUser[ev.user_id]={events:[],user:ev.users||userFallback};
+        }
+        byUser[ev.user_id].events.push(ev);
+      });
                     const rows=["Name,Role,Hours,Regular Pay,OT Hours,OT Pay,Total Pay"];
                     Object.values(byUser).forEach(({events,user})=>{
                       let totalMins=0,cin=null;
@@ -3901,7 +3986,21 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
             {livePayroll!==null&&livePayroll.length>0&&(()=>{
               const byUser={};
-              livePayroll.forEach(ev=>{if(!byUser[ev.user_id])byUser[ev.user_id]={events:[],user:ev.users};byUser[ev.user_id].events.push(ev);});
+              livePayroll.forEach(ev=>{
+        if(!byUser[ev.user_id]){
+          const empMatch=(liveEmps||[]).find(e=>e.id===ev.user_id);
+          const userFallback=empMatch?{
+            first_name:empMatch.first||empMatch.name.split(" ")[0],
+            last_name:empMatch.name.split(" ").slice(1).join(" "),
+            hourly_rate:empMatch.rate||15,
+            role:empMatch.role||"Employee",
+            avatar_initials:empMatch.avatar||"?",
+            avatar_color:empMatch.color||"#6366f1",
+          }:null;
+          byUser[ev.user_id]={events:[],user:ev.users||userFallback};
+        }
+        byUser[ev.user_id].events.push(ev);
+      });
               const payRows=Object.entries(byUser).map(([uid,{events,user}])=>{
                 let totalMins=0,cin=null;
                 [...events].sort((a,b)=>new Date(a.occurred_at)-new Date(b.occurred_at)).forEach(ev=>{
