@@ -620,6 +620,16 @@ function EmpPortal({emp,onLogout}){
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
 
+  // Safety fallback: if data still null after 8s, resolve to empty (prevents infinite skeletons)
+  useEffect(()=>{
+    const t = setTimeout(()=>{
+      setLiveShifts(s=>s===null?[]:s);
+      setLivePayroll(p=>p===null?[]:p);
+      setLiveEmps(e=>e===null?[]:e);
+    }, 8000);
+    return()=>clearTimeout(t);
+  },[]);
+
   // Close dropdowns on outside click (must be AFTER all state declarations)
   useEffect(()=>{
     if(!orgSwitcherOpen && !locSwitcherOpen && !notifOpen) return;
@@ -1528,6 +1538,11 @@ function IntelligenceTab({
 }) {
   const mobile = useIsMobile();
   const LIVE = liveEmps||[];
+
+  // Show coming soon by default until API is confirmed working
+  React.useEffect(()=>{
+    if(!intelOutput) setIntelOutput("__COMING_SOON__");
+  },[]);
   const totalScheduledHrs = (liveShifts||[]).reduce((s,sh)=>s+(sh.end_hour-sh.start_hour),0);
   const avgRate = LIVE.length>0 ? LIVE.reduce((s,e)=>s+(parseFloat(e.rate)||15),0)/LIVE.length : 15;
   const projectedCost = totalScheduledHrs * avgRate;
@@ -1558,12 +1573,20 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
           messages: [{ role: "user", content: intelPrompt }],
         }),
       });
+      if(!response.ok){
+        const err = await response.json().catch(()=>({}));
+        if(response.status===401||response.status===403){
+          setIntelOutput("__COMING_SOON__");
+        } else {
+          setIntelOutput("Unable to connect to AI. Please try again later.");
+        }
+        return;
+      }
       const data = await response.json();
       const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
       setIntelOutput(text||"No response received.");
     } catch(e) {
-      setIntelOutput("Error: "+e.message);
-      toast("AI request failed","error");
+      setIntelOutput("__COMING_SOON__");
     } finally {
       setIntelBusy(false);
     }
@@ -1663,10 +1686,22 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
         </div>
 
         {/* Output */}
-        {intelOutput&&(
+        {intelOutput&&intelOutput!=="__COMING_SOON__"&&(
           <div style={{marginTop:16,padding:"16px",background:"rgba(0,212,255,0.04)",border:"1px solid rgba(0,212,255,0.12)",borderRadius:10}}>
             <div style={{fontFamily:O.mono,fontSize:8,color:cyan,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>AI Response</div>
             <div style={{fontFamily:O.sans,fontSize:13,color:"rgba(255,255,255,0.85)",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{intelOutput}</div>
+          </div>
+        )}
+        {intelOutput==="__COMING_SOON__"&&(
+          <div style={{marginTop:16,padding:"24px",background:"rgba(0,0,0,0.3)",border:"1px solid rgba(0,212,255,0.12)",borderRadius:10,textAlign:"center"}}>
+            <div style={{fontSize:32,marginBottom:12}}>🧠</div>
+            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:"#fff",marginBottom:8}}>AI Scheduling Assistant</div>
+            <div style={{fontFamily:O.sans,fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.7,marginBottom:16}}>
+              The AI assistant requires API configuration. This feature is currently in private beta and will be available to all ShiftPro plans in Q1 2027.
+            </div>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:O.mono,fontSize:9,color:"#00d4ff",letterSpacing:"2px",background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",borderRadius:20,padding:"5px 14px"}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:"#00d4ff"}}/> LAUNCHING Q1 2027
+            </div>
           </div>
         )}
 
@@ -2665,6 +2700,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
 
+  // Safety fallback: if data still null after 8s, resolve to empty (prevents infinite skeletons)
+  useEffect(()=>{
+    const t = setTimeout(()=>{
+      setLiveShifts(s=>s===null?[]:s);
+      setLivePayroll(p=>p===null?[]:p);
+      setLiveEmps(e=>e===null?[]:e);
+    }, 8000);
+    return()=>clearTimeout(t);
+  },[]);
+
   // Close dropdowns on outside click (must be AFTER all state declarations)
   useEffect(()=>{
     if(!orgSwitcherOpen && !locSwitcherOpen && !notifOpen) return;
@@ -2763,7 +2808,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           if(locs&&locs.length>0){
             setLiveLocations(locs);
             // Check sessionStorage for previously selected location
-            const savedLocId = typeof window!=="undefined" ? sessionStorage.getItem("shiftpro_active_loc") : null;
+            const savedLocId = typeof window!=="undefined" ? localStorage.getItem("shiftpro_active_loc") : null;
             const savedLoc = savedLocId ? locs.find(l=>l.id===savedLocId) : null;
             if(savedLoc){
               setActiveLocation(savedLoc);
@@ -2787,6 +2832,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     load();
     const fallback = setTimeout(()=>{ setLocationGate(g=>g===null?"pick":g); setLiveEmps(e=>e===null?[]:e); }, 5000);
     return()=>clearTimeout(fallback);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   // Load notifications
@@ -2857,7 +2903,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const selectLocation = (loc) => {
     setActiveLocation(loc);
-    if(typeof window!=="undefined") sessionStorage.setItem("shiftpro_active_loc", loc.id);
+    if(typeof window!=="undefined") localStorage.setItem("shiftpro_active_loc", loc.id);
     setLocationGate("ready");
     setLiveShifts(null);
     setLivePayroll(null);
@@ -3444,7 +3490,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>📅 This Week's Schedule</div>
                           <button onClick={()=>setTab("schedule")} style={{fontFamily:O.sans,fontSize:12,fontWeight:600,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>View Full →</button>
                         </div>
-                        {liveShifts===null&&<SkeletonLoader rows={3}/>}
+                        {liveShifts===null&&(
+                          <div style={{fontFamily:O.sans,fontSize:13,color:O.textF,padding:"12px 0",textAlign:"center"}}>
+                            Loading this week's schedule…
+                          </div>
+                        )}
                         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
                           {DAYS_FULL.map(d=>{
                             const count = shiftsPerDay[d]||0;
@@ -3834,7 +3884,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               </div>
             )}
 
-            {liveShifts===null&&<SkeletonLoader rows={4}/>}
+            {liveShifts===null&&(
+              <div style={{textAlign:"center",padding:"40px 20px",background:"#fff",borderRadius:14,border:"1px solid "+O.border,boxShadow:O.shadow,marginBottom:12}}>
+                <div style={{fontSize:36,marginBottom:10}}>📅</div>
+                <div style={{fontFamily:O.sans,fontWeight:600,fontSize:15,color:O.text,marginBottom:4}}>Loading schedule…</div>
+                <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Fetching shifts for this week from Supabase.</div>
+              </div>
+            )}
 
             {liveEmps!==null&&liveEmps.length>0&&liveShifts!==null&&(()=>{
               const STAFF=liveEmps;
@@ -3972,7 +4028,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               </div>
             </div>
 
-            {livePayroll===null&&<SkeletonLoader rows={4}/>}
+            {livePayroll===null&&(
+              <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:14,border:"1px solid "+O.border,boxShadow:O.shadow}}>
+                <div style={{fontSize:48,marginBottom:12}}>⏳</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text,marginBottom:6}}>Loading payroll data…</div>
+                <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,lineHeight:1.7,maxWidth:380,margin:"0 auto"}}>
+                  Payroll data will appear here as employees clock in and out. If this takes too long, try refreshing the page.
+                </div>
+              </div>
+            )}
 
             {livePayroll!==null&&livePayroll.length===0&&liveEmps!==null&&liveEmps.length===0&&(
               <div style={{textAlign:"center",padding:"80px 20px"}}>
