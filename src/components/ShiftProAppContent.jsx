@@ -618,49 +618,8 @@ function EmpPortal({emp,onLogout}){
   const [msgs,setMsgs] = useState([]);
   const [openMsg,setOpenMsg] = useState(null);
 
-  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
 
-  // Safety fallback: if data still null after 8s, resolve to empty (prevents infinite skeletons)
-  useEffect(()=>{
-    const t = setTimeout(()=>{
-      setLiveShifts(s=>s===null?[]:s);
-      setLivePayroll(p=>p===null?[]:p);
-      setLiveEmps(e=>e===null?[]:e);
-    }, 8000);
-    return()=>clearTimeout(t);
-  },[]);
-
-  // Close dropdowns on outside click (must be AFTER all state declarations)
-  useEffect(()=>{
-    if(!orgSwitcherOpen && !locSwitcherOpen && !notifOpen) return;
-    const handler = ()=>{ setOrgSwitcherOpen(false); setLocSwitcherOpen(false); setNotifOpen(false); };
-    const t = setTimeout(()=>document.addEventListener("click", handler), 0);
-    return()=>{ clearTimeout(t); document.removeEventListener("click", handler); };
-  },[orgSwitcherOpen, locSwitcherOpen, notifOpen]);
-
-  // Load shifts when tab switches to schedule or command
-  useEffect(()=>{
-    if((tab==="schedule"||tab==="command") && liveShifts===null && ownerProfile?.org_id){
-      loadShifts(ownerProfile.org_id, getMonday(currentWeekOffset), activeLocation?.id||null);
-    }
-  },[tab, ownerProfile?.org_id, currentWeekOffset]);
-
-  // Load payroll when tab switches to roi
-  useEffect(()=>{
-    if(tab==="roi" && livePayroll===null && ownerProfile?.org_id){
-      const days = payPeriod==="month"?30:payPeriod==="last"?28:14;
-      loadPayroll(ownerProfile.org_id, activeLocation?.id||null, days);
-    }
-  },[tab, ownerProfile?.org_id]);
-
-  // Reload payroll when pay period changes
-  useEffect(()=>{
-    if(tab==="roi" && ownerProfile?.org_id){
-      setLivePayroll(null);
-      const days = payPeriod==="month"?30:payPeriod==="last"?28:14;
-      loadPayroll(ownerProfile.org_id, activeLocation?.id||null, days);
-    }
-  },[payPeriod]);
   useEffect(()=>{
     if(!clocked){setSecs(0);setBreakSecs(0);setOnBreak(false);return;}
     if(onBreak){const t=setInterval(()=>setBreakSecs(s=>s+1),1000);return()=>clearInterval(t);}
@@ -4381,7 +4340,27 @@ export default function App(){
         if(s?.user){
           const {data:profile}=await sb.from("users").select("*").eq("id",s.user.id).single();
           const role=profile?.app_role==="owner"||profile?.app_role==="manager"?"owner":"employee";
-          const emp=profile?{id:profile.id,name:profile.first_name+" "+profile.last_name,first:profile.first_name,role:profile.role,dept:profile.department||"",rate:parseFloat(profile.hourly_rate)||15,avatar:profile.avatar_initials||"?",color:profile.avatar_color||"#6366f1",email:s.user.email,status:"active",hired:profile.hire_date||"",wkHrs:38.5,moHrs:152,ot:0,cam:90,prod:85,rel:90,flags:0,streak:1,shifts:4,risk:"Low",ghost:0,orgId:profile.org_id,locId:profile.location_id,appRole:profile.app_role}:null;
+          // Build emp object — works even if profile is null (new invite)
+          const emp={
+            id:profile?.id||s.user.id,
+            name:(profile?.first_name||"New")+" "+(profile?.last_name||"Employee"),
+            first:profile?.first_name||"there",
+            role:profile?.role||"Employee",
+            dept:profile?.department||"",
+            rate:parseFloat(profile?.hourly_rate)||15,
+            avatar:profile?.avatar_initials||(s.user.email?.[0]?.toUpperCase()||"?"),
+            color:profile?.avatar_color||"#6366f1",
+            email:s.user.email||"",
+            status:"active",
+            hired:profile?.hire_date||"",
+            wkHrs:0, moHrs:0, ot:0,
+            cam:85, prod:80, rel:85,
+            flags:0, streak:0, shifts:0,
+            risk:"Low", ghost:0,
+            orgId:profile?.org_id||null,
+            locId:profile?.location_id||null,
+            appRole:profile?.app_role||"employee",
+          };
           if(typeof window!=="undefined") window.location.hash="";
           setResetMode(false);setSession({role,emp});
         }
