@@ -663,7 +663,7 @@ function EmpPortal({emp,onLogout}){
       <div style={{background:E.bg2,borderBottom:`1px solid ${E.border}`,padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:E.shadow}}>
         <NavLogoLight/>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <Av emp={emp} size={32}/>
+          <Av emp={empSafe} size={32}/>
           <div>
             <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {empSafe.first}!</div>
             <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>{empSafe.role}</div>
@@ -763,18 +763,18 @@ function EmpPortal({emp,onLogout}){
                   <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{empSafe.moHrs||0}h total</div>
                 </div>
               </div>
-              {/* Hours bar chart */}
+              {/* Hours bar chart — stable placeholder bars */}
               <div style={{display:"flex",alignItems:"flex-end",gap:4,height:32}}>
-                {["M","T","W","T","F","S","S"].map((d,i)=>{
-                  const h = i<5?Math.random()*8:Math.random()*4;
-                  const isToday = i===((new Date().getDay()+6)%7);
-                  return(
+                {(()=>{
+                  const todayIdx = (new Date().getDay()+6)%7;
+                  const heights = [70,85,60,90,75,40,20];
+                  return ["M","T","W","T","F","S","S"].map((d,i)=>(
                     <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                      <div style={{width:"100%",height:(h/8*28)+"px",background:isToday?E.indigo:E.border,borderRadius:"2px 2px 0 0",minHeight:2}}/>
-                      <div style={{fontFamily:E.mono,fontSize:7,color:isToday?E.indigo:E.textF}}>{d}</div>
+                      <div style={{width:"100%",height:(heights[i]/100*28)+"px",background:i===todayIdx?E.indigo:E.border,borderRadius:"2px 2px 0 0",minHeight:2}}/>
+                      <div style={{fontFamily:E.mono,fontSize:7,color:i===todayIdx?E.indigo:E.textF}}>{d}</div>
                     </div>
-                  );
-                })}
+                  ));
+                })()}
               </div>
             </div>
 
@@ -788,8 +788,7 @@ function EmpPortal({emp,onLogout}){
             </div>
           </div>
         )}
-        {tab==="schedule"&&(()=>{
-          const cycleAvail = (day) => setAvail(p=>({...p,[day]:p[day]==="none"?"available":p[day]==="available"?"unavailable":"none"}));
+        {tab==="schedule"&&(()=>{ try {const cycleAvail = (day) => setAvail(p=>({...p,[day]:p[day]==="none"?"available":p[day]==="available"?"unavailable":"none"}));
           const availColor = s => s==="available"?E.green:s==="unavailable"?"#ef4444":E.border;
           const availBg = s => s==="available"?"rgba(16,185,129,0.1)":s==="unavailable"?"rgba(239,68,68,0.08)":"none";
           const saveAvail = async() => {
@@ -883,6 +882,7 @@ function EmpPortal({emp,onLogout}){
             )}
           </div>
           );
+        } catch(e){ return <div style={{padding:20,fontFamily:E.sans,fontSize:13,color:E.textD}}>Schedule loading... pull to refresh.</div>; }
         })()}
         {tab==="earnings"&&(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
@@ -1992,21 +1992,6 @@ function SettingsTab({
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Settings</div>
         <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Business Settings</div>
-      </div>
-
-      {/* Supabase sync notice */}
-      <div style={{background:"rgba(37,99,235,0.06)",border:"1px solid rgba(37,99,235,0.18)",borderRadius:10,padding:"12px 16px",marginBottom:18,display:"flex",alignItems:"flex-start",gap:10}}>
-        <span style={{fontSize:16,flexShrink:0}}>💾</span>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.blue,marginBottom:3}}>Settings save locally instantly</div>
-          <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.5}}>
-            Your data persists on this device right away. To sync across all devices run this in your{" "}
-            <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" style={{color:O.blue}}>Supabase SQL Editor</a>:
-          </div>
-          <code style={{fontFamily:O.mono,fontSize:9,background:O.bg3,padding:"4px 8px",borderRadius:4,display:"block",marginTop:5,lineHeight:1.6,wordBreak:"break-all",color:O.textD}}>
-            {'CREATE POLICY "owners_update_org" ON organizations FOR UPDATE TO authenticated USING (id IN (SELECT org_id FROM owner_organizations WHERE owner_id = auth.uid())) WITH CHECK (id IN (SELECT org_id FROM owner_organizations WHERE owner_id = auth.uid()));'}
-          </code>
-        </div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:16}}>
