@@ -425,17 +425,29 @@ function Login({onLogin}){
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
       const {data:profile} = await sb.from("users").select("*").eq("id",data.user.id).single();
-      const emp = profile ? {
-        id:profile.id, name:profile.first_name+" "+profile.last_name,
-        first:profile.first_name, role:profile.role, dept:profile.department||"",
+      if(!profile) throw new Error("Profile not found. Contact your manager.");
+      const empRole = profile.app_role==="owner"||profile.app_role==="manager"?"owner":"employee";
+      const emp = {
+        id:profile.id,
+        name:(profile.first_name||"")+" "+(profile.last_name||""),
+        first:profile.first_name||data.user.email.split("@")[0],
+        role:profile.role||"Employee",
+        dept:profile.department||"",
         rate:parseFloat(profile.hourly_rate)||15,
-        avatar:profile.avatar_initials||(profile.first_name[0]+profile.last_name[0]).toUpperCase(),
-        color:profile.avatar_color||"#6366f1", email:data.user.email, status:"active",
-        hired:profile.hire_date||"", wkHrs:38.5, moHrs:152, ot:0,
-        cam:90, prod:85, rel:90, flags:0, streak:5, shifts:4, risk:"Low", ghost:0,
-        orgId:profile.org_id, locId:profile.location_id, appRole:profile.app_role||"employee",
-      } : null;
-      onLogin("employee", emp);
+        avatar:profile.avatar_initials||((profile.first_name||"?")[0]+(profile.last_name||"?")[0]).toUpperCase(),
+        color:profile.avatar_color||"#6366f1",
+        email:data.user.email,
+        status:"active", hired:profile.hire_date||"",
+        wkHrs:0, moHrs:0, ot:0,
+        cam:100, prod:100, rel:100,
+        flags:0, streak:0, shifts:0, risk:"Low", ghost:0,
+        orgId:profile.org_id||null,
+        locId:profile.location_id||null,
+        appRole:profile.app_role||"employee",
+      };
+      // Cache with user-specific key
+      try{ localStorage.setItem("shiftpro_cached_emp_"+profile.id, JSON.stringify(emp)); }catch(e){}
+      onLogin(empRole, emp);
     }catch(e){
       setErr(e.message||"Sign in failed. Check your email and password.");
     }finally{setBusy(false);}
@@ -646,7 +658,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
       }));
       if(availRows.length>0) await sb.from("availability").upsert(availRows,{onConflict:"user_id,day_of_week"});
     }catch(e){ /* always continue even if Supabase fails */ }
-    finally{ setBusy(false); onComplete(); }
+    finally{ setBusy(false); onComplete(true); }
   };
 
   const prog = (step/4)*100;
@@ -856,12 +868,18 @@ function EmpPortal({emp,onLogout}){
   ];
 
   // First-login onboarding gate
-  if(!onboardingDone && empSafe.id && empSafe.appRole==="employee") return (
+  if(!onboardingDone && empSafe.id && (empSafe.appRole==="employee"||empSafe.appRole==="supervisor")) return (
     <EmpOnboarding
       empSafe={empSafe}
-      onComplete={()=>{
+      onComplete={async(updatedProfile)=>{
         try{ localStorage.setItem("shiftpro_onboarding_"+empSafe.id,"done"); }catch(e){}
-        setOnboardingDone(true);
+        // If onboarding saved new profile data, update empSafe-equivalent in session
+        if(updatedProfile && typeof onLogout === "function"){
+          // Reload the page so session re-fetches fresh profile from Supabase
+          if(typeof window!=="undefined") window.location.reload();
+        } else {
+          setOnboardingDone(true);
+        }
       }}
     />
   );
@@ -4583,7 +4601,7 @@ export default function App(){
             return; // user will see login screen and can log in manually
           }
 
-          const role = profile.app_role==="owner"||profile.app_role==="manager"?"owner":"employee";
+          const role = (profile.app_role==="owner"||profile.app_role==="manager")?"owner":"employee";
           const emp = {
             id: profile.id,
             name: (profile.first_name||"")+" "+(profile.last_name||""),
