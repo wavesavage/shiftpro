@@ -3051,22 +3051,30 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         const {data:profile} = await sb.from("users").select("*").eq("id",session.user.id).single();
         if(profile) setOwnerProfile(profile);
 
-        let orgId = profile?.org_id;
-        // Always try cached orgId as ultimate fallback
-        if(!orgId) orgId = localStorage.getItem("shiftpro_active_orgid")||null;
+        let orgId = null; // Start null — owner_organizations is the source of truth
 
-        // Try owner_organizations
+        // Try owner_organizations FIRST — this is always the correct org
         const {data:ooRows} = await sb.from("owner_organizations").select("*, organizations(*)").eq("owner_id",session.user.id).order("created_at");
         let orgs = [];
         if(ooRows&&ooRows.length>0){
           orgs = ooRows.map(r=>r.organizations).filter(Boolean);
           setOwnerOrgs(orgs);
-          orgId = orgId || orgs[0]?.id;
-          // Save immediately — this is the most reliable source
-          if(orgId) try{ localStorage.setItem("shiftpro_active_orgid", orgId); }catch(e){}
+          orgId = orgs[0]?.id || null;
+          // Save the CORRECT orgId — overwrites any stale cached value
+          if(orgId){
+            try{ localStorage.setItem("shiftpro_active_orgid", orgId); }catch(e){}
+          }
         } else if(profile?.org_id){
           const {data:org} = await sb.from("organizations").select("*").eq("id",profile.org_id).single();
-          if(org){ orgs=[org]; setOwnerOrgs([org]); }
+          if(org){
+            orgs=[org];
+            setOwnerOrgs([org]);
+            orgId = org.id;
+            try{ localStorage.setItem("shiftpro_active_orgid", org.id); }catch(e){}
+          }
+        } else {
+          // Last resort: use cached orgId
+          orgId = localStorage.getItem("shiftpro_active_orgid")||null;
         }
 
         const defaultOrg = orgs.find(o=>o.id===orgId)||orgs[0]||null;
