@@ -3010,6 +3010,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         if(profile) setOwnerProfile(profile);
 
         let orgId = profile?.org_id;
+        // Always try cached orgId as ultimate fallback
+        if(!orgId) orgId = localStorage.getItem("shiftpro_active_orgid")||null;
 
         // Try owner_organizations
         const {data:ooRows} = await sb.from("owner_organizations").select("*, organizations(*)").eq("owner_id",session.user.id).order("created_at");
@@ -3018,6 +3020,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           orgs = ooRows.map(r=>r.organizations).filter(Boolean);
           setOwnerOrgs(orgs);
           orgId = orgId || orgs[0]?.id;
+          // Save immediately — this is the most reliable source
+          if(orgId) try{ localStorage.setItem("shiftpro_active_orgid", orgId); }catch(e){}
         } else if(profile?.org_id){
           const {data:org} = await sb.from("organizations").select("*").eq("id",profile.org_id).single();
           if(org){ orgs=[org]; setOwnerOrgs([org]); }
@@ -3086,7 +3090,30 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           }
         } else {
           setLiveEmps([]);
-          setLocationGate("none");
+          // orgId was null (owner_organizations query blocked) — 
+          // check localStorage before showing "Set up first location"
+          const cachedOrgId = localStorage.getItem("shiftpro_active_orgid");
+          const cachedLocRaw = localStorage.getItem("shiftpro_active_loc_obj");
+          if(cachedLocRaw){
+            // We have a saved location — user has been here before, just restore it
+            try{
+              const cachedLoc = JSON.parse(cachedLocRaw);
+              setActiveLocation(cachedLoc);
+              setLiveLocations([cachedLoc]);
+              setLocationGate("ready");
+              // Try to load employees using cached orgId
+              if(cachedOrgId){
+                const {data:empsRetry} = await sb.from("users").select("*")
+                  .eq("org_id",cachedOrgId)
+                  .in("status",["active","invited"])
+                  .in("app_role",["employee","supervisor"])
+                  .order("first_name");
+                if(empsRetry?.length>0) setLiveEmps(empsRetry.map(mapEmp));
+              }
+            }catch(e){ setLocationGate("none"); }
+          } else {
+            setLocationGate("none");
+          }
         }
       }catch(e){
         console.error("Owner load error:",e);
