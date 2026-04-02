@@ -899,7 +899,7 @@ function EmpPortal({emp,onLogout}){
       </div>
       <div style={{background:E.bg2,borderBottom:`1px solid ${E.border}`,padding:"0 20px",display:"flex",gap:2,overflowX:"auto"}}>
         {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{fontFamily:E.sans,fontWeight:600,fontSize:13,padding:"11px 14px",background:"none",border:"none",cursor:"pointer",color:tab===t.id?E.indigo:E.textD,borderBottom:tab===t.id?`2.5px solid ${E.indigo}`:"2.5px solid transparent",transition:"all 0.15s",whiteSpace:"nowrap",marginBottom:-1}}>{t.label}</button>
+          <button key={t.id} onClick={()=>persistTab(t.id)} style={{fontFamily:E.sans,fontWeight:600,fontSize:13,padding:"11px 14px",background:"none",border:"none",cursor:"pointer",color:tab===t.id?E.indigo:E.textD,borderBottom:tab===t.id?`2.5px solid ${E.indigo}`:"2.5px solid transparent",transition:"all 0.15s",whiteSpace:"nowrap",marginBottom:-1}}>{t.label}</button>
         ))}
       </div>
       <div style={{padding:"16px",maxWidth:720,margin:"0 auto"}}>
@@ -2801,7 +2801,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [lateAlerts, setLateAlerts] = React.useState([]);
 
   // ── Core state ──
-  const [tab,setTab] = useState("command");
+  const [tab,setTab] = useState(()=>{
+    try{ return localStorage.getItem("shiftpro_active_tab")||"command"; }catch(e){ return "command"; }
+  });
   const [now,setNow] = useState(new Date());
   const [ownerProfile,setOwnerProfile] = useState(null);
   const [ownerOrg,setOwnerOrg] = useState(null);
@@ -2988,14 +2990,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     }catch(e){}
 
     try{
-      // Pre-seed employees from cache
+      // Pre-seed employees and ALL locations from cache
       const orgId2 = ownerInitialProfile?.orgId || localStorage.getItem("shiftpro_active_orgid");
       if(orgId2){
         const cachedEmps = localStorage.getItem("shiftpro_cached_emps_"+orgId2);
-        if(cachedEmps){
-          const emps = JSON.parse(cachedEmps);
-          setLiveEmps(emps);
-        }
+        if(cachedEmps) try{ setLiveEmps(JSON.parse(cachedEmps)); }catch(e){}
+        // Load full location list so picker shows all options
+        const cachedLocs2 = localStorage.getItem("shiftpro_cached_locs_"+orgId2) || localStorage.getItem("shiftpro_all_locs");
+        if(cachedLocs2) try{ setLiveLocations(JSON.parse(cachedLocs2)); }catch(e){}
+      } else {
+        // No orgId yet — still try fallback location list
+        const cachedLocs3 = localStorage.getItem("shiftpro_all_locs");
+        if(cachedLocs3) try{ setLiveLocations(JSON.parse(cachedLocs3)); }catch(e){}
       }
     }catch(e){}
 
@@ -3062,8 +3068,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
           if(locs&&locs.length>0){
             setLiveLocations(locs);
-            // Save to cache for future loads
-            try{ localStorage.setItem("shiftpro_cached_locs_"+orgId, JSON.stringify(locs)); }catch(e){}
+            // Save to BOTH orgId-keyed AND a simple fallback key
+            try{
+              localStorage.setItem("shiftpro_cached_locs_"+orgId, JSON.stringify(locs));
+              localStorage.setItem("shiftpro_all_locs", JSON.stringify(locs)); // fallback key
+            }catch(e){}
             // Find the active location
             const activeLoc = savedLocId
               ? (locs.find(l=>l.id===savedLocId)||savedLocObj)
@@ -3291,6 +3300,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       await loadShifts(orgId, thisMon, activeLocation?.id||null);
       toast("Copied "+newShifts.length+" shift"+(newShifts.length!==1?"s":"")+" from last week ✓","success");
     }catch(e){ toast("Copy failed: "+e.message,"error"); }
+  };
+
+  const persistTab = (t) => {
+    setTab(t);
+    try{ localStorage.setItem("shiftpro_active_tab", t); }catch(e){}
   };
 
   const TABS = [
@@ -4673,10 +4687,22 @@ export default function App(){
             profile = p;
           }catch(e){}
 
-          // If profile failed, we can't determine role safely — show login
+          // If profile query failed, fall back to localStorage cache
           if(!profile){
+            try{
+              const cached = localStorage.getItem("shiftpro_cached_emp_"+existing.user.id);
+              if(cached){
+                const cachedEmp = JSON.parse(cached);
+                // Role from cache is safe — we set it from Supabase originally
+                const cachedRole = (cachedEmp.appRole==="owner"||cachedEmp.appRole==="manager")?"owner":"employee";
+                setSession({role:cachedRole, emp:cachedEmp});
+                setAppLoading(false);
+                return;
+              }
+            }catch(e){}
+            // No cache either — show login
             setAppLoading(false);
-            return; // user will see login screen and can log in manually
+            return;
           }
 
           const role = (profile.app_role==="owner"||profile.app_role==="manager")?"owner":"employee";
@@ -4697,7 +4723,7 @@ export default function App(){
             locId: profile.location_id||null,
             appRole: profile.app_role||"employee",
           };
-          // Cache for display use only (never for role)
+          // Cache for future restores
           try{ localStorage.setItem("shiftpro_cached_emp_"+profile.id, JSON.stringify(emp)); }catch(e){}
           setSession({role,emp});
         }
