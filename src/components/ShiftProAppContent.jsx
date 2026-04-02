@@ -978,6 +978,433 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
 }
 
 // ══════════════════════════════════════════════════
+//  SHIFT ADD MODAL (outside OwnerCmd)
+// ══════════════════════════════════════════════════
+function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOffset, addShift, getMonday }) {
+  const HOURS_LIST = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
+  const fmtH2 = h => h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM";
+  const modalEmps = liveEmps||[];
+
+  return (
+    <div
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}
+      onClick={e=>{if(e.target===e.currentTarget)setSelectedCell(null);}}>
+      <div style={{background:"#fff",borderRadius:16,padding:"28px",width:"100%",maxWidth:420,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+          <div>
+            <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Add Shift</div>
+            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text}}>{selectedCell.day}</div>
+          </div>
+          <button onClick={()=>setSelectedCell(null)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:O.textF}}>×</button>
+        </div>
+        <div style={{marginBottom:12}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Employee</div>
+          <select
+            value={selectedCell.empId||""}
+            onChange={e=>setSelectedCell(p=>({...p,empId:e.target.value}))}
+            style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+            <option value="">— Select employee —</option>
+            {modalEmps.map(e=>(<option key={e.id} value={e.id}>{e.name} — {e.role}</option>))}
+          </select>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          {[
+            {l:"Start Time",k:"start",list:HOURS_LIST},
+            {l:"End Time",k:"end",list:HOURS_LIST.filter(h=>h>(selectedCell.start||9))}
+          ].map(f=>(
+            <div key={f.k}>
+              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>{f.l}</div>
+              <select
+                value={selectedCell[f.k]||9}
+                onChange={e=>setSelectedCell(p=>({...p,[f.k]:parseInt(e.target.value)}))}
+                style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                {f.list.map(h=><option key={h} value={h}>{fmtH2(h)}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Role Label (optional)</div>
+          <input
+            value={selectedCell.roleLabel||""}
+            onChange={e=>setSelectedCell(p=>({...p,roleLabel:e.target.value}))}
+            placeholder="Opening, Closing, Bar..."
+            style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
+          />
+        </div>
+        <button
+          onClick={async()=>{
+            if(!selectedCell.empId) return;
+            const mon=getMonday(currentWeekOffset);
+            const DAYS_ORDER=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+            const dayIdx=DAYS_ORDER.indexOf(selectedCell.day);
+            const shiftDate=new Date(mon);
+            shiftDate.setDate(shiftDate.getDate()+dayIdx);
+            await addShift({
+              userId:selectedCell.empId,
+              weekStart:mon,
+              day:selectedCell.day,
+              date:shiftDate.toISOString().split("T")[0],
+              start:selectedCell.start||9,
+              end:selectedCell.end||17,
+              role:selectedCell.roleLabel||""
+            });
+            setSelectedCell(null);
+          }}
+          style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#0891b2,#0e7490)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(8,145,178,0.3)"}}>
+          Add Shift →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
+//  SETTINGS TAB (outside OwnerCmd)
+// ══════════════════════════════════════════════════
+const DEPT_COLORS = [
+  "#e07b00","#0891b2","#7c3aed","#1a9e6e",
+  "#d94040","#2563eb","#c026d3","#ca8a04",
+  "#0f766e","#9333ea","#b45309","#0284c7",
+];
+
+function SettingsTab({
+  ownerProfile, activeOrg,
+  settingsProfile, setSettingsProfile,
+  settingsPay, setSettingsPay,
+  settingsDepts, setSettingsDepts,
+  settingsNewDept, setSettingsNewDept,
+  settingsAddingDept, setSettingsAddingDept,
+  settingsSaveBusy, setSettingsSaveBusy,
+  settingsShowPwChange, setSettingsShowPwChange,
+  settingsPw1, setSettingsPw1,
+  settingsPw2, setSettingsPw2,
+  settingsPwMsg, setSettingsPwMsg,
+  settingsPwBusy, setSettingsPwBusy,
+  toast, onLogout,
+}) {
+  const card = {background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow};
+  const label = {fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"};
+  const input = {width:"100%",padding:"10px 13px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"};
+  const sectionTitle = {fontFamily:O.sans,fontWeight:700,fontSize:16,color:O.text,marginBottom:4};
+  const sectionSub = {fontFamily:O.sans,fontSize:12,color:O.textD,marginBottom:18};
+
+  const saveProfile = async () => {
+    setSettingsSaveBusy(true);
+    try {
+      const {createClient} = await import("@supabase/supabase-js");
+      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const orgId = activeOrg?.id;
+      if(orgId) {
+        await sb.from("organizations").update({
+          name: settingsProfile.name,
+          industry: settingsProfile.type,
+          address: settingsProfile.address,
+          phone: settingsProfile.phone,
+        }).eq("id", orgId);
+      }
+      toast("Settings saved ✓", "success");
+    } catch(e) {
+      toast("Failed to save: "+e.message, "error");
+    } finally {
+      setSettingsSaveBusy(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if(!settingsPw1 || !settingsPw2) { setSettingsPwMsg("Please fill both fields."); return; }
+    if(settingsPw1 !== settingsPw2) { setSettingsPwMsg("Passwords do not match."); return; }
+    if(settingsPw1.length < 8) { setSettingsPwMsg("Must be at least 8 characters."); return; }
+    setSettingsPwBusy(true); setSettingsPwMsg("");
+    try {
+      const {createClient} = await import("@supabase/supabase-js");
+      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const {error} = await sb.auth.updateUser({password: settingsPw1});
+      if(error) throw error;
+      setSettingsPwMsg("✓ Password updated successfully!");
+      setSettingsPw1(""); setSettingsPw2("");
+      setTimeout(()=>{ setSettingsShowPwChange(false); setSettingsPwMsg(""); }, 2000);
+      toast("Password updated ✓", "success");
+    } catch(e) {
+      setSettingsPwMsg(e.message||"Failed to update password.");
+    } finally {
+      setSettingsPwBusy(false);
+    }
+  };
+
+  const addDept = () => {
+    const trimmed = settingsNewDept.trim();
+    if(!trimmed || settingsDepts.includes(trimmed)) return;
+    setSettingsDepts(prev=>[...prev, trimmed]);
+    setSettingsNewDept("");
+    setSettingsAddingDept(false);
+    toast("Department added ✓", "success");
+  };
+
+  const removeDept = (dept) => {
+    setSettingsDepts(prev=>prev.filter(d=>d!==dept));
+  };
+
+  return (
+    <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+      <div style={{marginBottom:22}}>
+        <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Settings</div>
+        <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Business Settings</div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+
+        {/* ── COMPANY PROFILE ── */}
+        <div style={card}>
+          <div style={sectionTitle}>🏢 Company Profile</div>
+          <div style={sectionSub}>Your business details shown on reports and employee portals.</div>
+
+          <div style={{marginBottom:13}}>
+            <label style={label}>Business Name</label>
+            <input
+              value={settingsProfile.name}
+              onChange={e=>setSettingsProfile(p=>({...p,name:e.target.value}))}
+              placeholder="Sea Lion Dockside Bar"
+              style={input}
+              onFocus={e=>e.target.style.borderColor=O.amber}
+              onBlur={e=>e.target.style.borderColor=O.border}
+            />
+          </div>
+
+          <div style={{marginBottom:13}}>
+            <label style={label}>Business Type</label>
+            <select
+              value={settingsProfile.type}
+              onChange={e=>setSettingsProfile(p=>({...p,type:e.target.value}))}
+              style={{...input,cursor:"pointer"}}>
+              {["Restaurant","Bar","Retail","Cafe","Hotel","Brewery","Marina","Other"].map(t=>(
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{marginBottom:13}}>
+            <label style={label}>Primary Address</label>
+            <input
+              value={settingsProfile.address}
+              onChange={e=>setSettingsProfile(p=>({...p,address:e.target.value}))}
+              placeholder="345 SW Bay Blvd, Newport, OR 97365"
+              style={input}
+              onFocus={e=>e.target.style.borderColor=O.amber}
+              onBlur={e=>e.target.style.borderColor=O.border}
+            />
+          </div>
+
+          <div style={{marginBottom:20}}>
+            <label style={label}>Phone Number</label>
+            <input
+              value={settingsProfile.phone}
+              onChange={e=>setSettingsProfile(p=>({...p,phone:e.target.value}))}
+              placeholder="(541) 555-0100"
+              type="tel"
+              style={input}
+              onFocus={e=>e.target.style.borderColor=O.amber}
+              onBlur={e=>e.target.style.borderColor=O.border}
+            />
+          </div>
+
+          <button
+            onClick={saveProfile}
+            style={{width:"100%",padding:"11px",background:settingsSaveBusy?"rgba(224,123,0,0.5)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:settingsSaveBusy?"not-allowed":"pointer",boxShadow:"0 4px 14px rgba(224,123,0,0.25)"}}>
+            {settingsSaveBusy?"Saving…":"Save Company Profile"}
+          </button>
+        </div>
+
+        {/* ── PAY & SCHEDULE ── */}
+        <div style={card}>
+          <div style={sectionTitle}>💵 Pay & Schedule</div>
+          <div style={sectionSub}>Configure how pay periods and shifts are calculated.</div>
+
+          <div style={{marginBottom:13}}>
+            <label style={label}>Pay Period</label>
+            <select
+              value={settingsPay.period}
+              onChange={e=>setSettingsPay(p=>({...p,period:e.target.value}))}
+              style={{...input,cursor:"pointer"}}>
+              {["Weekly","Bi-weekly","Semi-monthly","Monthly"].map(t=>(
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{marginBottom:13}}>
+            <label style={label}>Overtime Threshold (hrs/week)</label>
+            <input
+              value={settingsPay.otThreshold}
+              onChange={e=>setSettingsPay(p=>({...p,otThreshold:e.target.value}))}
+              type="number"
+              placeholder="40"
+              style={input}
+              onFocus={e=>e.target.style.borderColor=O.amber}
+              onBlur={e=>e.target.style.borderColor=O.border}
+            />
+          </div>
+
+          <div style={{marginBottom:13}}>
+            <label style={label}>Default Shift Length</label>
+            <select
+              value={settingsPay.shiftLen}
+              onChange={e=>setSettingsPay(p=>({...p,shiftLen:e.target.value}))}
+              style={{...input,cursor:"pointer"}}>
+              {[["6","6 hours"],["7","7 hours"],["8","8 hours (standard)"],["10","10 hours"],["12","12 hours"]].map(([v,l])=>(
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{marginBottom:20}}>
+            <label style={label}>Work Week Starts On</label>
+            <div style={{display:"flex",gap:8}}>
+              {["Mon","Sun"].map(d=>(
+                <button
+                  key={d}
+                  onClick={()=>setSettingsPay(p=>({...p,weekStart:d}))}
+                  style={{flex:1,padding:"9px",border:"1px solid "+(settingsPay.weekStart===d?O.amber:O.border),borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,cursor:"pointer",background:settingsPay.weekStart===d?O.amberD:"none",color:settingsPay.weekStart===d?O.amber:O.textD,transition:"all 0.15s"}}>
+                  {d==="Mon"?"Monday":"Sunday"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={()=>toast("Pay settings saved ✓","success")}
+            style={{width:"100%",padding:"11px",background:"linear-gradient(135deg,#1a9e6e,#15855c)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(26,158,110,0.25)"}}>
+            Save Pay Settings
+          </button>
+        </div>
+
+        {/* ── DEPARTMENTS ── */}
+        <div style={card}>
+          <div style={sectionTitle}>🏷️ Departments</div>
+          <div style={sectionSub}>Organize your team by department for scheduling and reporting.</div>
+
+          <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
+            {settingsDepts.map((dept,idx)=>{
+              const color = DEPT_COLORS[idx % DEPT_COLORS.length];
+              return (
+                <div key={dept} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px 5px 12px",background:color+"14",border:"1px solid "+color+"30",borderRadius:20}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:color,flexShrink:0}}/>
+                  <span style={{fontFamily:O.sans,fontSize:12,fontWeight:600,color}}>{dept}</span>
+                  <button
+                    onClick={()=>removeDept(dept)}
+                    style={{background:"none",border:"none",cursor:"pointer",color:color,fontSize:14,lineHeight:1,padding:"0 0 0 2px",opacity:0.6,fontWeight:700}}
+                    onMouseEnter={e=>e.target.style.opacity=1}
+                    onMouseLeave={e=>e.target.style.opacity=0.6}>
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {settingsAddingDept ? (
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <input
+                value={settingsNewDept}
+                onChange={e=>setSettingsNewDept(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter")addDept();if(e.key==="Escape"){setSettingsAddingDept(false);setSettingsNewDept("");}}}
+                placeholder="Department name..."
+                autoFocus
+                style={{flex:1,padding:"8px 12px",background:O.bg3,border:"1px solid "+O.amber,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none"}}
+              />
+              <button onClick={addDept} style={{padding:"8px 14px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.amber,cursor:"pointer"}}>Add</button>
+              <button onClick={()=>{setSettingsAddingDept(false);setSettingsNewDept("");}} style={{padding:"8px 10px",background:"none",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,color:O.textD,cursor:"pointer"}}>Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={()=>setSettingsAddingDept(true)}
+              style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"none",border:"1.5px dashed rgba(224,123,0,0.3)",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.amber,cursor:"pointer",marginBottom:12}}>
+              + Add Department
+            </button>
+          )}
+
+          <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:4}}>
+            {settingsDepts.length} department{settingsDepts.length!==1?"s":""} configured
+          </div>
+        </div>
+
+        {/* ── MY ACCOUNT ── */}
+        <div style={card}>
+          <div style={sectionTitle}>👤 My Account</div>
+          <div style={sectionSub}>Manage your login credentials and sign out.</div>
+
+          {/* Owner info display */}
+          <div style={{background:O.bg3,borderRadius:10,padding:"14px 16px",marginBottom:18,display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff",flexShrink:0}}>
+              {(ownerProfile?.first_name||"?")[0].toUpperCase()}{(ownerProfile?.last_name||"?")[0].toUpperCase()}
+            </div>
+            <div>
+              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{ownerProfile?.first_name} {ownerProfile?.last_name}</div>
+              <div style={{fontFamily:O.mono,fontSize:10,color:O.textF,marginTop:2}}>{ownerProfile?.email||"—"}</div>
+              <div style={{marginTop:4}}>
+                <OBadge label={ownerProfile?.app_role||"owner"} color={O.amber} sm/>
+              </div>
+            </div>
+          </div>
+
+          {/* Change password */}
+          <button
+            onClick={()=>{setSettingsShowPwChange(s=>!s);setSettingsPwMsg("");setSettingsPw1("");setSettingsPw2("");}}
+            style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.textD,cursor:"pointer",marginBottom:12,width:"100%"}}>
+            🔒 {settingsShowPwChange?"Cancel Password Change":"Change Password"}
+          </button>
+
+          {settingsShowPwChange&&(
+            <div style={{background:O.bg3,borderRadius:10,padding:"14px",marginBottom:14}}>
+              {[{l:"New Password",v:settingsPw1,fn:setSettingsPw1},{l:"Confirm Password",v:settingsPw2,fn:setSettingsPw2}].map(f=>(
+                <div key={f.l} style={{marginBottom:10}}>
+                  <label style={label}>{f.l}</label>
+                  <input
+                    value={f.v}
+                    onChange={e=>{f.fn(e.target.value);setSettingsPwMsg("");}}
+                    onKeyDown={e=>e.key==="Enter"&&changePassword()}
+                    type="password"
+                    placeholder="Min 8 characters"
+                    style={input}
+                    onFocus={e=>e.target.style.borderColor=O.amber}
+                    onBlur={e=>e.target.style.borderColor=O.border}
+                  />
+                </div>
+              ))}
+              {settingsPwMsg&&(
+                <div style={{fontFamily:O.sans,fontSize:12,color:settingsPwMsg.startsWith("✓")?O.green:O.red,marginBottom:10,padding:"6px 10px",background:settingsPwMsg.startsWith("✓")?O.greenD:O.redD,borderRadius:6}}>
+                  {settingsPwMsg}
+                </div>
+              )}
+              <button
+                onClick={changePassword}
+                style={{width:"100%",padding:"10px",background:settingsPwBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:settingsPwBusy?"not-allowed":"pointer"}}>
+                {settingsPwBusy?"Updating…":"Update Password →"}
+              </button>
+            </div>
+          )}
+
+          {/* Danger zone */}
+          <div style={{borderTop:"1px solid "+O.border,paddingTop:16,marginTop:4}}>
+            <div style={{fontFamily:O.mono,fontSize:8,color:O.red,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Danger Zone</div>
+            <button
+              onClick={async()=>{
+                if(!window.confirm("Sign out of ShiftPro?")) return;
+                try{const {createClient}=await import("@supabase/supabase-js");const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);await sb.auth.signOut();}catch(e){}
+                onLogout();
+              }}
+              style={{width:"100%",padding:"10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.red,cursor:"pointer"}}>
+              Sign Out
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
 //  MODAL COMPONENTS (outside OwnerCmd to prevent remount)
 // ══════════════════════════════════════════════════
 
@@ -1342,6 +1769,19 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   // ── Payroll state ──
   const [payPeriod,setPayPeriod] = useState("current");
 
+  // ── Settings state ──
+  const [settingsProfile,setSettingsProfile] = useState({name:"",type:"Restaurant",address:"",phone:""});
+  const [settingsPay,setSettingsPay] = useState({period:"Bi-weekly",otThreshold:"40",shiftLen:"8",weekStart:"Mon"});
+  const [settingsDepts,setSettingsDepts] = useState(["Front End","Sales Floor","Inventory","Operations","Kitchen","Bar"]);
+  const [settingsNewDept,setSettingsNewDept] = useState("");
+  const [settingsAddingDept,setSettingsAddingDept] = useState(false);
+  const [settingsSaveBusy,setSettingsSaveBusy] = useState(false);
+  const [settingsShowPwChange,setSettingsShowPwChange] = useState(false);
+  const [settingsPw1,setSettingsPw1] = useState("");
+  const [settingsPw2,setSettingsPw2] = useState("");
+  const [settingsPwMsg,setSettingsPwMsg] = useState("");
+  const [settingsPwBusy,setSettingsPwBusy] = useState(false);
+
   // ── Org/loc switcher ──
   const [orgSwitcherOpen,setOrgSwitcherOpen] = useState(false);
   const [locSwitcherOpen,setLocSwitcherOpen] = useState(false);
@@ -1399,6 +1839,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         if(defaultOrg){
           setActiveOrg(defaultOrg);
           setOwnerOrg(defaultOrg);
+          setSettingsProfile(p=>({
+            ...p,
+            name: defaultOrg.name||"",
+            type: defaultOrg.industry||"Restaurant",
+            address: defaultOrg.address||"",
+            phone: defaultOrg.phone||"",
+          }));
         }
 
         if(orgId){
@@ -1508,6 +1955,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     {id:"schedule",l:"📅 Schedule"},
     {id:"roi",l:"💵 Payroll"},
     {id:"cameras",l:"📷 Cameras"},
+    {id:"settings",l:"⚙️ Settings"},
   ];
 
   // ── RENDER ──────────────────────────────────────────
@@ -2003,63 +2451,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         {/* ══ SCHEDULE TAB ══ */}
         {tab==="schedule"&&(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
-            {selectedCell&&(
-              <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}
-                onClick={e=>{if(e.target===e.currentTarget)setSelectedCell(null);}}>
-                <div style={{background:"#fff",borderRadius:16,padding:"28px",width:"100%",maxWidth:420,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-                    <div>
-                      <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Add Shift</div>
-                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text}}>{selectedCell.day}</div>
-                    </div>
-                    <button onClick={()=>setSelectedCell(null)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:O.textF}}>×</button>
-                  </div>
-                  {(()=>{
-                    const modalEmps=liveEmps||[];
-                    const HOURS_LIST=[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
-                    const fmtH2=h=>h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM";
-                    return (
-                      <div>
-                        <div style={{marginBottom:12}}>
-                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Employee</div>
-                          <select value={selectedCell.empId||""} onChange={e=>setSelectedCell(p=>({...p,empId:e.target.value}))}
-                            style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-                            <option value="">— Select employee —</option>
-                            {modalEmps.map(e=>(<option key={e.id} value={e.id}>{e.name} — {e.role}</option>))}
-                          </select>
-                        </div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-                          {[{l:"Start Time",k:"start",list:HOURS_LIST},{l:"End Time",k:"end",list:HOURS_LIST.filter(h=>h>(selectedCell.start||9))}].map(f=>(
-                            <div key={f.k}>
-                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>{f.l}</div>
-                              <select value={selectedCell[f.k]||9} onChange={e=>setSelectedCell(p=>({...p,[f.k]:parseInt(e.target.value)}))}
-                                style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-                                {f.list.map(h=><option key={h} value={h}>{fmtH2(h)}</option>)}
-                              </select>
-                            </div>
-                          ))}
-                        </div>
-                        <div style={{marginBottom:16}}>
-                          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Role Label (optional)</div>
-                          <input value={selectedCell.roleLabel||""} onChange={e=>setSelectedCell(p=>({...p,roleLabel:e.target.value}))} placeholder="Opening, Closing, Bar..."
-                            style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}/>
-                        </div>
-                        <button onClick={async()=>{
-                          if(!selectedCell.empId) return;
-                          const mon=getMonday(currentWeekOffset);
-                          const DAYS_ORDER=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-                          const dayIdx=DAYS_ORDER.indexOf(selectedCell.day);
-                          const shiftDate=new Date(mon);shiftDate.setDate(shiftDate.getDate()+dayIdx);
-                          await addShift({userId:selectedCell.empId,weekStart:mon,day:selectedCell.day,date:shiftDate.toISOString().split("T")[0],start:selectedCell.start||9,end:selectedCell.end||17,role:selectedCell.roleLabel||""});
-                          setSelectedCell(null);
-                        }} style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#0891b2,#0e7490)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(8,145,178,0.3)"}}>
-                          Add Shift →
-                        </button>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
+            {selectedCell && (
+              <ShiftAddModal
+                selectedCell={selectedCell}
+                setSelectedCell={setSelectedCell}
+                liveEmps={liveEmps}
+                currentWeekOffset={currentWeekOffset}
+                addShift={addShift}
+                getMonday={getMonday}
+              />
             )}
 
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
@@ -2291,6 +2691,38 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               );
             })()}
           </div>
+        )}
+
+        {/* ══ SETTINGS TAB ══ */}
+        {tab==="settings"&&(
+          <SettingsTab
+            ownerProfile={ownerProfile}
+            activeOrg={activeOrg}
+            settingsProfile={settingsProfile}
+            setSettingsProfile={setSettingsProfile}
+            settingsPay={settingsPay}
+            setSettingsPay={setSettingsPay}
+            settingsDepts={settingsDepts}
+            setSettingsDepts={setSettingsDepts}
+            settingsNewDept={settingsNewDept}
+            setSettingsNewDept={setSettingsNewDept}
+            settingsAddingDept={settingsAddingDept}
+            setSettingsAddingDept={setSettingsAddingDept}
+            settingsSaveBusy={settingsSaveBusy}
+            setSettingsSaveBusy={setSettingsSaveBusy}
+            settingsShowPwChange={settingsShowPwChange}
+            setSettingsShowPwChange={setSettingsShowPwChange}
+            settingsPw1={settingsPw1}
+            setSettingsPw1={setSettingsPw1}
+            settingsPw2={settingsPw2}
+            setSettingsPw2={setSettingsPw2}
+            settingsPwMsg={settingsPwMsg}
+            setSettingsPwMsg={setSettingsPwMsg}
+            settingsPwBusy={settingsPwBusy}
+            setSettingsPwBusy={setSettingsPwBusy}
+            toast={toast}
+            onLogout={onLogout}
+          />
         )}
 
         {/* ══ CAMERAS TAB ══ */}
