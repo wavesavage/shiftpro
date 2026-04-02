@@ -3059,10 +3059,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         if(ooRows&&ooRows.length>0){
           orgs = ooRows.map(r=>r.organizations).filter(Boolean);
           setOwnerOrgs(orgs);
-          orgId = orgs[0]?.id || null;
-          // Save the CORRECT orgId — overwrites any stale cached value
-          if(orgId){
-            try{ localStorage.setItem("shiftpro_active_orgid", orgId); }catch(e){}
+          // Prefer cached orgId if it matches one of our orgs (user already chose it)
+          const cachedOrgId = localStorage.getItem("shiftpro_active_orgid");
+          const matchesCached = cachedOrgId && orgs.find(o=>o.id===cachedOrgId);
+          if(matchesCached){
+            orgId = cachedOrgId; // Stick with what was working
+          } else {
+            // No valid cache — pick the LAST (most recently created) org, not first
+            // This avoids picking old/test orgs that were created earlier
+            orgId = orgs[orgs.length-1]?.id || orgs[0]?.id || null;
+            if(orgId) try{ localStorage.setItem("shiftpro_active_orgid", orgId); }catch(e){}
           }
         } else if(profile?.org_id){
           const {data:org} = await sb.from("organizations").select("*").eq("id",profile.org_id).single();
@@ -3124,21 +3130,35 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           try{ savedLocObj = JSON.parse(localStorage.getItem("shiftpro_active_loc_obj")||"null"); }catch(e){}
 
           if(locs&&locs.length>0){
-            setLiveLocations(locs);
-            // Save to BOTH orgId-keyed AND a simple fallback key
+            // MERGE with cached locations — never let a partial Supabase response
+            // overwrite a more complete locally-cached list
+            let mergedLocs = locs;
             try{
-              localStorage.setItem("shiftpro_cached_locs_"+orgId, JSON.stringify(locs));
-              localStorage.setItem("shiftpro_all_locs", JSON.stringify(locs)); // fallback key
+              const existingRaw = localStorage.getItem("shiftpro_cached_locs_"+orgId)
+                               || localStorage.getItem("shiftpro_all_locs");
+              if(existingRaw){
+                const cached = JSON.parse(existingRaw);
+                // Add any cached locs not in the Supabase response (might be RLS-hidden)
+                const supabaseIds = new Set(locs.map(l=>l.id));
+                const missing = cached.filter(l=>!supabaseIds.has(l.id));
+                if(missing.length>0) mergedLocs = [...locs, ...missing];
+              }
+            }catch(e){}
+
+            setLiveLocations(mergedLocs);
+            // Save merged list to cache
+            try{
+              localStorage.setItem("shiftpro_cached_locs_"+orgId, JSON.stringify(mergedLocs));
+              localStorage.setItem("shiftpro_all_locs", JSON.stringify(mergedLocs));
             }catch(e){}
             // Find the active location
             const activeLoc = savedLocId
-              ? (locs.find(l=>l.id===savedLocId)||savedLocObj)
-              : savedLocObj||null;
+              ? (mergedLocs.find(l=>l.id===savedLocId)||savedLocObj)
+              : savedLocObj||mergedLocs[0]||null;
             if(activeLoc){
               setActiveLocation(activeLoc);
               setLocationGate("ready");
             } else {
-              // Locations exist but none selected — show picker (don't override ready)
               setLocationGate(g=>g==="ready"?"ready":"pick");
             }
           } else {
