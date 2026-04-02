@@ -1204,11 +1204,11 @@ function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, 
 
   return (
     <div style={{
-      positin:"fixed",top:62,right:mobile?8:20,width:mobile?"calc(100vw - 16px)":340,
+      position:"fixed",top:62,right:mobile?8:20,width:mobile?"calc(100vw - 16px)":340,
       background:"#fff",border:"1px solid "+O.border,
       borderRadius:14,boxShadow:"0 8px 32px rgba(0,0,0,0.12)",
       zIndex:500,overflow:"hidden",animation:"fadeUp 0.2s ease",
-    }}>}>
+    }}>
       {/* Header */}
       <div style={{padding:"14px 16px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>Notifications</div>
