@@ -856,7 +856,7 @@ function EmpPortal({emp,onLogout}){
   ];
 
   // First-login onboarding gate
-  if(!onboardingDone && empSafe.id) return (
+  if(!onboardingDone && empSafe.id && empSafe.appRole==="employee") return (
     <EmpOnboarding
       empSafe={empSafe}
       onComplete={()=>{
@@ -2948,13 +2948,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   useEffect(()=>{
     // Pre-seed from cache so UI isn't blank while loading
     try{
-      const cachedEmp2 = localStorage.getItem("shiftpro_cached_emp");
-      if(cachedEmp2){
-        const ce = JSON.parse(cachedEmp2);
-        const orgId2 = ce.orgId;
-        if(orgId2){
-          const cachedEmps = localStorage.getItem("shiftpro_cached_emps_"+orgId2);
-          if(cachedEmps) setLiveEmps(JSON.parse(cachedEmps));
+      if(ownerInitialProfile?.id){
+        const cachedEmp2 = localStorage.getItem("shiftpro_cached_emp_"+ownerInitialProfile.id);
+        if(cachedEmp2){
+          const ce = JSON.parse(cachedEmp2);
+          const orgId2 = ce.orgId;
+          if(orgId2){
+            const cachedEmps = localStorage.getItem("shiftpro_cached_emps_"+orgId2);
+            if(cachedEmps) setLiveEmps(JSON.parse(cachedEmps));
+          }
         }
       }
       const cachedProfile = localStorage.getItem("shiftpro_org_profile");
@@ -4547,12 +4549,12 @@ export default function App(){
   const login = (role,emp) => {
     setSession({role,emp});
     // Cache for session restoration on reload
-    try{ localStorage.setItem("shiftpro_cached_emp", JSON.stringify(emp)); }catch(e){}
+    try{ if(emp?.id) localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
   };
   const logout = async() => {
     try{const {createClient}=await import("@supabase/supabase-js");const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);await sb.auth.signOut();}catch(e){}
     setSession(null);
-  try{ localStorage.removeItem("shiftpro_cached_emp"); }catch(e){}
+  // cached_emp_<id> keys persist intentionally for display speed
   };
 
   useEffect(()=>{
@@ -4568,39 +4570,39 @@ export default function App(){
         const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
         const {data:{session:existing}}=await sb.auth.getSession();
         if(existing?.user){
-          // Try profile — but restore session regardless of whether it loads
+          // Load profile from Supabase — role ALWAYS comes from profile, never from cache
           let profile = null;
-          try{ const {data:p}=await sb.from("users").select("*").eq("id",existing.user.id).single(); profile=p; }catch(e){}
-
-          // Also try cached session from localStorage as fallback
-          let cachedEmp = null;
           try{
-            const c = localStorage.getItem("shiftpro_cached_emp");
-            if(c) cachedEmp = JSON.parse(c);
+            const {data:p} = await sb.from("users").select("*").eq("id",existing.user.id).single();
+            profile = p;
           }catch(e){}
 
-          const role = profile?.app_role==="owner"||profile?.app_role==="manager"?"owner"
-                     : cachedEmp?.appRole==="owner"||cachedEmp?.appRole==="manager"?"owner"
-                     : "employee";
+          // If profile failed, we can't determine role safely — show login
+          if(!profile){
+            setAppLoading(false);
+            return; // user will see login screen and can log in manually
+          }
+
+          const role = profile.app_role==="owner"||profile.app_role==="manager"?"owner":"employee";
           const emp = {
-            id: profile?.id||cachedEmp?.id||existing.user.id,
-            name: profile?(profile.first_name+" "+profile.last_name):(cachedEmp?.name||existing.user.email||"User"),
-            first: profile?.first_name||cachedEmp?.first||existing.user.email?.split("@")[0]||"there",
-            role: profile?.role||cachedEmp?.role||"Employee",
-            dept: profile?.department||cachedEmp?.dept||"",
-            rate: parseFloat(profile?.hourly_rate||cachedEmp?.rate)||15,
-            avatar: profile?.avatar_initials||cachedEmp?.avatar||"?",
-            color: profile?.avatar_color||cachedEmp?.color||"#6366f1",
+            id: profile.id,
+            name: (profile.first_name||"")+" "+(profile.last_name||""),
+            first: profile.first_name||existing.user.email?.split("@")[0]||"there",
+            role: profile.role||"Employee",
+            dept: profile.department||"",
+            rate: parseFloat(profile.hourly_rate)||15,
+            avatar: profile.avatar_initials||"?",
+            color: profile.avatar_color||"#6366f1",
             email: existing.user.email||"",
-            status:"active", hired:profile?.hire_date||"",
+            status:"active", hired:profile.hire_date||"",
             wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100,
             flags:0, streak:0, shifts:0, risk:"Low", ghost:0,
-            orgId: profile?.org_id||cachedEmp?.orgId||null,
-            locId: profile?.location_id||cachedEmp?.locId||null,
-            appRole: profile?.app_role||cachedEmp?.appRole||"employee",
+            orgId: profile.org_id||null,
+            locId: profile.location_id||null,
+            appRole: profile.app_role||"employee",
           };
-          // Cache for next reload
-          try{ localStorage.setItem("shiftpro_cached_emp", JSON.stringify(emp)); }catch(e){}
+          // Cache for display use only (never for role)
+          try{ localStorage.setItem("shiftpro_cached_emp_"+profile.id, JSON.stringify(emp)); }catch(e){}
           setSession({role,emp});
         }
       }catch(e){}
