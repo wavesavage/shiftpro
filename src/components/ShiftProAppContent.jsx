@@ -3082,7 +3082,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           let locs = null;
           try{
             const {data:{session:ss}} = await sb.auth.getSession();
-            const locsRes = await fetch("/api/locations?orgId="+orgId, {
+            const locsRes = await fetch("/api/location?orgId="+orgId, {
               headers: ss?.access_token ? {"Authorization":"Bearer "+ss.access_token} : {}
             });
             if(locsRes.ok){ const d=await locsRes.json(); locs=d.locations||null; }
