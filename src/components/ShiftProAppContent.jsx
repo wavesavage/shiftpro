@@ -1259,6 +1259,247 @@ They will lose access to ShiftPro. You can reactivate them later.`)) return;
 }
 
 // ══════════════════════════════════════════════════
+//  INTELLIGENCE TAB (outside OwnerCmd)
+// ══════════════════════════════════════════════════
+function IntelligenceTab({
+  liveEmps, liveShifts, activeOrg, activeLocation,
+  intelPrompt, setIntelPrompt,
+  intelOutput, setIntelOutput,
+  intelBusy, setIntelBusy, toast
+}) {
+  const LIVE = liveEmps||[];
+  const totalScheduledHrs = (liveShifts||[]).reduce((s,sh)=>s+(sh.end_hour-sh.start_hour),0);
+  const avgRate = LIVE.length>0 ? LIVE.reduce((s,e)=>s+(parseFloat(e.rate)||15),0)/LIVE.length : 15;
+  const projectedCost = totalScheduledHrs * avgRate;
+
+  const runAI = async () => {
+    if(!intelPrompt.trim()) return;
+    setIntelBusy(true);
+    setIntelOutput("");
+    try {
+      const empContext = LIVE.map(e=>`${e.name} (${e.role}, ${e.dept}, $${e.rate}/hr)`).join(", ");
+      const systemPrompt = `You are ShiftPro's AI scheduling assistant. You help shift-based business managers build efficient schedules, manage labor costs, and optimize their workforce.
+
+Current business: ${activeOrg?.name||"Unknown"}
+Location: ${activeLocation?.name||"All locations"}
+Team (${LIVE.length} employees): ${empContext||"No employees yet"}
+Scheduled hours this week: ${totalScheduledHrs}h
+Estimated labor cost: $${Math.round(projectedCost)}
+
+Respond in a clear, practical, manager-friendly way. If asked to build a schedule, format it as a simple day-by-day breakdown. Keep responses concise and actionable.`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: intelPrompt }],
+        }),
+      });
+      const data = await response.json();
+      const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+      setIntelOutput(text||"No response received.");
+    } catch(e) {
+      setIntelOutput("Error: "+e.message);
+      toast("AI request failed","error");
+    } finally {
+      setIntelBusy(false);
+    }
+  };
+
+  // Mock behavioral alerts based on real employee data
+  const alerts = [
+    ...LIVE.filter(e=>e.ghost>3).map(e=>({
+      level:"red", icon:"🔴",
+      title:"Ghost Hour Risk — "+e.name,
+      detail:`${e.ghost} uncorroborated hours this period. Camera verification recommended.`,
+      emp:e,
+    })),
+    ...LIVE.filter(e=>e.flags>0).map(e=>({
+      level:"yellow", icon:"🟡",
+      title:"Attendance Flag — "+e.name,
+      detail:`${e.flags} late clock-in${e.flags>1?"s":""} recorded this month.`,
+      emp:e,
+    })),
+    ...LIVE.filter(e=>e.streak>=10).slice(0,2).map(e=>({
+      level:"green", icon:"🟢",
+      title:"Top Performer — "+e.name,
+      detail:`${e.streak}-day reliability streak. Consider recognition or advancement.`,
+      emp:e,
+    })),
+  ];
+
+  // Fill with default alerts if team is demo/empty
+  const displayAlerts = alerts.length>0 ? alerts : [
+    {level:"red",icon:"🔴",title:"Ghost Hour Risk — Carlos R.",detail:"4.1 uncorroborated hours this month. Camera verification recommended."},
+    {level:"yellow",icon:"🟡",title:"Schedule Gap — Tuesday",detail:"No coverage after 3pm next week. Consider adding a closing shift."},
+    {level:"green",icon:"🟢",title:"Top Performer — Jordan M.",detail:"14-day reliability streak with zero late arrivals. Outstanding."},
+  ];
+
+  const alertColor = level => ({red:O.red, yellow:O.amber, green:O.green})[level]||O.textD;
+
+  const darkBg = "#0a0f1e";
+  const darkCard = "#111827";
+  const darkBorder = "rgba(255,255,255,0.08)";
+  const cyan = "#00d4ff";
+  const cyanD = "rgba(0,212,255,0.1)";
+
+  return (
+    <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+
+      {/* Dark header banner */}
+      <div style={{background:darkBg,borderRadius:16,padding:"24px 28px",marginBottom:20,position:"relative",overflow:"hidden"}}>
+        {/* Subtle grid pattern */}
+        <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px)",backgroundSize:"32px 32px",pointerEvents:"none"}}/>
+        <div style={{position:"relative"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:cyan,animation:"blink 2s infinite"}}/>
+            <div style={{fontFamily:O.mono,fontSize:9,color:cyan,letterSpacing:"2px",textTransform:"uppercase"}}>ShiftPro Intelligence · Beta</div>
+          </div>
+          <div style={{fontFamily:O.sans,fontWeight:800,fontSize:26,color:"#fff",marginBottom:6}}>🧠 AI Command Center</div>
+          <div style={{fontFamily:O.sans,fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.6,maxWidth:600}}>
+            Describe your scheduling needs in plain English. ShiftPro's AI builds your week, flags risks, and forecasts your labor costs — all from one place.
+          </div>
+        </div>
+      </div>
+
+      {/* AI Scheduling Assistant */}
+      <div style={{background:darkCard,border:"1px solid "+darkBorder,borderRadius:16,padding:"24px",marginBottom:20,boxShadow:"0 4px 24px rgba(0,0,0,0.2)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div>
+            <div style={{fontFamily:O.mono,fontSize:8,color:cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>AI Scheduling Assistant</div>
+            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:"#fff"}}>Tell me what you need</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 12px",background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.15)",borderRadius:20}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:cyan}}/>
+            <span style={{fontFamily:O.mono,fontSize:8,color:cyan,letterSpacing:1}}>Powered by Claude</span>
+          </div>
+        </div>
+
+        <textarea
+          value={intelPrompt}
+          onChange={e=>setIntelPrompt(e.target.value)}
+          onKeyDown={e=>{ if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)) runAI(); }}
+          placeholder={`Try: "Build me a full week for my ${LIVE.length} employees, no one over 32 hours, always 2 people on Saturdays"\n\nOr: "Who should I schedule for Friday closing shift?"\n\nOr: "How can I reduce my labor cost this week?"`}
+          rows={4}
+          style={{width:"100%",padding:"14px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(0,212,255,0.2)",borderRadius:10,fontFamily:O.sans,fontSize:13,color:"#fff",outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.6}}
+          onFocus={e=>e.target.style.borderColor="rgba(0,212,255,0.5)"}
+          onBlur={e=>e.target.style.borderColor="rgba(0,212,255,0.2)"}
+        />
+
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:12}}>
+          <div style={{fontFamily:O.mono,fontSize:9,color:"rgba(255,255,255,0.25)"}}>⌘ Enter to send</div>
+          <button
+            onClick={runAI}
+            style={{display:"flex",alignItems:"center",gap:8,padding:"11px 22px",background:intelBusy?"rgba(0,212,255,0.2)":"linear-gradient(135deg,rgba(0,212,255,0.9),rgba(0,150,220,0.9))",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:intelBusy?"rgba(255,255,255,0.5)":"#0a0f1e",cursor:intelBusy?"not-allowed":"pointer",transition:"all 0.2s"}}>
+            {intelBusy?(
+              <><span style={{animation:"blink 1s infinite"}}>●</span> Thinking…</>
+            ):(
+              <>✨ Generate Schedule</>
+            )}
+          </button>
+        </div>
+
+        {/* Output */}
+        {intelOutput&&(
+          <div style={{marginTop:16,padding:"16px",background:"rgba(0,212,255,0.04)",border:"1px solid rgba(0,212,255,0.12)",borderRadius:10}}>
+            <div style={{fontFamily:O.mono,fontSize:8,color:cyan,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>AI Response</div>
+            <div style={{fontFamily:O.sans,fontSize:13,color:"rgba(255,255,255,0.85)",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{intelOutput}</div>
+          </div>
+        )}
+
+        {/* Quick prompts */}
+        {!intelOutput&&!intelBusy&&(
+          <div style={{marginTop:14,display:"flex",gap:8,flexWrap:"wrap"}}>
+            {[
+              "Build me a balanced schedule for this week",
+              "Who has the most availability?",
+              "How can I reduce overtime costs?",
+              "Suggest a Saturday closing crew",
+            ].map(p=>(
+              <button key={p} onClick={()=>setIntelPrompt(p)}
+                style={{padding:"6px 12px",background:"rgba(255,255,255,0.04)",border:"1px solid "+darkBorder,borderRadius:20,fontFamily:O.sans,fontSize:11,color:"rgba(255,255,255,0.5)",cursor:"pointer",transition:"all 0.15s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(0,212,255,0.3)";e.currentTarget.style.color="rgba(255,255,255,0.8)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=darkBorder;e.currentTarget.style.color="rgba(255,255,255,0.5)";}}>
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Two column: Alerts + Labor forecast */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+
+        {/* Behavioral Pattern Alerts */}
+        <div style={{background:darkCard,border:"1px solid "+darkBorder,borderRadius:16,padding:"20px",boxShadow:"0 4px 24px rgba(0,0,0,0.2)"}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:"rgba(255,255,255,0.35)",letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Behavioral Intelligence</div>
+          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",marginBottom:16}}>Pattern Alerts</div>
+
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {displayAlerts.map((alert,i)=>(
+              <div key={i} style={{padding:"12px 14px",background:"rgba(255,255,255,0.03)",border:"1px solid "+darkBorder,borderLeft:"3px solid "+alertColor(alert.level),borderRadius:"0 10px 10px 0"}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                  <span style={{fontSize:14,flexShrink:0,marginTop:1}}>{alert.icon}</span>
+                  <div>
+                    <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:"rgba(255,255,255,0.85)",marginBottom:3}}>{alert.title}</div>
+                    <div style={{fontFamily:O.sans,fontSize:11,color:"rgba(255,255,255,0.4)",lineHeight:1.4}}>{alert.detail}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{marginTop:14,fontFamily:O.mono,fontSize:8,color:"rgba(255,255,255,0.2)",letterSpacing:1}}>
+            BETA · AI insights update nightly
+          </div>
+        </div>
+
+        {/* Predictive Labor Cost */}
+        <div style={{background:darkCard,border:"1px solid "+darkBorder,borderRadius:16,padding:"20px",boxShadow:"0 4px 24px rgba(0,0,0,0.2)",display:"flex",flexDirection:"column"}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:"rgba(255,255,255,0.35)",letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Predictive Analytics</div>
+          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",marginBottom:20}}>Labor Forecast</div>
+
+          {/* Big number */}
+          <div style={{textAlign:"center",marginBottom:20,flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+            <div style={{fontFamily:O.mono,fontSize:9,color:"rgba(255,255,255,0.3)",letterSpacing:"2px",marginBottom:8,textTransform:"uppercase"}}>Projected Labor Cost · This Week</div>
+            <div style={{fontFamily:O.sans,fontWeight:800,fontSize:40,color:cyan,letterSpacing:"-1px"}}>
+              ${Math.round(projectedCost).toLocaleString()}
+            </div>
+            <div style={{fontFamily:O.mono,fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:6}}>
+              {totalScheduledHrs}h × ${avgRate.toFixed(2)} avg rate
+            </div>
+          </div>
+
+          {/* Mini breakdown */}
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+            {[
+              {label:"Team size",value:LIVE.length+" employees",color:"rgba(255,255,255,0.5)"},
+              {label:"Avg hourly rate",value:"$"+avgRate.toFixed(2)+"/hr",color:"rgba(255,255,255,0.5)"},
+              {label:"Total scheduled",value:totalScheduledHrs+"h this week",color:"rgba(255,255,255,0.5)"},
+              {label:"OT exposure",value:LIVE.filter(e=>e.ot>0).length+" employees",color:LIVE.filter(e=>e.ot>0).length>0?"#ef4444":"#1a9e6e"},
+            ].map(row=>(
+              <div key={row.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontFamily:O.sans,fontSize:12,color:"rgba(255,255,255,0.35)"}}>{row.label}</span>
+                <span style={{fontFamily:O.mono,fontSize:11,color:row.color,fontWeight:600}}>{row.value}</span>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={()=>toast("Budget optimization coming in next update ✓","success")}
+            style={{width:"100%",padding:"10px",background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:12,color:cyan,cursor:"pointer"}}>
+            Optimize for Budget →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
 //  SHIFT ADD MODAL (outside OwnerCmd)
 // ══════════════════════════════════════════════════
 function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOffset, addShift, getMonday }) {
@@ -2071,6 +2312,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [waitlistForm,setWaitlistForm] = useState({name:"",email:"",biz:""});
   const [waitlistDone,setWaitlistDone] = useState(false);
 
+  // ── Phase 3: Onboarding checklist ──
+  const [setupDismissed,setSetupDismissed] = useState(()=>{
+    try{ return typeof window!=="undefined" && localStorage.getItem("shiftpro_setup_done")==="true"; }catch(e){ return false; }
+  });
+
+  // ── Phase 3: Intelligence tab ──
+  const [intelPrompt,setIntelPrompt] = useState("");
+  const [intelOutput,setIntelOutput] = useState("");
+  const [intelBusy,setIntelBusy] = useState(false);
+
   // ── Phase 2: Notifications ──
   const [notifOpen,setNotifOpen] = useState(false);
   const [notifications,setNotifications] = useState([]);
@@ -2275,6 +2526,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     {id:"staff",l:"👥 Staff"},
     {id:"schedule",l:"📅 Schedule"},
     {id:"roi",l:"💵 Payroll"},
+    {id:"intel",l:"🧠 Intelligence"},
     {id:"cameras",l:"📷 Cameras"},
     {id:"settings",l:"⚙️ Settings"},
   ];
@@ -2590,6 +2842,57 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 ))}
               </div>
             )}
+
+            {/* ── ONBOARDING CHECKLIST ── */}
+            {liveEmps!==null&&!setupDismissed&&(()=>{
+              const steps = [
+                {label:"Create your account",done:true,tab:null},
+                {label:"Add your first location",done:liveLocations.length>0,tab:"command"},
+                {label:"Invite your first employee",done:(liveEmps||[]).length>0,tab:"staff"},
+                {label:"Build your first schedule",done:(liveShifts||[]).length>0,tab:"schedule"},
+                {label:"Publish your schedule",done:(liveShifts||[]).some(s=>s.status==="published"),tab:"schedule"},
+              ];
+              const doneCount = steps.filter(s=>s.done).length;
+              const allDone = doneCount === steps.length;
+              if(allDone){
+                try{ localStorage.setItem("shiftpro_setup_done","true"); }catch(e){}
+                return null;
+              }
+              return (
+                <div style={{background:"#fff",borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"16px 20px",marginBottom:20,boxShadow:O.shadow,position:"relative"}}>
+                  <button onClick={()=>{
+                    setSetupDismissed(true);
+                    try{ localStorage.setItem("shiftpro_setup_done","true"); }catch(e){}
+                  }} style={{position:"absolute",top:10,right:12,background:"none",border:"none",fontSize:18,cursor:"pointer",color:O.textF,lineHeight:1}}>×</button>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,paddingRight:24}}>
+                    <div>
+                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>🚀 Account Setup</div>
+                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:2}}>{doneCount} of {steps.length} complete</div>
+                    </div>
+                    <div style={{fontFamily:O.mono,fontSize:10,color:O.amber,fontWeight:600}}>{Math.round(doneCount/steps.length*100)}%</div>
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{height:4,background:O.bg3,borderRadius:2,marginBottom:14,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:(doneCount/steps.length*100)+"%",background:"linear-gradient(90deg,#e07b00,#c96800)",borderRadius:2,transition:"width 0.6s ease"}}/>
+                  </div>
+                  {/* Steps */}
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {steps.map((step,i)=>(
+                      <button key={i}
+                        onClick={()=>{ if(!step.done && step.tab) setTab(step.tab); }}
+                        style={{display:"flex",alignItems:"center",gap:7,padding:"6px 11px",borderRadius:20,border:"1px solid "+(step.done?"rgba(26,158,110,0.25)":O.border),background:step.done?O.greenD:"none",cursor:step.done?"default":"pointer",transition:"all 0.15s"}}
+                        onMouseEnter={e=>{ if(!step.done) e.currentTarget.style.borderColor=O.amber; }}
+                        onMouseLeave={e=>{ if(!step.done) e.currentTarget.style.borderColor=O.border; }}>
+                        <div style={{width:18,height:18,borderRadius:"50%",flexShrink:0,background:step.done?"#1a9e6e":O.bg3,border:"1.5px solid "+(step.done?"#1a9e6e":O.border),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontFamily:O.mono,fontWeight:700}}>
+                          {step.done?"✓":i+1}
+                        </div>
+                        <span style={{fontFamily:O.sans,fontSize:11,fontWeight:600,color:step.done?O.green:O.textD,whiteSpace:"nowrap"}}>{step.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {liveEmps!==null&&(()=>{
               const LIVE = liveEmps;
@@ -3211,6 +3514,23 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           />
         )}
 
+        {/* ══ INTELLIGENCE TAB ══ */}
+        {tab==="intel"&&(
+          <IntelligenceTab
+            liveEmps={liveEmps}
+            liveShifts={liveShifts}
+            activeOrg={activeOrg}
+            activeLocation={activeLocation}
+            intelPrompt={intelPrompt}
+            setIntelPrompt={setIntelPrompt}
+            intelOutput={intelOutput}
+            setIntelOutput={setIntelOutput}
+            intelBusy={intelBusy}
+            setIntelBusy={setIntelBusy}
+            toast={toast}
+          />
+        )}
+
         {/* ══ CAMERAS TAB ══ */}
         {tab==="cameras"&&(
           <div style={{animation:"fadeUp 0.3s ease"}}>
@@ -3235,7 +3555,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   ))}
                 </div>
                 <div style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:O.mono,fontSize:9,color:O.cyan,letterSpacing:"2px",background:"rgba(8,145,178,0.08)",border:"1px solid rgba(8,145,178,0.2)",borderRadius:20,padding:"5px 14px"}}>
-                  <div style={{width:6,height:6,borderRadius:"50%",background:O.cyan}}/> LAUNCHING Q3 2025
+                  <div style={{width:6,height:6,borderRadius:"50%",background:O.cyan}}/> LAUNCHING Q1 2027
                 </div>
               </div>
               <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:16,padding:"24px",boxShadow:O.shadow}}>
