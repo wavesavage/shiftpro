@@ -1348,6 +1348,12 @@ function LocationGateNone({ activeOrg, ownerProfile, setLiveLocations, toast, se
               if(!res.ok) throw new Error(result.error||"Failed to create location");
               const newLoc=result.location;
               setLiveLocations([newLoc]);
+              // Save to localStorage so it persists
+              try{
+                localStorage.setItem("shiftpro_all_locs", JSON.stringify([newLoc]));
+                const orgId3=newLoc.org_id||activeOrg?.id||ownerProfile?.org_id;
+                if(orgId3) localStorage.setItem("shiftpro_cached_locs_"+orgId3, JSON.stringify([newLoc]));
+              }catch(e){}
               toast("Location created! ✓","success");
               selectLocation(newLoc);
             }catch(e){
@@ -2571,7 +2577,16 @@ function AddLocationModal({
               const result=await res.json();
               if(!res.ok) throw new Error(result.error||"Failed to create location");
               const newLoc=result.location;
-              setLiveLocations(prev=>[...prev,newLoc]);
+              setLiveLocations(prev=>{
+                const updated=[...prev,newLoc];
+                // Save full list to localStorage immediately
+                try{
+                  localStorage.setItem("shiftpro_all_locs", JSON.stringify(updated));
+                  const orgId2=newLoc.org_id||activeOrg?.id;
+                  if(orgId2) localStorage.setItem("shiftpro_cached_locs_"+orgId2, JSON.stringify(updated));
+                }catch(e){}
+                return updated;
+              });
               selectLocation(newLoc);
               setAddLocOpen(false);
               setAddLocForm({name:"",address:"",timezone:"America/Los_Angeles"});
@@ -3232,6 +3247,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     if(typeof window!=="undefined"){
       localStorage.setItem("shiftpro_active_loc", loc.id);
       try{ localStorage.setItem("shiftpro_active_loc_obj", JSON.stringify(loc)); }catch(e){}
+      // Also keep the full list cache current with this location included
+      try{
+        const raw = localStorage.getItem("shiftpro_all_locs");
+        const existing = raw ? JSON.parse(raw) : [];
+        const already = existing.find(l=>l.id===loc.id);
+        if(!already){
+          const updated = [...existing, loc];
+          localStorage.setItem("shiftpro_all_locs", JSON.stringify(updated));
+          const orgId4 = loc.org_id||activeOrg?.id||ownerProfile?.org_id;
+          if(orgId4) localStorage.setItem("shiftpro_cached_locs_"+orgId4, JSON.stringify(updated));
+        }
+      }catch(e){}
     }
     setLocationGate("ready");
     setLiveShifts(null);
