@@ -2964,44 +2964,38 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   // ── Initial load ──
   useEffect(()=>{
-    // Pre-seed from cache so UI loads instantly while Supabase fetches
+    // ── STEP 1: Restore from cache BEFORE any async work ──
+    // Rule: if we have ANY saved location, set ready immediately.
+    // Nothing in the async load is allowed to reset a gate already set to "ready".
     try{
       const cachedProfile = localStorage.getItem("shiftpro_org_profile");
       if(cachedProfile) setSettingsProfile(p=>({...p,...JSON.parse(cachedProfile)}));
+    }catch(e){}
 
+    try{
+      // Restore active location — this is the #1 priority
+      const savedLocRaw = localStorage.getItem("shiftpro_active_loc_obj");
+      if(savedLocRaw){
+        const savedLoc = JSON.parse(savedLocRaw);
+        setActiveLocation(savedLoc);
+        setLiveLocations(locs=>{
+          // Add saved loc to list if not already present
+          const already = Array.isArray(locs) && locs.find(l=>l.id===savedLoc.id);
+          return already ? locs : [savedLoc, ...locs.filter(l=>l.id!==savedLoc.id)];
+        });
+        setLocationGate("ready"); // ← SET IMMEDIATELY, async load will NOT override this
+      }
+    }catch(e){}
+
+    try{
+      // Pre-seed employees from cache
       const orgId2 = ownerInitialProfile?.orgId || localStorage.getItem("shiftpro_active_orgid");
       if(orgId2){
-        // Pre-seed employees
         const cachedEmps = localStorage.getItem("shiftpro_cached_emps_"+orgId2);
-        if(cachedEmps) setLiveEmps(JSON.parse(cachedEmps));
-        // Pre-seed locations + location gate
-        const cachedLocs = localStorage.getItem("shiftpro_cached_locs_"+orgId2);
-        const savedLocId = localStorage.getItem("shiftpro_active_loc");
-        let savedLocObj = null;
-        try{ const c=localStorage.getItem("shiftpro_active_loc_obj"); savedLocObj=c?JSON.parse(c):null; }catch(e){}
-        if(cachedLocs){
-          const locsArr = JSON.parse(cachedLocs);
-          setLiveLocations(locsArr);
-          const activeLoc = savedLocId ? (locsArr.find(l=>l.id===savedLocId)||savedLocObj) : savedLocObj;
-          if(activeLoc){
-            setActiveLocation(activeLoc);
-            setLocationGate("ready");
-          } else if(locsArr.length>0){
-            setLocationGate("pick");
-          }
-        } else if(savedLocObj){
-          setLiveLocations([savedLocObj]);
-          setActiveLocation(savedLocObj);
-          setLocationGate("ready");
+        if(cachedEmps){
+          const emps = JSON.parse(cachedEmps);
+          setLiveEmps(emps);
         }
-      } if(localStorage.getItem("shiftpro_active_loc_obj")&&!orgId2){
-        // Fallback: no orgId known yet but we have a cached location
-        try{
-          const savedLocObj2 = JSON.parse(localStorage.getItem("shiftpro_active_loc_obj"));
-          setLiveLocations([savedLocObj2]);
-          setActiveLocation(savedLocObj2);
-          setLocationGate("ready");
-        }catch(e){}
       }
     }catch(e){}
 
@@ -3055,35 +3049,40 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setLiveEmps(mappedEmps);
           // Cache employees for faster subsequent loads
           try{ localStorage.setItem("shiftpro_cached_emps_"+orgId, JSON.stringify(mappedEmps)); }catch(e){}
-          // Cache raw locations list for offline/RLS-blocked scenarios
-          if(locs&&locs.length>0){
-            try{ localStorage.setItem("shiftpro_cached_locs_"+orgId, JSON.stringify(locs)); }catch(e){}
-          }
 
-          // Always check localStorage cache first — Supabase may return empty due to RLS
-          const savedLocId = typeof window!=="undefined" ? localStorage.getItem("shiftpro_active_loc") : null;
+
+          // Supabase returned locations — update the list but NEVER downgrade a ready gate
+          const savedLocId = localStorage.getItem("shiftpro_active_loc");
           let savedLocObj = null;
-          try{ const c=localStorage.getItem("shiftpro_active_loc_obj"); savedLocObj=c?JSON.parse(c):null; }catch(e){}
+          try{ savedLocObj = JSON.parse(localStorage.getItem("shiftpro_active_loc_obj")||"null"); }catch(e){}
 
           if(locs&&locs.length>0){
             setLiveLocations(locs);
-            // Match saved ID against fresh Supabase data, or fall back to cached object
-            const savedLoc = savedLocId
-              ? (locs.find(l=>l.id===savedLocId) || savedLocObj)
-              : null;
-            if(savedLoc){
-              setActiveLocation(savedLoc);
+            // Save to cache for future loads
+            try{ localStorage.setItem("shiftpro_cached_locs_"+orgId, JSON.stringify(locs)); }catch(e){}
+            // Find the active location
+            const activeLoc = savedLocId
+              ? (locs.find(l=>l.id===savedLocId)||savedLocObj)
+              : savedLocObj||null;
+            if(activeLoc){
+              setActiveLocation(activeLoc);
               setLocationGate("ready");
             } else {
-              setLocationGate("pick");
+              // Locations exist but none selected — show picker (don't override ready)
+              setLocationGate(g=>g==="ready"?"ready":"pick");
             }
-          } else if(savedLocObj){
-            // Supabase returned empty (likely RLS) but we have a cached location — use it
-            setLiveLocations([savedLocObj]);
-            setActiveLocation(savedLocObj);
-            setLocationGate("ready");
           } else {
-            setLocationGate("none");
+            // Supabase returned empty — ONLY show "none" if we have NO cached location
+            // If gate is already "ready" from cache, leave it alone
+            setLocationGate(g=>{
+              if(g==="ready") return "ready"; // ← NEVER reset a ready gate
+              if(savedLocObj) return "ready";  // ← have cache? use it
+              return "none";                   // ← truly no location anywhere
+            });
+            if(savedLocObj){
+              setActiveLocation(savedLocObj);
+              setLiveLocations([savedLocObj]);
+            }
           }
         } else {
           setLiveEmps([]);
@@ -3096,7 +3095,21 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       }
     };
     load();
-    const fallback = setTimeout(()=>{ setLocationGate(g=>g===null?"pick":g); setLiveEmps(e=>e===null?[]:e); }, 5000);
+    const fallback = setTimeout(()=>{
+      // Only set to pick/none if still in loading state — never override ready or pick
+      setLocationGate(g=>{
+        if(g===null){
+          // Still loading after 5s — check cache one more time
+          try{
+            const loc = JSON.parse(localStorage.getItem("shiftpro_active_loc_obj")||"null");
+            if(loc) return "ready";
+          }catch(e){}
+          return "pick"; // show pick even if empty — user can add location
+        }
+        return g;
+      });
+      setLiveEmps(e=>e===null?[]:e);
+    }, 5000);
     return()=>clearTimeout(fallback);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
