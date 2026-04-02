@@ -595,7 +595,7 @@ function EmpPortal({emp,onLogout}){
     moHrs:parseFloat(emp?.moHrs)||0, ot:parseFloat(emp?.ot)||0, streak:parseInt(emp?.streak)||0,
     flags:parseInt(emp?.flags)||0, shifts:parseInt(emp?.shifts)||0, risk:emp?.risk||"Low",
     orgId:emp?.orgId||null, locId:emp?.locId||null, appRole:emp?.appRole||"employee",
-    rel:parseInt(emp?.rel)||85, prod:parseInt(emp?.prod)||80, cam:parseInt(emp?.cam)||85,
+    rel:parseInt(emp?.rel)||100, prod:parseInt(emp?.prod)||80, cam:parseInt(emp?.cam)||85,
     ghost:parseFloat(emp?.ghost)||0,
   };
   const [tab,setTab] = useState("home");
@@ -2732,7 +2732,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     avatar:e.avatar_initials||(((e.first_name||"?")[0])+((e.last_name||"?")[0])).toUpperCase(),
     color:e.avatar_color||"#6366f1", email:e.email||"",
     status:e.status==="active"?"active":"invited", hired:e.hire_date||"",
-    wkHrs:0, moHrs:0, ot:0, cam:85, prod:80, rel:85, flags:0, streak:0, shifts:0,
+    wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100, flags:0, streak:0, shifts:0,
     risk:"Low", ghost:0, orgId:e.org_id, locId:e.location_id, appRole:e.app_role, pin:e.pin||"",
   });
 
@@ -4380,7 +4380,7 @@ export default function App(){
             status:"active",
             hired:profile?.hire_date||"",
             wkHrs:0, moHrs:0, ot:0,
-            cam:85, prod:80, rel:85,
+            cam:100, prod:100, rel:100,
             flags:0, streak:0, shifts:0,
             risk:"Low", ghost:0,
             orgId:profile?.org_id||null,
