@@ -400,16 +400,27 @@ function Login({onLogin}){
       const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
-      const {data:profile} = await sb.from("users").select("*").eq("id",data.user.id).single();
-      const emp = profile ? {
-        id:profile.id, name:profile.first_name+" "+profile.last_name,
-        first:profile.first_name, role:profile.role, dept:profile.department||"",
-        rate:parseFloat(profile.hourly_rate)||0,
-        avatar:profile.avatar_initials||"?", color:profile.avatar_color||"#6366f1",
-        email:data.user.email, status:"active", hired:profile.hire_date||"",
-        wkHrs:40, moHrs:160, ot:0, cam:85, prod:88, rel:92, flags:0, streak:1, shifts:4,
-        risk:"Low", ghost:0, orgId:profile.org_id, locId:profile.location_id, appRole:profile.app_role,
-      } : null;
+      let profile = null;
+      try{ const {data:p}=await sb.from("users").select("*").eq("id",data.user.id).single(); profile=p; }catch(e){}
+      const emp = {
+        id: data.user.id,
+        name: profile?(profile.first_name+" "+profile.last_name):data.user.email.split("@")[0],
+        first: profile?.first_name||data.user.email.split("@")[0],
+        role: profile?.role||"Manager",
+        dept: profile?.department||"",
+        rate: parseFloat(profile?.hourly_rate)||0,
+        avatar: profile?.avatar_initials||data.user.email[0].toUpperCase(),
+        color: profile?.avatar_color||"#f59e0b",
+        email: data.user.email,
+        status:"active", hired:profile?.hire_date||"",
+        wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100,
+        flags:0, streak:0, shifts:0, risk:"Low", ghost:0,
+        orgId: profile?.org_id||null,
+        locId: profile?.location_id||null,
+        appRole: profile?.app_role||"owner",
+      };
+      // Cache immediately so refresh works even if profile query fails next time
+      try{ localStorage.setItem("shiftpro_cached_emp_"+data.user.id, JSON.stringify(emp)); }catch(e){}
       onLogin("owner", emp);
     }catch(e){
       setErr(e.message||"Sign in failed. Check your email and password.");
@@ -4670,6 +4681,7 @@ export default function App(){
   useEffect(()=>{
     const init = async() => {
       try{
+        // Check for invite/reset link first
         if(typeof window!=="undefined"){
           const hash=window.location.hash;
           if(hash.includes("access_token")&&(hash.includes("type=recovery")||hash.includes("type=invite"))){
@@ -4678,56 +4690,66 @@ export default function App(){
         }
         const {createClient}=await import("@supabase/supabase-js");
         const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-        const {data:{session:existing}}=await sb.auth.getSession();
-        if(existing?.user){
-          // Load profile from Supabase — role ALWAYS comes from profile, never from cache
-          let profile = null;
-          try{
-            const {data:p} = await sb.from("users").select("*").eq("id",existing.user.id).single();
-            profile = p;
-          }catch(e){}
 
-          // If profile query failed, fall back to localStorage cache
-          if(!profile){
-            try{
-              const cached = localStorage.getItem("shiftpro_cached_emp_"+existing.user.id);
-              if(cached){
-                const cachedEmp = JSON.parse(cached);
-                // Role from cache is safe — we set it from Supabase originally
-                const cachedRole = (cachedEmp.appRole==="owner"||cachedEmp.appRole==="manager")?"owner":"employee";
-                setSession({role:cachedRole, emp:cachedEmp});
-                setAppLoading(false);
-                return;
-              }
-            }catch(e){}
-            // No cache either — show login
-            setAppLoading(false);
-            return;
-          }
+        // Step 1: Get Supabase session — this uses the stored JWT token
+        const {data:{session:existing}} = await sb.auth.getSession();
 
-          const role = (profile.app_role==="owner"||profile.app_role==="manager")?"owner":"employee";
-          const emp = {
-            id: profile.id,
-            name: (profile.first_name||"")+" "+(profile.last_name||""),
-            first: profile.first_name||existing.user.email?.split("@")[0]||"there",
-            role: profile.role||"Employee",
-            dept: profile.department||"",
-            rate: parseFloat(profile.hourly_rate)||15,
-            avatar: profile.avatar_initials||"?",
-            color: profile.avatar_color||"#6366f1",
-            email: existing.user.email||"",
-            status:"active", hired:profile.hire_date||"",
-            wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100,
-            flags:0, streak:0, shifts:0, risk:"Low", ghost:0,
-            orgId: profile.org_id||null,
-            locId: profile.location_id||null,
-            appRole: profile.app_role||"employee",
-          };
-          // Cache for future restores
-          try{ localStorage.setItem("shiftpro_cached_emp_"+profile.id, JSON.stringify(emp)); }catch(e){}
-          setSession({role,emp});
+        if(!existing?.user){
+          // No valid session at all — must log in
+          setAppLoading(false);
+          return;
         }
-      }catch(e){}
+
+        const userId = existing.user.id;
+        const userEmail = existing.user.email||"";
+
+        // Step 2: Try to load profile from Supabase
+        let profile = null;
+        try{
+          const {data:p} = await sb.from("users").select("*").eq("id",userId).single();
+          profile = p;
+        }catch(e){}
+
+        // Step 3: Try localStorage cache as fallback
+        let cachedEmp = null;
+        try{
+          const raw = localStorage.getItem("shiftpro_cached_emp_"+userId);
+          if(raw) cachedEmp = JSON.parse(raw);
+        }catch(e){}
+
+        // Step 4: Build emp — profile wins, cache fills gaps, session fills rest
+        // We ALWAYS have a valid session so we ALWAYS restore it
+        const role = profile?.app_role==="owner"||profile?.app_role==="manager"?"owner"
+                   : cachedEmp?.appRole==="owner"||cachedEmp?.appRole==="manager"?"owner"
+                   : "employee";
+
+        const emp = {
+          id: userId,
+          name: profile?(profile.first_name+" "+profile.last_name)
+                : cachedEmp?.name||userEmail.split("@")[0],
+          first: profile?.first_name||cachedEmp?.first||userEmail.split("@")[0]||"there",
+          role: profile?.role||cachedEmp?.role||"Employee",
+          dept: profile?.department||cachedEmp?.dept||"",
+          rate: parseFloat(profile?.hourly_rate||cachedEmp?.rate)||15,
+          avatar: profile?.avatar_initials||cachedEmp?.avatar||"?",
+          color: profile?.avatar_color||cachedEmp?.color||"#6366f1",
+          email: userEmail,
+          status:"active",
+          hired: profile?.hire_date||cachedEmp?.hired||"",
+          wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100,
+          flags:0, streak:0, shifts:0, risk:"Low", ghost:0,
+          orgId: profile?.org_id||cachedEmp?.orgId||localStorage.getItem("shiftpro_active_orgid")||null,
+          locId: profile?.location_id||cachedEmp?.locId||null,
+          appRole: profile?.app_role||cachedEmp?.appRole||"employee",
+        };
+
+        // Step 5: Always cache latest emp data
+        try{ localStorage.setItem("shiftpro_cached_emp_"+userId, JSON.stringify(emp)); }catch(e){}
+
+        setSession({role,emp});
+      }catch(e){
+        console.error("Session init error:",e);
+      }
       setAppLoading(false);
     };
     init();
