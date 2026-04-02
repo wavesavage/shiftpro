@@ -586,6 +586,197 @@ function Login({onLogin}){
 // ══════════════════════════════════════════════════
 //  EMPLOYEE PORTAL
 // ══════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════
+//  EMPLOYEE ONBOARDING WIZARD (first-login only)
+// ══════════════════════════════════════════════════════════
+function EmpOnboarding({ empSafe, onComplete }) {
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
+    firstName: empSafe.first==="there"?"":empSafe.first,
+    lastName: empSafe.name.split(" ").slice(1).join(" ")||"",
+    preferredName: "",
+    phone: "",
+    emergencyName: "",
+    emergencyPhone: "",
+    avatarColor: empSafe.color||"#6366f1",
+  });
+  const [avail, setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const COLORS = ["#6366f1","#8b5cf6","#10b981","#f59e0b","#ef4444","#0891b2","#ec4899","#0f766e"];
+  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const upd = (k,v) => { setForm(p=>({...p,[k]:v})); setErr(""); };
+  const cycleDay = (d) => setAvail(p=>({...p,[d]:p[d]==="none"?"available":p[d]==="available"?"unavailable":"none"}));
+  const dayColor = s => s==="available"?"#10b981":s==="unavailable"?"#ef4444":"#d1d5db";
+  const dayBg = s => s==="available"?"rgba(16,185,129,0.08)":s==="unavailable"?"rgba(239,68,68,0.06)":"transparent";
+
+  const inp = {width:"100%",padding:"12px 14px",background:"#f8f7ff",border:"1.5px solid rgba(99,102,241,0.15)",borderRadius:10,fontFamily:E.sans,fontSize:14,color:"#1e1b4b",outline:"none",boxSizing:"border-box",marginBottom:14};
+  const lbl = {fontFamily:E.mono,fontSize:9,color:"#9ca3af",letterSpacing:"1.5px",textTransform:"uppercase",display:"block",marginBottom:5};
+  const primaryBtn = {width:"100%",padding:"14px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:12,fontFamily:E.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:"pointer",boxShadow:"0 8px 28px rgba(99,102,241,0.25)",marginTop:8};
+  const backBtn = {background:"none",border:"none",fontFamily:E.sans,fontSize:13,color:"#9ca3af",cursor:"pointer",display:"block",textAlign:"center",marginTop:12,width:"100%"};
+
+  const next = () => {
+    if(step===1){
+      if(!form.firstName.trim()||!form.lastName.trim()){setErr("Please enter your first and last name.");return;}
+      if(!form.phone.trim()){setErr("A mobile phone number is required.");return;}
+    }
+    if(step===2){
+      if(!form.emergencyName.trim()||!form.emergencyPhone.trim()){setErr("Emergency contact info is required.");return;}
+    }
+    setErr(""); setStep(s=>s+1);
+  };
+
+  const finish = async() => {
+    setBusy(true);
+    try{
+      const {createClient}=await import("@supabase/supabase-js");
+      const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      await sb.from("users").update({
+        first_name:form.firstName, last_name:form.lastName,
+        preferred_name:form.preferredName||null,
+        phone:form.phone,
+        emergency_contact_name:form.emergencyName,
+        emergency_contact_phone:form.emergencyPhone,
+        avatar_color:form.avatarColor,
+      }).eq("id",empSafe.id);
+      const availRows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({
+        user_id:empSafe.id,org_id:empSafe.orgId||null,day_of_week:day,status,recurring:true,
+      }));
+      if(availRows.length>0) await sb.from("availability").upsert(availRows,{onConflict:"user_id,day_of_week"});
+    }catch(e){ /* always continue even if Supabase fails */ }
+    finally{ setBusy(false); onComplete(); }
+  };
+
+  const prog = (step/4)*100;
+  const name = form.preferredName||form.firstName||empSafe.first;
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f8f7ff",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px",fontFamily:E.sans}}>
+      <style>{`@keyframes pop{0%{transform:scale(0.8);opacity:0}100%{transform:scale(1);opacity:1}}`}</style>
+      {/* Logo */}
+      <div style={{marginBottom:24}}><NavLogoLight/></div>
+
+      {/* Card */}
+      <div style={{background:"#fff",borderRadius:20,padding:"32px 28px",width:"100%",maxWidth:480,boxShadow:"0 4px 40px rgba(99,102,241,0.12)"}}>
+
+        {/* Progress bar */}
+        {step<4&&(
+          <div style={{marginBottom:28}}>
+            <div style={{background:"#f1f0ff",borderRadius:2,height:4,overflow:"hidden"}}>
+              <div style={{width:prog+"%",height:"100%",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",borderRadius:2,transition:"width 0.4s ease"}}/>
+            </div>
+            <div style={{fontFamily:E.mono,fontSize:8,color:"#9ca3af",letterSpacing:"1.5px",marginTop:5,textAlign:"right"}}>STEP {step} OF 4</div>
+          </div>
+        )}
+
+        {/* ── STEP 1: Identity ── */}
+        {step===1&&(
+          <div>
+            <div style={{fontFamily:E.mono,fontSize:8,color:"#6366f1",letterSpacing:"2px",textTransform:"uppercase",marginBottom:6}}>Welcome</div>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:24,color:"#1e1b4b",marginBottom:6}}>Hey {empSafe.first==="there"?"there":empSafe.first}! 👋</div>
+            <div style={{fontFamily:E.sans,fontSize:14,color:"#6b7280",lineHeight:1.6,marginBottom:24}}>Let's set up your employee profile. Takes about 2 minutes.</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label style={lbl}>First Name</label><input value={form.firstName} onChange={e=>upd("firstName",e.target.value)} placeholder="Alex" style={inp} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="rgba(99,102,241,0.15)"}/></div>
+              <div><label style={lbl}>Last Name</label><input value={form.lastName} onChange={e=>upd("lastName",e.target.value)} placeholder="Rivera" style={inp} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="rgba(99,102,241,0.15)"}/></div>
+            </div>
+            <label style={lbl}>Preferred Name <span style={{color:"#d1d5db"}}>(optional)</span></label>
+            <input value={form.preferredName} onChange={e=>upd("preferredName",e.target.value)} placeholder="What should we call you?" style={inp} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="rgba(99,102,241,0.15)"}/>
+            <label style={lbl}>Mobile Phone <span style={{color:"#ef4444"}}>*</span></label>
+            <input value={form.phone} onChange={e=>upd("phone",e.target.value)} placeholder="(555) 000-0000" type="tel" style={inp} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="rgba(99,102,241,0.15)"}/>
+            {err&&<div style={{color:"#ef4444",fontFamily:E.sans,fontSize:12,marginBottom:8}}>{err}</div>}
+            <button onClick={next} style={primaryBtn}>Continue →</button>
+          </div>
+        )}
+
+        {/* ── STEP 2: Profile ── */}
+        {step===2&&(
+          <div>
+            <div style={{fontFamily:E.mono,fontSize:8,color:"#6366f1",letterSpacing:"2px",textTransform:"uppercase",marginBottom:6}}>Profile</div>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:24,color:"#1e1b4b",marginBottom:6}}>Personalize your profile</div>
+            <div style={{fontFamily:E.sans,fontSize:14,color:"#6b7280",lineHeight:1.6,marginBottom:24}}>Emergency contact and your avatar color.</div>
+            <label style={lbl}>Emergency Contact Name <span style={{color:"#ef4444"}}>*</span></label>
+            <input value={form.emergencyName} onChange={e=>upd("emergencyName",e.target.value)} placeholder="Parent, spouse, sibling..." style={inp} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="rgba(99,102,241,0.15)"}/>
+            <label style={lbl}>Emergency Contact Phone <span style={{color:"#ef4444"}}>*</span></label>
+            <input value={form.emergencyPhone} onChange={e=>upd("emergencyPhone",e.target.value)} placeholder="(555) 000-0000" type="tel" style={inp} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="rgba(99,102,241,0.15)"}/>
+            <label style={lbl}>Your Avatar Color</label>
+            <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
+              {COLORS.map(c=>(
+                <button key={c} onClick={()=>upd("avatarColor",c)} style={{width:34,height:34,borderRadius:"50%",background:c,border:form.avatarColor===c?"3px solid #1e1b4b":"3px solid transparent",cursor:"pointer",transition:"all 0.15s"}}/>
+              ))}
+              <div style={{width:34,height:34,borderRadius:"50%",background:form.avatarColor,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:E.mono,fontWeight:700,fontSize:12,color:"#fff",marginLeft:6,flexShrink:0}}>
+                {(form.firstName[0]||"?").toUpperCase()}{(form.lastName[0]||"").toUpperCase()}
+              </div>
+            </div>
+            {err&&<div style={{color:"#ef4444",fontFamily:E.sans,fontSize:12,marginBottom:8}}>{err}</div>}
+            <button onClick={next} style={primaryBtn}>Continue →</button>
+            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}>← Back</button>
+          </div>
+        )}
+
+        {/* ── STEP 3: Availability ── */}
+        {step===3&&(
+          <div>
+            <div style={{fontFamily:E.mono,fontSize:8,color:"#6366f1",letterSpacing:"2px",textTransform:"uppercase",marginBottom:6}}>Availability</div>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:24,color:"#1e1b4b",marginBottom:6}}>Your weekly availability</div>
+            <div style={{fontFamily:E.sans,fontSize:14,color:"#6b7280",lineHeight:1.6,marginBottom:24}}>Your manager sees this when building the schedule. You can always update it later.</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:24}}>
+              {DAYS.map(d=>(
+                <button key={d} onClick={()=>cycleDay(d)} style={{padding:"10px 14px",borderRadius:10,border:"2px solid "+dayColor(avail[d]),background:dayBg(avail[d]),fontFamily:E.sans,fontWeight:700,fontSize:13,color:dayColor(avail[d]),cursor:"pointer",minWidth:54,transition:"all 0.15s",textAlign:"center"}}>
+                  {d}<br/><span style={{fontSize:10,fontWeight:400}}>{avail[d]==="available"?"✓ Free":avail[d]==="unavailable"?"✗ Off":"—"}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{padding:"12px 14px",background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:10,marginBottom:20,fontFamily:E.sans,fontSize:12,color:"#6b7280"}}>
+              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span> → <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span> → No preference
+            </div>
+            <button onClick={()=>{setErr("");setStep(4);}} style={primaryBtn}>Save & Continue →</button>
+            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}>← Back</button>
+          </div>
+        )}
+
+        {/* ── STEP 4: Done ── */}
+        {step===4&&(
+          <div style={{textAlign:"center"}}>
+            <div style={{width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:32,animation:"pop 0.4s ease"}}>✓</div>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:24,color:"#1e1b4b",marginBottom:6}}>You're all set, {name}! 🎉</div>
+            <div style={{fontFamily:E.sans,fontSize:14,color:"#6b7280",lineHeight:1.6,marginBottom:24}}>Your profile is ready. Your manager can see your availability when building the schedule.</div>
+            {/* Summary */}
+            <div style={{background:"#f8f7ff",borderRadius:12,padding:"16px",textAlign:"left",marginBottom:24}}>
+              <div style={{fontFamily:E.mono,fontSize:8,color:"#9ca3af",letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Your Profile</div>
+              {[
+                ["Name",form.preferredName?`${form.firstName} "${form.preferredName}" ${form.lastName}`:`${form.firstName} ${form.lastName}`],
+                ["Phone",form.phone],
+                ["Emergency",form.emergencyName+" · "+form.emergencyPhone],
+              ].map(([l,v])=>(
+                <div key={l} style={{display:"flex",gap:10,marginBottom:8}}>
+                  <span style={{fontFamily:E.mono,fontSize:9,color:"#9ca3af",minWidth:80,textTransform:"uppercase"}}>{l}</span>
+                  <span style={{fontFamily:E.sans,fontSize:13,color:"#1e1b4b"}}>{v}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",gap:10,alignItems:"flex-start",marginTop:4}}>
+                <span style={{fontFamily:E.mono,fontSize:9,color:"#9ca3af",minWidth:80,textTransform:"uppercase",paddingTop:2}}>Availability</span>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {Object.entries(avail).filter(([,s])=>s!=="none").map(([d,s])=>(
+                    <span key={d} style={{fontFamily:E.mono,fontSize:9,padding:"2px 8px",borderRadius:10,background:s==="available"?"rgba(16,185,129,0.1)":"rgba(239,68,68,0.08)",color:s==="available"?"#10b981":"#ef4444",border:"1px solid "+(s==="available"?"rgba(16,185,129,0.2)":"rgba(239,68,68,0.15)")}}>
+                      {d}
+                    </span>
+                  ))}
+                  {Object.values(avail).every(s=>s==="none")&&<span style={{fontFamily:E.sans,fontSize:12,color:"#9ca3af"}}>Not set</span>}
+                </div>
+              </div>
+            </div>
+            <button onClick={finish} disabled={busy} style={{...primaryBtn,opacity:busy?0.7:1,cursor:busy?"not-allowed":"pointer"}}>
+              {busy?"Setting up your account…":"Enter My Work Hub →"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EmpPortal({emp,onLogout}){
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
@@ -617,6 +808,13 @@ function EmpPortal({emp,onLogout}){
   const [availBusy,setAvailBusy] = useState(false);
   const [msgs,setMsgs] = useState([]);
   const [openMsg,setOpenMsg] = useState(null);
+  const [onboardingDone,setOnboardingDone] = useState(true); // default true prevents flash
+
+  useEffect(()=>{
+    if(!empSafe.id) return;
+    const done = typeof window!=="undefined" && localStorage.getItem("shiftpro_onboarding_"+empSafe.id)==="done";
+    setOnboardingDone(!!done);
+  },[empSafe.id]);
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
 
@@ -657,6 +855,17 @@ function EmpPortal({emp,onLogout}){
     {id:"recognition",label:"🏆 Achievements"},
     {id:"documents",label:"📄 My Documents"},
   ];
+
+  // First-login onboarding gate
+  if(!onboardingDone && empSafe.id) return (
+    <EmpOnboarding
+      empSafe={empSafe}
+      onComplete={()=>{
+        try{ localStorage.setItem("shiftpro_onboarding_"+empSafe.id,"done"); }catch(e){}
+        setOnboardingDone(true);
+      }}
+    />
+  );
 
   return (
     <div style={{minHeight:"100vh",background:E.bg,fontFamily:E.sans,color:E.text}}>
