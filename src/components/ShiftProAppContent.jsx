@@ -1051,6 +1051,7 @@ function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, 
 //  EMPLOYEE DRAWER (outside OwnerCmd)
 // ══════════════════════════════════════════════════
 function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, mapEmp, toast }) {
+  const mobile = useIsMobile();
   const [editing, setEditing] = React.useState(false);
   const [editForm, setEditForm] = React.useState({
     role: emp.role||"",
@@ -1146,7 +1147,7 @@ They will lose access to ShiftPro. You can reactivate them later.`)) return;
       />
       {/* Drawer panel */}
       <div style={{
-        position:"fixed",top:0,right:0,bottom:0,width:400,
+        position:"fixed",top:0,right:0,bottom:0,width:mobile?"100vw":400,
         background:"#fff",zIndex:701,
         boxShadow:"-8px 0 40px rgba(0,0,0,0.12)",
         display:"flex",flexDirection:"column",
@@ -1431,7 +1432,7 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
       </div>
 
       {/* Two column: Alerts + Labor forecast */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:16}}>
 
         {/* Behavioral Pattern Alerts */}
         <div style={{background:darkCard,border:"1px solid "+darkBorder,borderRadius:16,padding:"20px",boxShadow:"0 4px 24px rgba(0,0,0,0.2)"}}>
@@ -1605,6 +1606,7 @@ function SettingsTab({
   settingsPwBusy, setSettingsPwBusy,
   toast, onLogout,
 }) {
+  const mobile = useIsMobile();
   const card = {background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow};
   const label = {fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"};
   const input = {width:"100%",padding:"10px 13px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"};
@@ -1674,7 +1676,7 @@ function SettingsTab({
         <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Business Settings</div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:16}}>
 
         {/* ── COMPANY PROFILE ── */}
         <div style={card}>
@@ -1936,11 +1938,12 @@ function AddLocationModal({
   addLocErr, setAddLocErr, setAddLocOpen, setLiveLocations,
   selectLocation, setTab, toast, mapEmp
 }) {
+  const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setAddLocOpen(false);setAddLocErr("");}}}>
-      <div style={{background:"#fff",borderRadius:16,padding:"28px",width:"100%",maxWidth:440,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",animation:"fadeUp 0.3s ease"}}>
+      <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":440,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
           <div>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Add Location</div>
@@ -2038,11 +2041,12 @@ function InviteModal({
   inviteDone, setInviteDone, inviteErr, setInviteErr,
   setShowInvite, setLiveEmps, mapEmp, toast
 }) {
+  const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setShowInvite(false);setInviteDone("");setInviteErr("");}}}>
-      <div style={{background:"#fff",borderRadius:16,padding:"28px",width:"100%",maxWidth:460,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
+      <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":460,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
           <div>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Invite Employee</div>
@@ -2165,11 +2169,12 @@ function BroadcastModal({
   broadcastDone, setBroadcastDone,
   setBroadcastOpen, toast
 }) {
+  const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setBroadcastOpen(false);setBroadcastDone("");}}}>
-      <div style={{background:"#fff",borderRadius:16,padding:"28px",width:"100%",maxWidth:480,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
+      <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":480,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
           <div>
             <div style={{fontFamily:O.mono,fontSize:8,color:O.red,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Broadcast</div>
@@ -2244,6 +2249,7 @@ function BroadcastModal({
 // ══════════════════════════════════════════════════
 function OwnerCmd({onLogout, ownerInitialProfile}){
   const { toasts, toast, removeToast } = useToast();
+  const mobile = useIsMobile();
 
   // ── Core state ──
   const [tab,setTab] = useState("command");
@@ -2521,6 +2527,44 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     }catch(e){ toast("Failed to publish schedule", "error"); }
   };
 
+  const copyLastWeek = async () => {
+    try{
+      const {createClient} = await import("@supabase/supabase-js");
+      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const lastMon = getMonday(currentWeekOffset - 1);
+      const thisMon = getMonday(currentWeekOffset);
+      const orgId = ownerProfile?.org_id;
+      if(!orgId){ toast("No company found","error"); return; }
+      let q = sb.from("shifts").select("*").eq("org_id", orgId).eq("week_start", lastMon);
+      if(activeLocation) q = q.eq("location_id", activeLocation.id);
+      const {data:lastWeekShifts} = await q;
+      if(!lastWeekShifts || lastWeekShifts.length === 0){
+        toast("No shifts found from last week","error"); return;
+      }
+      const newShifts = lastWeekShifts.map(s=>({
+        org_id: s.org_id,
+        location_id: s.location_id,
+        user_id: s.user_id,
+        week_start: thisMon,
+        day_of_week: s.day_of_week,
+        shift_date: (()=>{
+          const DAYS_ORDER = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+          const d = new Date(thisMon);
+          d.setDate(d.getDate() + DAYS_ORDER.indexOf(s.day_of_week));
+          return d.toISOString().split("T")[0];
+        })(),
+        start_hour: s.start_hour,
+        end_hour: s.end_hour,
+        role_label: s.role_label||"",
+        status: "scheduled",
+        created_by: ownerProfile?.id||null,
+      }));
+      await sb.from("shifts").insert(newShifts);
+      await loadShifts(orgId, thisMon, activeLocation?.id||null);
+      toast("Copied "+newShifts.length+" shift"+(newShifts.length!==1?"s":"")+" from last week ✓","success");
+    }catch(e){ toast("Copy failed: "+e.message,"error"); }
+  };
+
   const TABS = [
     {id:"command",l:"⚡ Command"},
     {id:"staff",l:"👥 Staff"},
@@ -2655,12 +2699,12 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       )}
 
       {/* ── TOPBAR ── */}
-      <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
+      <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:"0 16px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:mobile?8:12}}>
           <NavLogoWarm/>
 
-          {/* Org switcher */}
-          {ownerOrg&&(
+          {/* Org switcher — hidden on mobile */}
+          {ownerOrg&&!mobile&&(
             <div style={{position:"relative"}}>
               <button onClick={()=>setOrgSwitcherOpen(o=>!o)}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,cursor:"pointer",fontFamily:O.mono,fontSize:9,color:O.amber,letterSpacing:1,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -2710,8 +2754,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             </div>
           )}
 
-          {/* Location switcher */}
-          {liveLocations.length>0&&(
+          {/* Location switcher — hidden on mobile */}
+          {liveLocations.length>0&&!mobile&&(
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               <span style={{color:O.textF,fontSize:12}}>›</span>
               <div style={{position:"relative"}}>
@@ -2757,10 +2801,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         </div>
 
         {/* Right side of topbar */}
-        <div style={{display:"flex",alignItems:"center",gap:14}}>
-          <div style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>
+        <div style={{display:"flex",alignItems:"center",gap:mobile?8:14}}>
+          {!mobile&&<div style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>
             {now.toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit"})}
-          </div>
+          </div>}
           {/* Bell */}
           <div style={{position:"relative"}}>
             <button
@@ -2784,16 +2828,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           <button onClick={async()=>{
             try{const {createClient}=await import("@supabase/supabase-js");const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);await sb.auth.signOut();}catch(e){}
             onLogout();
-          }} style={{padding:"6px 12px",background:"none",border:"1px solid "+O.border,borderRadius:6,fontFamily:O.mono,fontSize:9,letterSpacing:1,color:O.textD,cursor:"pointer"}}
+          }} style={{padding:mobile?"6px 10px":"6px 12px",background:"none",border:"1px solid "+O.border,borderRadius:6,fontFamily:O.mono,fontSize:9,letterSpacing:1,color:O.textD,cursor:"pointer"}}
           onMouseEnter={e=>{e.currentTarget.style.background=O.bg3;}}
           onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
-            EXIT
+            {mobile?"↩":"EXIT"}
           </button>
         </div>
       </div>
 
       {/* ── PILL TABS ── */}
-      <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:"8px 20px",display:"flex",gap:4,overflowX:"auto"}}>
+      <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:mobile?"6px 12px":"8px 20px",display:"flex",gap:4,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{fontFamily:O.sans,fontWeight:600,fontSize:13,padding:"7px 16px",border:"none",borderRadius:20,cursor:"pointer",color:tab===t.id?"#fff":O.textD,background:tab===t.id?"#e07b00":"none",transition:"all 0.15s",whiteSpace:"nowrap"}}
@@ -2805,7 +2849,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       </div>
 
       {/* ── TAB CONTENT ── */}
-      <div style={{padding:"16px 20px",maxWidth:1200,margin:"0 auto"}}>
+      <div style={{padding:mobile?"12px":"16px 20px",maxWidth:1200,margin:"0 auto"}}>
 
         {/* ══ COMMAND TAB ══ */}
         {tab==="command"&&(
@@ -2908,7 +2952,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               return (
                 <div>
                   {/* Stat strip */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+                  <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(4,1fr)",gap:10,marginBottom:20}}>
                     <StatCard label="Team Size" value={LIVE.length} sub={LIVE.length===1?"employee":"employees"} color={O.purple} icon="👥"/>
                     <StatCard label="On Shift Now" value={LIVE.filter(e=>e.status==="active").length} sub="clocked in" color={O.green} icon="⏱"/>
                     <StatCard label="Hours This Week" value={totalScheduledHrs+"h"} sub="scheduled" color={O.cyan} icon="📅"/>
@@ -2916,7 +2960,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   </div>
 
                   {/* Main 2-col grid */}
-                  <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:16,marginBottom:16}}>
+                  <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1.5fr 1fr",gap:16,marginBottom:16}}>
 
                     {/* Left col */}
                     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -3262,6 +3306,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   {(()=>{const mon=new Date(getMonday(currentWeekOffset));const sun=new Date(mon);sun.setDate(sun.getDate()+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
                 </div>
                 <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next →</button>
+                {!mobile&&(
+                  <button onClick={copyLastWeek} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.textD,cursor:"pointer"}} title="Copy all shifts from previous week">
+                    📋 Copy Last Week
+                  </button>
+                )}
                 {liveShifts!==null&&liveShifts.length>0&&!schedPublished&&(
                   <button onClick={()=>publishSchedule(getMonday(currentWeekOffset))} style={{padding:"9px 18px",background:"linear-gradient(135deg,#1a9e6e,#15855c)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(26,158,110,0.3)"}}>📣 Publish</button>
                 )}
@@ -3284,6 +3333,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               const STAFF=liveEmps;
               const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
               const fmtH2=h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
+              if(mobile){return(<div style={{display:"flex",flexDirection:"column",gap:12}}>{STAFF.map(emp=>{const empShifts=(liveShifts||[]).filter(s=>s.user_id===emp.id);return(<div key={emp.id} style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"14px 16px",boxShadow:O.shadow}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:empShifts.length>0?12:0}}><div style={{width:36,height:36,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div><div style={{flex:1}}><div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>{emp.name}</div><div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{empShifts.length} shift{empShifts.length!==1?"s":""} this week</div></div><button onClick={()=>setSelectedCell({day:"Mon",empId:emp.id,emp,start:9,end:17,roleLabel:""})} style={{padding:"5px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.amber,cursor:"pointer"}}>+ Add</button></div>{empShifts.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{empShifts.map(sh=>(<div key={sh.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",background:emp.color+"18",border:"1px solid "+emp.color+"30",borderRadius:20}}><span style={{fontFamily:O.mono,fontSize:9,color:emp.color,fontWeight:600}}>{sh.day_of_week} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}</span><button onClick={async()=>removeShift(sh.id,getMonday(currentWeekOffset))} style={{background:"none",border:"none",cursor:"pointer",color:emp.color,fontSize:12,lineHeight:1,opacity:0.5}}>x</button></div>))}</div>)}</div>);})}{(liveShifts||[]).length===0&&<div style={{textAlign:"center",padding:"20px",fontFamily:O.sans,fontSize:13,color:O.textD}}>Tap + Add on any employee to schedule their first shift.</div>}</div>);}
               const grid={};
               DAYS_FULL.forEach(d=>{grid[d]={};STAFF.forEach(e=>{grid[d][e.id]=[];});});
               (liveShifts||[]).forEach(sh=>{
