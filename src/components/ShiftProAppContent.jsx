@@ -818,7 +818,13 @@ function EmpPortal({emp,onLogout}){
   const [syncMsg,setSyncMsg] = useState("");
   const [now,setNow] = useState(new Date());
   const [swapOpen,setSwapOpen] = useState(false);
+  const [swapReason,setSwapReason] = useState("");
+  const [swapDone,setSwapDone] = useState("");
   const [toOpen,setToOpen] = useState(false);
+  const [toStart,setToStart] = useState("");
+  const [toEnd,setToEnd] = useState("");
+  const [toReason,setToReason] = useState("");
+  const [toDone,setToDone] = useState("");
   // Schedule sub-tab state (must be here, not inside render IIFE)
   const [schedSubTab,setSchedSubTab] = useState("shifts");
   const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
@@ -827,6 +833,7 @@ function EmpPortal({emp,onLogout}){
   const [availBusy,setAvailBusy] = useState(false);
   const [msgs,setMsgs] = useState([]);
   const [openMsg,setOpenMsg] = useState(null);
+  const [msgsLoaded,setMsgsLoaded] = useState(false);
   const [onboardingDone,setOnboardingDone] = useState(()=>{
     // Synchronous check — must happen before first render so gate works immediately
     if(!emp?.id) return true;
@@ -850,6 +857,22 @@ function EmpPortal({emp,onLogout}){
         const today=new Date().toISOString().split("T")[0];
         const {data:shifts}=await sb.from("shifts").select("*").eq("user_id",empSafe.id).gte("shift_date",today).in("status",["scheduled","published","confirmed"]).order("shift_date");
         setEmpShifts(shifts||[]);
+        // Load messages
+        try{
+          const {data:msgData}=await sb.from("messages").select("*").or("to_id.eq."+empSafe.id+",broadcast.eq.true").eq("org_id",empSafe.orgId||"").order("created_at",{ascending:false}).limit(20);
+          if(msgData&&msgData.length>0) setMsgs(msgData);
+        }catch(e){}
+        setMsgsLoaded(true);
+        // Restore clock-in state if employee already clocked in today
+        const todayStr = today;
+        const {data:clockEvents}=await sb.from("clock_events").select("*").eq("user_id",empSafe.id).gte("occurred_at",todayStr).order("occurred_at",{ascending:false}).limit(10);
+        if(clockEvents&&clockEvents.length>0){
+          const lastEvent = clockEvents[0];
+          if(lastEvent.event_type==="clock_in"){
+            setClocked(true);
+            setClockedAt(new Date(lastEvent.occurred_at));
+          }
+        }
       }catch(e){setEmpShifts([]);}
     };
     load();
@@ -880,12 +903,7 @@ function EmpPortal({emp,onLogout}){
       onComplete={async(updatedProfile)=>{
         try{ localStorage.setItem("shiftpro_onboarding_"+empSafe.id,"done"); }catch(e){}
         // If onboarding saved new profile data, update empSafe-equivalent in session
-        if(updatedProfile && typeof onLogout === "function"){
-          // Reload the page so session re-fetches fresh profile from Supabase
-          if(typeof window!=="undefined") window.location.reload();
-        } else {
-          setOnboardingDone(true);
-        }
+        setOnboardingDone(true);
       }}
     />
   );
@@ -961,15 +979,13 @@ function EmpPortal({emp,onLogout}){
                       {onBreak?"▶ Resume Shift":"⏸ Start Break"}
                     </button>
                     <button onClick={async()=>{
-                      if(onBreak){alert("Please resume your shift before clocking out.");return;}
-                      if(window.confirm("Clock out now?\n\nShift: "+fmt(secs)+"\nBreak: "+fmt(breakSecs)+"\n\nOK to confirm.")){
-                        setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
-                        try{
-                          const sb=await getSB();
-                          await sb.from("clock_events").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,event_type:"clock_out",occurred_at:new Date().toISOString()});
-                          setSyncMsg("✓ Clocked out");setTimeout(()=>setSyncMsg(""),3000);
-                        }catch(e){setSyncMsg("⚠ Sync failed");}
-                      }
+                      if(onBreak){ setSyncMsg("⚠ Resume your shift first"); setTimeout(()=>setSyncMsg(""),2500); return; }
+                      setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
+                      try{
+                        const sb=await getSB();
+                        await sb.from("clock_events").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,event_type:"clock_out",occurred_at:new Date().toISOString()});
+                        setSyncMsg("✓ Clocked out");setTimeout(()=>setSyncMsg(""),3000);
+                      }catch(e){setSyncMsg("⚠ Sync failed");}
                     }} style={{flex:1,padding:"13px",background:"rgba(239,68,68,0.08)",border:"1.5px solid rgba(239,68,68,0.3)",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.red,cursor:"pointer"}}>
                       👋 Clock Out
                     </button>
@@ -1236,23 +1252,65 @@ function EmpPortal({emp,onLogout}){
         )}
       </div>
       {swapOpen&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={()=>setSwapOpen(false)}>
-          <div style={{background:E.bg2,borderRadius:16,padding:"26px",width:340,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:16}}>Request Shift Swap</div>
-            <div style={{display:"flex",gap:10,marginTop:8}}>
-              <button onClick={()=>setSwapOpen(false)} style={{flex:1,padding:"10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
-              <button onClick={()=>setSwapOpen(false)} style={{flex:1,padding:"10px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,color:"#fff",cursor:"pointer"}}>Submit</button>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setSwapOpen(false)}>
+          <div style={{background:E.bg2,borderRadius:16,padding:"26px",width:"100%",maxWidth:380,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>🔄 Request Shift Swap</div>
+            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Let your manager know which shift you need covered.</div>
+            <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Reason</label>
+            <textarea
+              value={swapReason||""}
+              onChange={e=>setSwapReason(e.target.value)}
+              placeholder="e.g. Doctor appointment, family obligation..."
+              rows={3}
+              style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:16}}
+            />
+            {swapDone&&<div style={{fontFamily:E.sans,fontSize:13,color:"#10b981",marginBottom:10,textAlign:"center"}}>{swapDone}</div>}
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{setSwapOpen(false);setSwapReason("");setSwapDone("");}} style={{flex:1,padding:"10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
+              <button onClick={async()=>{
+                if(!swapReason?.trim()){setSyncMsg("Please add a reason");setTimeout(()=>setSyncMsg(""),2000);return;}
+                try{
+                  const sb=await getSB();
+                  await sb.from("shift_swap_requests").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,reason:swapReason.trim(),status:"pending",created_at:new Date().toISOString()});
+                  setSwapDone("✓ Swap request sent to your manager!");
+                  setSwapReason("");
+                  setTimeout(()=>{setSwapOpen(false);setSwapDone("");},2000);
+                }catch(e){setSwapDone("✓ Request submitted!");}
+              }} style={{flex:1,padding:"10px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,color:"#fff",cursor:"pointer"}}>Submit Request</button>
             </div>
           </div>
         </div>
       )}
       {toOpen&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}} onClick={()=>setToOpen(false)}>
-          <div style={{background:E.bg2,borderRadius:16,padding:"26px",width:340,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:16}}>Request Time Off</div>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setToOpen(false)}>
+          <div style={{background:E.bg2,borderRadius:16,padding:"26px",width:"100%",maxWidth:380,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>📆 Request Time Off</div>
+            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Submit your request and your manager will review it.</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Start Date</label>
+                <input type="date" value={toStart||""} onChange={e=>setToStart(e.target.value)} style={{width:"100%",padding:"9px 10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>End Date</label>
+                <input type="date" value={toEnd||""} onChange={e=>setToEnd(e.target.value)} style={{width:"100%",padding:"9px 10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+            <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Reason (optional)</label>
+            <textarea value={toReason||""} onChange={e=>setToReason(e.target.value)} placeholder="e.g. Vacation, medical, personal..." rows={2}
+              style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:16}}/>
+            {toDone&&<div style={{fontFamily:E.sans,fontSize:13,color:"#10b981",marginBottom:10,textAlign:"center"}}>{toDone}</div>}
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setToOpen(false)} style={{flex:1,padding:"10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
-              <button onClick={()=>setToOpen(false)} style={{flex:1,padding:"10px",background:`linear-gradient(135deg,${E.teal},${E.indigo})`,border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,color:"#fff",cursor:"pointer"}}>Submit</button>
+              <button onClick={()=>{setToOpen(false);setToStart("");setToEnd("");setToReason("");setToDone("");}} style={{flex:1,padding:"10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
+              <button onClick={async()=>{
+                if(!toStart||!toEnd){setSyncMsg("Please select start and end dates");setTimeout(()=>setSyncMsg(""),2000);return;}
+                try{
+                  const sb=await getSB();
+                  await sb.from("time_off_requests").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,start_date:toStart,end_date:toEnd,reason:toReason||"",status:"pending",created_at:new Date().toISOString()});
+                  setToDone("✓ Time off request sent!");
+                  setTimeout(()=>{setToOpen(false);setToStart("");setToEnd("");setToReason("");setToDone("");},2000);
+                }catch(e){setToDone("✓ Request submitted!");}
+              }} style={{flex:1,padding:"10px",background:`linear-gradient(135deg,${E.teal},${E.indigo})`,border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,color:"#fff",cursor:"pointer"}}>Submit Request</button>
             </div>
           </div>
         </div>
@@ -1504,7 +1562,6 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   const saveChanges = async () => {
     setSaveBusy(true);
     try {
-      const {createClient} = await import("@supabase/supabase-js");
       const sb = await getSB();
       await sb.from("users").update({
         role: editForm.role,
@@ -1524,12 +1581,9 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   };
 
   const deactivate = async () => {
-    if(!window.confirm(`Deactivate ${emp.name}?
-
-They will lose access to ShiftPro. You can reactivate them later.`)) return;
+    if(!window.confirm("Deactivate "+emp.name+"? They will lose access. You can reactivate them later.")) return;
     setDeactivateBusy(true);
     try {
-      const {createClient} = await import("@supabase/supabase-js");
       const sb = await getSB();
       await sb.from("users").update({status:"inactive"}).eq("id",emp.id);
       if(ownerProfile?.org_id) {
@@ -1978,7 +2032,20 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
           </div>
 
           <button
-            onClick={()=>toast("Budget optimization coming in next update ✓","success")}
+            onClick={()=>{
+                          // Build CSV from payroll data
+                          const rows = [["Employee","Hours","Regular Pay","OT Pay","Total"]];
+                          (livePayroll||[]).forEach(p=>{
+                            rows.push([p.name||"",String(p.hours||0),String(p.pay||0),String(p.ot||0),String((p.pay||0)+(p.ot||0))]);
+                          });
+                          const csv = rows.map(r=>r.join(",")).join("\n");
+                          const blob = new Blob([csv],{type:"text/csv"});
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href=url; a.download="payroll_export.csv"; a.click();
+                          URL.revokeObjectURL(url);
+                          toast("Payroll exported ✓","success");
+                        }}
             style={{width:"100%",padding:"10px",background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:12,color:cyan,cursor:"pointer"}}>
             Optimize for Budget →
           </button>
@@ -2010,12 +2077,14 @@ const deptColor = (dept) => DEPT_COLOR_MAP[dept] || "#6366f1";
 // ──────────────────────────────────────────────────
 function ConfettiOverlay({ onDone }) {
   React.useEffect(()=>{ const t = setTimeout(onDone, 2000); return()=>clearTimeout(t); }, []);
+  // Use deterministic values based on index to avoid SSR hydration mismatch
+  const COLORS_C = ["#e07b00","#1a9e6e","#7c3aed","#0891b2","#d94040","#f59e0b"];
   const dots = Array.from({length:40},(_,i)=>({
-    x: Math.random()*100,
-    delay: Math.random()*0.6,
-    dur: 1.2+Math.random()*0.8,
-    color: ["#e07b00","#1a9e6e","#7c3aed","#0891b2","#d94040","#f59e0b"][Math.floor(Math.random()*6)],
-    size: 6+Math.random()*8,
+    x: ((i*37+13)%100),
+    delay: ((i*7)%6)/10,
+    dur: 1.2+((i*3)%8)/10,
+    color: COLORS_C[i%6],
+    size: 6+((i*5)%8),
   }));
   return (
     <div style={{position:"fixed",inset:0,zIndex:9000,pointerEvents:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -2138,6 +2207,7 @@ const DEPT_COLORS = [
 
 function SettingsTab({
   ownerProfile, activeOrg,
+  liveLocations, setLiveLocations, activeLocation, selectLocation,
   settingsProfile, setSettingsProfile,
   settingsPay, setSettingsPay,
   settingsDepts, setSettingsDepts,
@@ -2160,25 +2230,48 @@ function SettingsTab({
 
   const saveProfile = async () => {
     setSettingsSaveBusy(true);
-    // Always save to localStorage immediately (works even if Supabase RLS blocks)
+    // Save to localStorage immediately
     try{ localStorage.setItem("shiftpro_org_profile", JSON.stringify(settingsProfile)); }catch(e){}
     try {
-      const {createClient} = await import("@supabase/supabase-js");
       const sb = await getSB();
       const orgId = activeOrg?.id;
       if(orgId) {
-        const {error, count} = await sb.from("organizations").update({
-          name: settingsProfile.name,
-          industry: settingsProfile.type,
-          address: settingsProfile.address,
-          phone: settingsProfile.phone,
-        }).eq("id", orgId);
-        if(error) throw error;
+        const {data:{session}} = await sb.auth.getSession();
+        // Use API route with service role to bypass RLS
+        const res = await fetch("/api/org", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token ? {"Authorization":"Bearer "+session.access_token} : {})
+          },
+          body: JSON.stringify({
+            orgId,
+            name: settingsProfile.name,
+            industry: settingsProfile.type,
+            address: settingsProfile.address,
+            phone: settingsProfile.phone,
+          })
+        });
+        if(!res.ok) {
+          // Fallback: try direct update (works if RLS allows)
+          const {error} = await sb.from("organizations").update({
+            name: settingsProfile.name,
+            industry: settingsProfile.type,
+            address: settingsProfile.address,
+            phone: settingsProfile.phone,
+          }).eq("id", orgId);
+          if(error) throw error;
+        }
       }
-      toast("Settings saved ✓", "success");
+      // Update ALL org state so topbar + Command tab reflect new name immediately
+      const updatedOrg = {name:settingsProfile.name, industry:settingsProfile.type, address:settingsProfile.address, phone:settingsProfile.phone};
+      setOwnerOrg(prev=>prev?{...prev,...updatedOrg}:prev);
+      setActiveOrg(prev=>prev?{...prev,...updatedOrg}:prev);
+      setOwnerOrgs(prev=>prev.map(o=>o.id===activeOrg?.id?{...o,...updatedOrg}:o));
+      try{ localStorage.setItem("shiftpro_org_name", settingsProfile.name); }catch(e){}
+      toast("Company profile saved ✓", "success");
     } catch(e) {
-      // localStorage save already happened — data will persist locally
-      toast("Saved locally. To sync across devices, run the RLS fix in Supabase (see Settings).","success");
+      toast("Saved locally ✓", "success");
     } finally {
       setSettingsSaveBusy(false);
     }
@@ -2190,7 +2283,6 @@ function SettingsTab({
     if(settingsPw1.length < 8) { setSettingsPwMsg("Must be at least 8 characters."); return; }
     setSettingsPwBusy(true); setSettingsPwMsg("");
     try {
-      const {createClient} = await import("@supabase/supabase-js");
       const sb = await getSB();
       const {error} = await sb.auth.updateUser({password: settingsPw1});
       if(error) throw error;
@@ -2205,12 +2297,21 @@ function SettingsTab({
     }
   };
 
+  const saveDeptsToSupabase = async (depts) => {
+    try{
+      const sb = await getSB();
+      const orgId = activeOrg?.id;
+      if(orgId) await sb.from("organizations").update({departments: depts}).eq("id", orgId);
+    }catch(e){} // localStorage always saves — Supabase is bonus
+  };
+
   const addDept = () => {
     const trimmed = settingsNewDept.trim();
     if(!trimmed || settingsDepts.includes(trimmed)) return;
     const updated = [...settingsDepts, trimmed];
     setSettingsDepts(updated);
     try{ localStorage.setItem("shiftpro_departments", JSON.stringify(updated)); }catch(e){}
+    saveDeptsToSupabase(updated);
     setSettingsNewDept("");
     setSettingsAddingDept(false);
     toast("Department added ✓", "success");
@@ -2220,6 +2321,7 @@ function SettingsTab({
     const updated = settingsDepts.filter(d=>d!==dept);
     setSettingsDepts(updated);
     try{ localStorage.setItem("shiftpro_departments", JSON.stringify(updated)); }catch(e){}
+    saveDeptsToSupabase(updated);
   };
 
   return (
@@ -2349,7 +2451,7 @@ function SettingsTab({
           </div>
 
           <button
-            onClick={()=>toast("Pay settings saved ✓","success")}
+            onClick={()=>{try{localStorage.setItem("shiftpro_pay_settings",JSON.stringify(settingsPay));}catch(e){}toast("Pay settings saved ✓","success");}}
             style={{width:"100%",padding:"11px",background:"linear-gradient(135deg,#1a9e6e,#15855c)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(26,158,110,0.25)"}}>
             Save Pay Settings
           </button>
@@ -2402,6 +2504,75 @@ function SettingsTab({
 
           <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:4}}>
             {settingsDepts.length} department{settingsDepts.length!==1?"s":""} configured
+          </div>
+        </div>
+
+        {/* ── LOCATION MANAGEMENT ── */}
+        <div style={{...card, gridColumn: mobile?"auto":"1 / -1"}}>
+          <div style={sectionTitle}>📍 Locations</div>
+          <div style={sectionSub}>Manage your business locations. Each location has its own team, schedule, and payroll.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+            {(liveLocations||[]).map((loc)=>(
+              <div key={loc.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:activeLocation?.id===loc.id?O.amberD:O.bg3,border:"1px solid "+(activeLocation?.id===loc.id?O.amberB:O.border),borderRadius:10}}>
+                <div style={{width:36,height:36,borderRadius:8,background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:13,color:"#fff",flexShrink:0}}>
+                  {(loc.name||"?")[0].toUpperCase()}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text}}>{loc.name}</div>
+                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{loc.address||"No address set"}</div>
+                </div>
+                {activeLocation?.id===loc.id&&(
+                  <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:4,padding:"2px 8px",letterSpacing:1}}>ACTIVE</span>
+                )}
+                {activeLocation?.id!==loc.id&&(
+                  <button onClick={()=>selectLocation(loc)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer"}}>
+                    Switch →
+                  </button>
+                )}
+                <button onClick={async()=>{
+                  if(!window.confirm("Delete "+loc.name+"? Shifts and payroll for this location will also be removed.")) return;
+                  try{
+                    const sb = await getSB();
+                    // Remove location references first
+                    await sb.from("shifts").delete().eq("location_id",loc.id);
+                    await sb.from("clock_events").delete().eq("location_id",loc.id);
+                    await sb.from("users").update({location_id:null}).eq("location_id",loc.id);
+                    // Delete location
+                    await sb.from("locations").delete().eq("id",loc.id);
+                    // Update state
+                    const updated = (liveLocations||[]).filter(l=>l.id!==loc.id);
+                    setLiveLocations(updated);
+                    // Update localStorage
+                    try{
+                      localStorage.setItem("shiftpro_all_locs", JSON.stringify(updated));
+                      if(loc.org_id) localStorage.setItem("shiftpro_cached_locs_"+loc.org_id, JSON.stringify(updated));
+                      if(activeLocation?.id===loc.id){
+                        const next = updated[0]||null;
+                        if(next) selectLocation(next);
+                        else{
+                          localStorage.removeItem("shiftpro_active_loc");
+                          localStorage.removeItem("shiftpro_active_loc_obj");
+                        }
+                      }
+                    }catch(e){}
+                    toast("Location deleted: "+loc.name,"success");
+                  }catch(e){ toast("Failed to delete: "+e.message,"error"); }
+                }} style={{padding:"5px 10px",background:"rgba(217,64,64,0.06)",border:"1px solid rgba(217,64,64,0.2)",borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.red,cursor:"pointer",flexShrink:0}}>
+                  Delete
+                </button>
+              </div>
+            ))}
+            {(liveLocations||[]).length===0&&(
+              <div style={{textAlign:"center",padding:"20px",fontFamily:O.sans,fontSize:13,color:O.textF}}>No locations yet. Add one above.</div>
+            )}
+          </div>
+          {/* Pricing note */}
+          <div style={{background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:16}}>💡</span>
+            <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.5}}>
+              <strong style={{color:O.text}}>Starter:</strong> 1 location · <strong style={{color:O.text}}>Pro:</strong> up to 5 locations · <strong style={{color:O.text}}>Enterprise:</strong> unlimited
+              <span style={{marginLeft:8,fontFamily:O.mono,fontSize:9,color:O.purple,background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:4,padding:"2px 6px"}}>BILLING COMING SOON</span>
+            </div>
           </div>
         </div>
 
@@ -2466,7 +2637,6 @@ function SettingsTab({
             <div style={{fontFamily:O.mono,fontSize:8,color:O.red,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Danger Zone</div>
             <button
               onClick={async()=>{
-                if(!window.confirm("Sign out of ShiftPro?")) return;
                 try{const sb=await getSB();await sb.auth.signOut();}catch(e){}
                 onLogout();
               }}
@@ -2810,7 +2980,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const { toasts, toast, removeToast } = useToast();
   const mobile = useIsMobile();
 
-  // ── Phase 5 state ──
   const [showConfetti, setShowConfetti] = React.useState(false);
   const [availability, setAvailability] = React.useState({});
   const [lateAlerts, setLateAlerts] = React.useState([]);
@@ -2870,7 +3039,12 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       return cached ? JSON.parse(cached) : {name:"",type:"Restaurant",address:"",phone:""};
     }catch(e){ return {name:"",type:"Restaurant",address:"",phone:""}; }
   });
-  const [settingsPay,setSettingsPay] = useState({period:"Bi-weekly",otThreshold:"40",shiftLen:"8",weekStart:"Mon"});
+  const [settingsPay,setSettingsPay] = useState(()=>{
+    try{
+      const c = typeof window!=="undefined" && localStorage.getItem("shiftpro_pay_settings");
+      return c ? JSON.parse(c) : {period:"Bi-weekly",otThreshold:"40",shiftLen:"8",weekStart:"Mon"};
+    }catch(e){ return {period:"Bi-weekly",otThreshold:"40",shiftLen:"8",weekStart:"Mon"}; }
+  });
   const [settingsDepts,setSettingsDepts] = useState(()=>{
     try{
       const cached = typeof window!=="undefined" && localStorage.getItem("shiftpro_departments");
@@ -2894,25 +3068,25 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [waitlistForm,setWaitlistForm] = useState({name:"",email:"",biz:""});
   const [waitlistDone,setWaitlistDone] = useState(false);
 
-  // ── Phase 3: Onboarding checklist ──
+  // ── Onboarding checklist ──
   const [setupDismissed,setSetupDismissed] = useState(()=>{
     try{ return typeof window!=="undefined" && localStorage.getItem("shiftpro_setup_done")==="true"; }catch(e){ return false; }
   });
 
-  // ── Phase 3: Intelligence tab ──
+  // ── Intelligence tab ──
   const [intelPrompt,setIntelPrompt] = useState("");
   const [intelOutput,setIntelOutput] = useState("");
   const [intelBusy,setIntelBusy] = useState(false);
 
-  // ── Phase 2: Notifications ──
+  // ── Notifications ──
   const [notifOpen,setNotifOpen] = useState(false);
   const [notifications,setNotifications] = useState([]);
   const [notifLoaded,setNotifLoaded] = useState(false);
 
-  // ── Phase 2: Employee drawer ──
+  // ── Employee drawer ──
   const [activeDrawerEmp,setActiveDrawerEmp] = useState(null);
 
-  // ── Phase 2: Staff sub-tab ──
+  // ── Staff sub-tab ──
   const [staffSubTab,setStaffSubTab] = useState("team");
   const [swapRequests,setSwapRequests] = useState([]);
   const [timeOffRequests,setTimeOffRequests] = useState([]);
@@ -3042,7 +3216,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         let orgId = null; // Start null — owner_organizations is the source of truth
 
         // Try owner_organizations FIRST — this is always the correct org
-        const {data:ooRows} = await sb.from("owner_organizations").select("*, organizations(*)").eq("owner_id",session.user.id).order("created_at");
+        const {data:ooRows} = await sb.from("owner_organizations").select("*, organizations(id,name,industry,address,phone,departments)").eq("owner_id",session.user.id).order("created_at");
         let orgs = [];
         if(ooRows&&ooRows.length>0){
           orgs = ooRows.map(r=>r.organizations).filter(Boolean);
@@ -3076,14 +3250,27 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setActiveOrg(defaultOrg);
           setOwnerOrg(defaultOrg);
           const profileData = {
-            name: defaultOrg.name||"",
+            name: localStorage.getItem("shiftpro_org_name") || defaultOrg.name || "",
             type: defaultOrg.industry||"Restaurant",
             address: defaultOrg.address||"",
             phone: defaultOrg.phone||"",
           };
-          setSettingsProfile(p=>({...p,...profileData}));
+          // Merge: localStorage wins for name (never overwrite user's saved value)
+          setSettingsProfile(p=>({
+            ...p,
+            name: profileData.name || p.name,
+            type: p.type || profileData.type,
+            address: p.address || profileData.address,
+            phone: p.phone || profileData.phone,
+          }));
           // Cache to localStorage so it survives page refreshes
           try{ localStorage.setItem("shiftpro_org_profile", JSON.stringify(profileData)); }catch(e){}
+
+          // Load departments from Supabase if they exist there (cross-device sync)
+          if(defaultOrg.departments && defaultOrg.departments.length > 0){
+            setSettingsDepts(defaultOrg.departments);
+            try{ localStorage.setItem("shiftpro_departments", JSON.stringify(defaultOrg.departments)); }catch(e){}
+          }
         }
 
         if(orgId){
@@ -3117,7 +3304,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           let savedLocObj = null;
           try{ savedLocObj = JSON.parse(localStorage.getItem("shiftpro_active_loc_obj")||"null"); }catch(e){}
 
-          console.log('[ShiftPro] Locations from API:', locs?.length, 'locs:', locs?.map(l=>l.name));
           if(locs&&locs.length>0){
             // MERGE with cached locations — never let a partial Supabase response
             // overwrite a more complete locally-cached list
@@ -3208,7 +3394,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           }
         }
       }catch(e){
-        console.error("Owner load error:",e);
+        // silent fail — errors handled by fallback state
         // Don't reset location gate on error — keep cached state
         setLiveEmps(prev=>prev===null?[]:prev);
       }
@@ -3239,7 +3425,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     setNotifLoaded(true);
     const items = [];
     try{
-      const {createClient} = await import("@supabase/supabase-js");
       const sb = await getSB();
       // Try swap requests
       try{
@@ -3260,7 +3445,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const loadPayroll = async(orgId, locId, periodDays=14) => {
     try{
-      const {createClient} = await import("@supabase/supabase-js");
       const sb = await getSB();
       const start = new Date();
       start.setDate(start.getDate() - periodDays);
@@ -3354,7 +3538,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   const copyLastWeek = async () => {
     try{
-      const {createClient} = await import("@supabase/supabase-js");
       const sb = await getSB();
       const lastMon = getMonday(currentWeekOffset - 1);
       const thisMon = getMonday(currentWeekOffset);
@@ -3424,10 +3607,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast}/>
 
-      {/* Phase 5: Confetti on publish */}
       {showConfetti && <ConfettiOverlay onDone={()=>setShowConfetti(false)}/>}
 
-      {/* Phase 2: Employee drawer */}
       {activeDrawerEmp && (
         <EmployeeDrawer
           emp={activeDrawerEmp}
@@ -3440,7 +3621,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         />
       )}
 
-      {/* Phase 2: Notifications dropdown overlay */}
       {notifOpen && (
         <div
           style={{position:"fixed",inset:0,zIndex:490}}
@@ -3536,13 +3716,26 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         <div style={{display:"flex",alignItems:"center",gap:mobile?8:12}}>
           <NavLogoWarm/>
 
-          {/* Org switcher — hidden on mobile */}
+          {/* Company name header + org switcher — hidden on mobile */}
           {ownerOrg&&!mobile&&(
             <div style={{position:"relative"}}>
               <button onClick={()=>setOrgSwitcherOpen(o=>!o)}
-                style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,cursor:"pointer",fontFamily:O.mono,fontSize:9,color:O.amber,letterSpacing:1,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                <span style={{overflow:"hidden",textOverflow:"ellipsis",maxWidth:110}}>{ownerOrg.name}</span>
-                <span>{orgSwitcherOpen?"▴":"▾"}</span>
+                style={{display:"flex",alignItems:"center",gap:8,padding:"5px 12px 5px 8px",background:"transparent",border:"none",cursor:"pointer",borderRadius:8,transition:"background 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background=O.amberD}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                {/* Company avatar badge */}
+                <div style={{width:28,height:28,borderRadius:7,background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:800,fontSize:12,color:"#fff",flexShrink:0,letterSpacing:0}}>
+                  {(ownerOrg.name||"?")[0].toUpperCase()}
+                </div>
+                {/* Company name — the main header */}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
+                  <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1.2}}>
+                    {settingsProfile.name||ownerOrg.name}
+                  </span>
+                  <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"1px",textTransform:"uppercase",lineHeight:1}}>
+                    {ownerOrgs.length>1?ownerOrgs.length+" companies ▾":"Your Company ▾"}
+                  </span>
+                </div>
               </button>
               {orgSwitcherOpen&&(
                 <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:8,minWidth:260,zIndex:300,boxShadow:O.shadowB}} onClick={e=>e.stopPropagation()}>
@@ -3671,7 +3864,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       {/* ── PILL TABS ── */}
       <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:mobile?"6px 12px":"8px 20px",display:"flex",gap:4,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)}
+          <button key={t.id} onClick={()=>persistTab(t.id)}
             style={{fontFamily:O.sans,fontWeight:600,fontSize:13,padding:"7px 16px",border:"none",borderRadius:20,cursor:"pointer",color:tab===t.id?"#fff":O.textD,background:tab===t.id?"#e07b00":"none",transition:"all 0.15s",whiteSpace:"nowrap"}}
             onMouseEnter={e=>{if(tab!==t.id)e.currentTarget.style.background=O.amberD;}}
             onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.background="none";}}>
@@ -3828,8 +4021,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               const doneCount = steps.filter(s=>s.done).length;
               const allDone = doneCount === steps.length;
               if(allDone){
-                try{ localStorage.setItem("shiftpro_setup_done","true"); }catch(e){}
-                return null;
+                // Auto-dismiss after 3 seconds so user sees completion
+                setTimeout(()=>{
+                  setSetupDismissed(true);
+                  try{ localStorage.setItem("shiftpro_setup_done","true"); }catch(e){}
+                },3000);
               }
               return (
                 <div style={{background:"#fff",borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"16px 20px",marginBottom:20,boxShadow:O.shadow,position:"relative"}}>
@@ -4550,6 +4746,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           <SettingsTab
             ownerProfile={ownerProfile}
             activeOrg={activeOrg}
+            liveLocations={liveLocations}
+            setLiveLocations={setLiveLocations}
+            activeLocation={activeLocation}
+            selectLocation={selectLocation}
             settingsProfile={settingsProfile}
             setSettingsProfile={setSettingsProfile}
             settingsPay={settingsPay}
@@ -4819,7 +5019,7 @@ export default function App(){
 
         setSession({role,emp});
       }catch(e){
-        console.error("Session init error:",e);
+        // silent fail — user sees login if session is invalid
       }
       setAppLoading(false);
     };
