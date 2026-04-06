@@ -833,6 +833,13 @@ function EmpPortal({emp,onLogout}){
   const [availBusy,setAvailBusy] = useState(false);
   const [msgs,setMsgs] = useState([]);
   const [openMsg,setOpenMsg] = useState(null);
+  const openMessage = async(msg) => {
+    setOpenMsg(msg);
+    if(!msg.read){
+      setMsgs(prev=>prev.map(m=>m.id===msg.id?{...m,read:true}:m));
+      try{ const sb=await getSB(); await sb.from("messages").update({read:true}).eq("id",msg.id); }catch(e){}
+    }
+  };
   const [msgsLoaded,setMsgsLoaded] = useState(false);
   const [onboardingDone,setOnboardingDone] = useState(()=>{
     // Synchronous check — must happen before first render so gate works immediately
@@ -855,7 +862,7 @@ function EmpPortal({emp,onLogout}){
       try{
         const sb=await getSB();
         const today=new Date().toISOString().split("T")[0];
-        const {data:shifts}=await sb.from("shifts").select("*").eq("user_id",empSafe.id).gte("shift_date",today).in("status",["scheduled","published","confirmed"]).order("shift_date");
+        const {data:shifts}=await sb.from("shifts").select("*, locations(name)").eq("user_id",empSafe.id).gte("shift_date",today).in("status",["scheduled","published","confirmed"]).order("shift_date");
         setEmpShifts(shifts||[]);
         // Load messages
         try{
@@ -870,7 +877,11 @@ function EmpPortal({emp,onLogout}){
           const lastEvent = clockEvents[0];
           if(lastEvent.event_type==="clock_in"){
             setClocked(true);
-            setClockedAt(new Date(lastEvent.occurred_at));
+            const clockedInAt = new Date(lastEvent.occurred_at);
+            setClockedAt(clockedInAt);
+            // Restore elapsed seconds
+            const elapsedSecs = Math.floor((Date.now() - clockedInAt.getTime()) / 1000);
+            setSecs(Math.max(0, elapsedSecs));
           }
         }
       }catch(e){setEmpShifts([]);}
@@ -1063,7 +1074,7 @@ function EmpPortal({emp,onLogout}){
             {/* My Shifts sub-tab */}
             {schedSubTab==="shifts"&&(
               <div>
-            {realShifts.length===0&&myShifts.length===0&&(
+            {realShifts.length===0&&schedSubTab==="shifts"&&(
               <div style={{textAlign:"center",padding:"60px 20px"}}>
                 <div style={{fontSize:48,marginBottom:12}}>📅</div>
                 <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No upcoming shifts</div>
@@ -1193,14 +1204,14 @@ function EmpPortal({emp,onLogout}){
                 <div style={{padding:"16px",background:E.bg3,borderRadius:10,fontFamily:E.sans,fontSize:13,color:E.textF,textAlign:"center"}}>No direct messages yet.</div>
               ):(
                 msgs.filter(m=>m.to_id===empSafe.id||!m.to_id).map(m=>(
-                  <div key={m.id} onClick={()=>{setOpenMsg(openMsg===m.id?null:m.id);setMsgs(prev=>prev.map(x=>x.id===m.id?{...x,read:true}:x));}}
+                  <div key={m.id} onClick={()=>{ if(openMsg?.id===m.id){setOpenMsg(null);}else{openMessage(m);} }}
                     style={{padding:"11px 12px",borderRadius:10,marginBottom:6,background:m.read?E.bg3:`${E.indigo}10`,border:`1px solid ${m.read?E.border:E.indigo+"30"}`,cursor:"pointer"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:openMsg===m.id?7:0}}>
                       {!m.read&&<div style={{width:6,height:6,borderRadius:"50%",background:E.indigo,flexShrink:0}}/>}
                       <div style={{fontFamily:E.sans,fontWeight:m.read?500:700,fontSize:14,color:E.text,flex:1}}>{m.subject}</div>
                       <div style={{fontFamily:E.sans,fontSize:11,color:E.textF}}>{m.time}</div>
                     </div>
-                    {openMsg===m.id&&(
+                    {openMsg?.id===m.id&&(
                       <div style={{paddingLeft:14}}>
                         <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,lineHeight:1.6,marginBottom:10}}>{m.body}</div>
                       </div>
@@ -1214,11 +1225,11 @@ function EmpPortal({emp,onLogout}){
             {msgs.filter(m=>!m.to_id).length>0&&(
               <div>
                 <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>Announcements</div>
-                {msgs.filter(m=>!m.to_id).map(m=>(
-                  <div key={m.id} onClick={()=>setOpenMsg(openMsg===m.id?null:m.id)}
+                {msgs.filter(m=>m.broadcast).map(m=>(
+                  <div key={m.id} onClick={()=>{ if(openMsg?.id===m.id){setOpenMsg(null);}else{openMessage(m);} }}
                     style={{padding:"9px 12px",borderRadius:8,marginBottom:5,background:E.bg3,border:"1px solid "+E.border,cursor:"pointer"}}>
                     <div style={{fontFamily:E.sans,fontWeight:500,fontSize:13,color:E.text,marginBottom:openMsg===m.id?5:0}}>{m.subject}</div>
-                    {openMsg===m.id&&<div style={{fontFamily:E.sans,fontSize:12,color:E.textD,lineHeight:1.6}}>{m.body}</div>}
+                    {openMsg?.id===m.id&&<div style={{fontFamily:E.sans,fontSize:12,color:E.textD,lineHeight:1.6}}>{m.body}</div>}
                   </div>
                 ))}
               </div>
@@ -1567,6 +1578,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
         role: editForm.role,
         department: editForm.dept,
         hourly_rate: parseFloat(editForm.rate)||15,
+        ...(editForm.pin ? {pin: editForm.pin} : {}),
       }).eq("id", emp.id);
       // Refresh employee list
       if(ownerProfile?.org_id) {
@@ -1580,8 +1592,10 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
     } finally { setSaveBusy(false); }
   };
 
+  const [confirmDeactivate,setConfirmDeactivate] = React.useState(false);
   const deactivate = async () => {
-    if(!window.confirm("Deactivate "+emp.name+"? They will lose access. You can reactivate them later.")) return;
+    if(!confirmDeactivate){ setConfirmDeactivate(true); return; }
+    setConfirmDeactivate(false);
     setDeactivateBusy(true);
     try {
       const sb = await getSB();
@@ -1764,11 +1778,21 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
         {/* Danger zone */}
         <div style={{padding:"16px 24px",borderTop:"1px solid "+O.border,flexShrink:0}}>
           <div style={{fontFamily:O.mono,fontSize:8,color:O.red,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Danger Zone</div>
-          <button
-            onClick={deactivate}
-            style={{width:"100%",padding:"10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.red,cursor:deactivateBusy?"not-allowed":"pointer"}}>
-            {deactivateBusy?"Deactivating…":"Deactivate "+emp.first}
-          </button>
+          {confirmDeactivate?(
+            <div>
+              <div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:8,lineHeight:1.5}}>Remove {emp.first}'s access? This can be reversed.</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setConfirmDeactivate(false)} style={{flex:1,padding:"8px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.textD,cursor:"pointer"}}>Cancel</button>
+                <button onClick={deactivate} disabled={deactivateBusy} style={{flex:1,padding:"8px",background:"rgba(217,64,64,0.9)",border:"none",borderRadius:7,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer"}}>
+                  {deactivateBusy?"Removing...":"Confirm"}
+                </button>
+              </div>
+            </div>
+          ):(
+            <button onClick={deactivate} style={{width:"100%",padding:"10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.red,cursor:"pointer"}}>
+              Deactivate {emp.first}
+            </button>
+          )}
         </div>
       </div>
     </>
@@ -3085,6 +3109,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [notifOpen,setNotifOpen] = useState(false);
   const [notifications,setNotifications] = useState([]);
   const [notifLoaded,setNotifLoaded] = useState(false);
+  const reloadNotifications = async() => {
+    setNotifLoaded(false);
+    const orgId = ownerProfile?.org_id || activeOrg?.id;
+    if(orgId) await loadNotifications(orgId);
+  };
 
   // ── Employee drawer ──
   const [activeDrawerEmp,setActiveDrawerEmp] = useState(null);
@@ -3431,7 +3460,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       const sb = await getSB();
       // Try swap requests
       try{
-        const {data:swaps} = await sb.from("shift_swap_requests").select("*, requester:users!requester_id(first_name,last_name), target:users!target_id(first_name,last_name)").eq("org_id",orgId).eq("status","pending").order("created_at",{ascending:false}).limit(10);
+        const {data:swaps} = await sb.from("shift_swap_requests").select("*, users(first_name,last_name)").eq("org_id",orgId).eq("status","pending").order("created_at",{ascending:false}).limit(10);
         (swaps||[]).forEach(s=>items.push({id:"swap_"+s.id,type:"swap",from:(s.requester?.first_name||"")+" "+(s.requester?.last_name||""),detail:"Wants to swap shift with "+(s.target?.first_name||"someone"),time:"Recently",read:false,raw:s}));
         setSwapRequests(swaps||[]);
       }catch(e){}
@@ -3521,11 +3550,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   };
 
   const removeShift = async(shiftId, weekStart) => {
+    // Remove from state immediately for instant UI feedback
+    setLiveShifts(prev=>(prev||[]).filter(s=>s.id!==shiftId));
     try{
       const sb=await getSB();
       await sb.from("shifts").delete().eq("id",shiftId);
+    }catch(e){
+      // Restore on failure
       if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart, activeLocation?.id||null);
-    }catch(e){ toast("Failed to remove shift", "error"); }
+      toast("Failed to remove shift", "error");
+    }
   };
 
   const publishSchedule = async(weekStart) => {
@@ -3749,6 +3783,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       setOrgSwitcherOpen(false);
                       setActiveOrg(org);
                       setOwnerOrg(org);
+                      setNotifLoaded(false); // Force notifications to reload for new org
                       // Update settings profile so company name header reflects the new org immediately
                       setSettingsProfile(p=>({...p,
                         name: localStorage.getItem("shiftpro_org_name_"+org.id)||org.name||p.name,
@@ -4344,7 +4379,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <span style={{fontSize:20,flexShrink:0}}>🔄</span>
                         <div style={{flex:1}}>
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:3}}>
-                            {req.requester?.first_name||"Employee"} {req.requester?.last_name||""} wants to swap with {req.target?.first_name||"another employee"}
+                            {req.users?.first_name||"Employee"} {req.users?.last_name||""} · Shift Swap Request
                           </div>
                           <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{req.shift_date||"Upcoming shift"}</div>
                         </div>
@@ -4353,6 +4388,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                             try{
                               const sb=await getSB();
                               await sb.from("shift_swap_requests").update({status:"approved"}).eq("id",req.id);
+                              setNotifications(prev=>prev.filter(n=>n.id!=="swap_"+req.id));
+                              setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
                               setSwapRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Swap approved ✓","success");
                             }catch(e){ toast("Failed: "+e.message,"error"); }
@@ -4361,6 +4398,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                             try{
                               const sb=await getSB();
                               await sb.from("shift_swap_requests").update({status:"denied"}).eq("id",req.id);
+                              setNotifications(prev=>prev.filter(n=>n.id!=="swap_"+req.id));
+                              setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
                               setSwapRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Swap denied","success");
                             }catch(e){ toast("Failed: "+e.message,"error"); }
@@ -4391,7 +4430,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <span style={{fontSize:20,flexShrink:0}}>📆</span>
                         <div style={{flex:1}}>
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:3}}>
-                            {req.users?.first_name||"Employee"} {req.users?.last_name||""} · {req.dates||req.date_range||"Dates TBD"}
+                            {req.users?.first_name||"Employee"} {req.users?.last_name||""} · {req.start_date||"Date TBD"}{req.end_date&&req.start_date!==req.end_date?" → "+req.end_date:""}
                           </div>
                           <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>{req.reason||"Personal"}</div>
                         </div>
@@ -4400,6 +4439,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                             try{
                               const sb=await getSB();
                               await sb.from("time_off_requests").update({status:"approved"}).eq("id",req.id);
+                              setNotifications(prev=>prev.filter(n=>n.id!=="toff_"+req.id));
+                              setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
                               setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Time off approved ✓","success");
                             }catch(e){ toast("Failed: "+e.message,"error"); }
@@ -4408,6 +4449,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                             try{
                               const sb=await getSB();
                               await sb.from("time_off_requests").update({status:"denied"}).eq("id",req.id);
+                              setNotifications(prev=>prev.filter(n=>n.id!=="toff_"+req.id));
+                              setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
                               setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Request denied","success");
                             }catch(e){ toast("Failed: "+e.message,"error"); }
@@ -4617,20 +4660,20 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   <button onClick={()=>{
                     const byUser={};
                     livePayroll.forEach(ev=>{
-        if(!byUser[ev.user_id]){
-          const empMatch=(liveEmps||[]).find(e=>e.id===ev.user_id);
-          const userFallback=empMatch?{
-            first_name:empMatch.first||empMatch.name.split(" ")[0],
-            last_name:empMatch.name.split(" ").slice(1).join(" "),
-            hourly_rate:empMatch.rate||15,
-            role:empMatch.role||"Employee",
-            avatar_initials:empMatch.avatar||"?",
-            avatar_color:empMatch.color||"#6366f1",
-          }:null;
-          byUser[ev.user_id]={events:[],user:ev.users||userFallback};
-        }
-        byUser[ev.user_id].events.push(ev);
-      });
+                      if(!byUser[ev.user_id]){
+                        const empMatch=(liveEmps||[]).find(e=>e.id===ev.user_id);
+                        const userFallback=empMatch?{
+                          first_name:empMatch.first||empMatch.name.split(" ")[0],
+                          last_name:empMatch.name.split(" ").slice(1).join(" "),
+                          hourly_rate:empMatch.rate||15,
+                          role:empMatch.role||"Employee",
+                          avatar_initials:empMatch.avatar||"?",
+                          avatar_color:empMatch.color||"#6366f1",
+                        }:null;
+                        byUser[ev.user_id]={events:[],user:ev.users||userFallback};
+                      }
+                      byUser[ev.user_id].events.push(ev);
+                    });
                     const rows=["Name,Role,Hours,Regular Pay,OT Hours,OT Pay,Total Pay"];
                     Object.values(byUser).forEach(({events,user})=>{
                       let totalMins=0,cin=null;
@@ -4680,20 +4723,20 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             {livePayroll!==null&&livePayroll.length>0&&(()=>{
               const byUser={};
               livePayroll.forEach(ev=>{
-        if(!byUser[ev.user_id]){
-          const empMatch=(liveEmps||[]).find(e=>e.id===ev.user_id);
-          const userFallback=empMatch?{
-            first_name:empMatch.first||empMatch.name.split(" ")[0],
-            last_name:empMatch.name.split(" ").slice(1).join(" "),
-            hourly_rate:empMatch.rate||15,
-            role:empMatch.role||"Employee",
-            avatar_initials:empMatch.avatar||"?",
-            avatar_color:empMatch.color||"#6366f1",
-          }:null;
-          byUser[ev.user_id]={events:[],user:ev.users||userFallback};
-        }
-        byUser[ev.user_id].events.push(ev);
-      });
+                if(!byUser[ev.user_id]){
+                  const empMatch=(liveEmps||[]).find(e=>e.id===ev.user_id);
+                  const userFallback=empMatch?{
+                    first_name:empMatch.first||empMatch.name.split(" ")[0],
+                    last_name:empMatch.name.split(" ").slice(1).join(" "),
+                    hourly_rate:empMatch.rate||15,
+                    role:empMatch.role||"Employee",
+                    avatar_initials:empMatch.avatar||"?",
+                    avatar_color:empMatch.color||"#6366f1",
+                  }:null;
+                  byUser[ev.user_id]={events:[],user:ev.users||userFallback};
+                }
+                byUser[ev.user_id].events.push(ev);
+              });
               const payRows=Object.entries(byUser).map(([uid,{events,user}])=>{
                 let totalMins=0,cin=null;
                 [...events].sort((a,b)=>new Date(a.occurred_at)-new Date(b.occurred_at)).forEach(ev=>{
