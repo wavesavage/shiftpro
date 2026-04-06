@@ -2268,7 +2268,10 @@ function SettingsTab({
       setOwnerOrg(prev=>prev?{...prev,...updatedOrg}:prev);
       setActiveOrg(prev=>prev?{...prev,...updatedOrg}:prev);
       setOwnerOrgs(prev=>prev.map(o=>o.id===activeOrg?.id?{...o,...updatedOrg}:o));
-      try{ localStorage.setItem("shiftpro_org_name", settingsProfile.name); }catch(e){}
+      try{
+        localStorage.setItem("shiftpro_org_name", settingsProfile.name);
+        if(activeOrg?.id) localStorage.setItem("shiftpro_org_name_"+activeOrg.id, settingsProfile.name);
+      }catch(e){}
       toast("Company profile saved ✓", "success");
     } catch(e) {
       toast("Saved locally ✓", "success");
@@ -3250,7 +3253,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setActiveOrg(defaultOrg);
           setOwnerOrg(defaultOrg);
           const profileData = {
-            name: localStorage.getItem("shiftpro_org_name") || defaultOrg.name || "",
+            name: localStorage.getItem("shiftpro_org_name_"+defaultOrg.id) || localStorage.getItem("shiftpro_org_name") || defaultOrg.name || "",
             type: defaultOrg.industry||"Restaurant",
             address: defaultOrg.address||"",
             phone: defaultOrg.phone||"",
@@ -3730,7 +3733,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 {/* Company name — the main header */}
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
                   <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1.2}}>
-                    {settingsProfile.name||ownerOrg.name}
+                    {settingsProfile.name || ownerOrg?.name || "My Company"}
                   </span>
                   <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"1px",textTransform:"uppercase",lineHeight:1}}>
                     {ownerOrgs.length>1?ownerOrgs.length+" companies ▾":"Your Company ▾"}
@@ -3743,7 +3746,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   {ownerOrgs.map(org=>(
                     <button key={org.id} onClick={async()=>{
                       if(org.id===activeOrg?.id){setOrgSwitcherOpen(false);return;}
-                      setOrgSwitcherOpen(false);setActiveOrg(org);setOwnerOrg(org);
+                      setOrgSwitcherOpen(false);
+                      setActiveOrg(org);
+                      setOwnerOrg(org);
+                      // Update settings profile so company name header reflects the new org immediately
+                      setSettingsProfile(p=>({...p,
+                        name: localStorage.getItem("shiftpro_org_name_"+org.id)||org.name||p.name,
+                        type: org.industry||p.type,
+                        address: org.address||p.address,
+                        phone: org.phone||p.phone,
+                      }));
+                      // Cache this org as active
+                      try{ localStorage.setItem("shiftpro_active_orgid", org.id); }catch(e){}
                       setLiveEmps(null);setLiveShifts(null);setLivePayroll(null);
                       try{
                         const sb=await getSB();
@@ -3752,8 +3766,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         const {data:orgLocs}=await sb.from("locations").select("*").eq("org_id",org.id).eq("active",true).order("created_at");
                         setLiveLocations(orgLocs||[]);
                         setActiveLocation(orgLocs&&orgLocs.length>0?orgLocs[0]:null);
+                        // Update locations cache for new org
+                        if(orgLocs&&orgLocs.length>0){
+                          try{ localStorage.setItem("shiftpro_all_locs", JSON.stringify(orgLocs));
+                               localStorage.setItem("shiftpro_cached_locs_"+org.id, JSON.stringify(orgLocs)); }catch(e){}
+                        }
                       }catch(e){setLiveEmps([]);}
-                      setTab("command");
+                      persistTab("command");
                     }}
                     style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",textAlign:"left",background:activeOrg?.id===org.id?O.amberD:"none"}}
                     onMouseEnter={e=>e.currentTarget.style.background=O.bg3}
