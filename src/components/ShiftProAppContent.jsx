@@ -930,7 +930,7 @@ function EmpPortal({emp,onLogout}){
             const avJson=await avRes.json();
             if(avJson.availability&&avJson.availability.length>0){
               const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
-              avJson.availability.forEach((r:any)=>{ if(map.hasOwnProperty(r.day_of_week)) map[r.day_of_week]=r.status; });
+              avJson.availability.forEach((r)=>{ if(map.hasOwnProperty(r.day_of_week)) map[r.day_of_week]=r.status; });
               setAvail(map);
               if(avJson.availability[0]?.recurring!==undefined) setAvailRecurring(!!avJson.availability[0].recurring);
             }
@@ -3734,7 +3734,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     }
   };
 
-  const loadShifts = async(orgId: string, weekStr: string, locId: string|null) => {
+  const loadShifts = async(orgId, weekStr, locId) => {
     try{
       const sb=await getSB();
       const {data:{session:ss}}=await sb.auth.getSession();
@@ -3810,61 +3810,66 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   };
 
   const removeShift = async(shiftId, weekStart) => {
-    // Remove from state immediately for instant UI feedback
     setLiveShifts(prev=>(prev||[]).filter(s=>s.id!==shiftId));
     try{
-      const sb=await getSB();
-      await sb.from("shifts").delete().eq("id",shiftId);
+      const sb2=await getSB();
+      const {data:{session:ss}}=await sb2.auth.getSession();
+      const res=await fetch("/api/shifts",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({_action:"delete",id:shiftId}),
+      });
+      if(!res.ok) throw new Error("Delete failed");
     }catch(e){
-      // Restore on failure
       if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart, activeLocation?.id||null);
-      toast("Failed to remove shift", "error");
+      toast("Failed to remove shift","error");
     }
   };
 
   const publishSchedule = async(weekStart) => {
     try{
-      const sb=await getSB();
-      await sb.from("shifts").update({status:"published"}).eq("org_id",ownerProfile?.org_id).eq("week_start",weekStart);
-      setSchedPublished(true);
-      setShowConfetti(true);
-      toast("Schedule published to all employees ✓", "success");
+      const sb2=await getSB();
+      const {data:{session:ss}}=await sb2.auth.getSession();
+      const res=await fetch("/api/shifts",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({_action:"publish",orgId:ownerProfile?.org_id,weekStart}),
+      });
+      if(!res.ok) throw new Error("Publish failed");
+      setSchedPublished(true); setShowConfetti(true);
+      toast("Schedule published to all employees ✓","success");
       if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart, activeLocation?.id||null);
-    }catch(e){ toast("Failed to publish schedule", "error"); }
+    }catch(e){ toast("Failed to publish schedule","error"); }
   };
 
   const copyLastWeek = async () => {
     try{
-      const sb = await getSB();
+      const sb2 = await getSB();
+      const {data:{session:ss}}=await sb2.auth.getSession();
       const lastMon = getMonday(currentWeekOffset - 1);
       const thisMon = getMonday(currentWeekOffset);
       const orgId = ownerProfile?.org_id;
       if(!orgId){ toast("No company found","error"); return; }
-      let q = sb.from("shifts").select("*").eq("org_id", orgId).eq("week_start", lastMon);
-      if(activeLocation) q = q.eq("location_id", activeLocation.id);
-      const {data:lastWeekShifts} = await q;
-      if(!lastWeekShifts || lastWeekShifts.length === 0){
-        toast("No shifts found from last week","error"); return;
-      }
-      const newShifts = lastWeekShifts.map(s=>({
-        org_id: s.org_id,
-        location_id: s.location_id,
-        user_id: s.user_id,
-        week_start: thisMon,
-        day_of_week: s.day_of_week,
-        shift_date: (()=>{
-          const DAYS_ORDER = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-          const d = new Date(thisMon);
-          d.setDate(d.getDate() + DAYS_ORDER.indexOf(s.day_of_week));
-          return d.toISOString().split("T")[0];
-        })(),
-        start_hour: s.start_hour,
-        end_hour: s.end_hour,
-        role_label: s.role_label||"",
-        status: "scheduled",
-        created_by: ownerProfile?.id||null,
+      // Fetch last week's shifts via service role
+      let url=`/api/shifts?orgId=${orgId}&weekStart=${lastMon}`;
+      if(activeLocation) url+=`&locId=${activeLocation.id}`;
+      const fetchRes=await fetch(url,{headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}});
+      const fetchData=await fetchRes.json();
+      const lastWeekShifts=fetchData.shifts||[];
+      if(!lastWeekShifts.length){ toast("No shifts found from last week","error"); return; }
+      const DAYS_ORDER=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+      const newShifts=lastWeekShifts.map(s=>({
+        org_id:s.org_id, location_id:s.location_id, user_id:s.user_id,
+        week_start:thisMon, day_of_week:s.day_of_week,
+        shift_date:(()=>{ const d=new Date(thisMon); d.setDate(d.getDate()+DAYS_ORDER.indexOf(s.day_of_week)); return d.toISOString().split("T")[0]; })(),
+        start_hour:s.start_hour, end_hour:s.end_hour, role_label:s.role_label||"", status:"scheduled", created_by:ownerProfile?.id||null,
       }));
-      await sb.from("shifts").insert(newShifts);
+      const copyRes=await fetch("/api/shifts",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({_action:"copyLastWeek",shifts:newShifts}),
+      });
+      if(!copyRes.ok) throw new Error("Copy failed");
       await loadShifts(orgId, thisMon, activeLocation?.id||null);
       toast("Copied "+newShifts.length+" shift"+(newShifts.length!==1?"s":"")+" from last week ✓","success");
     }catch(e){ toast("Copy failed: "+e.message,"error"); }
