@@ -508,6 +508,7 @@ function Login({onLogin}){
                 <div>
                   <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:16,color:"#fff",marginBottom:5}}>I'm an Employee</div>
                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(16,185,129,0.65)",letterSpacing:"1.5px"}}>MY SCHEDULE & TIME CLOCK</div>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}>← INVITED STAFF CLICK HERE</div>
                 </div>
               </button>
             </div>
@@ -665,7 +666,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
       }));
       if(availRows.length>0) await sb.from("availability").upsert(availRows,{onConflict:"user_id,day_of_week"});
     }catch(e){ /* always continue even if Supabase fails */ }
-    finally{ setBusy(false); onComplete(true); }
+    finally{ setBusy(false); onComplete(); }
   };
 
   const prog = (step/4)*100;
@@ -911,9 +912,8 @@ function EmpPortal({emp,onLogout}){
   if(!onboardingDone && empSafe.id && (empSafe.appRole==="employee"||empSafe.appRole==="supervisor")) return (
     <EmpOnboarding
       empSafe={empSafe}
-      onComplete={async(updatedProfile)=>{
+      onComplete={async()=>{
         try{ localStorage.setItem("shiftpro_onboarding_"+empSafe.id,"done"); }catch(e){}
-        // If onboarding saved new profile data, update empSafe-equivalent in session
         setOnboardingDone(true);
       }}
     />
@@ -5304,7 +5304,7 @@ export default function App(){
       // Update password
       const {error}=await sb.auth.updateUser({password:newPw});
       if(error) throw error;
-      // Mark user as active (was "invited")
+      // Mark user as active and get their profile to auto-login
       try{
         const {data:{session:s2}}=await sb.auth.getSession();
         if(s2?.user?.id){
@@ -5315,16 +5315,20 @@ export default function App(){
       setTimeout(async()=>{
         const {data:{session:s}}=await sb.auth.getSession();
         if(s?.user){
-          const {data:profile}=await sb.from("users").select("*").eq("id",s.user.id).single();
-          const role=profile?.app_role==="owner"||profile?.app_role==="manager"?"owner":"employee";
-          // Build emp object — works even if profile is null (new invite)
+          // Try to get their profile (may not exist yet for brand new invites)
+          let profile=null;
+          try{ const {data:p}=await sb.from("users").select("*").eq("id",s.user.id).single(); profile=p; }catch(e){}
+          
+          // Determine role — new invites default to employee
+          const role=(profile?.app_role==="owner"||profile?.app_role==="manager")?"owner":"employee";
+          
           const emp={
             id:profile?.id||s.user.id,
-            name:(profile?.first_name||"New")+" "+(profile?.last_name||"Employee"),
-            first:profile?.first_name||"there",
+            name:(profile?.first_name||(s.user.user_metadata?.first_name)||"New")+" "+(profile?.last_name||(s.user.user_metadata?.last_name)||"Employee"),
+            first:profile?.first_name||s.user.user_metadata?.first_name||s.user.email?.split("@")[0]||"there",
             role:profile?.role||"Employee",
-            dept:profile?.department||"",
-            rate:parseFloat(profile?.hourly_rate)||15,
+            dept:profile?.department||s.user.user_metadata?.department||"",
+            rate:parseFloat(profile?.hourly_rate||s.user.user_metadata?.hourly_rate)||15,
             avatar:profile?.avatar_initials||(s.user.email?.[0]?.toUpperCase()||"?"),
             color:profile?.avatar_color||"#6366f1",
             email:s.user.email||"",
@@ -5334,14 +5338,17 @@ export default function App(){
             cam:100, prod:100, rel:100,
             flags:0, streak:0, shifts:0,
             risk:"Low", ghost:0,
-            orgId:profile?.org_id||null,
-            locId:profile?.location_id||null,
+            orgId:profile?.org_id||s.user.user_metadata?.org_id||null,
+            locId:profile?.location_id||s.user.user_metadata?.location_id||null,
             appRole:profile?.app_role||"employee",
           };
+          // Cache so refresh works
+          try{ localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
           if(typeof window!=="undefined") window.location.hash="";
-          setResetMode(false);setSession({role,emp});
+          setResetMode(false);
+          login(role,emp);
         }
-      },1500);
+      },800);
     }catch(e){setPwErr(e.message||"Failed to set password.");}
     finally{setPwBusy(false);}
   };
