@@ -3442,7 +3442,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             const {data:locsData} = await sb.from("locations").select("*").eq("org_id",orgId).eq("active",true).order("created_at");
             locs = locsData;
           }
-          const {data:emps} = await sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
+          let emps = null;
+          try {
+            const {data:{session:ss2}} = await sb.auth.getSession();
+            const staffRes = await fetch("/api/staff?orgId="+orgId, {
+              headers: ss2?.access_token ? {"Authorization":"Bearer "+ss2.access_token} : {}
+            });
+            if(staffRes.ok){ const d=await staffRes.json(); emps=d.employees||[]; }
+          } catch(e){}
+          if(!emps){
+            const {data:fallback} = await sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
+            emps = fallback||[];
+          }
 
           const mappedEmps = emps&&emps.length>0 ? emps.map(mapEmp) : [];
           setLiveEmps(mappedEmps);
@@ -3532,11 +3543,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               setLocationGate("ready");
               // Try to load employees using cached orgId
               if(cachedOrgId){
-                const {data:empsRetry} = await sb.from("users").select("*")
-                  .eq("org_id",cachedOrgId)
-                  .in("status",["active","invited"])
-                  .in("app_role",["employee","supervisor"])
-                  .order("first_name");
+                let empsRetry = null;
+                try {
+                  const {data:{session:ssr}} = await sb.auth.getSession();
+                  const rRes = await fetch("/api/staff?orgId="+cachedOrgId, {
+                    headers: ssr?.access_token ? {"Authorization":"Bearer "+ssr.access_token} : {}
+                  });
+                  if(rRes.ok){ const rd=await rRes.json(); empsRetry=rd.employees||[]; }
+                } catch(e){}
+                if(!empsRetry){
+                  const {data:fb} = await sb.from("users").select("*").eq("org_id",cachedOrgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
+                  empsRetry=fb||[];
+                }
                 if(empsRetry?.length>0) setLiveEmps(empsRetry.map(mapEmp));
               }
             }catch(e){ setLocationGate("none"); }
