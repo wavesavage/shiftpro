@@ -2295,7 +2295,10 @@ function SettingsTab({
       setOwnerOrgs(prev=>prev.map(o=>o.id===activeOrg?.id?{...o,...updatedOrg}:o));
       try{
         localStorage.setItem("shiftpro_org_name", settingsProfile.name);
-        if(activeOrg?.id) localStorage.setItem("shiftpro_org_name_"+activeOrg.id, settingsProfile.name);
+        if(activeOrg?.id){
+          localStorage.setItem("shiftpro_org_name_"+activeOrg.id, settingsProfile.name);
+          localStorage.setItem("shiftpro_org_type_"+activeOrg.id, settingsProfile.type);
+        }
       }catch(e){}
       toast("Company profile saved ✓", "success");
     } catch(e) {
@@ -3922,7 +3925,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     {settingsProfile.name || ownerOrg?.name || "My Company"}
                   </span>
                   <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"1px",textTransform:"uppercase",lineHeight:1}}>
-                    {ownerOrgs.length>1?ownerOrgs.length+" companies ▾":"Your Company ▾"}
+                    {settingsProfile.type||ownerOrg?.industry||"Business"}{ownerOrgs.length>1?" · "+ownerOrgs.length+" cos":""} ▾
                   </span>
                 </div>
               </button>
