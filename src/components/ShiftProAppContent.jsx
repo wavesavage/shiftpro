@@ -2912,7 +2912,43 @@ function InviteModal({
               </select>
             </div>
             {inviteErr&&(
-              <div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:12,padding:"7px 10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:6}}>{inviteErr}</div>
+              <div style={{marginBottom:12}}>
+                <div style={{fontFamily:O.sans,fontSize:12,color:O.red,padding:"7px 10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:6,marginBottom:inviteErr.includes("already")?"6px":"0"}}>
+                  {inviteErr}
+                </div>
+                {inviteErr.includes("already")&&(
+                  <button onClick={async()=>{
+                    setInviteErr("");
+                    setInviteBusy(true);
+                    try{
+                      const sb2=await getSB();
+                      const {data:{session:ss}}=await sb2.auth.getSession();
+                      const res=await fetch("/api/invite",{
+                        method:"POST",
+                        headers:{"Content-Type":"application/json","X-Resend-Invite":"true",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                        body:JSON.stringify({
+                          email:inviteForm.email,
+                          firstName:inviteForm.firstName,
+                          lastName:inviteForm.lastName,
+                          orgId:activeOrg?.id||null,
+                          locationId:null,
+                          role:inviteForm.role||"Employee",
+                          department:inviteForm.dept,
+                          hourlyRate:inviteForm.rate,
+                          forceResend:true,
+                        })
+                      });
+                      const result=await res.json();
+                      if(!res.ok && !result.resenOk) throw new Error(result.error||"Resend failed");
+                      setInviteDone("Re-invite sent to "+inviteForm.email+" ✓");
+                      toast("Re-invite sent ✓","success");
+                    }catch(e){ setInviteErr(e.message||"Resend failed"); }
+                    finally{ setInviteBusy(false); }
+                  }} style={{width:"100%",padding:"8px",background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#6366f1",cursor:"pointer",textAlign:"center"}}>
+                    📧 Resend invite to this email instead →
+                  </button>
+                )}
+              </div>
             )}
             <button
               onClick={async()=>{
