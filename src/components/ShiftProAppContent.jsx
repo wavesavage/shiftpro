@@ -5036,6 +5036,33 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               />
             )}
 
+            {/* DEBUG PANEL — remove after shifts are confirmed working */}
+            <div style={{background:"#1e1b4b",borderRadius:8,padding:"10px 14px",marginBottom:12,fontFamily:"monospace",fontSize:11,color:"#a5b4fc",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+              <span>orgId: <b style={{color:"#fff"}}>{ownerProfile?.org_id||activeOrg?.id||"❌ none"}</b></span>
+              <span>weekStart: <b style={{color:"#fff"}}>{getMonday(currentWeekOffset)}</b></span>
+              <span>liveShifts: <b style={{color:liveShifts===null?"#fbbf24":liveShifts.length>0?"#4ade80":"#f87171"}}>{liveShifts===null?"loading…":liveShifts.length+" shifts"}</b></span>
+              <span>liveEmps: <b style={{color:"#fff"}}>{liveEmps===null?"null":liveEmps.length}</b></span>
+              <span>locId: <b style={{color:"#fff"}}>{activeLocation?.id?.slice(0,8)||"none"}</b></span>
+              <button onClick={async()=>{
+                const orgId=ownerProfile?.org_id||activeOrg?.id;
+                const weekStr=getMonday(currentWeekOffset);
+                const sb2=await getSB();
+                const {data:{session:ss}}=await sb2.auth.getSession();
+                const url="/api/shifts?orgId="+orgId+"&weekStart="+weekStr+"&_t="+Date.now();
+                const r=await fetch(url,{headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},cache:"no-store"});
+                const d=await r.json();
+                alert("API returned: "+JSON.stringify(d).slice(0,400));
+              }} style={{padding:"4px 10px",background:"#4f46e5",border:"none",borderRadius:5,color:"#fff",cursor:"pointer",fontSize:11,fontFamily:"monospace"}}>
+                🔍 Test API
+              </button>
+              <button onClick={()=>{
+                const orgId=ownerProfile?.org_id||activeOrg?.id;
+                if(orgId) loadShifts(orgId,getMonday(currentWeekOffset),null);
+              }} style={{padding:"4px 10px",background:"#059669",border:"none",borderRadius:5,color:"#fff",cursor:"pointer",fontSize:11,fontFamily:"monospace"}}>
+                🔄 Force Reload
+              </button>
+            </div>
+
             {/* Labor cost gauge */}
             {liveShifts!==null&&liveShifts.length>0&&(()=>{
               const totalH=(liveShifts||[]).reduce((s,sh)=>s+(sh.end_hour-sh.start_hour),0);
