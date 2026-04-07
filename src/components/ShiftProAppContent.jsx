@@ -467,7 +467,7 @@ function Login({onLogin}){
     setBusy(true); setErr("");
     try{
       const sb = await getSB();
-      await sb.auth.resetPasswordForEmail(email,{redirectTo:"https://shiftpro.ai/#type=recovery"});
+      await sb.auth.resetPasswordForEmail(email,{redirectTo:"https://shiftpro.ai/"});
       setResetSent(true);
     }catch(e){
       setErr("Could not send reset email. Try again.");
@@ -602,7 +602,7 @@ function Login({onLogin}){
                 setBusy(true);setErr("");
                 try{
                   const sb2=await getSB();
-                  await sb2.auth.resetPasswordForEmail(email,{redirectTo:"https://shiftpro.ai/#type=recovery"});
+                  await sb2.auth.resetPasswordForEmail(email,{redirectTo:"https://shiftpro.ai/"});
                   setErr("✓ Reset email sent — check your inbox!");
                 }catch(e){setErr("Could not send reset email.");}
                 finally{setBusy(false);}
@@ -1681,7 +1681,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                 if(!emp.email){toast("No email on file","error");return;}
                 try{
                   const sb2=await getSB();
-                  await sb2.auth.resetPasswordForEmail(emp.email,{redirectTo:"https://shiftpro.ai/#type=recovery"});
+                  await sb2.auth.resetPasswordForEmail(emp.email,{redirectTo:"https://shiftpro.ai/"});
                   toast("✓ Password reset sent to "+emp.email,"success");
                 }catch(e){toast("Failed to send reset","error");}
               }} style={{padding:"5px 12px",background:"none",border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer",marginRight:4}}>
@@ -5328,15 +5328,15 @@ export default function App(){
             // Without this, updateUser("password") fails with "Auth session missing"
             try{
               const sb=await getSB();
-              const params=new URLSearchParams(hash.replace("#",""));
-              const accessToken=params.get("access_token");
-              const refreshToken=params.get("refresh_token");
-              const type=params.get("type");
+              // Normalize double-hash URLs (e.g. #type=recovery#access_token=...)
+              const normalized = hash.replace(/#/g, "&").replace("&","?");
+              const params = new URLSearchParams(normalized.includes("?") ? normalized.split("?")[1] : normalized.replace(/^&/,""));
+              const accessToken = params.get("access_token");
+              const refreshToken = params.get("refresh_token");
               if(accessToken){
-                // Set the session directly from the invite/recovery tokens
                 await sb.auth.setSession({
                   access_token: accessToken,
-                  refresh_token: refreshToken||"",
+                  refresh_token: refreshToken || accessToken,
                 });
               }
             }catch(e){}
