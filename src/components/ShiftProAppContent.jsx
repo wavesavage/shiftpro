@@ -2825,7 +2825,7 @@ function AddLocationModal({
 }
 
 function InviteModal({
-  ownerProfile, activeLocation,
+  ownerProfile, activeOrg, activeLocation,
   inviteForm, setInviteForm, inviteBusy, setInviteBusy,
   inviteDone, setInviteDone, inviteErr, setInviteErr,
   setShowInvite, setLiveEmps, mapEmp, toast
@@ -2919,20 +2919,22 @@ function InviteModal({
                 if(!inviteForm.firstName||!inviteForm.lastName||!inviteForm.email){setInviteErr("Please fill in name and email.");return;}
                 setInviteBusy(true);setInviteErr("");
                 try{
+                  const sb2=await getSB();
+                  const {data:{session:ss}}=await sb2.auth.getSession();
                   const res=await fetch("/api/invite",{
                     method:"POST",
-                    headers:{"Content-Type":"application/json"},
+                    headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
                     body:JSON.stringify({
                       email:inviteForm.email,firstName:inviteForm.firstName,lastName:inviteForm.lastName,
-                      orgId:ownerProfile?.org_id||null,locationId:activeLocation?.id||ownerProfile?.location_id||null,
+                      orgId:activeOrg?.id||ownerProfile?.org_id||localStorage.getItem('shiftpro_active_orgid')||null,locationId:activeLocation?.id||ownerProfile?.location_id||null,
                       role:inviteForm.role||"Employee",department:inviteForm.dept,hourlyRate:inviteForm.rate
                     })
                   });
                   const result=await res.json();
                   if(!res.ok) throw new Error(result.error||"Invite failed");
                   const sb=await getSB();
-                  const {data:emps}=await sb.from("users").select("*").eq("org_id",ownerProfile?.org_id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
-                  if(emps) setLiveEmps(emps.map(mapEmp));
+                  const orgId=activeOrg?.id||ownerProfile?.org_id||localStorage.getItem('shiftpro_active_orgid');
+                  if(orgId){const {data:emps}=await sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");if(emps) setLiveEmps(emps.map(mapEmp));}
                   setInviteDone("Invite sent to "+inviteForm.email+"!");
                   toast("Invite sent to "+inviteForm.email+" ✓","success");
                 }catch(err){
@@ -3873,6 +3875,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       {showInvite && (
         <InviteModal
           ownerProfile={ownerProfile}
+          activeOrg={activeOrg}
           activeLocation={activeLocation}
           inviteForm={inviteForm}
           setInviteForm={setInviteForm}
