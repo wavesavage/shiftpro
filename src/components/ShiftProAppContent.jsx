@@ -2588,11 +2588,15 @@ function SettingsTab({
                       <button onClick={async()=>{
                         setConfirmDeleteLocId(null);
                         try{
-                          const sb=await getSB();
-                          await sb.from("shifts").delete().eq("location_id",loc.id);
-                          await sb.from("clock_events").delete().eq("location_id",loc.id);
-                          await sb.from("users").update({location_id:null}).eq("location_id",loc.id);
-                          await sb.from("locations").delete().eq("id",loc.id);
+                          // Use service role API — bypasses RLS so delete always sticks
+                          const sb2=await getSB();
+                          const {data:{session:ss}}=await sb2.auth.getSession();
+                          const res=await fetch("/api/location",{
+                            method:"DELETE",
+                            headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                            body:JSON.stringify({locationId:loc.id})
+                          });
+                          if(!res.ok){const d=await res.json();throw new Error(d.error||"Delete failed");}
                           const updated=(liveLocations||[]).filter(l=>l.id!==loc.id);
                           setLiveLocations(updated);
                           try{
@@ -2601,12 +2605,12 @@ function SettingsTab({
                             if(activeLocation?.id===loc.id){
                               const next=updated[0]||null;
                               if(next) selectLocation(next);
-                              else{ localStorage.removeItem("shiftpro_active_loc"); localStorage.removeItem("shiftpro_active_loc_obj"); setLocationGate("none"); }
+                              else{ localStorage.removeItem("shiftpro_active_loc"); localStorage.removeItem("shiftpro_active_loc_obj"); setLocationGate(updated.length===0?"none":"pick"); }
                             }
                           }catch(e){}
                           toast("✓ "+loc.name+" deleted","success");
                         }catch(e){ toast("Delete failed: "+e.message,"error"); }
-                      }} style={{padding:"9px 18px",background:"linear-gradient(135deg,#d94040,#b91c1c)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",flexShrink:0,whiteSpace:"nowrap",boxShadow:"0 2px 8px rgba(217,64,64,0.3)"}}>
+}} style={{padding:"9px 18px",background:"linear-gradient(135deg,#d94040,#b91c1c)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",flexShrink:0,whiteSpace:"nowrap",boxShadow:"0 2px 8px rgba(217,64,64,0.3)"}}>
                         Yes, Delete
                       </button>
                     </div>
