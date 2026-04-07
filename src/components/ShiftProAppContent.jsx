@@ -3801,12 +3801,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       });
       if(res.ok){
         const d=await res.json();
+        // If location filter returned nothing, retry without location filter
+        if(d.shifts&&d.shifts.length===0&&locId){
+          const params2=new URLSearchParams({orgId,weekStart:weekStr});
+          const res2=await fetch("/api/shifts?"+params2.toString(),{
+            headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+          });
+          if(res2.ok){ const d2=await res2.json(); setLiveShifts(d2.shifts||[]); return; }
+        }
         setLiveShifts(d.shifts||[]);
       } else {
-        // Fallback to direct query
-        let q=sb.from("shifts").select("*, users(first_name,last_name,avatar_initials,avatar_color,role)").eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
-        if(locId) q=q.eq("location_id",locId);
-        const {data:shifts}=await q;
+        // Fallback direct query without location filter
+        const {data:shifts}=await sb.from("shifts").select("*, users(first_name,last_name,avatar_initials,avatar_color,role)").eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
         setLiveShifts(shifts||[]);
       }
     }catch(e){setLiveShifts([]);}
