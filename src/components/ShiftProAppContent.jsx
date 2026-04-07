@@ -3414,12 +3414,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     return()=>{ clearTimeout(t); document.removeEventListener("click", handler); };
   },[orgSwitcherOpen, locSwitcherOpen, notifOpen]);
 
-  // Load shifts when tab switches to schedule or command
+  // Load shifts when tab switches to schedule/command, OR when ownerProfile arrives
   useEffect(()=>{
-    if((tab==="schedule"||tab==="command") && liveShifts===null && ownerProfile?.org_id){
-      loadShifts(ownerProfile.org_id, getMonday(currentWeekOffset), activeLocation?.id||null);
+    const orgId = ownerProfile?.org_id||activeOrg?.id;
+    if((tab==="schedule"||tab==="command") && orgId){
+      loadShifts(orgId, getMonday(currentWeekOffset), activeLocation?.id||null);
     }
-  },[tab, ownerProfile?.org_id, currentWeekOffset]);
+  },[tab, ownerProfile?.org_id, activeOrg?.id, currentWeekOffset, activeLocation?.id]);
 
   // Load payroll when tab switches to roi
   useEffect(()=>{
