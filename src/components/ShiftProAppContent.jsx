@@ -454,7 +454,14 @@ function Login({onLogin}){
 
       // Mark invited employee as active on first login
       if(profile.status==="invited"&&!profile._fromCache){
-        try{ await sb.from("users").update({status:"active"}).eq("id",data.user.id); }catch(e){}
+        try{
+          const {data:{session:ss}}=await sb.auth.getSession();
+          await fetch("/api/user",{
+            method:"PATCH",
+            headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+            body:JSON.stringify({userId:data.user.id,updates:{status:"active"}}),
+          });
+        }catch(e){}
       }
 
       const empRole = profile.app_role==="owner"||profile.app_role==="manager"?"owner":"employee";
@@ -1665,6 +1672,8 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   const mobile = useIsMobile();
   const [editing, setEditing] = React.useState(false);
   const [editForm, setEditForm] = React.useState({
+    firstName: emp.first||emp.name?.split(" ")[0]||"",
+    lastName: emp.name?.split(" ").slice(1).join(" ")||"",
     role: emp.role||"",
     dept: emp.dept||"",
     rate: String(emp.rate||15),
@@ -1691,17 +1700,32 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   const saveChanges = async () => {
     setSaveBusy(true);
     try {
-      const sb = await getSB();
-      await sb.from("users").update({
-        role: editForm.role,
-        department: editForm.dept,
-        hourly_rate: parseFloat(editForm.rate)||15,
-        ...(editForm.pin ? {pin: editForm.pin} : {}),
-      }).eq("id", emp.id);
-      // Refresh employee list
-      if(ownerProfile?.org_id) {
-        const {data:emps} = await sb.from("users").select("*").eq("org_id",ownerProfile.org_id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
-        if(emps) setLiveEmps(emps.map(mapEmp));
+      const sb2 = await getSB();
+      const {data:{session:ss}} = await sb2.auth.getSession();
+      const orgId = activeOrg?.id||ownerProfile?.org_id||null;
+      const res = await fetch("/api/user", {
+        method:"PATCH",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({
+          userId:emp.id,
+          updates:{
+            first_name:editForm.firstName.trim(),
+            last_name:editForm.lastName.trim(),
+            role:editForm.role,
+            department:editForm.dept,
+            hourly_rate:parseFloat(editForm.rate)||15,
+            avatar_initials:(editForm.firstName[0]||"?").toUpperCase()+(editForm.lastName[0]||"?").toUpperCase(),
+            ...(editForm.pin?{pin:editForm.pin}:{}),
+          }
+        }),
+      });
+      if(!res.ok){ const d=await res.json(); throw new Error(d.error||"Save failed"); }
+      // Refresh staff list via service role
+      if(orgId){
+        const staffRes = await fetch("/api/staff?orgId="+orgId, {
+          headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+        });
+        if(staffRes.ok){ const d=await staffRes.json(); if(d.employees) setLiveEmps(d.employees.map(mapEmp)); }
       }
       toast("Employee updated ✓","success");
       setEditing(false);
@@ -1716,11 +1740,17 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
     setConfirmDeactivate(false);
     setDeactivateBusy(true);
     try {
-      const sb = await getSB();
-      await sb.from("users").update({status:"inactive"}).eq("id",emp.id);
-      if(ownerProfile?.org_id) {
-        const {data:emps} = await sb.from("users").select("*").eq("org_id",ownerProfile.org_id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
-        if(emps) setLiveEmps(emps.map(mapEmp));
+      const sb2 = await getSB();
+      const {data:{session:ss}} = await sb2.auth.getSession();
+      const orgId = activeOrg?.id||ownerProfile?.org_id||null;
+      await fetch("/api/user",{
+        method:"PATCH",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({userId:emp.id,updates:{status:"inactive"}}),
+      });
+      if(orgId){
+        const staffRes=await fetch("/api/staff?orgId="+orgId,{headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}});
+        if(staffRes.ok){ const d=await staffRes.json(); if(d.employees) setLiveEmps(d.employees.map(mapEmp)); }
       }
       toast(emp.name+" deactivated","success");
       onClose();
@@ -1872,6 +1902,19 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
           ) : (
             <div style={{background:O.bg3,borderRadius:12,padding:"16px",marginBottom:16}}>
               <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:14}}>Edit Details</div>
+
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                <div>
+                  <label style={labelStyle}>First Name</label>
+                  <input value={editForm.firstName} onChange={e=>setEditForm(p=>({...p,firstName:e.target.value}))} placeholder="First" style={inputStyle}
+                    onFocus={e=>e.target.style.borderColor=O.amber} onBlur={e=>e.target.style.borderColor=O.border}/>
+                </div>
+                <div>
+                  <label style={labelStyle}>Last Name</label>
+                  <input value={editForm.lastName} onChange={e=>setEditForm(p=>({...p,lastName:e.target.value}))} placeholder="Last" style={inputStyle}
+                    onFocus={e=>e.target.style.borderColor=O.amber} onBlur={e=>e.target.style.borderColor=O.border}/>
+                </div>
+              </div>
 
               <div style={{marginBottom:12}}>
                 <label style={labelStyle}>Role</label>
