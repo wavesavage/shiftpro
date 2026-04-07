@@ -3620,6 +3620,25 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           // Cache employees for faster subsequent loads
           try{ localStorage.setItem("shiftpro_cached_emps_"+orgId, JSON.stringify(mappedEmps)); }catch(e){}
 
+          // ── Load shifts directly here — guaranteed, no useEffect race condition ──
+          try{
+            const weekStr = (()=>{
+              const now=new Date(); const day=now.getDay();
+              const diff=day===0?-6:1-day;
+              const mon=new Date(now); mon.setDate(now.getDate()+diff);
+              return mon.getFullYear()+"-"+String(mon.getMonth()+1).padStart(2,"0")+"-"+String(mon.getDate()).padStart(2,"0");
+            })();
+            const {data:{session:sss}}=await sb.auth.getSession();
+            const sRes=await fetch("/api/shifts?orgId="+orgId+"&weekStart="+weekStr,{
+              headers:sss?.access_token?{"Authorization":"Bearer "+sss.access_token}:{},
+              cache:"no-store",
+            });
+            if(sRes.ok){
+              const sData=await sRes.json();
+              if(sData.shifts&&sData.shifts.length>0) setLiveShifts(sData.shifts);
+            }
+          }catch(e){}
+
 
           // Supabase returned locations — update the list but NEVER downgrade a ready gate
           const savedLocId = localStorage.getItem("shiftpro_active_loc");
@@ -3794,24 +3813,31 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     try{
       const sb=await getSB();
       const {data:{session:ss}}=await sb.auth.getSession();
-      const params=new URLSearchParams({orgId,weekStart:weekStr});
-      if(locId) params.set("locId",locId);
+      // Add timestamp cache-buster to guarantee fresh response every time
+      const ts=Date.now();
+      const params=new URLSearchParams({orgId,weekStart:weekStr,_t:String(ts)});
       const res=await fetch("/api/shifts?"+params.toString(),{
-        headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+        headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
+        cache:"no-store",
       });
       if(res.ok){
         const d=await res.json();
-        // If location filter returned nothing, retry without location filter
-        if(d.shifts&&d.shifts.length===0&&locId){
-          const params2=new URLSearchParams({orgId,weekStart:weekStr});
+        if(d.shifts&&d.shifts.length>0){
+          setLiveShifts(d.shifts);
+          return;
+        }
+        // If filtered by loc returned nothing, retry without location filter
+        if(locId){
+          const params2=new URLSearchParams({orgId,weekStart:weekStr,_t:String(ts+1)});
           const res2=await fetch("/api/shifts?"+params2.toString(),{
-            headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+            headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
+            cache:"no-store",
           });
           if(res2.ok){ const d2=await res2.json(); setLiveShifts(d2.shifts||[]); return; }
         }
-        setLiveShifts(d.shifts||[]);
+        setLiveShifts([]);
       } else {
-        // Fallback direct query without location filter
+        // Final fallback: direct Supabase
         const {data:shifts}=await sb.from("shifts").select("*, users(first_name,last_name,avatar_initials,avatar_color,role)").eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
         setLiveShifts(shifts||[]);
       }
