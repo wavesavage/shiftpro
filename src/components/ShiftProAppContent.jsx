@@ -3012,7 +3012,14 @@ function InviteModal({
                   if(!res.ok) throw new Error(result.error||"Invite failed");
                   const sb=await getSB();
                   const orgId=activeOrg?.id||ownerProfile?.org_id||localStorage.getItem('shiftpro_active_orgid');
-                  if(orgId){const {data:emps}=await sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");if(emps) setLiveEmps(emps.map(mapEmp));}
+                  // Auto-heal: ensure user record exists in users table
+                  try{
+                    await fetch("/api/invite?healEmail="+encodeURIComponent(inviteForm.email)+"&orgId="+orgId,{
+                      headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+                    });
+                  }catch(e){}
+                  // Reload staff list
+                  if(orgId){const {data:emps}=await sb2.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");if(emps) setLiveEmps(emps.map(mapEmp));}
                   setInviteDone("Invite sent to "+inviteForm.email+"!");
                   toast("Invite sent to "+inviteForm.email+" ✓","success");
                 }catch(err){
@@ -4586,6 +4593,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,color:O.text,marginBottom:8}}>No employees yet</div>
                     <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.7,maxWidth:360,margin:"0 auto 24px"}}>Click Invite Employee to add your first team member. They'll get an email to set their password and access their Work Hub.</div>
                     <button onClick={()=>setShowInvite(true)} style={{padding:"13px 28px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.25)"}}>Invite Your First Employee</button>
+                    <button onClick={async()=>{
+                      const orgId=activeOrg?.id||ownerProfile?.org_id;
+                      if(!orgId) return;
+                      try{
+                        const sb2=await getSB();
+                        const {data:emps}=await sb2.from("users").select("*").eq("org_id",orgId).in("app_role",["employee","supervisor"]).order("first_name");
+                        if(emps&&emps.length>0){setLiveEmps(emps.map(mapEmp));toast("Found "+emps.length+" staff member"+(emps.length!==1?"s":"")+" ✓","success");}
+                        else{toast("No staff found. Send invites to add employees.","info");}
+                      }catch(e){toast("Refresh failed","error");}
+                    }} style={{padding:"8px 18px",background:"none",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,color:O.textD,cursor:"pointer",marginTop:8,display:"block"}}>
+                      🔄 Refresh Staff List
+                    </button>
                   </div>
                 )}
                 {liveEmps!==null&&liveEmps.length>0&&(
