@@ -1614,23 +1614,32 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   const resendInvite = async () => {
     setResendBusy(true);
     try {
+      const sb2=await getSB();
+      const {data:{session:ss}}=await sb2.auth.getSession();
+      const orgId=activeOrg?.id||ownerProfile?.org_id||localStorage.getItem("shiftpro_active_orgid")||null;
       const res = await fetch("/api/invite",{
         method:"POST",
-        headers:{"Content-Type":"application/json"},
+        headers:{
+          "Content-Type":"application/json",
+          ...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})
+        },
         body:JSON.stringify({
           email:emp.email,
           firstName:emp.first||emp.name.split(" ")[0],
           lastName:emp.name.split(" ").slice(1).join(" "),
-          orgId:ownerProfile?.org_id||null,
+          orgId,
           locationId:emp.locId||null,
           role:emp.role||"Employee",
           department:emp.dept||"",
           hourlyRate:String(emp.rate||15),
+          forceResend:true,
         }),
       });
+      const result=await res.json();
+      if(!res.ok && !result.resenOk) throw new Error(result.error||"Resend failed");
       toast("Invite resent to "+emp.email+" ✓","success");
     } catch(e) {
-      toast("Failed to resend invite","error");
+      toast("Failed: "+e.message,"error");
     } finally { setResendBusy(false); }
   };
 
@@ -1769,9 +1778,18 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
 
           {/* Resend invite (only for invited) */}
           {emp.status==="invited"&&(
-            <button onClick={resendInvite} style={{width:"100%",padding:"10px",background:O.bg3,border:"1px solid "+O.border,borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.textD,cursor:"pointer",marginBottom:16}}>
-              {resendBusy?"Sending…":"📧 Resend Invite Email"}
-            </button>
+            <div style={{marginBottom:16}}>
+              <div style={{background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:9,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:16}}>⏳</span>
+                <div>
+                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.text}}>Invite Pending</div>
+                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>Employee hasn't set their password yet</div>
+                </div>
+              </div>
+              <button onClick={resendInvite} style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 2px 8px rgba(99,102,241,0.25)"}}>
+                {resendBusy?"Sending…":"📧 Resend Invite Email"}
+              </button>
+            </div>
           )}
         </div>
 
