@@ -3794,19 +3794,39 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       // Cache this org as active
                       try{ localStorage.setItem("shiftpro_active_orgid", org.id); }catch(e){}
                       setLiveEmps(null);setLiveShifts(null);setLivePayroll(null);
+                      setLiveLocations([]);
+                      setActiveLocation(null);
+                      setLocationGate(null); // Reset gate so new org locations load
                       try{
                         const sb=await getSB();
+                        const {data:{session:ss}}=await sb.auth.getSession();
+                        // Fetch locations via service role (bypasses RLS)
+                        const locsRes=await fetch("/api/location?orgId="+org.id,{
+                          headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+                        });
+                        let orgLocs=[];
+                        if(locsRes.ok){const d=await locsRes.json();orgLocs=d.locations||[];}
+                        else{
+                          const {data:l}=await sb.from("locations").select("*").eq("org_id",org.id).eq("active",true).order("created_at");
+                          orgLocs=l||[];
+                        }
+                        setLiveLocations(orgLocs);
+                        if(orgLocs.length>0){
+                          setActiveLocation(orgLocs[0]);
+                          setLocationGate("ready");
+                          try{
+                            localStorage.setItem("shiftpro_all_locs",JSON.stringify(orgLocs));
+                            localStorage.setItem("shiftpro_cached_locs_"+org.id,JSON.stringify(orgLocs));
+                            localStorage.setItem("shiftpro_active_loc",orgLocs[0].id);
+                            localStorage.setItem("shiftpro_active_loc_obj",JSON.stringify(orgLocs[0]));
+                          }catch(e){}
+                        } else {
+                          setLocationGate("none");
+                        }
                         const {data:emps}=await sb.from("users").select("*").eq("org_id",org.id).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
                         setLiveEmps(emps&&emps.length>0?emps.map(mapEmp):[]);
-                        const {data:orgLocs}=await sb.from("locations").select("*").eq("org_id",org.id).eq("active",true).order("created_at");
-                        setLiveLocations(orgLocs||[]);
-                        setActiveLocation(orgLocs&&orgLocs.length>0?orgLocs[0]:null);
-                        // Update locations cache for new org
-                        if(orgLocs&&orgLocs.length>0){
-                          try{ localStorage.setItem("shiftpro_all_locs", JSON.stringify(orgLocs));
-                               localStorage.setItem("shiftpro_cached_locs_"+org.id, JSON.stringify(orgLocs)); }catch(e){}
-                        }
-                      }catch(e){setLiveEmps([]);}
+                        if(emps) try{localStorage.setItem("shiftpro_cached_emps_"+org.id,JSON.stringify(emps.map(mapEmp)));}catch(e){}
+                      }catch(e){setLiveEmps([]);setLocationGate("none");}
                       persistTab("command");
                     }}
                     style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",textAlign:"left",background:activeOrg?.id===org.id?O.amberD:"none"}}
@@ -3851,6 +3871,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       <button key={loc.id} onClick={async()=>{
                         setLocSwitcherOpen(false);
                         if(loc.id===activeLocation?.id) return;
+                        setLiveShifts(null);
+                        setLivePayroll(null);
                         selectLocation(loc);
                       }}
                       style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",textAlign:"left",background:activeLocation?.id===loc.id?"rgba(8,145,178,0.07)":"none"}}
