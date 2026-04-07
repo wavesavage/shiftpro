@@ -3907,19 +3907,24 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   };
 
   const publishSchedule = async(weekStart) => {
+    const orgId = ownerProfile?.org_id||activeOrg?.id;
+    if(!orgId){ toast("No organization found","error"); return; }
     try{
       const sb2=await getSB();
       const {data:{session:ss}}=await sb2.auth.getSession();
       const res=await fetch("/api/shifts",{
         method:"POST",
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-        body:JSON.stringify({_action:"publish",orgId:ownerProfile?.org_id,weekStart}),
+        body:JSON.stringify({_action:"publish",orgId,weekStart}),
       });
-      if(!res.ok) throw new Error("Publish failed");
-      setSchedPublished(true); setShowConfetti(true);
+      const result=await res.json();
+      if(!res.ok) throw new Error(result.error||"Publish failed ("+res.status+")");
+      // Update local state immediately — mark all this week's shifts as published
+      setLiveShifts(prev=>(prev||[]).map(s=>s.week_start===weekStart?{...s,status:"published"}:s));
+      setSchedPublished(true);
+      setShowConfetti(true);
       toast("Schedule published to all employees ✓","success");
-      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart, activeLocation?.id||null);
-    }catch(e){ toast("Failed to publish schedule","error"); }
+    }catch(e){ toast("Publish failed: "+e.message,"error"); }
   };
 
   const copyLastWeek = async () => {
@@ -4898,7 +4903,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <button onClick={async()=>{
                             try{
                               const sb=await getSB();
-                              await sb.from("shift_swap_requests").update({status:"approved"}).eq("id",req.id);
+                              const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                              const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:req.id,status:"approved"})});
+                              if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
                               setNotifications(prev=>prev.filter(n=>n.id!=="swap_"+req.id));
                               setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
                               setSwapRequests(p=>p.filter(r=>r.id!==req.id));
@@ -4908,7 +4915,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <button onClick={async()=>{
                             try{
                               const sb=await getSB();
-                              await sb.from("shift_swap_requests").update({status:"denied"}).eq("id",req.id);
+                              const {data:{session:ss2}}=await (await getSB()).auth.getSession();
+                              const r2=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss2?.access_token?{"Authorization":"Bearer "+ss2.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:req.id,status:"denied"})});
+                              if(!r2.ok){const d2=await r2.json();throw new Error(d2.error||"Failed");}
                               setNotifications(prev=>prev.filter(n=>n.id!=="swap_"+req.id));
                               setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
                               setSwapRequests(p=>p.filter(r=>r.id!==req.id));
@@ -4949,7 +4958,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <button onClick={async()=>{
                             try{
                               const sb=await getSB();
-                              await sb.from("time_off_requests").update({status:"approved"}).eq("id",req.id);
+                              const {data:{session:ss3}}=await (await getSB()).auth.getSession();
+                              const r3=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss3?.access_token?{"Authorization":"Bearer "+ss3.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"approved"})});
+                              if(!r3.ok){const d3=await r3.json();throw new Error(d3.error||"Failed");}
                               setNotifications(prev=>prev.filter(n=>n.id!=="toff_"+req.id));
                               setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
                               setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
@@ -4959,7 +4970,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <button onClick={async()=>{
                             try{
                               const sb=await getSB();
-                              await sb.from("time_off_requests").update({status:"denied"}).eq("id",req.id);
+                              const {data:{session:ss4}}=await (await getSB()).auth.getSession();
+                              const r4=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss4?.access_token?{"Authorization":"Bearer "+ss4.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"denied"})});
+                              if(!r4.ok){const d4=await r4.json();throw new Error(d4.error||"Failed");}
                               setNotifications(prev=>prev.filter(n=>n.id!=="toff_"+req.id));
                               setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
                               setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
