@@ -3059,6 +3059,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [addLocErr,setAddLocErr] = useState("");
   const [addLocForm,setAddLocForm] = useState({name:"",address:"",timezone:"America/Los_Angeles"});
   const [addOrgOpen,setAddOrgOpen] = useState(false);
+  const [confirmDeleteOrgId,setConfirmDeleteOrgId] = useState(null);
   const [addOrgBusy,setAddOrgBusy] = useState(false);
   const [addOrgErr,setAddOrgErr] = useState("");
   const [addOrgForm,setAddOrgForm] = useState({name:"",type:"Restaurant",address:"",empCount:"1-5"});
@@ -3790,7 +3791,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 </div>
                 {/* Company name — the main header */}
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
-                  <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1.2}}>
+                  <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1.2}}>
                     {settingsProfile.name || ownerOrg?.name || "My Company"}
                   </span>
                   <span style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"1px",textTransform:"uppercase",lineHeight:1}}>
@@ -3871,6 +3872,74 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
                       + Add New Company
                     </button>
+                    {ownerOrgs.length>0&&(
+                      <div style={{marginTop:4,padding:"6px 10px",borderRadius:8,background:"none"}}>
+                        {confirmDeleteOrgId?(
+                          <div style={{background:"rgba(217,64,64,0.06)",border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,padding:"10px 12px"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.red,marginBottom:4}}>
+                              Delete "{ownerOrgs.find(o=>o.id===confirmDeleteOrgId)?.name}"?
+                            </div>
+                            <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginBottom:10,lineHeight:1.4}}>
+                              This permanently deletes this company and ALL its locations, employees, shifts, and payroll data. Cannot be undone.
+                            </div>
+                            <div style={{display:"flex",gap:8}}>
+                              <button onClick={()=>setConfirmDeleteOrgId(null)} style={{flex:1,padding:"7px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.textD,cursor:"pointer"}}>
+                                Cancel
+                              </button>
+                              <button onClick={async()=>{
+                                const orgToDelete = ownerOrgs.find(o=>o.id===confirmDeleteOrgId);
+                                if(!orgToDelete) return;
+                                setConfirmDeleteOrgId(null);
+                                setOrgSwitcherOpen(false);
+                                try{
+                                  const sb=await getSB();
+                                  // Delete all related data
+                                  await sb.from("shifts").delete().eq("org_id",orgToDelete.id);
+                                  await sb.from("clock_events").delete().eq("org_id",orgToDelete.id);
+                                  await sb.from("time_off_requests").delete().eq("org_id",orgToDelete.id);
+                                  await sb.from("shift_swap_requests").delete().eq("org_id",orgToDelete.id);
+                                  await sb.from("messages").delete().eq("org_id",orgToDelete.id);
+                                  await sb.from("locations").delete().eq("org_id",orgToDelete.id);
+                                  await sb.from("users").update({org_id:null,location_id:null}).eq("org_id",orgToDelete.id).neq("app_role","owner");
+                                  await sb.from("owner_organizations").delete().eq("org_id",orgToDelete.id);
+                                  await sb.from("organizations").delete().eq("id",orgToDelete.id);
+                                  // Update state
+                                  const remaining = ownerOrgs.filter(o=>o.id!==orgToDelete.id);
+                                  setOwnerOrgs(remaining);
+                                  if(remaining.length>0){
+                                    setActiveOrg(remaining[0]);
+                                    setOwnerOrg(remaining[0]);
+                                    try{ localStorage.setItem("shiftpro_active_orgid",remaining[0].id); }catch(e){}
+                                  } else {
+                                    setActiveOrg(null);
+                                    setOwnerOrg(null);
+                                    setLiveLocations([]);
+                                    setLocationGate("none");
+                                    try{
+                                      localStorage.removeItem("shiftpro_active_orgid");
+                                      localStorage.removeItem("shiftpro_all_locs");
+                                      localStorage.removeItem("shiftpro_active_loc");
+                                      localStorage.removeItem("shiftpro_active_loc_obj");
+                                    }catch(e){}
+                                  }
+                                  setLiveEmps([]);
+                                  setLiveShifts(null);
+                                  setLivePayroll(null);
+                                  toast("✓ Company deleted","success");
+                                }catch(e){ toast("Delete failed: "+e.message,"error"); }
+                              }} style={{flex:1,padding:"7px",background:"linear-gradient(135deg,#d94040,#b91c1c)",border:"none",borderRadius:6,fontFamily:O.sans,fontWeight:700,fontSize:11,color:"#fff",cursor:"pointer"}}>
+                                Yes, Delete Company
+                              </button>
+                            </div>
+                          </div>
+                        ):(
+                          <button onClick={()=>setConfirmDeleteOrgId(activeOrg?.id||ownerOrgs[0]?.id)}
+                            style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"6px 0",border:"none",background:"none",fontFamily:O.sans,fontWeight:500,fontSize:11,color:"rgba(217,64,64,0.7)",cursor:"pointer",textAlign:"left"}}>
+                            🗑 Delete current company...
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -3883,10 +3952,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               <span style={{color:O.textF,fontSize:12}}>›</span>
               <div style={{position:"relative"}}>
                 <button onClick={()=>setLocSwitcherOpen(o=>!o)}
-                  style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",background:"rgba(8,145,178,0.07)",border:"1px solid rgba(8,145,178,0.18)",borderRadius:6,cursor:"pointer",fontFamily:O.mono,fontSize:9,color:O.cyan,letterSpacing:1}}>
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"4px 12px",background:"rgba(8,145,178,0.07)",border:"1px solid rgba(8,145,178,0.18)",borderRadius:6,cursor:"pointer",fontFamily:O.mono,fontSize:9,color:O.cyan,letterSpacing:1,maxWidth:260,whiteSpace:"nowrap"}}>
                   <span style={{fontSize:11}}>📍</span>
-                  <span style={{maxWidth:110,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{activeLocation?.name||"All Locations"}</span>
-                  <span>{locSwitcherOpen?"▴":"▾"}</span>
+                  <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{activeLocation?.name||"All Locations"}</span>
+                  <span style={{flexShrink:0}}>{locSwitcherOpen?"▴":"▾"}</span>
                 </button>
                 {locSwitcherOpen&&(
                   <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:8,minWidth:240,zIndex:300,boxShadow:O.shadowB}} onClick={e=>e.stopPropagation()}>
