@@ -3744,6 +3744,129 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           mapEmp={mapEmp}
         />
       )}
+      {/* ── ADD COMPANY MODAL ── */}
+      {addOrgOpen&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onClick={()=>{setAddOrgOpen(false);setAddOrgErr("");setAddOrgForm({name:"",type:"Restaurant",address:"",empCount:"1-5"});}}>
+          <div style={{background:"#fff",borderRadius:20,padding:"32px 28px",width:"100%",maxWidth:480,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",textTransform:"uppercase",marginBottom:4}}>New Company</div>
+                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Add a Company</div>
+              </div>
+              <button onClick={()=>{setAddOrgOpen(false);setAddOrgErr("");}} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",color:O.textF,lineHeight:1}}>×</button>
+            </div>
+            {[
+              {l:"Company Name",k:"name",ph:"Sea Lion Bar, Surf Town Coffee..."},
+              {l:"Address",k:"address",ph:"123 Main St, Newport, OR 97365"},
+            ].map(f=>(
+              <div key={f.k} style={{marginBottom:14}}>
+                <label style={{fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>{f.l}</label>
+                <input value={addOrgForm[f.k]} onChange={e=>setAddOrgForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph}
+                  style={{width:"100%",padding:"10px 13px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:14,color:O.text,outline:"none",boxSizing:"border-box"}}
+                  onFocus={e=>e.target.style.borderColor=O.amber} onBlur={e=>e.target.style.borderColor=O.border}/>
+              </div>
+            ))}
+            <div style={{marginBottom:20}}>
+              <label style={{fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Business Type</label>
+              <select value={addOrgForm.type} onChange={e=>setAddOrgForm(p=>({...p,type:e.target.value}))}
+                style={{width:"100%",padding:"10px 13px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                {["Restaurant","Bar","Coffee Shop","Retail","Hotel","Food Truck","Other"].map(t=><option key={t}>{t}</option>)}
+              </select>
+            </div>
+            {addOrgErr&&<div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:12,padding:"8px 12px",background:O.redD,borderRadius:6}}>{addOrgErr}</div>}
+            <button disabled={addOrgBusy} onClick={async()=>{
+              if(!addOrgForm.name.trim()){setAddOrgErr("Company name is required.");return;}
+              setAddOrgBusy(true);setAddOrgErr("");
+              try{
+                const sb2=await getSB();
+                const {data:{session:ss}}=await sb2.auth.getSession();
+                if(!ss?.user) throw new Error("Not logged in");
+                // Create organization
+                const {data:newOrg,error:orgErr}=await sb2.from("organizations").insert({
+                  name:addOrgForm.name.trim(),
+                  industry:addOrgForm.type,
+                  address:addOrgForm.address||"",
+                }).select().single();
+                if(orgErr) throw orgErr;
+                // Link to owner
+                await sb2.from("owner_organizations").insert({owner_id:ss.user.id,org_id:newOrg.id});
+                // Update state
+                const updated=[...ownerOrgs,newOrg];
+                setOwnerOrgs(updated);
+                setActiveOrg(newOrg);
+                setOwnerOrg(newOrg);
+                setSettingsProfile(p=>({...p,name:newOrg.name,type:newOrg.industry||"Restaurant",address:newOrg.address||"",phone:""}));
+                setLiveLocations([]);
+                setLiveEmps([]);
+                setLiveShifts(null);
+                setLivePayroll(null);
+                setLocationGate("none");
+                try{localStorage.setItem("shiftpro_active_orgid",newOrg.id);}catch(e){}
+                setAddOrgOpen(false);
+                setAddOrgForm({name:"",type:"Restaurant",address:"",empCount:"1-5"});
+                toast("✓ "+newOrg.name+" created! Add your first location to get started.","success");
+              }catch(e){setAddOrgErr(e.message||"Failed to create company.");}
+              finally{setAddOrgBusy(false);}
+            }} style={{width:"100%",padding:"14px",background:addOrgBusy?"rgba(224,123,0,0.5)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:addOrgBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(224,123,0,0.3)"}}>
+              {addOrgBusy?"Creating...":"Create Company →"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE COMPANY CONFIRM MODAL ── */}
+      {confirmDeleteOrgId&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onClick={()=>setConfirmDeleteOrgId(null)}>
+          <div style={{background:"#fff",borderRadius:20,padding:"32px 28px",width:"100%",maxWidth:440,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{fontSize:48,marginBottom:12}}>⚠️</div>
+              <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text,marginBottom:8}}>
+                Delete "{ownerOrgs.find(o=>o.id===confirmDeleteOrgId)?.name}"?
+              </div>
+              <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.6,maxWidth:360,margin:"0 auto"}}>
+                This permanently deletes this company and <strong>ALL</strong> its locations, employees, shifts, and payroll data. This cannot be undone.
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmDeleteOrgId(null)} style={{flex:1,padding:"13px",background:O.bg3,border:"1px solid "+O.border,borderRadius:10,fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.textD,cursor:"pointer"}}>
+                Cancel
+              </button>
+              <button onClick={async()=>{
+                const orgToDelete=ownerOrgs.find(o=>o.id===confirmDeleteOrgId);
+                if(!orgToDelete){setConfirmDeleteOrgId(null);return;}
+                setConfirmDeleteOrgId(null);
+                try{
+                  const sb2=await getSB();
+                  await sb2.from("shifts").delete().eq("org_id",orgToDelete.id);
+                  await sb2.from("clock_events").delete().eq("org_id",orgToDelete.id);
+                  await sb2.from("time_off_requests").delete().eq("org_id",orgToDelete.id);
+                  await sb2.from("shift_swap_requests").delete().eq("org_id",orgToDelete.id);
+                  await sb2.from("messages").delete().eq("org_id",orgToDelete.id);
+                  await sb2.from("locations").delete().eq("org_id",orgToDelete.id);
+                  await sb2.from("users").update({org_id:null,location_id:null}).eq("org_id",orgToDelete.id).neq("app_role","owner");
+                  await sb2.from("owner_organizations").delete().eq("org_id",orgToDelete.id);
+                  await sb2.from("organizations").delete().eq("id",orgToDelete.id);
+                  const remaining=ownerOrgs.filter(o=>o.id!==orgToDelete.id);
+                  setOwnerOrgs(remaining);
+                  if(remaining.length>0){
+                    setActiveOrg(remaining[0]);setOwnerOrg(remaining[0]);
+                    try{localStorage.setItem("shiftpro_active_orgid",remaining[0].id);}catch(e){}
+                  } else {
+                    setActiveOrg(null);setOwnerOrg(null);setLiveLocations([]);
+                    setLocationGate("none");
+                    try{localStorage.removeItem("shiftpro_active_orgid");localStorage.removeItem("shiftpro_all_locs");localStorage.removeItem("shiftpro_active_loc");localStorage.removeItem("shiftpro_active_loc_obj");}catch(e){}
+                  }
+                  setLiveEmps([]);setLiveShifts(null);setLivePayroll(null);
+                  toast("✓ Company deleted","success");
+                }catch(e){toast("Delete failed: "+e.message,"error");}
+              }} style={{flex:1,padding:"13px",background:"linear-gradient(135deg,#d94040,#b91c1c)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(217,64,64,0.3)"}}>
+                Yes, Delete Forever
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showInvite && (
         <InviteModal
           ownerProfile={ownerProfile}
@@ -3870,78 +3993,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     </button>
                   ))}
                   <div style={{borderTop:"1px solid "+O.border,marginTop:6,paddingTop:6}}>
-                    <button onClick={()=>{setOrgSwitcherOpen(false);setAddOrgOpen(true);}}
+                    <button onClick={()=>{setAddOrgOpen(true);setOrgSwitcherOpen(false);}}
                       style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",background:"none",fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green}}
                       onMouseEnter={e=>e.currentTarget.style.background=O.greenD}
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
                       + Add New Company
                     </button>
                     {ownerOrgs.length>0&&(
-                      <div style={{marginTop:4,padding:"6px 10px",borderRadius:8,background:"none"}}>
-                        {confirmDeleteOrgId?(
-                          <div style={{background:"rgba(217,64,64,0.06)",border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,padding:"10px 12px"}}>
-                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.red,marginBottom:4}}>
-                              Delete "{ownerOrgs.find(o=>o.id===confirmDeleteOrgId)?.name}"?
-                            </div>
-                            <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginBottom:10,lineHeight:1.4}}>
-                              This permanently deletes this company and ALL its locations, employees, shifts, and payroll data. Cannot be undone.
-                            </div>
-                            <div style={{display:"flex",gap:8}}>
-                              <button onClick={()=>setConfirmDeleteOrgId(null)} style={{flex:1,padding:"7px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.textD,cursor:"pointer"}}>
-                                Cancel
-                              </button>
-                              <button onClick={async()=>{
-                                const orgToDelete = ownerOrgs.find(o=>o.id===confirmDeleteOrgId);
-                                if(!orgToDelete) return;
-                                setConfirmDeleteOrgId(null);
-                                setOrgSwitcherOpen(false);
-                                try{
-                                  const sb=await getSB();
-                                  // Delete all related data
-                                  await sb.from("shifts").delete().eq("org_id",orgToDelete.id);
-                                  await sb.from("clock_events").delete().eq("org_id",orgToDelete.id);
-                                  await sb.from("time_off_requests").delete().eq("org_id",orgToDelete.id);
-                                  await sb.from("shift_swap_requests").delete().eq("org_id",orgToDelete.id);
-                                  await sb.from("messages").delete().eq("org_id",orgToDelete.id);
-                                  await sb.from("locations").delete().eq("org_id",orgToDelete.id);
-                                  await sb.from("users").update({org_id:null,location_id:null}).eq("org_id",orgToDelete.id).neq("app_role","owner");
-                                  await sb.from("owner_organizations").delete().eq("org_id",orgToDelete.id);
-                                  await sb.from("organizations").delete().eq("id",orgToDelete.id);
-                                  // Update state
-                                  const remaining = ownerOrgs.filter(o=>o.id!==orgToDelete.id);
-                                  setOwnerOrgs(remaining);
-                                  if(remaining.length>0){
-                                    setActiveOrg(remaining[0]);
-                                    setOwnerOrg(remaining[0]);
-                                    try{ localStorage.setItem("shiftpro_active_orgid",remaining[0].id); }catch(e){}
-                                  } else {
-                                    setActiveOrg(null);
-                                    setOwnerOrg(null);
-                                    setLiveLocations([]);
-                                    setLocationGate("none");
-                                    try{
-                                      localStorage.removeItem("shiftpro_active_orgid");
-                                      localStorage.removeItem("shiftpro_all_locs");
-                                      localStorage.removeItem("shiftpro_active_loc");
-                                      localStorage.removeItem("shiftpro_active_loc_obj");
-                                    }catch(e){}
-                                  }
-                                  setLiveEmps([]);
-                                  setLiveShifts(null);
-                                  setLivePayroll(null);
-                                  toast("✓ Company deleted","success");
-                                }catch(e){ toast("Delete failed: "+e.message,"error"); }
-                              }} style={{flex:1,padding:"7px",background:"linear-gradient(135deg,#d94040,#b91c1c)",border:"none",borderRadius:6,fontFamily:O.sans,fontWeight:700,fontSize:11,color:"#fff",cursor:"pointer"}}>
-                                Yes, Delete Company
-                              </button>
-                            </div>
-                          </div>
-                        ):(
-                          <button onClick={()=>setConfirmDeleteOrgId(activeOrg?.id||ownerOrgs[0]?.id)}
-                            style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"6px 0",border:"none",background:"none",fontFamily:O.sans,fontWeight:500,fontSize:11,color:"rgba(217,64,64,0.7)",cursor:"pointer",textAlign:"left"}}>
-                            🗑 Delete current company...
-                          </button>
-                        )}
+                      <div style={{marginTop:4,padding:"0 2px"}}>
+                        <button onClick={()=>{setOrgSwitcherOpen(false);setConfirmDeleteOrgId(activeOrg?.id||ownerOrgs[0]?.id);}}
+                          style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"6px 2px",border:"none",background:"none",fontFamily:O.sans,fontWeight:500,fontSize:11,color:"rgba(217,64,64,0.7)",cursor:"pointer",textAlign:"left"}}>
+                          🗑 Delete current company...
+                        </button>
                       </div>
                     )}
                   </div>
