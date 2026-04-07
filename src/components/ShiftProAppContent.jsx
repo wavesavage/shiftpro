@@ -840,6 +840,9 @@ function EmpPortal({emp,onLogout}){
   const [toEnd,setToEnd] = useState("");
   const [toReason,setToReason] = useState("");
   const [toDone,setToDone] = useState("");
+  const [openShifts,setOpenShifts] = useState([]);
+  const [realWkHrs,setRealWkHrs] = useState(0);
+  const [realMoHrs,setRealMoHrs] = useState(0);
   // Schedule sub-tab state (must be here, not inside render IIFE)
   const [schedSubTab,setSchedSubTab] = useState("shifts");
   const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
@@ -877,24 +880,65 @@ function EmpPortal({emp,onLogout}){
       try{
         const sb=await getSB();
         const today=new Date().toISOString().split("T")[0];
+
+        // Load upcoming shifts
         const {data:shifts}=await sb.from("shifts").select("*, locations(name)").eq("user_id",empSafe.id).gte("shift_date",today).in("status",["scheduled","published","confirmed"]).order("shift_date");
         setEmpShifts(shifts||[]);
+
+        // Load open shifts for employee's org/location
+        try{
+          const {data:openS}=await sb.from("shifts").select("*, locations(name)").eq("org_id",empSafe.orgId||"").eq("status","open").gte("shift_date",today).order("shift_date").limit(20);
+          setOpenShifts(openS||[]);
+        }catch(e){}
+
         // Load messages
         try{
           const {data:msgData}=await sb.from("messages").select("*").or("to_id.eq."+empSafe.id+",broadcast.eq.true").eq("org_id",empSafe.orgId||"").order("created_at",{ascending:false}).limit(20);
           if(msgData&&msgData.length>0) setMsgs(msgData);
         }catch(e){}
         setMsgsLoaded(true);
+
+        // Load saved availability
+        try{
+          const {data:availData}=await sb.from("availability").select("*").eq("user_id",empSafe.id);
+          if(availData&&availData.length>0){
+            const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
+            availData.forEach(r=>{ if(map.hasOwnProperty(r.day_of_week)) map[r.day_of_week]=r.status; });
+            setAvail(map);
+            // Also restore recurring preference
+            if(availData[0]?.recurring!==undefined) setAvailRecurring(!!availData[0].recurring);
+          }
+        }catch(e){}
+
+        // Calculate real hours from clock_events
+        try{
+          const weekStart=new Date(); weekStart.setDate(weekStart.getDate()-weekStart.getDay()); weekStart.setHours(0,0,0,0);
+          const monthStart=new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+          const {data:clockData}=await sb.from("clock_events").select("*").eq("user_id",empSafe.id).gte("occurred_at",monthStart.toISOString()).order("occurred_at");
+          if(clockData&&clockData.length>0){
+            let wkMs=0, moMs=0, lastIn=null;
+            clockData.forEach(ev=>{
+              if(ev.event_type==="clock_in"){ lastIn=new Date(ev.occurred_at); }
+              else if(ev.event_type==="clock_out"&&lastIn){
+                const dur=new Date(ev.occurred_at)-lastIn;
+                moMs+=dur;
+                if(lastIn>=weekStart) wkMs+=dur;
+                lastIn=null;
+              }
+            });
+            setRealWkHrs(Math.round(wkMs/3600000*10)/10);
+            setRealMoHrs(Math.round(moMs/3600000*10)/10);
+          }
+        }catch(e){}
+
         // Restore clock-in state if employee already clocked in today
-        const todayStr = today;
-        const {data:clockEvents}=await sb.from("clock_events").select("*").eq("user_id",empSafe.id).gte("occurred_at",todayStr).order("occurred_at",{ascending:false}).limit(10);
+        const {data:clockEvents}=await sb.from("clock_events").select("*").eq("user_id",empSafe.id).gte("occurred_at",today).order("occurred_at",{ascending:false}).limit(10);
         if(clockEvents&&clockEvents.length>0){
           const lastEvent = clockEvents[0];
           if(lastEvent.event_type==="clock_in"){
             setClocked(true);
             const clockedInAt = new Date(lastEvent.occurred_at);
             setClockedAt(clockedInAt);
-            // Restore elapsed seconds
             const elapsedSecs = Math.floor((Date.now() - clockedInAt.getTime()) / 1000);
             setSecs(Math.max(0, elapsedSecs));
           }
@@ -1030,13 +1074,13 @@ function EmpPortal({emp,onLogout}){
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
                 <div style={{background:E.bg3,borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
                   <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",marginBottom:4,textTransform:"uppercase"}}>This Week</div>
-                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.indigo}}>${((empSafe.wkHrs||0)*(empSafe.rate||15)).toFixed(2)}</div>
-                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{empSafe.wkHrs||0}h × ${empSafe.rate||15}/hr</div>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.indigo}}>${(realWkHrs*(empSafe.rate||15)).toFixed(2)}</div>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{realWkHrs}h × ${empSafe.rate||15}/hr</div>
                 </div>
                 <div style={{background:E.bg3,borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
                   <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",marginBottom:4,textTransform:"uppercase"}}>This Month</div>
-                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.violet}}>${((empSafe.moHrs||0)*(empSafe.rate||15)).toFixed(2)}</div>
-                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{empSafe.moHrs||0}h total</div>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.violet}}>${(realMoHrs*(empSafe.rate||15)).toFixed(2)}</div>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{realMoHrs}h total</div>
                 </div>
               </div>
               {/* Hours bar chart — stable placeholder bars */}
@@ -1148,11 +1192,33 @@ function EmpPortal({emp,onLogout}){
             {schedSubTab==="open"&&(
               <div>
                 <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>Open shifts your manager has posted — tap to claim one.</div>
-                <div style={{textAlign:"center",padding:"40px 20px",background:E.bg3,borderRadius:14}}>
-                  <div style={{fontSize:36,marginBottom:10}}>🔓</div>
-                  <div style={{fontFamily:E.sans,fontWeight:600,fontSize:15,color:E.text,marginBottom:6}}>No open shifts right now</div>
-                  <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>When your manager posts an uncovered shift, it will appear here for you to claim.</div>
-                </div>
+                {openShifts.length===0?(
+                  <div style={{textAlign:"center",padding:"40px 20px",background:E.bg3,borderRadius:14}}>
+                    <div style={{fontSize:36,marginBottom:10}}>🔓</div>
+                    <div style={{fontFamily:E.sans,fontWeight:600,fontSize:15,color:E.text,marginBottom:6}}>No open shifts right now</div>
+                    <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>When your manager posts an uncovered shift, it will appear here for you to claim.</div>
+                  </div>
+                ):(
+                  openShifts.map(s=>(
+                    <div key={s.id} style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:12,padding:"14px 16px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <div>
+                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>{s.shift_date} · {s.start_hour}:00–{s.end_hour}:00</div>
+                        <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>{s.locations?.name||"Location TBD"} · {s.end_hour-s.start_hour}h</div>
+                      </div>
+                      <button onClick={async()=>{
+                        try{
+                          const sb=await getSB();
+                          await sb.from("shifts").update({user_id:empSafe.id,status:"confirmed"}).eq("id",s.id);
+                          setOpenShifts(p=>p.filter(x=>x.id!==s.id));
+                          setEmpShifts(p=>[...p,{...s,user_id:empSafe.id,status:"confirmed"}]);
+                          setSyncMsg("✓ Shift claimed!");setTimeout(()=>setSyncMsg(""),2500);
+                        }catch(e){setSyncMsg("⚠ Could not claim shift");}
+                      }} style={{padding:"8px 16px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",flexShrink:0}}>
+                        Claim
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -1182,9 +1248,9 @@ function EmpPortal({emp,onLogout}){
             {/* Stats grid */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
               {[
-                {l:"Hours This Month",v:empSafe.moHrs+"h",c:E.teal},
+                {l:"Hours This Month",v:realMoHrs+"h",c:E.teal},
                 {l:"Shifts Completed",v:empSafe.shifts,c:E.violet},
-                {l:"Monthly Earnings",v:"$"+((empSafe.moHrs||0)*(empSafe.rate||15)).toFixed(0),c:E.green},
+                {l:"Monthly Earnings",v:"$"+((realMoHrs||0)*(empSafe.rate||15)).toFixed(0),c:E.green},
               ].map(s=>(
                 <div key={s.l} style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:12,padding:"14px",textAlign:"center"}}>
                   <div style={{fontFamily:E.sans,fontSize:10,color:E.textD,marginBottom:4}}>{s.l}</div>
