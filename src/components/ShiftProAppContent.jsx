@@ -2387,13 +2387,15 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
             const mon=getMonday(currentWeekOffset);
             const DAYS_ORDER=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
             const dayIdx=DAYS_ORDER.indexOf(selectedCell.day);
-            const shiftDate=new Date(mon);
+            const [y,m,d]=mon.split("-").map(Number);
+            const shiftDate=new Date(y,m-1,d);
             shiftDate.setDate(shiftDate.getDate()+dayIdx);
+            const shiftDateStr=shiftDate.getFullYear()+"-"+String(shiftDate.getMonth()+1).padStart(2,"0")+"-"+String(shiftDate.getDate()).padStart(2,"0");
             await addShift({
               userId:selectedCell.empId,
               weekStart:mon,
               day:selectedCell.day,
-              date:shiftDate.toISOString().split("T")[0],
+              date:shiftDateStr,
               start:selectedCell.start||9,
               end:selectedCell.end||17,
               role:selectedCell.roleLabel||"",
@@ -3436,8 +3438,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   // ── Helper: get Monday of offset week ──
   const getMonday = (offset=0) => {
-    const d=new Date(); d.setDate(d.getDate()-d.getDay()+(d.getDay()===0?-6:1)+(offset*7));
-    return d.toISOString().split("T")[0];
+    const now=new Date();
+    const day=now.getDay(); // 0=Sun,1=Mon,...6=Sat
+    const diff=day===0?-6:1-day; // days to subtract to get to Monday
+    const mon=new Date(now);
+    mon.setDate(now.getDate()+diff+(offset*7));
+    // Use local date parts to avoid UTC midnight timezone shift
+    const y=mon.getFullYear();
+    const m=String(mon.getMonth()+1).padStart(2,"0");
+    const d=String(mon.getDate()).padStart(2,"0");
+    return `${y}-${m}-${d}`;
   };
 
   const mapEmp = e => ({
@@ -3836,20 +3846,39 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       const sb=await getSB();
       const {data:{session:ss}}=await sb.auth.getSession();
       const body={
-        org_id:ownerProfile?.org_id, location_id:activeLocation?.id||ownerProfile?.location_id||null,
-        user_id:sd.userId, week_start:sd.weekStart, day_of_week:sd.day,
-        shift_date:sd.date, start_hour:sd.start, end_hour:sd.end,
-        role_label:sd.role||"", notes:sd.notes||"", status:"scheduled", created_by:ownerProfile?.id,
+        org_id:ownerProfile?.org_id||activeOrg?.id,
+        location_id:activeLocation?.id||null,
+        user_id:sd.userId||null,
+        week_start:sd.weekStart,
+        day_of_week:sd.day,
+        shift_date:sd.date,
+        start_hour:sd.start,
+        end_hour:sd.end,
+        role_label:sd.role||"",
+        notes:sd.notes||"",
+        status:"scheduled",
+        created_by:ownerProfile?.id,
       };
+      // Optimistic UI — show shift instantly
+      const tempId="temp_"+Date.now();
+      const tempShift={...body,id:tempId,users:liveEmps?.find(e=>e.id===sd.userId)||null};
+      setLiveShifts(prev=>[...(prev||[]),tempShift]);
       const res=await fetch("/api/shifts",{
         method:"POST",
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify(body),
       });
-      if(!res.ok){ const d=await res.json(); throw new Error(d.error||"Insert failed"); }
-      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, sd.weekStart, activeLocation?.id||null);
-      toast("Shift added ✓", "success");
-    }catch(e){ toast("Failed to add shift: "+e.message, "error"); }
+      if(!res.ok){ const d=await res.json(); setLiveShifts(prev=>(prev||[]).filter(s=>s.id!==tempId)); throw new Error(d.error||"Insert failed"); }
+      // Replace temp with real shift from server
+      const orgId=ownerProfile?.org_id||activeOrg?.id;
+      if(orgId){
+        const params=new URLSearchParams({orgId,weekStart:sd.weekStart});
+        if(activeLocation?.id) params.set("locId",activeLocation.id);
+        const lr=await fetch("/api/shifts?"+params.toString(),{headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}});
+        if(lr.ok){ const d=await lr.json(); setLiveShifts(d.shifts||[]); }
+      }
+      toast("Shift added ✓","success");
+    }catch(e){ toast("Failed to add shift: "+e.message,"error"); }
   };
 
   const removeShift = async(shiftId, weekStart) => {
@@ -3904,7 +3933,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       const newShifts=lastWeekShifts.map(s=>({
         org_id:s.org_id, location_id:s.location_id, user_id:s.user_id,
         week_start:thisMon, day_of_week:s.day_of_week,
-        shift_date:(()=>{ const d=new Date(thisMon); d.setDate(d.getDate()+DAYS_ORDER.indexOf(s.day_of_week)); return d.toISOString().split("T")[0]; })(),
+        shift_date:(()=>{ const DAYS_ORDER=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]; const [y,m,d]=thisMon.split("-").map(Number); const base=new Date(y,m-1,d); base.setDate(base.getDate()+DAYS_ORDER.indexOf(s.day_of_week)); return base.getFullYear()+"-"+String(base.getMonth()+1).padStart(2,"0")+"-"+String(base.getDate()).padStart(2,"0"); })(),
         start_hour:s.start_hour, end_hour:s.end_hour, role_label:s.role_label||"", status:"scheduled", created_by:ownerProfile?.id||null,
       }));
       const copyRes=await fetch("/api/shifts",{

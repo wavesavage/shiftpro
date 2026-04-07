@@ -11,16 +11,8 @@ export async function GET(req: NextRequest) {
   const weekStart = req.nextUrl.searchParams.get("weekStart");
   const locId = req.nextUrl.searchParams.get("locId");
   if (!orgId || !weekStart) return NextResponse.json({ error: "orgId and weekStart required" }, { status: 400 });
-
-  let q = sb()
-    .from("shifts")
-    .select("*, users(first_name,last_name,avatar_initials,avatar_color,role)")
-    .eq("org_id", orgId)
-    .eq("week_start", weekStart)
-    .order("start_hour");
-
-  if (locId && locId !== "null") q = q.eq("location_id", locId);
-
+  let q = sb().from("shifts").select("*, users(first_name,last_name,avatar_initials,avatar_color,role)").eq("org_id", orgId).eq("week_start", weekStart).order("start_hour");
+  if (locId && locId !== "null" && locId !== "undefined") q = q.eq("location_id", locId);
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ shifts: data || [] });
@@ -29,7 +21,23 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { data, error } = await sb().from("shifts").insert(body).select();
+    const client = sb();
+    if (body._action === "delete") {
+      const { error } = await client.from("shifts").delete().eq("id", body.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+    if (body._action === "publish") {
+      const { error } = await client.from("shifts").update({ status: "published" }).eq("org_id", body.orgId).eq("week_start", body.weekStart);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+    if (body._action === "copyLastWeek") {
+      const { error } = await client.from("shifts").insert(body.shifts);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+    const { data, error } = await client.from("shifts").insert(body).select();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ shift: data?.[0] || null });
   } catch (e: any) {
