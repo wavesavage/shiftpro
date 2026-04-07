@@ -920,15 +920,20 @@ function EmpPortal({emp,onLogout}){
         }catch(e){}
         setMsgsLoaded(true);
 
-        // Load saved availability
+        // Load saved availability via service role API
         try{
-          const {data:availData}=await sb.from("availability").select("*").eq("user_id",empSafe.id);
-          if(availData&&availData.length>0){
-            const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
-            availData.forEach(r=>{ if(map.hasOwnProperty(r.day_of_week)) map[r.day_of_week]=r.status; });
-            setAvail(map);
-            // Also restore recurring preference
-            if(availData[0]?.recurring!==undefined) setAvailRecurring(!!availData[0].recurring);
+          const {data:{session:sav}}=await sb.auth.getSession();
+          const avRes=await fetch("/api/availability?userId="+empSafe.id,{
+            headers:sav?.access_token?{"Authorization":"Bearer "+sav.access_token}:{}
+          });
+          if(avRes.ok){
+            const avJson=await avRes.json();
+            if(avJson.availability&&avJson.availability.length>0){
+              const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
+              avJson.availability.forEach((r:any)=>{ if(map.hasOwnProperty(r.day_of_week)) map[r.day_of_week]=r.status; });
+              setAvail(map);
+              if(avJson.availability[0]?.recurring!==undefined) setAvailRecurring(!!avJson.availability[0].recurring);
+            }
           }
         }catch(e){}
 
@@ -1136,13 +1141,18 @@ function EmpPortal({emp,onLogout}){
           const saveAvail = async() => {
             setAvailBusy(true);
             try{
-              const sb=await getSB();
-              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({user_id:empSafe.id,org_id:empSafe.orgId||null,day_of_week:day,status,recurring:availRecurring}));
-              if(rows.length>0){
-                await sb.from("availability").upsert(rows,{onConflict:"user_id,day_of_week"});
-              }
+              const sb2=await getSB();
+              const {data:{session:ss}}=await sb2.auth.getSession();
+              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({day_of_week:day,status,recurring:availRecurring}));
+              const res=await fetch("/api/availability",{
+                method:"POST",
+                headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                body:JSON.stringify({userId:empSafe.id,orgId:empSafe.orgId||null,rows}),
+              });
+              const json=await res.json();
+              if(!res.ok) throw new Error(json.error||"Save failed");
               setAvailSaved(true);setTimeout(()=>setAvailSaved(false),3000);
-            }catch(e){}
+            }catch(e){ setSyncMsg("⚠ Could not save availability"); setTimeout(()=>setSyncMsg(""),3000); }
             finally{setAvailBusy(false);}
           };
           return(
@@ -3724,13 +3734,25 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     }
   };
 
-  const loadShifts = async(orgId, weekStr, locId) => {
+  const loadShifts = async(orgId: string, weekStr: string, locId: string|null) => {
     try{
       const sb=await getSB();
-      let q=sb.from("shifts").select("*, users(first_name,last_name,avatar_initials,avatar_color,role)").eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
-      if(locId) q=q.eq("location_id",locId);
-      const {data:shifts}=await q;
-      setLiveShifts(shifts||[]);
+      const {data:{session:ss}}=await sb.auth.getSession();
+      const params=new URLSearchParams({orgId,weekStart:weekStr});
+      if(locId) params.set("locId",locId);
+      const res=await fetch("/api/shifts?"+params.toString(),{
+        headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+      });
+      if(res.ok){
+        const d=await res.json();
+        setLiveShifts(d.shifts||[]);
+      } else {
+        // Fallback to direct query
+        let q=sb.from("shifts").select("*, users(first_name,last_name,avatar_initials,avatar_color,role)").eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
+        if(locId) q=q.eq("location_id",locId);
+        const {data:shifts}=await q;
+        setLiveShifts(shifts||[]);
+      }
     }catch(e){setLiveShifts([]);}
   };
 
@@ -3769,12 +3791,19 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const addShift = async(sd) => {
     try{
       const sb=await getSB();
-      await sb.from("shifts").insert({
-        org_id:ownerProfile?.org_id, location_id:activeLocation?.id||ownerProfile?.location_id,
+      const {data:{session:ss}}=await sb.auth.getSession();
+      const body={
+        org_id:ownerProfile?.org_id, location_id:activeLocation?.id||ownerProfile?.location_id||null,
         user_id:sd.userId, week_start:sd.weekStart, day_of_week:sd.day,
         shift_date:sd.date, start_hour:sd.start, end_hour:sd.end,
         role_label:sd.role||"", notes:sd.notes||"", status:"scheduled", created_by:ownerProfile?.id,
+      };
+      const res=await fetch("/api/shifts",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify(body),
       });
+      if(!res.ok){ const d=await res.json(); throw new Error(d.error||"Insert failed"); }
       if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, sd.weekStart, activeLocation?.id||null);
       toast("Shift added ✓", "success");
     }catch(e){ toast("Failed to add shift: "+e.message, "error"); }
