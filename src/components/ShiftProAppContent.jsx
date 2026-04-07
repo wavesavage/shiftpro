@@ -467,7 +467,7 @@ function Login({onLogin}){
     setBusy(true); setErr("");
     try{
       const sb = await getSB();
-      await sb.auth.resetPasswordForEmail(email,{redirectTo: window.location.origin+"/login"});
+      await sb.auth.resetPasswordForEmail(email,{redirectTo:"https://shiftpro.ai/#type=recovery"});
       setResetSent(true);
     }catch(e){
       setErr("Could not send reset email. Try again.");
@@ -596,6 +596,20 @@ function Login({onLogin}){
             <button onClick={doEmpLogin} style={{width:"100%",padding:"14px",background:busy?"#a5b4fc":"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:10,fontFamily:"'Nunito',sans-serif",fontWeight:700,fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 8px 28px rgba(99,102,241,0.18)",marginBottom:12}}>
               {busy?"Signing in…":"Go to My Work Hub →"}
             </button>
+            <div style={{textAlign:"center",marginBottom:8}}>
+              <button onClick={async()=>{
+                if(!email){setErr("Enter your email above first.");return;}
+                setBusy(true);setErr("");
+                try{
+                  const sb2=await getSB();
+                  await sb2.auth.resetPasswordForEmail(email,{redirectTo:"https://shiftpro.ai/#type=recovery"});
+                  setErr("✓ Reset email sent — check your inbox!");
+                }catch(e){setErr("Could not send reset email.");}
+                finally{setBusy(false);}
+              }} style={{background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(99,102,241,0.5)",cursor:"pointer",textDecoration:"underline"}}>
+                Forgot password?
+              </button>
+            </div>
             <div style={{textAlign:"center",fontFamily:"'Nunito',sans-serif",fontSize:12,color:"#9ca3af"}}>Need access? Ask your manager to add you to ShiftPro.</div>
           </div>
         )}
@@ -1663,6 +1677,16 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
         <div style={{padding:"20px 24px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"2px",textTransform:"uppercase"}}>Employee Profile</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={async()=>{
+                if(!emp.email){toast("No email on file","error");return;}
+                try{
+                  const sb2=await getSB();
+                  await sb2.auth.resetPasswordForEmail(emp.email,{redirectTo:"https://shiftpro.ai/#type=recovery"});
+                  toast("✓ Password reset sent to "+emp.email,"success");
+                }catch(e){toast("Failed to send reset","error");}
+              }} style={{padding:"5px 12px",background:"none",border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer",marginRight:4}}>
+              🔑 Reset Password
+            </button>
             <button onClick={()=>{setMsgOpen(o=>!o);setMsgSent(false);}} style={{padding:"5px 12px",background:msgOpen?"rgba(37,99,235,0.1)":"none",border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.blue,cursor:"pointer"}}>
               💬 Message
             </button>
@@ -1786,7 +1810,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                   <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>Employee hasn't set their password yet</div>
                 </div>
               </div>
-              <button onClick={resendInvite} style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 2px 8px rgba(99,102,241,0.25)"}}>
+              <button onClick={resendInvite} style={{width:"100%",padding:"10px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 2px 8px rgba(99,102,241,0.25)",marginBottom:8}}>
                 {resendBusy?"Sending…":"📧 Resend Invite Email"}
               </button>
             </div>
