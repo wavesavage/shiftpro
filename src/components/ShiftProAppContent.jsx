@@ -5323,6 +5323,13 @@ export default function App(){
         // Check for invite/reset link first
         if(typeof window!=="undefined"){
           const hash=window.location.hash;
+          if(hash.includes("error=access_denied")||hash.includes("otp_expired")){
+            window.location.hash="";
+            setResetMode(true);
+            setPwErr("Your invite link has expired. Ask your manager to resend your invite from the Staff tab.");
+            setAppLoading(false);
+            return;
+          }
           if(hash.includes("access_token")&&(hash.includes("type=recovery")||hash.includes("type=invite"))){
             // Extract token from hash and establish a real session
             // Without this, updateUser("password") fails with "Auth session missing"
