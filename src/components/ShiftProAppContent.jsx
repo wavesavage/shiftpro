@@ -2231,7 +2231,7 @@ const DEPT_COLORS = [
 
 function SettingsTab({
   ownerProfile, activeOrg,
-  liveLocations, setLiveLocations, activeLocation, selectLocation,
+  liveLocations, setLiveLocations, activeLocation, selectLocation, setLocationGate,
   settingsProfile, setSettingsProfile,
   settingsPay, setSettingsPay,
   settingsDepts, setSettingsDepts,
@@ -2246,6 +2246,7 @@ function SettingsTab({
   toast, onLogout,
 }) {
   const mobile = useIsMobile();
+  const [confirmDeleteLocId,setConfirmDeleteLocId] = useState(null);
   const card = {background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow};
   const label = {fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"};
   const input = {width:"100%",padding:"10px 13px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"};
@@ -3089,7 +3090,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       return cached ? JSON.parse(cached) : {name:"",type:"Restaurant",address:"",phone:""};
     }catch(e){ return {name:"",type:"Restaurant",address:"",phone:""}; }
   });
-  const [confirmDeleteLocId,setConfirmDeleteLocId] = useState(null);
   const [settingsPay,setSettingsPay] = useState(()=>{
     try{
       const c = typeof window!=="undefined" && localStorage.getItem("shiftpro_pay_settings");
@@ -4858,6 +4858,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             setLiveLocations={setLiveLocations}
             activeLocation={activeLocation}
             selectLocation={selectLocation}
+            setLocationGate={setLocationGate}
             settingsProfile={settingsProfile}
             setSettingsProfile={setSettingsProfile}
             settingsPay={settingsPay}
