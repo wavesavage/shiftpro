@@ -3320,6 +3320,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [selectedCell,setSelectedCell] = useState(null);
   const [schedPublished,setSchedPublished] = useState(false);
   const [currentWeekOffset,setCurrentWeekOffset] = useState(0);
+  const [schedViewMode,setSchedViewMode] = useState("week"); // "week" or "month"
+  const [dragShift,setDragShift] = useState(null); // {shift, sourceDay, sourceEmpId}
 
   // ── Staff state ──
   const [staffSearch,setStaffSearch] = useState("");
@@ -3859,23 +3861,29 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         status:"scheduled",
         created_by:ownerProfile?.id,
       };
-      // Optimistic UI — show shift instantly
+      // Optimistic UI — show shift instantly with a temp id
       const tempId="temp_"+Date.now();
-      const tempShift={...body,id:tempId,users:liveEmps?.find(e=>e.id===sd.userId)||null};
-      setLiveShifts(prev=>[...(prev||[]),tempShift]);
+      const empObj=liveEmps?.find(e=>e.id===sd.userId);
+      const tempShift={
+        ...body, id:tempId,
+        users: empObj ? {first_name:empObj.first||empObj.name?.split(" ")[0]||"", last_name:empObj.name?.split(" ").slice(1).join(" ")||"", avatar_initials:empObj.avatar||"", avatar_color:empObj.color||"#6366f1", role:empObj.role||""} : null,
+      };
+      setLiveShifts(prev=>[...(prev||[]), tempShift]);
       const res=await fetch("/api/shifts",{
         method:"POST",
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify(body),
       });
-      if(!res.ok){ const d=await res.json(); setLiveShifts(prev=>(prev||[]).filter(s=>s.id!==tempId)); throw new Error(d.error||"Insert failed"); }
-      // Replace temp with real shift from server
-      const orgId=ownerProfile?.org_id||activeOrg?.id;
-      if(orgId){
-        const params=new URLSearchParams({orgId,weekStart:sd.weekStart});
-        if(activeLocation?.id) params.set("locId",activeLocation.id);
-        const lr=await fetch("/api/shifts?"+params.toString(),{headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}});
-        if(lr.ok){ const d=await lr.json(); setLiveShifts(d.shifts||[]); }
+      if(!res.ok){
+        const d=await res.json();
+        setLiveShifts(prev=>(prev||[]).filter(s=>s.id!==tempId));
+        throw new Error(d.error||"Insert failed");
+      }
+      // Replace temp with real DB shift from POST response
+      const d=await res.json();
+      const realShift=d.shift;
+      if(realShift){
+        setLiveShifts(prev=>(prev||[]).map(s=>s.id===tempId?{...realShift,users:tempShift.users}:s));
       }
       toast("Shift added ✓","success");
     }catch(e){ toast("Failed to add shift: "+e.message,"error"); }
@@ -5002,43 +5010,47 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               );
             })()}
 
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
               <div>
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Schedule Builder</div>
                 <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Weekly Schedule</div>
               </div>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>← Prev</button>
-                <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,padding:"0 8px"}}>
-                  {(()=>{const mon=new Date(getMonday(currentWeekOffset));const sun=new Date(mon);sun.setDate(sun.getDate()+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                {/* View toggle */}
+                <div style={{display:"flex",background:O.bg3,borderRadius:8,border:"1px solid "+O.border,overflow:"hidden"}}>
+                  {["week","month"].map(v=>(
+                    <button key={v} onClick={()=>setSchedViewMode(v)} style={{padding:"7px 14px",background:schedViewMode===v?"#fff":"none",border:"none",fontFamily:O.sans,fontWeight:600,fontSize:12,color:schedViewMode===v?O.text:O.textD,cursor:"pointer",borderRight:v==="week"?"1px solid "+O.border:"none"}}>
+                      {v==="week"?"Week":"Month"}
+                    </button>
+                  ))}
                 </div>
-                <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next →</button>
-                {!mobile&&(
+                {schedViewMode==="week"&&<>
+                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>← Prev</button>
+                  <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,padding:"0 8px"}}>
+                    {(()=>{const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);const mon=new Date(y,m-1,d);const sun=new Date(y,m-1,d+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
+                  </div>
+                  <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next →</button>
+                </>}
+                {!mobile&&schedViewMode==="week"&&(
                   <button onClick={()=>{
-                    const printW = window.open("","_blank","width=900,height=600");
+                    const printW=window.open("","_blank","width=900,height=600");
                     const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
                     const fmtH2=h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
                     const rows=(liveEmps||[]).map(emp=>{
-                      const dayHtml=DAYS_FULL.map(d=>{
-                        const shifts=(liveShifts||[]).filter(s=>s.user_id===emp.id&&s.day_of_week===d);
-                        return `<td style="border:1px solid #ddd;padding:6px;font-size:11px;vertical-align:top">${shifts.map(s=>`<div>${fmtH2(s.start_hour)}-${fmtH2(s.end_hour)}${s.notes?` 📝`:``}</div>`).join("")||""}</td>`;
-                      }).join("");
-                      return `<tr><td style="border:1px solid #ddd;padding:6px;font-weight:600;white-space:nowrap">${emp.name}</td>${dayHtml}</tr>`;
+                      const dayHtml=DAYS_FULL.map(d=>{const shifts=(liveShifts||[]).filter(s=>s.user_id===emp.id&&s.day_of_week===d);return`<td style="border:1px solid #ddd;padding:6px;font-size:11px;vertical-align:top">${shifts.map(s=>`<div>${fmtH2(s.start_hour)}-${fmtH2(s.end_hour)}</div>`).join("")||""}</td>`;}).join("");
+                      return`<tr><td style="border:1px solid #ddd;padding:6px;font-weight:600">${emp.name}</td>${dayHtml}</tr>`;
                     }).join("");
-                    printW.document.write(`<html><head><title>Schedule</title><style>body{font-family:Arial,sans-serif;padding:20px}table{border-collapse:collapse;width:100%}th{background:#f5f5f5;padding:6px;border:1px solid #ddd}@media print{body{padding:0}}</style></head><body><h2>Schedule — ${new Date().toLocaleDateString()}</h2><table><tr><th>Employee</th>${DAYS_FULL.map(d=>`<th>${d}</th>`).join("")}</tr>${rows}</table></body></html>`);
-                    printW.document.close();
-                    setTimeout(()=>printW.print(),300);
+                    printW.document.write(`<html><head><title>Schedule</title><style>body{font-family:Arial,sans-serif;padding:20px}table{border-collapse:collapse;width:100%}th{background:#f5f5f5;padding:6px;border:1px solid #ddd}</style></head><body><h2>Weekly Schedule</h2><table><tr><th>Employee</th>${DAYS_FULL.map(d=>`<th>${d}</th>`).join("")}</tr>${rows}</table></body></html>`);
+                    printW.document.close();setTimeout(()=>printW.print(),300);
                   }} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,cursor:"pointer",color:O.textD}}>🖨️ Print</button>
                 )}
-                {!mobile&&(
-                  <button onClick={copyLastWeek} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.textD,cursor:"pointer"}} title="Copy all shifts from previous week">
-                    📋 Copy Last Week
-                  </button>
+                {!mobile&&schedViewMode==="week"&&(
+                  <button onClick={copyLastWeek} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.textD,cursor:"pointer"}}>📋 Copy Last Week</button>
                 )}
-                {liveShifts!==null&&liveShifts.length>0&&!schedPublished&&(
+                {liveShifts!==null&&liveShifts.length>0&&!schedPublished&&schedViewMode==="week"&&(
                   <button onClick={()=>publishSchedule(getMonday(currentWeekOffset))} style={{padding:"9px 18px",background:"linear-gradient(135deg,#1a9e6e,#15855c)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(26,158,110,0.3)"}}>📣 Publish</button>
                 )}
-                {schedPublished&&<div style={{padding:"9px 18px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:9,fontFamily:O.mono,fontSize:11,color:O.green,letterSpacing:1}}>✅ PUBLISHED</div>}
+                {schedPublished&&schedViewMode==="week"&&<div style={{padding:"9px 18px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:9,fontFamily:O.mono,fontSize:11,color:O.green,letterSpacing:1}}>✅ PUBLISHED</div>}
               </div>
             </div>
 
@@ -5063,17 +5075,98 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               const STAFF=liveEmps;
               const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
               const fmtH2=h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
-              if(mobile){return(<div style={{display:"flex",flexDirection:"column",gap:12}}>{STAFF.map(emp=>{const empShifts=(liveShifts||[]).filter(s=>s.user_id===emp.id);return(<div key={emp.id} style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"14px 16px",boxShadow:O.shadow}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:empShifts.length>0?12:0}}><div style={{width:36,height:36,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div><div style={{flex:1}}><div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>{emp.name}</div><div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{empShifts.length} shift{empShifts.length!==1?"s":""} this week</div></div><button onClick={()=>setSelectedCell({day:"Mon",empId:emp.id,emp,start:9,end:17,roleLabel:""})} style={{padding:"5px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.amber,cursor:"pointer"}}>+ Add</button></div>{empShifts.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{empShifts.map(sh=>(<div key={sh.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",background:emp.color+"18",border:"1px solid "+emp.color+"30",borderRadius:20}}><span style={{fontFamily:O.mono,fontSize:9,color:emp.color,fontWeight:600}}>{sh.day_of_week} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}</span><button onClick={async()=>removeShift(sh.id,getMonday(currentWeekOffset))} style={{background:"none",border:"none",cursor:"pointer",color:emp.color,fontSize:12,lineHeight:1,opacity:0.5}}>x</button></div>))}</div>)}</div>);})}{(liveShifts||[]).length===0&&<div style={{textAlign:"center",padding:"20px",fontFamily:O.sans,fontSize:13,color:O.textD}}>Tap + Add on any employee to schedule their first shift.</div>}</div>);}
+
+              // ── MONTH VIEW ──
+              if(schedViewMode==="month"){
+                const now=new Date();
+                const year=now.getFullYear(); const month=now.getMonth();
+                const firstDay=new Date(year,month,1);
+                const daysInMonth=new Date(year,month+1,0).getDate();
+                const startDow=(firstDay.getDay()+6)%7; // 0=Mon
+                const cells=[];
+                for(let i=0;i<startDow;i++) cells.push(null);
+                for(let d=1;d<=daysInMonth;d++) cells.push(d);
+                while(cells.length%7!==0) cells.push(null);
+                return(
+                  <div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+                      {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>(
+                        <div key={d} style={{fontFamily:O.mono,fontSize:9,color:O.textD,textAlign:"center",padding:"6px 0",fontWeight:600}}>{d}</div>
+                      ))}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                      {cells.map((day,i)=>{
+                        if(!day) return <div key={"e"+i} style={{minHeight:80,background:O.bg3,borderRadius:6,opacity:0.3}}/>;
+                        const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                        const dayShifts=(liveShifts||[]).filter(s=>s.shift_date===dateStr);
+                        const isToday=day===now.getDate()&&month===now.getMonth()&&year===now.getFullYear();
+                        return(
+                          <div key={day} style={{minHeight:80,background:"#fff",borderRadius:6,padding:"4px",border:"1px solid "+(isToday?O.indigo:O.border),position:"relative"}}>
+                            <div style={{fontFamily:O.mono,fontSize:9,fontWeight:isToday?700:400,color:isToday?O.indigo:O.textD,marginBottom:3}}>{day}</div>
+                            {dayShifts.slice(0,3).map(sh=>{
+                              const emp=STAFF.find(e=>e.id===sh.user_id);
+                              return(
+                                <div key={sh.id} style={{background:(emp?.color||"#6366f1")+"20",border:"1px solid "+(emp?.color||"#6366f1")+"40",borderRadius:3,padding:"2px 4px",marginBottom:2,fontSize:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  {emp?.first||"?"} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}
+                                </div>
+                              );
+                            })}
+                            {dayShifts.length>3&&<div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>+{dayShifts.length-3} more</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              // ── WEEK VIEW with drag-and-drop ──
+              if(mobile){return(<div style={{display:"flex",flexDirection:"column",gap:12}}>{STAFF.map(emp=>{const empShifts=(liveShifts||[]).filter(s=>s.user_id===emp.id);return(<div key={emp.id} style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"14px 16px",boxShadow:O.shadow}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:empShifts.length>0?12:0}}><div style={{width:36,height:36,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div><div style={{flex:1}}><div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>{emp.name}</div><div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{empShifts.length} shift{empShifts.length!==1?"s":""} this week</div></div><button onClick={()=>setSelectedCell({day:"Mon",empId:emp.id,emp,start:9,end:17,roleLabel:""})} style={{padding:"5px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.amber,cursor:"pointer"}}>+ Add</button></div>{empShifts.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{empShifts.map(sh=>(<div key={sh.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",background:emp.color+"18",border:"1px solid "+emp.color+"30",borderRadius:20}}><span style={{fontFamily:O.mono,fontSize:9,color:emp.color,fontWeight:600}}>{sh.day_of_week} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}</span><button onClick={async()=>removeShift(sh.id,getMonday(currentWeekOffset))} style={{background:"none",border:"none",cursor:"pointer",color:emp.color,fontSize:12,lineHeight:1,opacity:0.5}}>×</button></div>))}</div>)}</div>);})}{(liveShifts||[]).length===0&&<div style={{textAlign:"center",padding:"20px",fontFamily:O.sans,fontSize:13,color:O.textD}}>Tap + Add on any employee to schedule their first shift.</div>}</div>);}
+
               const grid={};
               DAYS_FULL.forEach(d=>{grid[d]={};STAFF.forEach(e=>{grid[d][e.id]=[];});});
               (liveShifts||[]).forEach(sh=>{
                 const d=sh.day_of_week;
-                if(grid[d]&&grid[d][sh.user_id]) grid[d][sh.user_id].push(sh);
-                else if(grid[d]) grid[d][sh.user_id]=[sh];
+                if(grid[d]){
+                  if(!grid[d][sh.user_id]) grid[d][sh.user_id]=[];
+                  grid[d][sh.user_id].push(sh);
+                }
               });
-              return (
+
+              const handleDrop=(e,targetDay,targetEmpId)=>{
+                e.preventDefault();
+                if(!dragShift) return;
+                const sh=dragShift;
+                setDragShift(null);
+                // Optimistically update state
+                setLiveShifts(prev=>(prev||[]).map(s=>s.id===sh.id?{...s,day_of_week:targetDay,user_id:targetEmpId||s.user_id}:s));
+                // Persist to DB
+                (async()=>{
+                  try{
+                    const sb2=await getSB();
+                    const {data:{session:ss}}=await sb2.auth.getSession();
+                    await fetch("/api/shifts",{
+                      method:"POST",
+                      headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                      body:JSON.stringify({_action:"delete",id:sh.id}),
+                    });
+                    const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);
+                    const DAYS_O=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+                    const base=new Date(y,m-1,d); base.setDate(base.getDate()+DAYS_O.indexOf(targetDay));
+                    const newDate=base.getFullYear()+"-"+String(base.getMonth()+1).padStart(2,"0")+"-"+String(base.getDate()).padStart(2,"0");
+                    const res=await fetch("/api/shifts",{
+                      method:"POST",
+                      headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                      body:JSON.stringify({...sh,id:undefined,day_of_week:targetDay,user_id:targetEmpId||sh.user_id,shift_date:newDate}),
+                    });
+                    if(res.ok){const d2=await res.json();if(d2.shift) setLiveShifts(prev=>(prev||[]).map(s=>s.id===sh.id?{...d2.shift,users:sh.users}:s));}
+                  }catch(e2){toast("Move failed, refreshing...","error"); if(ownerProfile?.org_id) loadShifts(ownerProfile.org_id,getMonday(currentWeekOffset),activeLocation?.id||null);}
+                })();
+              };
+
+              return(
                 <div style={{overflowX:"auto"}}>
-                  <div style={{display:"grid",gridTemplateColumns:"150px repeat(7,1fr)",gap:4,marginBottom:4,minWidth:800}}>
+                  <div style={{display:"grid",gridTemplateColumns:"140px repeat(7,1fr)",gap:3,marginBottom:4,minWidth:780}}>
                     <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:1,padding:"8px 10px",textTransform:"uppercase"}}>Employee</div>
                     {DAYS_FULL.map(d=>(
                       <div key={d} style={{fontFamily:O.mono,fontSize:9,color:O.textD,letterSpacing:1,padding:"8px",textAlign:"center",background:"#fff",borderRadius:6,fontWeight:600,border:"1px solid "+O.border}}>{d}</div>
@@ -5081,27 +5174,35 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   </div>
                   {STAFF.map(emp=>{
                     const empHrs=(liveShifts||[]).filter(s=>s.user_id===emp.id).reduce((s,sh)=>s+(sh.end_hour-sh.start_hour),0);
-                    return (
-                      <div key={emp.id} style={{display:"grid",gridTemplateColumns:"150px repeat(7,1fr)",gap:4,marginBottom:4,minWidth:800}}>
+                    return(
+                      <div key={emp.id} style={{display:"grid",gridTemplateColumns:"140px repeat(7,1fr)",gap:3,marginBottom:3,minWidth:780}}>
                         <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px"}}>
                           <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontSize:10,fontWeight:700,color:"#fff"}}>{emp.avatar||"?"}</div>
                           <div style={{minWidth:0}}>
-                            <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{emp.first||emp.name.split(" ")[0]}</div>{empHrs>40&&<span style={{fontFamily:O.mono,fontSize:7,color:O.red,background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:3,padding:"1px 4px",flexShrink:0}}>OT</span>}</div>
+                            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{emp.first||emp.name?.split(" ")[0]||"?"}</div>
                             <div style={{fontFamily:O.mono,fontSize:8,color:empHrs>40?O.red:empHrs>0?O.amber:O.textF}}>{empHrs>0?empHrs+"h":emp.role}</div>
                           </div>
                         </div>
                         {DAYS_FULL.map(day=>{
                           const dayShifts=(grid[day]&&grid[day][emp.id])||[];
-                          return (
-                            <div key={day} style={{minHeight:54,background:"#fff",borderRadius:6,padding:"4px",position:"relative",cursor:"pointer",border:"1px solid "+O.border,transition:"border-color 0.15s"}}
-                              onMouseEnter={e=>e.currentTarget.style.borderColor=O.amber}
-                              onMouseLeave={e=>e.currentTarget.style.borderColor=O.border}
-                              onClick={()=>setSelectedCell({day,empId:emp.id,emp,start:9,end:17,roleLabel:""})}>
-                              {dayShifts.length===0&&<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:O.textF,fontSize:16,opacity:0.4}}>+</div>}
+                          return(
+                            <div key={day}
+                              style={{minHeight:52,background:"#fff",borderRadius:6,padding:"3px",position:"relative",cursor:"pointer",border:"1px solid "+O.border,transition:"all 0.1s"}}
+                              onMouseEnter={e=>{if(!dragShift) e.currentTarget.style.borderColor=O.amber;else e.currentTarget.style.background="rgba(99,102,241,0.06)";}}
+                              onMouseLeave={e=>{e.currentTarget.style.borderColor=O.border;e.currentTarget.style.background="#fff";}}
+                              onClick={()=>!dragShift&&setSelectedCell({day,empId:emp.id,emp,start:9,end:17,roleLabel:""})}
+                              onDragOver={e=>{e.preventDefault();e.currentTarget.style.background="rgba(99,102,241,0.08)";e.currentTarget.style.borderColor=O.indigo;}}
+                              onDragLeave={e=>{e.currentTarget.style.background="#fff";e.currentTarget.style.borderColor=O.border;}}
+                              onDrop={e=>{e.currentTarget.style.background="#fff";e.currentTarget.style.borderColor=O.border;handleDrop(e,day,emp.id);}}>
+                              {dayShifts.length===0&&<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:O.textF,fontSize:16,opacity:0.3}}>+</div>}
                               {dayShifts.map(sh=>(
-                                <div key={sh.id} style={{background:emp.color+"20",border:"1px solid "+emp.color+"40",borderRadius:4,padding:"3px 6px",marginBottom:2,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                                  <span style={{fontFamily:O.mono,fontSize:8,color:emp.color||O.text,fontWeight:600}}>{fmtH2(sh.start_hour)}–{fmtH2(sh.end_hour)}</span>
-                                  <button onClick={async(e)=>{e.stopPropagation();await removeShift(sh.id,getMonday(currentWeekOffset));}} style={{background:"none",border:"none",color:"rgba(0,0,0,0.3)",fontSize:12,cursor:"pointer",lineHeight:1,padding:"0 2px"}}>×</button>
+                                <div key={sh.id}
+                                  draggable
+                                  onDragStart={e=>{e.stopPropagation();setDragShift(sh);e.currentTarget.style.opacity="0.4";}}
+                                  onDragEnd={e=>{e.currentTarget.style.opacity="1";setDragShift(null);}}
+                                  style={{background:emp.color+"22",border:"1px solid "+emp.color+"50",borderRadius:4,padding:"3px 6px",marginBottom:2,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"grab",userSelect:"none"}}>
+                                  <span style={{fontFamily:O.mono,fontSize:8,color:emp.color||O.text,fontWeight:600}}>{fmtH2(sh.start_hour)}–{fmtH2(sh.end_hour)}{sh.role_label?" · "+sh.role_label:""}</span>
+                                  <button onClick={async(e2)=>{e2.stopPropagation();await removeShift(sh.id,getMonday(currentWeekOffset));}} style={{background:"none",border:"none",color:"rgba(0,0,0,0.25)",fontSize:11,cursor:"pointer",lineHeight:1,padding:"0 1px",flexShrink:0}}>×</button>
                                 </div>
                               ))}
                             </div>
@@ -5110,27 +5211,29 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       </div>
                     );
                   })}
-                  {liveShifts.length===0&&(
-                    <div style={{textAlign:"center",padding:"30px",fontFamily:O.sans,fontSize:13,color:O.textD}}>Click any cell to add a shift. Click + Publish to notify your team.</div>
+                  {(liveShifts||[]).length===0&&(
+                    <div style={{gridColumn:"1/-1",textAlign:"center",padding:"30px",fontFamily:O.sans,fontSize:13,color:O.textD,background:"#fff",borderRadius:10,border:"1px solid "+O.border,marginTop:4}}>Click any cell to add a shift. Drag shifts between days to reschedule.</div>
                   )}
-
                   {/* Open Shifts row */}
-                  <div style={{display:"grid",gridTemplateColumns:"150px repeat(7,1fr)",gap:4,marginTop:8,minWidth:800}}>
+                  <div style={{display:"grid",gridTemplateColumns:"140px repeat(7,1fr)",gap:3,marginTop:6,minWidth:780}}>
                     <div style={{display:"flex",alignItems:"center",padding:"6px 4px"}}>
                       <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,fontWeight:600,letterSpacing:1}}>OPEN SHIFTS</div>
                     </div>
-                    {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>{
+                    {DAYS_FULL.map(day=>{
                       const openShifts=(liveShifts||[]).filter(s=>!s.user_id&&s.day_of_week===day);
                       return(
-                        <div key={day} style={{minHeight:44,background:"none",borderRadius:6,padding:"4px",position:"relative",cursor:"pointer",border:"1.5px dashed rgba(224,123,0,0.25)",transition:"border-color 0.15s"}}
+                        <div key={day} style={{minHeight:44,background:"none",borderRadius:6,padding:"3px",cursor:"pointer",border:"1.5px dashed rgba(224,123,0,0.3)",transition:"border-color 0.15s"}}
                           onMouseEnter={e=>e.currentTarget.style.borderColor=O.amber}
-                          onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(224,123,0,0.25)"}
-                          onClick={()=>setSelectedCell({day,empId:"",start:9,end:17,roleLabel:"",shiftNote:"",isOpenShift:true})}>
+                          onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(224,123,0,0.3)"}
+                          onDragOver={e=>{e.preventDefault();e.currentTarget.style.background=O.amberD;}}
+                          onDragLeave={e=>e.currentTarget.style.background="none"}
+                          onDrop={e=>{e.currentTarget.style.background="none";handleDrop(e,day,null);}}
+                          onClick={()=>!dragShift&&setSelectedCell({day,empId:"",start:9,end:17,roleLabel:"",shiftNote:"",isOpenShift:true})}>
                           {openShifts.length===0&&<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:O.amber,fontSize:14,opacity:0.4}}>+</div>}
                           {openShifts.map(sh=>(
                             <div key={sh.id} style={{background:O.amberD,border:"1px solid "+O.amberB,borderRadius:4,padding:"3px 6px",marginBottom:2,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                              <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,fontWeight:600}}>{sh.start_hour<12?sh.start_hour+"a":(sh.start_hour-12||12)+"p"}–{sh.end_hour<=12?sh.end_hour+"a":(sh.end_hour-12||12)+"p"} OPEN</span>
-                              <button onClick={async(e)=>{e.stopPropagation();await removeShift(sh.id,getMonday(currentWeekOffset));}} style={{background:"none",border:"none",color:O.amber,fontSize:12,cursor:"pointer",lineHeight:1}}>×</button>
+                              <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,fontWeight:600}}>{fmtH2(sh.start_hour)}–{fmtH2(sh.end_hour)} OPEN</span>
+                              <button onClick={async(e2)=>{e2.stopPropagation();await removeShift(sh.id,getMonday(currentWeekOffset));}} style={{background:"none",border:"none",color:O.amber,fontSize:11,cursor:"pointer",lineHeight:1}}>×</button>
                             </div>
                           ))}
                         </div>
