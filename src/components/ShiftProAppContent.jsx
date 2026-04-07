@@ -2536,68 +2536,91 @@ function SettingsTab({
 
         {/* ── LOCATION MANAGEMENT ── */}
         <div style={{...card, gridColumn: mobile?"auto":"1 / -1"}}>
-          <div style={sectionTitle}>📍 Locations</div>
-          <div style={sectionSub}>Manage your business locations. Each location has its own team, schedule, and payroll.</div>
-          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
-            {(liveLocations||[]).map((loc)=>(
-              <div key={loc.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:activeLocation?.id===loc.id?O.amberD:O.bg3,border:"1px solid "+(activeLocation?.id===loc.id?O.amberB:O.border),borderRadius:10}}>
-                <div style={{width:36,height:36,borderRadius:8,background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:13,color:"#fff",flexShrink:0}}>
-                  {(loc.name||"?")[0].toUpperCase()}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+            <div style={sectionTitle}>📍 Locations</div>
+            <button onClick={()=>setAddLocOpen(true)} style={{padding:"7px 14px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>
+              + Add Location
+            </button>
+          </div>
+          <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginBottom:18}}>Each location has its own staff, schedule, and payroll. Click a location to make it active.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+            {(liveLocations||[]).map((loc)=>{
+              const isActive = activeLocation?.id===loc.id;
+              const isConfirming = confirmDeleteLocId===loc.id;
+              return(
+                <div key={loc.id} style={{borderRadius:12,border:"1.5px solid "+(isConfirming?"rgba(217,64,64,0.4)":isActive?O.amberB:O.border),overflow:"hidden",transition:"all 0.2s"}}>
+                  {/* Main row */}
+                  <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:isConfirming?"rgba(217,64,64,0.04)":isActive?O.amberD:"#fff"}}>
+                    <div style={{width:38,height:38,borderRadius:9,background:isActive?"linear-gradient(135deg,#e07b00,#c96800)":"linear-gradient(135deg,#94a3b8,#64748b)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:800,fontSize:15,color:"#fff",flexShrink:0}}>
+                      {(loc.name||"?")[0].toUpperCase()}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc.name}</div>
+                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:1}}>{loc.address||"No address set"} {loc.timezone?" · "+loc.timezone:""}</div>
+                    </div>
+                    {isActive&&(
+                      <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:20,padding:"3px 10px",letterSpacing:"0.5px",flexShrink:0}}>● ACTIVE</span>
+                    )}
+                    {!isActive&&!isConfirming&&(
+                      <button onClick={()=>selectLocation(loc)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer",flexShrink:0}}>
+                        Switch
+                      </button>
+                    )}
+                    {!isConfirming&&(
+                      <button onClick={()=>setConfirmDeleteLocId(loc.id)} style={{padding:"5px 10px",background:"none",border:"1px solid rgba(217,64,64,0.25)",borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.red,cursor:"pointer",flexShrink:0,opacity:0.7}}>
+                        🗑
+                      </button>
+                    )}
+                    {isConfirming&&(
+                      <button onClick={()=>setConfirmDeleteLocId(null)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer",flexShrink:0}}>
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                  {/* Confirmation panel — slides in */}
+                  {isConfirming&&(
+                    <div style={{background:"rgba(217,64,64,0.06)",borderTop:"1px solid rgba(217,64,64,0.15)",padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                      <div>
+                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.red,marginBottom:2}}>Delete "{loc.name}"?</div>
+                        <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.4}}>This will permanently remove this location and all its associated shifts and clock events. This cannot be undone.</div>
+                      </div>
+                      <button onClick={async()=>{
+                        setConfirmDeleteLocId(null);
+                        try{
+                          const sb=await getSB();
+                          await sb.from("shifts").delete().eq("location_id",loc.id);
+                          await sb.from("clock_events").delete().eq("location_id",loc.id);
+                          await sb.from("users").update({location_id:null}).eq("location_id",loc.id);
+                          await sb.from("locations").delete().eq("id",loc.id);
+                          const updated=(liveLocations||[]).filter(l=>l.id!==loc.id);
+                          setLiveLocations(updated);
+                          try{
+                            localStorage.setItem("shiftpro_all_locs",JSON.stringify(updated));
+                            if(loc.org_id) localStorage.setItem("shiftpro_cached_locs_"+loc.org_id,JSON.stringify(updated));
+                            if(activeLocation?.id===loc.id){
+                              const next=updated[0]||null;
+                              if(next) selectLocation(next);
+                              else{ localStorage.removeItem("shiftpro_active_loc"); localStorage.removeItem("shiftpro_active_loc_obj"); setLocationGate("none"); }
+                            }
+                          }catch(e){}
+                          toast("✓ "+loc.name+" deleted","success");
+                        }catch(e){ toast("Delete failed: "+e.message,"error"); }
+                      }} style={{padding:"9px 18px",background:"linear-gradient(135deg,#d94040,#b91c1c)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",flexShrink:0,whiteSpace:"nowrap",boxShadow:"0 2px 8px rgba(217,64,64,0.3)"}}>
+                        Yes, Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text}}>{loc.name}</div>
-                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{loc.address||"No address set"}</div>
-                </div>
-                {activeLocation?.id===loc.id&&(
-                  <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:4,padding:"2px 8px",letterSpacing:1}}>ACTIVE</span>
-                )}
-                {activeLocation?.id!==loc.id&&(
-                  <button onClick={()=>selectLocation(loc)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer"}}>
-                    Switch →
-                  </button>
-                )}
-                <button onClick={async()=>{
-                  if(!window.confirm("Delete "+loc.name+"? Shifts and payroll for this location will also be removed.")) return;
-                  try{
-                    const sb = await getSB();
-                    // Remove location references first
-                    await sb.from("shifts").delete().eq("location_id",loc.id);
-                    await sb.from("clock_events").delete().eq("location_id",loc.id);
-                    await sb.from("users").update({location_id:null}).eq("location_id",loc.id);
-                    // Delete location
-                    await sb.from("locations").delete().eq("id",loc.id);
-                    // Update state
-                    const updated = (liveLocations||[]).filter(l=>l.id!==loc.id);
-                    setLiveLocations(updated);
-                    // Update localStorage
-                    try{
-                      localStorage.setItem("shiftpro_all_locs", JSON.stringify(updated));
-                      if(loc.org_id) localStorage.setItem("shiftpro_cached_locs_"+loc.org_id, JSON.stringify(updated));
-                      if(activeLocation?.id===loc.id){
-                        const next = updated[0]||null;
-                        if(next) selectLocation(next);
-                        else{
-                          localStorage.removeItem("shiftpro_active_loc");
-                          localStorage.removeItem("shiftpro_active_loc_obj");
-                        }
-                      }
-                    }catch(e){}
-                    toast("Location deleted: "+loc.name,"success");
-                  }catch(e){ toast("Failed to delete: "+e.message,"error"); }
-                }} style={{padding:"5px 10px",background:"rgba(217,64,64,0.06)",border:"1px solid rgba(217,64,64,0.2)",borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.red,cursor:"pointer",flexShrink:0}}>
-                  Delete
-                </button>
-              </div>
-            ))}
+              );
+            })}
             {(liveLocations||[]).length===0&&(
-              <div style={{textAlign:"center",padding:"20px",fontFamily:O.sans,fontSize:13,color:O.textF}}>No locations yet. Add one above.</div>
+              <div style={{textAlign:"center",padding:"24px",fontFamily:O.sans,fontSize:13,color:O.textF,background:O.bg3,borderRadius:10}}>No locations yet. Click "+ Add Location" to create one.</div>
             )}
           </div>
-          {/* Pricing note */}
           <div style={{background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:16}}>💡</span>
+            <span style={{fontSize:14}}>💡</span>
             <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.5}}>
-              <strong style={{color:O.text}}>Starter:</strong> 1 location · <strong style={{color:O.text}}>Pro:</strong> up to 5 locations · <strong style={{color:O.text}}>Enterprise:</strong> unlimited
+              <strong style={{color:O.text}}>Starter:</strong> 1 location · <strong style={{color:O.text}}>Pro:</strong> up to 5 · <strong style={{color:O.text}}>Enterprise:</strong> unlimited
               <span style={{marginLeft:8,fontFamily:O.mono,fontSize:9,color:O.purple,background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:4,padding:"2px 6px"}}>BILLING COMING SOON</span>
             </div>
           </div>
@@ -3066,6 +3089,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       return cached ? JSON.parse(cached) : {name:"",type:"Restaurant",address:"",phone:""};
     }catch(e){ return {name:"",type:"Restaurant",address:"",phone:""}; }
   });
+  const [confirmDeleteLocId,setConfirmDeleteLocId] = useState(null);
   const [settingsPay,setSettingsPay] = useState(()=>{
     try{
       const c = typeof window!=="undefined" && localStorage.getItem("shiftpro_pay_settings");
