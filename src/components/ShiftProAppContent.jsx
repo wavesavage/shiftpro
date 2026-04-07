@@ -5209,6 +5209,22 @@ export default function App(){
         if(typeof window!=="undefined"){
           const hash=window.location.hash;
           if(hash.includes("access_token")&&(hash.includes("type=recovery")||hash.includes("type=invite"))){
+            // Extract token from hash and establish a real session
+            // Without this, updateUser("password") fails with "Auth session missing"
+            try{
+              const sb=await getSB();
+              const params=new URLSearchParams(hash.replace("#",""));
+              const accessToken=params.get("access_token");
+              const refreshToken=params.get("refresh_token");
+              const type=params.get("type");
+              if(accessToken){
+                // Set the session directly from the invite/recovery tokens
+                await sb.auth.setSession({
+                  access_token: accessToken,
+                  refresh_token: refreshToken||"",
+                });
+              }
+            }catch(e){}
             setResetMode(true);setAppLoading(false);return;
           }
         }
@@ -5285,8 +5301,16 @@ export default function App(){
     setPwBusy(true);setPwErr("");
     try{
       const sb=await getSB();
+      // Update password
       const {error}=await sb.auth.updateUser({password:newPw});
-      if(error)throw error;
+      if(error) throw error;
+      // Mark user as active (was "invited")
+      try{
+        const {data:{session:s2}}=await sb.auth.getSession();
+        if(s2?.user?.id){
+          await sb.from("users").update({status:"active"}).eq("id",s2.user.id);
+        }
+      }catch(e){}
       setPwDone(true);
       setTimeout(async()=>{
         const {data:{session:s}}=await sb.auth.getSession();
