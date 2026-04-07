@@ -5124,8 +5124,9 @@ export default function App(){
   };
   const logout = async() => {
     try{const sb=await getSB();await sb.auth.signOut();}catch(e){}
+    // Clear active tab so next login always lands on Command
+    try{ localStorage.removeItem("shiftpro_active_tab"); }catch(e){}
     setSession(null);
-  // cached_emp_<id> keys persist intentionally for display speed
   };
 
   useEffect(()=>{
