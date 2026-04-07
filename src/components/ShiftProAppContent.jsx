@@ -433,11 +433,33 @@ function Login({onLogin}){
       const sb = await getSB();
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
-      const {data:profile} = await sb.from("users").select("*").eq("id",data.user.id).single();
+
+      // Wait briefly for session to fully propagate, then try profile fetch
+      let profile = null;
+      for(let attempt=0; attempt<3; attempt++){
+        if(attempt>0) await new Promise(r=>setTimeout(r,600));
+        const {data:p} = await sb.from("users").select("*").eq("id",data.user.id).single();
+        if(p){ profile=p; break; }
+      }
+
+      // Fall back to localStorage cache if Supabase still returns nothing
+      if(!profile){
+        try{
+          const cached=localStorage.getItem("shiftpro_cached_emp_"+data.user.id);
+          if(cached){ profile=JSON.parse(cached); profile._fromCache=true; }
+        }catch(e){}
+      }
+
       if(!profile) throw new Error("Profile not found. Contact your manager.");
+
+      // Mark invited employee as active on first login
+      if(profile.status==="invited"&&!profile._fromCache){
+        try{ await sb.from("users").update({status:"active"}).eq("id",data.user.id); }catch(e){}
+      }
+
       const empRole = profile.app_role==="owner"||profile.app_role==="manager"?"owner":"employee";
       const emp = {
-        id:profile.id,
+        id:profile.id||data.user.id,
         name:(profile.first_name||"")+" "+(profile.last_name||""),
         first:profile.first_name||data.user.email.split("@")[0],
         role:profile.role||"Employee",
@@ -455,7 +477,7 @@ function Login({onLogin}){
         appRole:profile.app_role||"employee",
       };
       // Cache with user-specific key
-      try{ localStorage.setItem("shiftpro_cached_emp_"+profile.id, JSON.stringify(emp)); }catch(e){}
+      try{ localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
       onLogin(empRole, emp);
     }catch(e){
       setErr(e.message||"Sign in failed. Check your email and password.");
