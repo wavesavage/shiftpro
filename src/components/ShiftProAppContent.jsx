@@ -922,6 +922,12 @@ function EmpPortal({emp,onLogout}){
     {id:"documents",label:"📄 My Documents"},
   ];
 
+  // Tab navigation with localStorage persistence
+  const persistTab = (t) => {
+    setTab(t);
+    try{ localStorage.setItem("shiftpro_emp_tab_"+empSafe.id, t); }catch(e){}
+  };
+
   // First-login onboarding gate
   if(!onboardingDone && empSafe.id && (empSafe.appRole==="employee"||empSafe.appRole==="supervisor")) return (
     <EmpOnboarding
