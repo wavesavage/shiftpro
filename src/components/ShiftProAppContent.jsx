@@ -2506,6 +2506,12 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   const [msgText, setMsgText] = React.useState("");
   const [msgSent, setMsgSent] = React.useState(false);
   const [msgBusy, setMsgBusy] = React.useState(false);
+  // Local display state — updates immediately on save without waiting for prop
+  const [displayName, setDisplayName] = React.useState(emp.name||(emp.first||"")+" "+(emp.last||""));
+  const [displayRole, setDisplayRole] = React.useState(emp.role||"Employee");
+  const [displayDept, setDisplayDept] = React.useState(emp.dept||"");
+  const [displayRate, setDisplayRate] = React.useState(emp.rate||15);
+  const [displayAvatar, setDisplayAvatar] = React.useState(emp.avatar||"?");
   // Document state
   const [empDocList, setEmpDocList] = React.useState(null);
   const [docDrawerOpen, setDocDrawerOpen] = React.useState(false);
@@ -2598,7 +2604,16 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
         }),
       });
       if(!res.ok){ const d=await res.json(); throw new Error(d.error||"Save failed"); }
-      // Refresh staff list via service role
+      // Update local display immediately — no stale name in drawer
+      const newFirst = editForm.firstName.trim();
+      const newLast = editForm.lastName.trim();
+      const newAvatar = ((newFirst[0]||"?")+(newLast[0]||"?")).toUpperCase();
+      setDisplayName((newFirst+" "+newLast).trim());
+      setDisplayRole(editForm.role);
+      setDisplayDept(editForm.dept);
+      setDisplayRate(parseFloat(editForm.rate)||15);
+      setDisplayAvatar(newAvatar);
+      // Refresh staff list so schedule/payroll also update
       if(orgId){
         const staffRes = await fetch("/api/staff?orgId="+orgId, {
           headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
@@ -2722,7 +2737,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
             {!msgSent?(
               <div>
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.blue,letterSpacing:"1.5px",marginBottom:8,textTransform:"uppercase"}}>Direct Message</div>
-                <textarea value={msgText} onChange={e=>setMsgText(e.target.value)} placeholder={"Hey "+emp.name.split(" ")[0]+"..."} rows={3}
+                <textarea value={msgText} onChange={e=>setMsgText(e.target.value)} placeholder={("Hey "+displayName.split(" ")[0]+"...")} rows={3}
                   style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",resize:"none",boxSizing:"border-box"}}/>
                 <button onClick={async()=>{
                   if(!msgText.trim()) return;
@@ -2755,12 +2770,12 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
           {/* Avatar + name */}
           <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
             <div style={{width:64,height:64,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:20,color:"#fff"}}>
-              {emp.avatar||"?"}
+              {displayAvatar}
             </div>
             <div>
-              <div style={{fontFamily:O.sans,fontWeight:800,fontSize:18,color:O.text,marginBottom:4}}>{emp.name}</div>
+              <div style={{fontFamily:O.sans,fontWeight:800,fontSize:18,color:O.text,marginBottom:4}}>{displayName}</div>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                {emp.dept&&<span style={{fontFamily:O.mono,fontSize:9,color:O.cyan,background:"rgba(8,145,178,0.08)",border:"1px solid rgba(8,145,178,0.15)",borderRadius:4,padding:"2px 8px"}}>{emp.dept}</span>}
+                {displayDept&&<span style={{fontFamily:O.mono,fontSize:9,color:O.cyan,background:"rgba(8,145,178,0.08)",border:"1px solid rgba(8,145,178,0.15)",borderRadius:4,padding:"2px 8px"}}>{displayDept}</span>}
                 <span style={{fontFamily:O.mono,fontSize:9,padding:"2px 8px",borderRadius:10,fontWeight:600,background:emp.status==="active"?O.greenD:O.amberD,border:"1px solid "+(emp.status==="active"?"rgba(26,158,110,0.25)":O.amberB),color:emp.status==="active"?O.green:O.amber}}>
                   {emp.status==="active"?"ACTIVE":"INVITED"}
                 </span>
@@ -2774,9 +2789,9 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
           {/* Stats strip */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
             {[
-              {label:"Hourly Rate",value:"$"+(emp.rate||15).toFixed(2)+"/hr",color:O.amber},
-              {label:"Department",value:emp.dept||"—",color:O.cyan},
-              {label:"Role",value:emp.role||"Employee",color:O.purple},
+              {label:"Hourly Rate",value:"$"+(displayRate||15).toFixed(2)+"/hr",color:O.amber},
+              {label:"Department",value:displayDept||"—",color:O.cyan},
+              {label:"Role",value:displayRole||"Employee",color:O.purple},
               {label:"Hire Date",value:emp.hired||"—",color:O.textD},
             ].map(s=>(
               <div key={s.label} style={{background:O.bg3,borderRadius:10,padding:"12px 14px"}}>
@@ -2944,7 +2959,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
           <div style={{fontFamily:O.mono,fontSize:8,color:O.red,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Danger Zone</div>
           {confirmDeactivate?(
             <div>
-              <div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:8,lineHeight:1.5}}>Remove {emp.first}'s access? This can be reversed.</div>
+              <div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:8,lineHeight:1.5}}>Remove {displayName.split(" ")[0]}'s access? This can be reversed.</div>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>setConfirmDeactivate(false)} style={{flex:1,padding:"8px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.textD,cursor:"pointer"}}>Cancel</button>
                 <button onClick={deactivate} disabled={deactivateBusy} style={{flex:1,padding:"8px",background:"rgba(217,64,64,0.9)",border:"none",borderRadius:7,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer"}}>
@@ -2954,7 +2969,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
             </div>
           ):(
             <button onClick={deactivate} style={{width:"100%",padding:"10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.red,cursor:"pointer"}}>
-              Deactivate {emp.first}
+              Deactivate {displayName.split(" ")[0]}
             </button>
           )}
         </div>
