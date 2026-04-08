@@ -967,7 +967,7 @@ function MessageThread({ thread, empSafe, fmtTs, sendReply, E, isOwner=false }) 
   );
 }
 
-function EmpPortal({emp,onLogout}){
+function EmpPortal({emp,onLogout,onProfileUpdate}){
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
     first:emp?.first&&emp.first!=="there"?emp.first:emp?.email?.split("@")[0]||"there",
@@ -2017,11 +2017,29 @@ function EmpPortal({emp,onLogout}){
                 body:JSON.stringify({userId:empSafe.id,updates:{
                   first_name:profileForm.firstName.trim()||empSafe.first,
                   last_name:profileForm.lastName.trim(),
-                  phone:profileForm.phone,
-                  emergency_contact:profileForm.emergency,
+                  preferred_name:(profileForm.nick||"").trim(),
+                  role:(profileForm.title||"").trim(),
+                  phone:profileForm.phone||"",
+                  emergency_contact:profileForm.emergency||"",
                 }}),
               });
               if(!r.ok) throw new Error("Save failed");
+              // Re-fetch and update session so changes show immediately without refresh
+              try{
+                const sb2=await getSB();
+                const {data:fp}=await sb2.from("users").select("*").eq("id",empSafe.id).single();
+                if(fp&&onProfileUpdate){
+                  onProfileUpdate({
+                    first:fp.first_name||empSafe.first,
+                    name:(fp.first_name||"")+" "+(fp.last_name||""),
+                    nick:fp.preferred_name||"",
+                    role:fp.role&&fp.role!=="Employee"?fp.role:"",
+                    dept:fp.department||empSafe.dept,
+                    phone:fp.phone||"",
+                    emergency:fp.emergency_contact||"",
+                  });
+                }
+              }catch(e){}
               setProfileMsg("✓ Profile updated!");
               setProfileEdit(false);
               setTimeout(()=>setProfileMsg(""),3000);
@@ -2195,28 +2213,7 @@ function EmpPortal({emp,onLogout}){
                     ))}
                   </div>
                   {profileMsg&&<div style={{fontFamily:E.sans,fontSize:12,color:profileMsg.startsWith("✓")?E.green:E.red,marginBottom:8}}>{profileMsg}</div>}
-                  <button onClick={async()=>{
-                    setProfileBusy(true); setProfileMsg("");
-                    try{
-                      const {data:{session:ss}}=await (await getSB()).auth.getSession();
-                      const r=await fetch("/api/user",{method:"PATCH",
-                        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-                        body:JSON.stringify({userId:empSafe.id,updates:{
-                          first_name:profileForm.firstName.trim()||empSafe.first,
-                          last_name:profileForm.lastName.trim(),
-                          preferred_name:profileForm.nick.trim(),
-                          role:profileForm.title.trim(),
-                          phone:profileForm.phone,
-                          emergency_contact:profileForm.emergency,
-                        }}),
-                      });
-                      if(!r.ok) throw new Error("Save failed");
-                      setProfileMsg("✓ Profile updated! Refresh to see your changes.");
-                      setProfileEdit(false);
-                      setTimeout(()=>setProfileMsg(""),4000);
-                    }catch(e){ setProfileMsg("Failed: "+e.message); }
-                    finally{ setProfileBusy(false); }
-                  }} disabled={profileBusy}
+                  <button onClick={saveProfile} disabled={profileBusy}
                     style={{width:"100%",padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(99,102,241,0.25)"}}>
                     {profileBusy?"Saving...":"Save Profile"}
                   </button>
@@ -7296,17 +7293,20 @@ export default function App(){
 
         const emp = {
           id: userId,
-          name: profile?(profile.first_name+" "+profile.last_name)
+          name: profile?(profile.first_name+" "+profile.last_name).trim()
                 : cachedEmp?.name||userEmail.split("@")[0],
           first: profile?.first_name||cachedEmp?.first||userEmail.split("@")[0]||"there",
-          role: profile?.role||cachedEmp?.role||"Employee",
+          nick: profile?.preferred_name||cachedEmp?.nick||"",
+          role: (profile?.role&&profile.role!=="Employee"?profile.role:null)||cachedEmp?.role||"",
           dept: profile?.department||cachedEmp?.dept||"",
           rate: parseFloat(profile?.hourly_rate||cachedEmp?.rate)||15,
-          avatar: profile?.avatar_initials||cachedEmp?.avatar||"?",
+          avatar: (profile?.first_name&&profile?.last_name?(profile.first_name[0]+profile.last_name[0]).toUpperCase():profile?.first_name?profile.first_name.slice(0,2).toUpperCase():userEmail.split("@")[0].slice(0,2).toUpperCase()),
           color: profile?.avatar_color||cachedEmp?.color||"#6366f1",
           email: userEmail,
           status:"active",
           hired: profile?.hire_date||cachedEmp?.hired||"",
+          phone: profile?.phone||cachedEmp?.phone||"",
+          emergency: profile?.emergency_contact||cachedEmp?.emergency||"",
           wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100,
           flags:0, streak:0, shifts:0, risk:"Low", ghost:0,
           orgId: profile?.org_id||cachedEmp?.orgId||localStorage.getItem("shiftpro_active_orgid")||null,
@@ -7443,7 +7443,11 @@ export default function App(){
     <>
       <style>{FONTS}{GCSS}</style>
       {!session && <Login onLogin={login}/>}
-      {session?.role==="employee" && <EmpPortal emp={session.emp} onLogout={logout}/>}
+      {session?.role==="employee" && <EmpPortal emp={session.emp} onLogout={logout} onProfileUpdate={updatedEmp=>{
+        const merged={...session.emp,...updatedEmp};
+        setSession(s=>({...s,emp:merged}));
+        try{ localStorage.setItem("shiftpro_cached_emp_"+merged.id, JSON.stringify(merged)); }catch(e){}
+      }}/>}
       {session?.role==="owner" && <OwnerCmd onLogout={logout} ownerInitialProfile={session.emp}/>}
     </>
   );
