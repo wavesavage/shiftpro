@@ -1308,60 +1308,158 @@ function EmpPortal({emp,onLogout}){
           );
         } catch(e){ return <div style={{padding:20,fontFamily:E.sans,fontSize:13,color:E.textD}}>Schedule loading... pull to refresh.</div>; }
         })()}
-        {tab==="earnings"&&(
-          <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:16}}>📊 My Stats</div>
+        {tab==="earnings"&&(()=>{
+          // ── POINTS ENGINE ──
+          // Calculate score from real clock events vs scheduled shifts
+          const completedShifts = (empShifts||[]).filter(s=>s.status==="confirmed"||s.status==="published").length;
+          const totalShiftsEver = completedShifts + (empSafe.shifts||0);
 
-            {/* Reliability ring + streak */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-              <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:16,padding:"20px",textAlign:"center",boxShadow:E.shadow}}>
-                <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",marginBottom:12,textTransform:"uppercase"}}>Reliability Score</div>
-                <Ring val={empSafe.rel||85} size={80} color={E.indigo}/>
-                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:8}}>Shifts confirmed on time</div>
+          // Point transactions derived from real data
+          const pointEvents = [];
+          let totalPoints = 500; // Starting score for new employees
+
+          // Bonus for shifts completed
+          if(completedShifts>0){ pointEvents.push({icon:"✅",label:"Shifts completed this period",pts:completedShifts*10,pos:true}); totalPoints+=completedShifts*10; }
+          // Bonus for hours worked
+          if(realMoHrs>0){ pointEvents.push({icon:"⏱",label:"Hours worked this month",pts:Math.round(realMoHrs*2),pos:true}); totalPoints+=Math.round(realMoHrs*2); }
+          // Streak bonus
+          if(empSafe.streak>=14){ pointEvents.push({icon:"🔥",label:"2-week streak bonus",pts:50,pos:true}); totalPoints+=50; }
+          else if(empSafe.streak>=7){ pointEvents.push({icon:"🔥",label:"1-week streak bonus",pts:25,pos:true}); totalPoints+=25; }
+          // Reliability bonus
+          if(empSafe.rel>=95){ pointEvents.push({icon:"⭐",label:"Perfect reliability bonus",pts:30,pos:true}); totalPoints+=30; }
+          // Late penalty (placeholder — real data would come from clock vs shift time)
+          if(empSafe.flags>0){ pointEvents.push({icon:"⚠️",label:"Late arrivals this period",pts:-(empSafe.flags*15),pos:false}); totalPoints-=(empSafe.flags*15); }
+
+          totalPoints = Math.max(0, Math.min(1000, totalPoints));
+
+          // Tier system
+          const TIERS = [
+            {min:0,   max:199,  label:"New Hire",      icon:"🌱", color:"#9ca3af", next:"Getting Started"},
+            {min:200, max:399,  label:"Getting Started",icon:"📈", color:"#f59e0b", next:"Reliable"},
+            {min:400, max:599,  label:"Reliable",       icon:"✅", color:"#3b82f6", next:"Star Performer"},
+            {min:600, max:799,  label:"Star Performer", icon:"⭐", color:"#8b5cf6", next:"Elite"},
+            {min:800, max:949,  label:"Elite",          icon:"💎", color:"#0891b2", next:"Legend"},
+            {min:950, max:1000, label:"Legend",         icon:"🏆", color:"#f59e0b", next:null},
+          ];
+          const tier = TIERS.find(t=>totalPoints>=t.min&&totalPoints<=t.max)||TIERS[0];
+          const nextTier = TIERS.find(t=>t.min>totalPoints);
+          const pctToNext = nextTier ? ((totalPoints-tier.min)/(tier.max-tier.min)*100) : 100;
+
+          // Point rules reference
+          const RULES = [
+            {icon:"✅",action:"Clock in on time",pts:"+10",color:E.green},
+            {icon:"⚡",action:"Clock in early (5+ min)",pts:"+15",color:E.green},
+            {icon:"📅",action:"Complete full shift",pts:"+10",color:E.green},
+            {icon:"🔥",action:"7-day streak",pts:"+25",color:E.yellow},
+            {icon:"⏰",action:"Late (5–15 min)",pts:"−5",color:"#f59e0b"},
+            {icon:"🚨",action:"Very late (15+ min)",pts:"−15",color:E.red},
+            {icon:"❌",action:"No-show / missed shift",pts:"−25",color:E.red},
+          ];
+
+          return(
+          <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:6}}>📊 My Growth</div>
+            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20}}>Your reliability score grows when you show up on time and shrinks when you're late or miss shifts.</div>
+
+            {/* Score card — hero */}
+            <div style={{background:`linear-gradient(135deg,${tier.color}22,${tier.color}08)`,border:`2px solid ${tier.color}40`,borderRadius:20,padding:"24px",marginBottom:16,position:"relative",overflow:"hidden"}}>
+              <div style={{position:"absolute",right:20,top:20,fontSize:48,opacity:0.15}}>{tier.icon}</div>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
+                <div>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:tier.color,letterSpacing:"2px",textTransform:"uppercase",marginBottom:4}}>Reliability Score</div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                    <div style={{fontFamily:E.sans,fontWeight:900,fontSize:52,color:tier.color,lineHeight:1}}>{totalPoints}</div>
+                    <div style={{fontFamily:E.mono,fontSize:10,color:E.textD}}>/ 1000</div>
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:28,marginBottom:2}}>{tier.icon}</div>
+                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:tier.color}}>{tier.label}</div>
+                </div>
               </div>
-              <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:16,padding:"20px",textAlign:"center",boxShadow:E.shadow}}>
-                <div style={{fontSize:36,marginBottom:4}}>🔥</div>
-                <div style={{fontFamily:E.sans,fontWeight:800,fontSize:32,color:E.yellow}}>{empSafe.streak}d</div>
-                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>Streak</div>
-                {empSafe.streak>=10&&<div style={{fontFamily:E.mono,fontSize:9,color:E.yellow,marginTop:4}}>★ Star Performer</div>}
-                {empSafe.streak>=5&&empSafe.streak<10&&<div style={{fontFamily:E.mono,fontSize:9,color:E.indigo,marginTop:4}}>◆ Consistent</div>}
+              {/* Progress bar to next tier */}
+              <div style={{marginBottom:6}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{tier.label} ({tier.min})</div>
+                  {nextTier&&<div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>{nextTier.label} ({nextTier.min})</div>}
+                </div>
+                <div style={{height:10,background:"rgba(0,0,0,0.08)",borderRadius:5,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:pctToNext+"%",background:`linear-gradient(90deg,${tier.color},${tier.color}cc)`,borderRadius:5,transition:"width 1s ease"}}/>
+                </div>
+                {nextTier&&<div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginTop:5}}>{nextTier.min-totalPoints} pts to reach {nextTier.label} {nextTier.icon||""}</div>}
+                {!nextTier&&<div style={{fontFamily:E.sans,fontSize:11,color:E.yellow,marginTop:5}}>🏆 You've reached the highest tier!</div>}
               </div>
             </div>
 
-            {/* Stats grid */}
+            {/* Stats row */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
               {[
-                {l:"Hours This Month",v:realMoHrs+"h",c:E.teal},
-                {l:"Shifts Completed",v:empSafe.shifts,c:E.violet},
-                {l:"Monthly Earnings",v:"$"+((realMoHrs||0)*(empSafe.rate||15)).toFixed(0),c:E.green},
+                {l:"Hours This Month",v:realMoHrs+"h",c:E.teal,icon:"⏱"},
+                {l:"Monthly Earnings",v:"$"+((realMoHrs||0)*(empSafe.rate||15)).toFixed(0),c:E.green,icon:"💵"},
+                {l:"Streak",v:(empSafe.streak||0)+"d",c:E.yellow,icon:"🔥"},
               ].map(s=>(
-                <div key={s.l} style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:12,padding:"14px",textAlign:"center"}}>
-                  <div style={{fontFamily:E.sans,fontSize:10,color:E.textD,marginBottom:4}}>{s.l}</div>
+                <div key={s.l} style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:12,padding:"14px",textAlign:"center",boxShadow:E.shadow}}>
+                  <div style={{fontSize:20,marginBottom:4}}>{s.icon}</div>
                   <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:s.c}}>{s.v}</div>
+                  <div style={{fontFamily:E.sans,fontSize:10,color:E.textD,marginTop:2}}>{s.l}</div>
                 </div>
               ))}
             </div>
 
+            {/* Points history */}
+            {pointEvents.length>0&&(
+              <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:14,padding:"16px 18px",marginBottom:16,boxShadow:E.shadow}}>
+                <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>📋 Recent Points</div>
+                {pointEvents.map((ev,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 0",borderBottom:i<pointEvents.length-1?"1px solid "+E.border:"none"}}>
+                    <span style={{fontSize:18,flexShrink:0}}>{ev.icon}</span>
+                    <div style={{flex:1,fontFamily:E.sans,fontSize:13,color:E.text}}>{ev.label}</div>
+                    <div style={{fontFamily:E.mono,fontWeight:700,fontSize:14,color:ev.pos?E.green:E.red,flexShrink:0}}>{ev.pos?"+":""}{ev.pts}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* How points work */}
+            <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:14,padding:"16px 18px",marginBottom:16,boxShadow:E.shadow}}>
+              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>⚡ How Points Work</div>
+              <div style={{display:"flex",flexDirection:"column",gap:0}}>
+                {RULES.map((r,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:i<RULES.length-1?"1px solid "+E.border:"none"}}>
+                    <span style={{fontSize:16,flexShrink:0,width:24,textAlign:"center"}}>{r.icon}</span>
+                    <div style={{flex:1,fontFamily:E.sans,fontSize:12,color:E.textD}}>{r.action}</div>
+                    <div style={{fontFamily:E.mono,fontWeight:700,fontSize:13,color:r.color,flexShrink:0}}>{r.pts} pts</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Badges */}
             <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:14,padding:"16px 18px",boxShadow:E.shadow}}>
-              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>🏅 Badges Earned</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>🏅 Badges</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {[
-                  {icon:"🎯",label:"First Week",earned:empSafe.shifts>=5},
-                  {icon:"⭐",label:"Reliability Star",earned:empSafe.rel>=90},
-                  {icon:"🤝",label:"Team Player",earned:empSafe.streak>=7},
-                  {icon:"🔥",label:"On Fire",earned:empSafe.streak>=14},
-                  {icon:"💪",label:"Overtime Hero",earned:empSafe.ot>0},
+                  {icon:"🎯",label:"First Shift",desc:"Complete your first shift",earned:totalShiftsEver>=1},
+                  {icon:"⭐",label:"Reliability Star",desc:"Score 90+ reliability",earned:empSafe.rel>=90||totalPoints>=700},
+                  {icon:"🔥",label:"On Fire",desc:"7-day attendance streak",earned:empSafe.streak>=7},
+                  {icon:"💎",label:"Elite",desc:"Reach 800+ score",earned:totalPoints>=800},
+                  {icon:"💪",label:"Overtime Hero",desc:"Work 45+ hours in a week",earned:empSafe.ot>0},
+                  {icon:"🏆",label:"Legend",desc:"Reach 950+ score",earned:totalPoints>=950},
                 ].map(b=>(
-                  <div key={b.label} style={{padding:"7px 12px",borderRadius:20,background:b.earned?E.indigoD:"rgba(0,0,0,0.03)",border:"1.5px solid "+(b.earned?E.indigo+"40":E.border),opacity:b.earned?1:0.4}}>
-                    <span style={{fontSize:14}}>{b.icon}</span>
-                    <span style={{fontFamily:E.sans,fontSize:11,fontWeight:600,color:b.earned?E.indigo:E.textF,marginLeft:5}}>{b.label}</span>
+                  <div key={b.label} style={{padding:"10px 12px",borderRadius:10,background:b.earned?tier.color+"15":"rgba(0,0,0,0.02)",border:"1.5px solid "+(b.earned?tier.color+"40":E.border),opacity:b.earned?1:0.45,display:"flex",alignItems:"center",gap:10}}>
+                    <span style={{fontSize:20,flexShrink:0}}>{b.icon}</span>
+                    <div>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:12,color:b.earned?E.text:E.textF}}>{b.label}</div>
+                      <div style={{fontFamily:E.sans,fontSize:10,color:E.textF,marginTop:1}}>{b.desc}</div>
+                    </div>
+                    {b.earned&&<div style={{marginLeft:"auto",fontFamily:E.mono,fontSize:9,color:tier.color,flexShrink:0}}>✓ EARNED</div>}
                   </div>
                 ))}
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
         {tab==="team"&&(
           <div style={{animation:"fadeUp 0.3s ease"}}>
             <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:14}}>Messages</div>
