@@ -538,7 +538,7 @@ function Login({onLogin}){
                 <div>
                   <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:16,color:"#fff",marginBottom:5}}>I'm an Employee</div>
                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(16,185,129,0.65)",letterSpacing:"1.5px"}}>MY SCHEDULE & TIME CLOCK</div>
-                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}><- INVITED STAFF CLICK HERE</div>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}>&#8592; INVITED STAFF CLICK HERE</div>
                 </div>
               </button>
             </div>
@@ -547,7 +547,7 @@ function Login({onLogin}){
               <a href="/signup" style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(245,158,11,0.5)",letterSpacing:1,textDecoration:"none"}}
                 onMouseEnter={e=>e.target.style.color="rgba(245,158,11,0.9)"}
                 onMouseLeave={e=>e.target.style.color="rgba(245,158,11,0.5)"}>
-                Create your account ->
+                Create your account &rarr;
               </a>
             </div>
           </div>
@@ -555,7 +555,7 @@ function Login({onLogin}){
 
         {mode==="owner"&&(
           <div style={{background:"rgba(9,14,26,0.96)",border:"1px solid "+amberB,borderRadius:16,padding:"28px",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");setShowReset(false);setResetSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.3)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:18}}><- BACK</button>
+            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");setShowReset(false);setResetSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.3)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:18}}>&larr; BACK</button>
             {!showReset?(
               <div>
                 <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:22,color:"#fff",marginBottom:3}}>Owner / Manager</div>
@@ -589,7 +589,7 @@ function Login({onLogin}){
                     <button onClick={doReset} style={{width:"100%",padding:"13px",background:"rgba(245,158,11,0.15)",border:"1px solid "+amberB,borderRadius:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:14,color:amber,cursor:"pointer",marginBottom:10}}>
                       {busy?"Sending…":"Send Reset Link ->"}
                     </button>
-                    <button onClick={()=>{setShowReset(false);setErr("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(255,255,255,0.3)",cursor:"pointer"}}><- Back to sign in</button>
+                    <button onClick={()=>{setShowReset(false);setErr("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(255,255,255,0.3)",cursor:"pointer"}}>&larr; Back to sign in</button>
                   </div>
                 ):(
                   <div>
@@ -606,7 +606,7 @@ function Login({onLogin}){
 
         {mode==="employee"&&(
           <div style={{background:"rgba(255,255,255,0.98)",borderRadius:16,padding:"28px",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}}>
-            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");}} style={{background:"none",border:"none",color:"#9ca3af",fontFamily:"'Nunito',sans-serif",fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}><- Back</button>
+            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");}} style={{background:"none",border:"none",color:"#9ca3af",fontFamily:"'Nunito',sans-serif",fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}>&larr; Back</button>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
               <div style={{width:44,height:44,borderRadius:12,flexShrink:0,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:22}}>👋</span></div>
               <div>
@@ -750,7 +750,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
             <label style={lbl}>Mobile Phone <span style={{color:"#ef4444"}}>*</span></label>
             <input value={form.phone} onChange={e=>upd("phone",e.target.value)} placeholder="(555) 000-0000" type="tel" style={inp} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="rgba(99,102,241,0.15)"}/>
             {err&&<div style={{color:"#ef4444",fontFamily:E.sans,fontSize:12,marginBottom:8}}>{err}</div>}
-            <button onClick={next} style={primaryBtn}>Continue -></button>
+            <button onClick={next} style={primaryBtn}>Continue &rarr;</button>
           </div>
         )}
 
@@ -774,8 +774,8 @@ function EmpOnboarding({ empSafe, onComplete }) {
               </div>
             </div>
             {err&&<div style={{color:"#ef4444",fontFamily:E.sans,fontSize:12,marginBottom:8}}>{err}</div>}
-            <button onClick={next} style={primaryBtn}>Continue -></button>
-            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}><- Back</button>
+            <button onClick={next} style={primaryBtn}>Continue &rarr;</button>
+            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}>&larr; Back</button>
           </div>
         )}
 
@@ -793,10 +793,10 @@ function EmpOnboarding({ empSafe, onComplete }) {
               ))}
             </div>
             <div style={{padding:"12px 14px",background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:10,marginBottom:20,fontFamily:E.sans,fontSize:12,color:"#6b7280"}}>
-              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span> -> <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span> -> No preference
+              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span> &rarr; <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span> &rarr; No preference
             </div>
             <button onClick={()=>{setErr("");setStep(4);}} style={primaryBtn}>Save & Continue -></button>
-            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}><- Back</button>
+            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}>&larr; Back</button>
           </div>
         )}
 
@@ -6156,7 +6156,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   ))}
                 </div>
                 {schedViewMode==="week"&&<>
-                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}><- Prev</button>
+                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>&larr; Prev</button>
                   <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,padding:"0 8px"}}>
                     {(()=>{const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);const mon=new Date(y,m-1,d);const sun=new Date(y,m-1,d+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
                   </div>
