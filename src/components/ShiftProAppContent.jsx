@@ -2587,43 +2587,53 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
       const sb2 = await getSB();
       const {data:{session:ss}} = await sb2.auth.getSession();
       const orgId = activeOrg?.id||ownerProfile?.org_id||null;
+
+      const payload = {
+        userId: emp.id,
+        updates: {
+          first_name:     editForm.firstName.trim(),
+          last_name:      editForm.lastName.trim(),
+          role:           editForm.role.trim(),
+          department:     editForm.dept,
+          hourly_rate:    parseFloat(editForm.rate)||15,
+          avatar_initials:((editForm.firstName[0]||"?")+(editForm.lastName[0]||"?")).toUpperCase(),
+        }
+      };
+
+      console.log("[saveChanges] Sending:", JSON.stringify(payload));
+
       const res = await fetch("/api/user", {
         method:"PATCH",
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-        body:JSON.stringify({
-          userId:emp.id,
-          updates:{
-            first_name:editForm.firstName.trim(),
-            last_name:editForm.lastName.trim(),
-            role:editForm.role,
-            department:editForm.dept,
-            hourly_rate:parseFloat(editForm.rate)||15,
-            avatar_initials:(editForm.firstName[0]||"?").toUpperCase()+(editForm.lastName[0]||"?").toUpperCase(),
-            ...(editForm.pin?{pin:editForm.pin}:{}),
-          }
-        }),
+        body:JSON.stringify(payload),
       });
-      if(!res.ok){ const d=await res.json(); throw new Error(d.error||"Save failed"); }
-      // Update local display immediately — no stale name in drawer
+
+      const resJson = await res.json();
+      console.log("[saveChanges] Response:", JSON.stringify(resJson));
+
+      if(!res.ok) throw new Error(resJson.error||"Save failed");
+
+      // Update local display immediately
       const newFirst = editForm.firstName.trim();
-      const newLast = editForm.lastName.trim();
-      const newAvatar = ((newFirst[0]||"?")+(newLast[0]||"?")).toUpperCase();
+      const newLast  = editForm.lastName.trim();
       setDisplayName((newFirst+" "+newLast).trim());
-      setDisplayRole(editForm.role);
+      setDisplayRole(editForm.role.trim());
       setDisplayDept(editForm.dept);
       setDisplayRate(parseFloat(editForm.rate)||15);
-      setDisplayAvatar(newAvatar);
-      // Refresh staff list so schedule/payroll also update
+      setDisplayAvatar(((newFirst[0]||"?")+(newLast[0]||"?")).toUpperCase());
+
+      // Refresh staff list
       if(orgId){
         const staffRes = await fetch("/api/staff?orgId="+orgId, {
           headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
         });
         if(staffRes.ok){ const d=await staffRes.json(); if(d.employees) setLiveEmps(d.employees.map(mapEmp)); }
       }
-      toast("Employee updated ✓","success");
+      toast("✓ Employee updated","success");
       setEditing(false);
     } catch(e) {
-      toast("Failed to save: "+e.message,"error");
+      console.error("[saveChanges] Error:", e);
+      toast("Failed to save: "+(e.message||"Unknown error"),"error");
     } finally { setSaveBusy(false); }
   };
 
@@ -2835,7 +2845,8 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                 <label style={labelStyle}>Department</label>
                 <select value={editForm.dept} onChange={e=>setEditForm(p=>({...p,dept:e.target.value}))}
                   style={{...inputStyle,cursor:"pointer"}}>
-                  {["Front End","Sales Floor","Inventory","Operations","Security","Management","Kitchen","Bar","Service"].map(d=>(
+                  <option value="">— No Department —</option>
+                  {["Front End","Sales Floor","Inventory","Operations","Security","Management","Kitchen","Bar","Service","Captain","Naturalist","Deckhand"].map(d=>(
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
@@ -2843,12 +2854,12 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
 
               <div style={{marginBottom:16}}>
                 <label style={labelStyle}>Hourly Rate ($)</label>
-                <input value={editForm.rate} onChange={e=>setEditForm(p=>({...p,rate:e.target.value}))} type="number" placeholder="15.00" style={inputStyle}
+                <input value={editForm.rate} onChange={e=>setEditForm(p=>({...p,rate:e.target.value}))} type="number" min="0" step="0.25" placeholder="15.00" style={inputStyle}
                   onFocus={e=>e.target.style.borderColor=O.amber} onBlur={e=>e.target.style.borderColor=O.border}/>
               </div>
 
               <div style={{display:"flex",gap:8}}>
-                <button onClick={saveChanges} style={{flex:1,padding:"10px",background:saveBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:saveBusy?"not-allowed":"pointer"}}>
+                <button onClick={saveChanges} disabled={saveBusy} style={{flex:1,padding:"10px",background:saveBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:saveBusy?"not-allowed":"pointer"}}>
                   {saveBusy?"Saving…":"Save Changes"}
                 </button>
                 <button onClick={()=>setEditing(false)} style={{padding:"10px 16px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.textD,cursor:"pointer"}}>Cancel</button>
