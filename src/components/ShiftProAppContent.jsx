@@ -1877,10 +1877,10 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
               <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setComposeOpen(false)}>
                 <div style={{background:E.bg2,borderRadius:18,padding:"26px",width:"100%",maxWidth:420,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
                   <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>📨 Message Management</div>
-                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Your message goes directly to your manager's ShiftPro terminal. They'll be notified immediately.</div>
+                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Send a message directly to your manager. For time-sensitive issues like running late, contact your supervisor directly by phone.</div>
                   <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"}}>Your Message *</label>
                   <textarea value={composeText} onChange={e=>{setComposeText(e.target.value);setComposeMsg("");}}
-                    placeholder="e.g. Running 10 min late, need coverage, have a question about my schedule..."
+                    placeholder="e.g. Need coverage for my shift, have a question about scheduling, requesting a change..."
                     rows={4}
                     style={{width:"100%",padding:"10px 12px",background:E.bg3,border:"1.5px solid "+(composeMsg&&composeMsg.startsWith("!")?"#ef4444":E.border),borderRadius:9,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box",marginBottom:12}}/>
                   {composeMsg&&(
@@ -6142,7 +6142,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                               <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.text}}>{msg.from_name||"Staff"}</div>
                               <div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>{msg.created_at?new Date(msg.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""}</div>
                             </div>
-                            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>{msg.text}</div>
+                            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>{msg.body||msg.text||""}</div>
                             {/* Quick reply - opens employee drawer */}
                                 <button onClick={()=>{
                                   const staffEmp = (liveEmps||[]).find(e=>e.id===msg.from_id);

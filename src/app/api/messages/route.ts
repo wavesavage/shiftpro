@@ -8,35 +8,44 @@ const sb = () => createClient(
 );
 const NO_CACHE = { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } };
 
-// ── GET ─────────────────────────────────────────────────────────────────────
+// ─── Column map ─────────────────────────────────────────────────────────────
+// messages table columns (DO NOT reference columns not in this list):
+//   id, org_id, to_id, from_id, subject, body, read, created_at  ← original
+//   from_name, parent_id, type                                    ← added via ALTER TABLE
+
+// ─── GET ────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
   const orgId  = req.nextUrl.searchParams.get("orgId");
-  const role   = req.nextUrl.searchParams.get("role"); // "employee" | "owner"
+  const role   = req.nextUrl.searchParams.get("role");
 
   if (!orgId) return NextResponse.json({ error: "orgId required" }, { status: 400 });
 
   const client = sb();
 
-  let query = client
-    .from("messages")
-    .select("*")
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: false })
-    .limit(100);
+  let data: any[] | null = null;
+  let error: any = null;
 
   if (role === "owner") {
-    // Owner sees: all messages in org (broadcasts, direct, employee-to-manager)
-    // No extra filter needed — org_id scopes to their org
+    // Owner sees all org messages
+    ({ data, error } = await client
+      .from("messages")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(100));
   } else {
-    // Employee sees: messages sent to them, broadcasts, and their own sent messages
-    if (!userId) return NextResponse.json({ error: "userId required for employee" }, { status: 400 });
-    query = query.or(
-      `to_id.eq.${userId},type.eq.broadcast,from_id.eq.${userId},type.eq.employee_to_manager`
-    );
+    // Employee sees messages to them + broadcasts + their own sent messages
+    if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+    ({ data, error } = await client
+      .from("messages")
+      .select("*")
+      .eq("org_id", orgId)
+      .or(`to_id.eq.${userId},from_id.eq.${userId},type.eq.broadcast,type.eq.employee_to_manager`)
+      .order("created_at", { ascending: false })
+      .limit(100));
   }
 
-  const { data, error } = await query;
   if (error) {
     console.error("[messages GET]", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -46,30 +55,38 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ threads }, NO_CACHE);
 }
 
-// ── Build threaded structure ─────────────────────────────────────────────────
+// ─── Build threaded view ─────────────────────────────────────────────────────
 function buildThreads(messages: any[]) {
   const roots = messages.filter(m => !m.parent_id);
-  const byParent: Record<string, any[]> = {};
+  const replies: Record<string, any[]> = {};
   messages.forEach(m => {
     if (m.parent_id) {
-      if (!byParent[m.parent_id]) byParent[m.parent_id] = [];
-      byParent[m.parent_id].push(m);
+      if (!replies[m.parent_id]) replies[m.parent_id] = [];
+      replies[m.parent_id].push(m);
     }
   });
   return roots.map(root => ({
     ...root,
-    replies: (byParent[root.id] || []).sort(
+    replies: (replies[root.id] || []).sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     ),
   }));
 }
 
-// ── POST ─────────────────────────────────────────────────────────────────────
+// ─── POST ────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const client = sb();
-    const { orgId, fromId, fromName, toId, text, subject, parentId, type } = body;
+
+    const {
+      orgId, fromId, fromName,
+      toId,
+      text,       // what the JSX sends as message content
+      subject,    // optional subject line
+      parentId,   // for replies
+      type,       // "broadcast", "employee_to_manager", "direct", "reply"
+    } = body;
 
     if (!orgId || !fromId || !text?.trim()) {
       return NextResponse.json(
@@ -78,48 +95,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Determine message type from toId/type hints
-    const isBroadcast    = toId === "all"      || type === "broadcast";
-    const isToManagers   = toId === "managers" || type === "employee_to_manager";
-    const msgType = isBroadcast
-      ? "broadcast"
-      : isToManagers
-      ? "employee_to_manager"
-      : parentId
-      ? "reply"
-      : type || "direct";
+    // Resolve message type
+    const isBroadcast  = toId === "all"      || type === "broadcast";
+    const isToManagers = toId === "managers" || type === "employee_to_manager";
 
-    const insertPayload: Record<string, any> = {
-      org_id:     orgId,
-      from_id:    fromId,
-      from_name:  fromName || "Staff",
-      to_id:      isBroadcast || isToManagers ? null : (toId || null),
-      text:       text.trim(),
-      type:       msgType,
-      parent_id:  parentId || null,
-      read:       false,
-      created_at: new Date().toISOString(),
-    };
+    const msgType = isBroadcast  ? "broadcast"
+                  : isToManagers ? "employee_to_manager"
+                  : parentId     ? "reply"
+                  : type         || "direct";
 
-    // Add subject only if the column exists (graceful — will be ignored by DB if missing)
-    if (subject) insertPayload.subject = subject;
+    // Auto-generate subject if not provided
+    const msgSubject = subject?.trim()
+      || (isBroadcast  ? "Team Announcement"
+        : isToManagers ? `Message from ${fromName || "Staff"}`
+        : parentId     ? "Reply"
+        : "Direct Message");
 
     const { data: msg, error } = await client
       .from("messages")
-      .insert(insertPayload)
+      .insert({
+        org_id:     orgId,
+        from_id:    fromId,
+        from_name:  fromName || "Staff",
+        to_id:      isBroadcast || isToManagers ? null : (toId || null),
+        subject:    msgSubject,
+        body:       text.trim(),   // ← correct column name
+        type:       msgType,
+        parent_id:  parentId || null,
+        read:       false,
+        created_at: new Date().toISOString(),
+      })
       .select()
       .single();
 
     if (error) {
-      // If subject column doesn't exist, retry without it
-      if (error.message.includes("subject") && subject) {
-        delete insertPayload.subject;
-        const { data: msg2, error: err2 } = await client
-          .from("messages").insert(insertPayload).select().single();
-        if (err2) return NextResponse.json({ error: err2.message }, { status: 500 });
-        return NextResponse.json({ ok: true, message: msg2 });
-      }
-      console.error("[messages POST]", error.message, insertPayload);
+      console.error("[messages POST]", error.message, { orgId, fromId, msgType });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
