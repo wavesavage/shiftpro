@@ -892,6 +892,7 @@ function EmpPortal({emp,onLogout}){
   });
   const [syncMsg,setSyncMsg] = useState("");
   const [now,setNow] = useState(new Date());
+  const [empShifts,setEmpShifts] = useState(null);
   const [swapOpen,setSwapOpen] = useState(false);
   const [swapReason,setSwapReason] = useState("");
   const [swapDone,setSwapDone] = useState("");
