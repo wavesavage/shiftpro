@@ -1811,37 +1811,90 @@ function EmpPortal({emp,onLogout}){
 
             {empDocs!==null&&filteredDocs.length===0&&(
               <div>
-                <div style={{textAlign:"center",padding:"40px 20px",background:"#fff",borderRadius:14,border:"1px solid "+E.border,marginBottom:16}}>
-                  <div style={{fontSize:40,marginBottom:10}}>📂</div>
-                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text,marginBottom:6}}>
-                    {docSubTab==="all"?"No documents yet":("No "+CAT_INFO[docSubTab]?.label+" documents yet")}
+                {/* Tax Forms — employer uploads these */}
+                {docSubTab==="tax"&&(
+                  <div style={{background:"#fff",border:"1.5px solid rgba(124,58,237,0.2)",borderRadius:14,padding:"28px",textAlign:"center",marginBottom:12}}>
+                    <div style={{fontSize:40,marginBottom:10}}>📝</div>
+                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text,marginBottom:6}}>Tax Forms</div>
+                    <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20,maxWidth:320,margin:"0 auto 20px"}}>Your W-2, W-4, and other tax documents will appear here when your employer uploads them. You can also upload your own copies.</div>
+                    <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+                      <div style={{padding:"10px 16px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:8,fontFamily:E.mono,fontSize:10,color:"#7c3aed",letterSpacing:1}}>⏳ W-2 — Pending from employer</div>
+                      <div style={{padding:"10px 16px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:8,fontFamily:E.mono,fontSize:10,color:"#7c3aed",letterSpacing:1}}>⏳ W-4 — Pending from employer</div>
+                    </div>
+                    <button onClick={()=>{ setShowUploadForm(true); setDocUploadCat("tax"); }}
+                      style={{marginTop:16,padding:"9px 20px",background:"rgba(124,58,237,0.1)",border:"1.5px solid rgba(124,58,237,0.25)",borderRadius:8,fontFamily:E.sans,fontWeight:600,fontSize:13,color:"#7c3aed",cursor:"pointer"}}>
+                      + Upload My Own Tax Document
+                    </button>
                   </div>
-                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>
-                    {docSubTab==="all"?"Upload your first document using the button above.":(CAT_INFO[docSubTab]?.desc||"")}
-                  </div>
-                  <button onClick={()=>{ setShowUploadForm(true); if(docSubTab!=="all") setDocUploadCat(docSubTab); }}
-                    style={{padding:"9px 20px",background:E.indigoD,border:"1.5px solid "+E.indigo+"40",borderRadius:8,fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.indigo,cursor:"pointer"}}>
-                    + Upload {docSubTab==="all"?"Document":CAT_INFO[docSubTab]?.label}
-                  </button>
-                </div>
+                )}
 
-                {/* What to upload guide */}
+                {/* Pay Records — system generates these */}
+                {docSubTab==="payroll"&&(
+                  <div style={{background:"#fff",border:"1.5px solid rgba(26,158,110,0.2)",borderRadius:14,padding:"28px",textAlign:"center",marginBottom:12}}>
+                    <div style={{fontSize:40,marginBottom:10}}>💵</div>
+                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text,marginBottom:6}}>Pay Records</div>
+                    <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20,maxWidth:320,margin:"0 auto 20px"}}>Pay stubs and earnings records will appear here each pay period. Your employer uploads these directly to your file.</div>
+                    <div style={{background:"rgba(26,158,110,0.06)",border:"1px dashed rgba(26,158,110,0.3)",borderRadius:10,padding:"14px",marginBottom:16,display:"inline-flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:18}}>🔔</span>
+                      <span style={{fontFamily:E.sans,fontSize:12,color:E.green}}>You'll be notified when a new pay stub is available</span>
+                    </div>
+                    <div style={{fontFamily:E.mono,fontSize:10,color:E.textF}}>Connected payroll systems: QuickBooks Online (coming soon)</div>
+                  </div>
+                )}
+
+                {/* Identity & Other — employee uploads */}
+                {(docSubTab==="identity"||docSubTab==="other")&&(
+                  <div style={{textAlign:"center",padding:"40px 20px",background:"#fff",borderRadius:14,border:"1px solid "+E.border,marginBottom:16}}>
+                    <div style={{fontSize:40,marginBottom:10}}>📂</div>
+                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text,marginBottom:6}}>
+                      No {CAT_INFO[docSubTab]?.label} documents yet
+                    </div>
+                    <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>{CAT_INFO[docSubTab]?.desc}</div>
+                    <button onClick={()=>{ setShowUploadForm(true); setDocUploadCat(docSubTab); }}
+                      style={{padding:"9px 20px",background:E.indigoD,border:"1.5px solid "+E.indigo+"40",borderRadius:8,fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.indigo,cursor:"pointer"}}>
+                      + Upload {CAT_INFO[docSubTab]?.label}
+                    </button>
+                  </div>
+                )}
+
+                {/* All tab empty */}
                 {docSubTab==="all"&&(
+                  <div>
+                    <div style={{textAlign:"center",padding:"32px 20px",background:"#fff",borderRadius:14,border:"1px solid "+E.border,marginBottom:16}}>
+                      <div style={{fontSize:40,marginBottom:10}}>📁</div>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text,marginBottom:6}}>No documents yet</div>
+                      <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>Upload your identity documents. Pay stubs and tax forms will appear here when your employer adds them.</div>
+                      <button onClick={()=>setShowUploadForm(true)}
+                        style={{padding:"9px 20px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(99,102,241,0.3)"}}>
+                        + Upload My First Document
+                      </button>
+                    </div>
                   <div style={{background:"#fff",border:"1px solid "+E.border,borderRadius:14,padding:"16px 18px"}}>
-                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>📋 Suggested Documents to Upload</div>
-                    {Object.entries(CAT_INFO).map(([key,info])=>(
+                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>📋 Documents to Upload</div>
+                    {[
+                      {key:"identity",info:CAT_INFO.identity,uploadable:true},
+                      {key:"tax",info:CAT_INFO.tax,uploadable:true,note:"Employer also uploads W-2s here"},
+                      {key:"payroll",info:CAT_INFO.payroll,uploadable:false,note:"Auto-populated each pay period"},
+                      {key:"other",info:CAT_INFO.other,uploadable:true},
+                    ].map(({key,info,uploadable,note})=>(
                       <div key={key} style={{display:"flex",alignItems:"flex-start",gap:12,padding:"10px 0",borderBottom:"1px solid "+E.border}}>
                         <span style={{fontSize:20,flexShrink:0}}>{info.icon}</span>
                         <div style={{flex:1}}>
                           <div style={{fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.text}}>{info.label}</div>
                           <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>{info.desc}</div>
+                          {note&&<div style={{fontFamily:E.mono,fontSize:9,color:E.indigo,marginTop:3}}>ℹ {note}</div>}
                         </div>
-                        <button onClick={()=>{ setDocUploadCat(key); setShowUploadForm(true); }}
-                          style={{padding:"5px 12px",background:"none",border:"1px solid "+E.border,borderRadius:7,fontFamily:E.sans,fontSize:11,color:E.textD,cursor:"pointer",flexShrink:0}}>
-                          Upload
-                        </button>
+                        {uploadable?(
+                          <button onClick={()=>{ setDocUploadCat(key); setShowUploadForm(true); }}
+                            style={{padding:"5px 12px",background:"none",border:"1px solid "+E.border,borderRadius:7,fontFamily:E.sans,fontSize:11,color:E.textD,cursor:"pointer",flexShrink:0}}>
+                            Upload
+                          </button>
+                        ):(
+                          <span style={{fontFamily:E.mono,fontSize:9,color:E.green,background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:6,padding:"4px 8px",flexShrink:0}}>Auto</span>
+                        )}
                       </div>
                     ))}
+                  </div>
                   </div>
                 )}
               </div>
@@ -2188,6 +2241,63 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   const [msgText, setMsgText] = React.useState("");
   const [msgSent, setMsgSent] = React.useState(false);
   const [msgBusy, setMsgBusy] = React.useState(false);
+  // Document state
+  const [empDocList, setEmpDocList] = React.useState(null);
+  const [docDrawerOpen, setDocDrawerOpen] = React.useState(false);
+  const [ownerDocName, setOwnerDocName] = React.useState("");
+  const [ownerDocCat, setOwnerDocCat] = React.useState("payroll");
+  const [ownerDocNotes, setOwnerDocNotes] = React.useState("");
+  const [ownerDocBusy, setOwnerDocBusy] = React.useState(false);
+  const [ownerDocMsg, setOwnerDocMsg] = React.useState("");
+
+  // Load employee docs when drawer opens
+  React.useEffect(()=>{
+    if(!emp.id) return;
+    (async()=>{
+      try{
+        const {createClient} = await import("@supabase/supabase-js");
+        const sb2 = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+        const {data:{session:ss}}=await sb2.auth.getSession();
+        const r=await fetch(`/api/documents?userId=${emp.id}&_t=${Date.now()}`,{
+          headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+        });
+        if(r.ok){ const d=await r.json(); setEmpDocList(d.documents||[]); }
+        else setEmpDocList([]);
+      }catch(e){ setEmpDocList([]); }
+    })();
+  },[emp.id]);
+
+  const handleOwnerUpload = async(file) => {
+    if(!file||!ownerDocName.trim()){ setOwnerDocMsg("⚠ Please enter a document name"); return; }
+    if(file.size>10*1024*1024){ setOwnerDocMsg("⚠ File must be under 10MB"); return; }
+    setOwnerDocBusy(true); setOwnerDocMsg("");
+    try{
+      const {createClient} = await import("@supabase/supabase-js");
+      const sb2 = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const {data:{session:ss}}=await sb2.auth.getSession();
+      const fd=new FormData();
+      fd.append("file",file);
+      fd.append("userId",emp.id);
+      fd.append("orgId",activeOrg?.id||ownerProfile?.org_id||"");
+      fd.append("name",ownerDocName.trim());
+      fd.append("category",ownerDocCat);
+      fd.append("notes",ownerDocNotes||"Uploaded by manager");
+      const r=await fetch("/api/documents",{
+        method:"POST",
+        headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
+        body:fd,
+      });
+      const d=await r.json();
+      if(!r.ok) throw new Error(d.error||"Upload failed");
+      setEmpDocList(p=>[d.document,...(p||[])]);
+      setOwnerDocName(""); setOwnerDocNotes(""); setOwnerDocCat("payroll");
+      setDocDrawerOpen(false);
+      setOwnerDocMsg("✓ "+file.name+" added to "+emp.name+"'s file");
+      toast("Document added to "+emp.name+"'s file ✓","success");
+      setTimeout(()=>setOwnerDocMsg(""),5000);
+    }catch(e){ setOwnerDocMsg("Failed: "+e.message); }
+    finally{ setOwnerDocBusy(false); }
+  };
 
   const inputStyle = {
     width:"100%",padding:"9px 12px",background:O.bg3,
@@ -2475,6 +2585,87 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
               </button>
             </div>
           )}
+        </div>
+
+        {/* Documents section */}
+        <div style={{padding:"16px 24px",borderTop:"1px solid "+O.border}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"1.5px",textTransform:"uppercase"}}>📁 Employee Documents</div>
+            <button onClick={()=>setDocDrawerOpen(o=>!o)} style={{padding:"5px 12px",background:docDrawerOpen?"rgba(0,0,0,0.05)":"linear-gradient(135deg,#0891b2,#0e7490)",border:"none",borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:11,color:docDrawerOpen?O.textD:"#fff",cursor:"pointer"}}>
+              {docDrawerOpen?"✕ Cancel":"+ Add Doc"}
+            </button>
+          </div>
+
+          {/* Owner upload form */}
+          {docDrawerOpen&&(
+            <div style={{background:O.bg3,borderRadius:10,padding:"14px",marginBottom:12}}>
+              <div style={{marginBottom:10}}>
+                <label style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:4,textTransform:"uppercase"}}>Document Name *</label>
+                <input value={ownerDocName} onChange={e=>setOwnerDocName(e.target.value)} placeholder="e.g. W-2 2024, Pay Stub March..."
+                  style={{width:"100%",padding:"8px 10px",background:"#fff",border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                <div>
+                  <label style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:4,textTransform:"uppercase"}}>Category</label>
+                  <select value={ownerDocCat} onChange={e=>setOwnerDocCat(e.target.value)}
+                    style={{width:"100%",padding:"7px 10px",background:"#fff",border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                    <option value="payroll">💵 Pay Record</option>
+                    <option value="tax">📝 Tax Form</option>
+                    <option value="identity">🪪 Identity</option>
+                    <option value="other">📎 Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:4,textTransform:"uppercase"}}>Notes</label>
+                  <input value={ownerDocNotes} onChange={e=>setOwnerDocNotes(e.target.value)} placeholder="Pay period, tax year..."
+                    style={{width:"100%",padding:"7px 10px",background:"#fff",border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:ownerDocMsg?10:0}}>
+                <label style={{display:"block",padding:"10px",background:"#fff",border:"1.5px dashed "+O.border,borderRadius:8,textAlign:"center",cursor:"pointer"}}>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{display:"none"}} onChange={e=>{ if(e.target.files?.[0]) handleOwnerUpload(e.target.files[0]); }}/>
+                  <div style={{fontSize:20,marginBottom:2}}>📎</div>
+                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.textD}}>{ownerDocBusy?"Uploading…":"Choose File"}</div>
+                </label>
+                <label style={{display:"block",padding:"10px",background:"#fff",border:"1.5px dashed #0891b2",borderRadius:8,textAlign:"center",cursor:"pointer"}}>
+                  <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{ if(e.target.files?.[0]) handleOwnerUpload(e.target.files[0]); }}/>
+                  <div style={{fontSize:20,marginBottom:2}}>📷</div>
+                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:"#0891b2"}}>Take Photo</div>
+                </label>
+              </div>
+              {ownerDocMsg&&<div style={{fontFamily:O.sans,fontSize:12,color:ownerDocMsg.startsWith("✓")?O.green:O.red,marginTop:8,padding:"6px 10px",background:ownerDocMsg.startsWith("✓")?"rgba(26,158,110,0.08)":"rgba(217,64,64,0.06)",borderRadius:6}}>{ownerDocMsg}</div>}
+            </div>
+          )}
+
+          {/* Document list */}
+          {empDocList===null&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textF,textAlign:"center",padding:"12px"}}>Loading documents…</div>}
+          {empDocList!==null&&empDocList.length===0&&!docDrawerOpen&&(
+            <div style={{fontFamily:O.sans,fontSize:12,color:O.textF,textAlign:"center",padding:"12px 0"}}>No documents on file yet. Add pay stubs, tax forms, or ID copies.</div>
+          )}
+          {(empDocList||[]).slice(0,5).map(doc=>{
+            const catColor = doc.category==="payroll"?O.green:doc.category==="tax"?"#7c3aed":doc.category==="identity"?"#0891b2":O.textD;
+            const catIcon = doc.category==="payroll"?"💵":doc.category==="tax"?"📝":doc.category==="identity"?"🪪":"📎";
+            return(
+              <div key={doc.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid "+O.border}}>
+                <span style={{fontSize:16,flexShrink:0}}>{catIcon}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name}</div>
+                  <div style={{fontFamily:O.mono,fontSize:9,color:catColor}}>{new Date(doc.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                </div>
+                <button onClick={async()=>{
+                  const {createClient}=await import("@supabase/supabase-js");
+                  const sb3=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+                  const {data:{session:ss}}=await sb3.auth.getSession();
+                  const r=await fetch(`/api/documents?userId=${emp.id}&action=download&docId=${doc.id}`,{headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}});
+                  const d=await r.json();
+                  if(d.url) window.open(d.url,"_blank");
+                }} style={{padding:"4px 10px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer",flexShrink:0}}>
+                  ⬇ View
+                </button>
+              </div>
+            );
+          })}
+          {(empDocList||[]).length>5&&<div style={{fontFamily:O.sans,fontSize:11,color:O.textF,textAlign:"center",marginTop:8}}>+{empDocList.length-5} more documents on employee portal</div>}
         </div>
 
         {/* Danger zone */}
