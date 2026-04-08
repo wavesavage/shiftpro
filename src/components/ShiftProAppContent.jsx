@@ -2736,85 +2736,194 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
 // ══════════════════════════════════════════════════
 //  NOTIFICATIONS DROPDOWN (outside OwnerCmd)
 // ══════════════════════════════════════════════════
-function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, setTab, setStaffSubTab }) {
+function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, setTab, setStaffSubTab, liveEmps, setSelectedEmp, setShowEmpDrawer }) {
   const mobile = useIsMobile();
-  const unread = notifications.filter(n=>!n.read);
+  const [expanded, setExpanded] = React.useState(null); // id of expanded notification
 
-  // Mark all read when opened
-  React.useEffect(()=>{
-    setNotifications(prev=>prev.map(n=>({...n,read:true})));
-  },[]);
-
-  const iconFor  = type => type==="swap"?"🔄":type==="timeoff"?"📆":type==="staffmsg"?"💬":"👋";
+  const iconFor  = type => type==="swap"?"🔄":type==="timeoff"?"📆":type==="staffmsg"?"💬":"🔔";
   const colorFor = type => type==="swap"?O.amber:type==="timeoff"?O.purple:type==="staffmsg"?O.indigo:O.green;
 
-  const notifLabel = n => {
-    if(n.type==="staffmsg") return {from:n.raw?.from_name||"Staff", detail:n.raw?.body||(n.raw?.subject||"Sent you a message"), time: n.raw?.created_at?new Date(n.raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""};
-    if(n.type==="swap") return {from:(n.raw?.users?.first_name||"Employee")+" "+(n.raw?.users?.last_name||""), detail:"Wants to swap a shift"+(n.raw?.shift_date?" on "+new Date(n.raw.shift_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):""), time:n.raw?.created_at?new Date(n.raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""};
-    if(n.type==="timeoff") return {from:(n.raw?.users?.first_name||"Employee")+" "+(n.raw?.users?.last_name||""), detail:"Requested time off"+(n.raw?.start_date?" starting "+new Date(n.raw.start_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):""), time:n.raw?.created_at?new Date(n.raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""};
-    return {from:n.from||"Staff",detail:n.detail||"",time:n.time||""};
+  const labelFor = n => {
+    if(n.type==="staffmsg")  return { from: n.raw?.from_name||"Staff",       detail: (n.raw?.body||"").substring(0,60) };
+    if(n.type==="swap")      return { from: (n.raw?.users?.first_name||"Employee")+" "+(n.raw?.users?.last_name||""), detail: "Shift swap"+(n.raw?.shift_date?" · "+new Date(n.raw.shift_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"") };
+    if(n.type==="timeoff")   return { from: (n.raw?.users?.first_name||"Employee")+" "+(n.raw?.users?.last_name||""), detail: "Time off"+(n.raw?.start_date?" · "+new Date(n.raw.start_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"") };
+    return { from: "Staff", detail: "" };
   };
 
+  const handleClick = (e, n) => {
+    e.stopPropagation();
+    // Mark this item read
+    setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+    // Toggle inline action panel
+    setExpanded(prev => prev===n.id ? null : n.id);
+  };
+
+  const unreadCount = notifications.filter(n=>!n.read).length;
+
   return (
-    <div style={{
-      position:"fixed",top:62,right:mobile?8:20,width:mobile?"calc(100vw - 16px)":340,
-      background:"#fff",border:"1px solid "+O.border,
-      borderRadius:14,boxShadow:"0 8px 32px rgba(0,0,0,0.12)",
-      zIndex:500,overflow:"hidden",animation:"fadeUp 0.2s ease",
-    }}>
+    <div style={{position:"fixed",top:62,right:mobile?8:20,width:mobile?"calc(100vw - 16px)":360,
+      background:"#fff",border:"1px solid "+O.border,borderRadius:16,
+      boxShadow:"0 12px 40px rgba(0,0,0,0.15)",zIndex:500,overflow:"hidden",animation:"fadeUp 0.2s ease"}}
+      onClick={e=>e.stopPropagation()}>
+
       {/* Header */}
-      <div style={{padding:"14px 16px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>Notifications</div>
-        {unread.length>0&&(
-          <span style={{fontFamily:O.mono,fontSize:9,color:O.red,background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:10,padding:"2px 8px"}}>
-            {unread.length} new
-          </span>
-        )}
+      <div style={{padding:"14px 18px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>Notifications</div>
+          {unreadCount>0&&<span style={{fontFamily:O.mono,fontSize:9,color:"#fff",background:O.red,borderRadius:10,padding:"2px 8px",fontWeight:700}}>{unreadCount} new</span>}
+        </div>
+        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);}} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:O.textF,lineHeight:1}}>×</button>
       </div>
 
       {/* List */}
-      <div style={{maxHeight:360,overflowY:"auto"}}>
+      <div style={{maxHeight:420,overflowY:"auto"}}>
         {notifications.length===0&&(
-          <div style={{padding:"32px 20px",textAlign:"center"}}>
-            <div style={{fontSize:32,marginBottom:10}}>✅</div>
-            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text,marginBottom:4}}>You're all caught up!</div>
-            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>No pending requests or alerts right now.</div>
+          <div style={{padding:"40px 20px",textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:10}}>✅</div>
+            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text,marginBottom:4}}>All caught up!</div>
+            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Employee activity will appear here.</div>
           </div>
         )}
+
         {notifications.map((n,i)=>{
-          const {from,detail,time} = notifLabel(n);
+          const {from,detail} = labelFor(n);
+          const isOpen = expanded===n.id;
+          const col = colorFor(n.type);
           return(
-          <div key={n.id} onClick={()=>{
-            setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
-            if(n.type==="staffmsg"){ setNotifOpen(false); setTab("command"); }
-            else if(n.type==="swap"||n.type==="timeoff"){ setNotifOpen(false); setTab("staff"); setStaffSubTab("requests"); }
-          }} style={{
-            padding:"12px 16px",
-            borderBottom:i<notifications.length-1?"1px solid "+O.border:"none",
-            borderLeft:"3px solid "+colorFor(n.type),
-            background:n.read?"#fff":colorFor(n.type)+"08",
-            display:"flex",gap:10,alignItems:"flex-start",
-            cursor:"pointer",
-          }}>
-            <span style={{fontSize:18,flexShrink:0,marginTop:1}}>{iconFor(n.type)}</span>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,marginBottom:2}}>{from}</div>
-              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{detail}</div>
-              <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:4}}>{time}</div>
+            <div key={n.id} style={{borderBottom:i<notifications.length-1?"1px solid "+O.border:"none"}}>
+              {/* Row */}
+              <div onClick={e=>handleClick(e,n)} style={{
+                padding:"12px 16px",
+                borderLeft:"3px solid "+(n.read?col+"60":col),
+                background:n.read?"#fff":col+"08",
+                display:"flex",gap:10,alignItems:"flex-start",
+                cursor:"pointer",
+                transition:"background 0.15s",
+              }}>
+                <span style={{fontSize:18,flexShrink:0,marginTop:1}}>{iconFor(n.type)}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                    {!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0}}/>}
+                    <div style={{fontFamily:O.sans,fontWeight:n.read?500:700,fontSize:13,color:O.text}}>{from}</div>
+                    <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginLeft:"auto",flexShrink:0}}>
+                      {n.raw?.created_at?new Date(n.raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""}
+                    </div>
+                  </div>
+                  <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:isOpen?"normal":"nowrap"}}>{detail}</div>
+                </div>
+                <span style={{fontFamily:O.mono,fontSize:11,color:col,flexShrink:0,marginTop:2}}>{isOpen?"▲":"▼"}</span>
+              </div>
+
+              {/* Inline action panel */}
+              {isOpen&&(
+                <div style={{padding:"12px 16px 14px",background:col+"06",borderLeft:"3px solid "+col}}>
+                  {/* Staff message */}
+                  {n.type==="staffmsg"&&(
+                    <div>
+                      <div style={{fontFamily:O.sans,fontSize:13,color:O.text,lineHeight:1.6,marginBottom:10,padding:"8px 10px",background:"#fff",borderRadius:8,border:"1px solid "+O.border}}>
+                        {n.raw?.body||""}
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={e=>{
+                          e.stopPropagation();
+                          const staffEmp=(liveEmps||[]).find(emp=>emp.id===n.raw?.from_id);
+                          if(staffEmp){setSelectedEmp(staffEmp);setShowEmpDrawer(true);}
+                          setNotifOpen(false);
+                        }} style={{flex:1,padding:"8px",background:`linear-gradient(135deg,${O.indigo},#7c3aed)`,border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer"}}>
+                          💬 Reply to {from.split(" ")[0]}
+                        </button>
+                        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);setTab("command");}} style={{padding:"8px 12px",background:"rgba(0,0,0,0.04)",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,color:O.textD,cursor:"pointer"}}>
+                          View All
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {/* Swap request */}
+                  {n.type==="swap"&&(
+                    <div>
+                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginBottom:8,lineHeight:1.5}}>
+                        <strong>{from}</strong> wants to swap their shift{n.raw?.shift_date?" on "+new Date(n.raw.shift_date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):""}.{n.raw?.reason?" Reason: "+n.raw.reason:""}
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={async e=>{
+                          e.stopPropagation();
+                          try{
+                            const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                            await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:n.raw.id,status:"approved"})});
+                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                          }catch(e2){}
+                        }} style={{flex:1,padding:"8px",background:"rgba(26,158,110,0.1)",border:"1px solid rgba(26,158,110,0.3)",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.green,cursor:"pointer"}}>
+                          ✓ Approve
+                        </button>
+                        <button onClick={async e=>{
+                          e.stopPropagation();
+                          try{
+                            const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                            await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:n.raw.id,status:"denied"})});
+                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                          }catch(e2){}
+                        }} style={{flex:1,padding:"8px",background:"rgba(217,64,64,0.08)",border:"1px solid rgba(217,64,64,0.25)",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.red,cursor:"pointer"}}>
+                          ✕ Deny
+                        </button>
+                        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}} style={{padding:"8px 10px",background:"rgba(0,0,0,0.04)",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
+                          Details
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {/* Time off request */}
+                  {n.type==="timeoff"&&(
+                    <div>
+                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginBottom:8,lineHeight:1.5}}>
+                        <strong>{from}</strong> is requesting time off{n.raw?.start_date?" from "+new Date(n.raw.start_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):""}
+                        {n.raw?.end_date&&n.raw.start_date!==n.raw.end_date?" to "+new Date(n.raw.end_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"."}{n.raw?.reason?" Reason: "+n.raw.reason:""}
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={async e=>{
+                          e.stopPropagation();
+                          try{
+                            const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                            await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:n.raw.id,status:"approved"})});
+                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                          }catch(e2){}
+                        }} style={{flex:1,padding:"8px",background:"rgba(26,158,110,0.1)",border:"1px solid rgba(26,158,110,0.3)",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.green,cursor:"pointer"}}>
+                          ✓ Approve
+                        </button>
+                        <button onClick={async e=>{
+                          e.stopPropagation();
+                          try{
+                            const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                            await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:n.raw.id,status:"denied"})});
+                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                          }catch(e2){}
+                        }} style={{flex:1,padding:"8px",background:"rgba(217,64,64,0.08)",border:"1px solid rgba(217,64,64,0.25)",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.red,cursor:"pointer"}}>
+                          ✕ Deny
+                        </button>
+                        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}} style={{padding:"8px 10px",background:"rgba(0,0,0,0.04)",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
+                          Details
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            {!n.read&&<div style={{width:8,height:8,borderRadius:"50%",background:colorFor(n.type),flexShrink:0,marginTop:4}}/>}
-          </div>
           );
         })}
       </div>
 
       {/* Footer */}
-      <div style={{padding:"10px 16px",borderTop:"1px solid "+O.border}}>
-        <button
-          onClick={()=>{ setNotifOpen(false); setTab("staff"); setStaffSubTab("requests"); }}
-          style={{width:"100%",padding:"9px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.amber,cursor:"pointer"}}>
-          View All Requests  to 
+      <div style={{padding:"10px 16px",borderTop:"1px solid "+O.border,display:"flex",gap:8}}>
+        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}}
+          style={{flex:1,padding:"9px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.amber,cursor:"pointer"}}>
+          View All Requests
         </button>
+        {notifications.filter(n=>!n.read).length>0&&(
+          <button onClick={e=>{e.stopPropagation();setNotifications(prev=>prev.map(n=>({...n,read:true})));}}
+            style={{padding:"9px 12px",background:"rgba(0,0,0,0.04)",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
+            Mark all read
+          </button>
+        )}
       </div>
     </div>
   );
@@ -5451,6 +5560,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setNotifOpen={setNotifOpen}
           setTab={setTab}
           setStaffSubTab={setStaffSubTab}
+          liveEmps={liveEmps}
+          setSelectedEmp={setSelectedEmp}
+          setShowEmpDrawer={setShowEmpDrawer}
         />
       )}
 
