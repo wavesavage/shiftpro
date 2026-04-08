@@ -904,6 +904,14 @@ function EmpPortal({emp,onLogout}){
   const [openShifts,setOpenShifts] = useState([]);
   const [realWkHrs,setRealWkHrs] = useState(0);
   const [realMoHrs,setRealMoHrs] = useState(0);
+  const [empDocs,setEmpDocs] = useState(null);
+  const [docSubTab,setDocSubTab] = useState("all");
+  const [docUploading,setDocUploading] = useState(false);
+  const [docUploadName,setDocUploadName] = useState("");
+  const [docUploadCat,setDocUploadCat] = useState("identity");
+  const [docUploadNotes,setDocUploadNotes] = useState("");
+  const [showUploadForm,setShowUploadForm] = useState(false);
+  const [docMsg,setDocMsg] = useState("");
 
   // ── Clock persistence helpers ──
   const saveClockedIn = (at) => {
@@ -985,7 +993,11 @@ function EmpPortal({emp,onLogout}){
           const r=await fetch(`${baseUrl}?type=messages&userId=${empSafe.id}&orgId=${empSafe.orgId||""}&_t=${Date.now()}`,{headers,cache:"no-store"});
           if(r.ok){ const d=await r.json(); if(d.messages?.length>0) setMsgs(d.messages); }
         }catch(e){}
-        setMsgsLoaded(true);
+        // ── Load documents ──
+        try{
+          const r=await fetch(`/api/documents?userId=${empSafe.id}&_t=${Date.now()}`,{headers,cache:"no-store"});
+          if(r.ok){ const d=await r.json(); setEmpDocs(d.documents||[]); }
+        }catch(e){ setEmpDocs([]); }
 
         // ── Load availability via service role ──
         try{
@@ -1614,13 +1626,231 @@ function EmpPortal({emp,onLogout}){
             </div>
           </div>
         )}
-        {tab==="documents"&&(
-          <div style={{animation:"fadeUp 0.3s ease",textAlign:"center",padding:"60px 20px"}}>
-            <div style={{fontSize:48,marginBottom:12}}>📄</div>
-            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>My Documents</div>
-            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Pay stubs, W-2s, and time records from your employer.</div>
+        {tab==="documents"&&(()=>{
+          const CATS = [
+            {id:"all",    label:"📁 All",       color:E.indigo},
+            {id:"identity",label:"🪪 Identity",  color:"#0891b2"},
+            {id:"tax",    label:"📝 Tax Forms",  color:"#7c3aed"},
+            {id:"payroll",label:"💵 Pay Records",color:E.green},
+            {id:"other",  label:"📎 Other",      color:E.textD},
+          ];
+          const CAT_INFO = {
+            identity:{label:"Identity",icon:"🪪",desc:"Driver's license, passport, I-9, social security card"},
+            tax:     {label:"Tax Forms",icon:"📝",desc:"W-2, W-4, 1099, state tax forms"},
+            payroll: {label:"Pay Records",icon:"💵",desc:"Pay stubs, direct deposit confirmations"},
+            other:   {label:"Other",icon:"📎",desc:"Certifications, agreements, custom documents"},
+          };
+          const filteredDocs = (empDocs||[]).filter(d=>docSubTab==="all"||d.category===docSubTab);
+          const fmtSize = b => b>1048576?(b/1048576).toFixed(1)+"MB":b>1024?(b/1024).toFixed(0)+"KB":b+"B";
+          const fmtDate = s => new Date(s).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+          const fileIcon = t => t?.includes("pdf")?"📄":t?.includes("image")?"🖼️":t?.includes("word")?"📝":"📎";
+
+          const handleUpload = async(file) => {
+            if(!file||!docUploadName.trim()){ setDocMsg("Please enter a document name"); return; }
+            if(file.size>10*1024*1024){ setDocMsg("File must be under 10MB"); return; }
+            setDocUploading(true); setDocMsg("");
+            try{
+              const fd=new FormData();
+              fd.append("file",file); fd.append("userId",empSafe.id);
+              fd.append("orgId",empSafe.orgId||""); fd.append("name",docUploadName.trim());
+              fd.append("category",docUploadCat); fd.append("notes",docUploadNotes);
+              const {data:{session:ss}}=await (await getSB()).auth.getSession();
+              const r=await fetch("/api/documents",{
+                method:"POST",
+                headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
+                body:fd,
+              });
+              const d=await r.json();
+              if(!r.ok) throw new Error(d.error||"Upload failed");
+              setEmpDocs(p=>[d.document,...(p||[])]);
+              setShowUploadForm(false); setDocUploadName(""); setDocUploadNotes("");
+              setDocMsg("✓ Document uploaded successfully!");
+              setTimeout(()=>setDocMsg(""),4000);
+            }catch(e){ setDocMsg("Upload failed: "+e.message); }
+            finally{ setDocUploading(false); }
+          };
+
+          const handleDownload = async(doc) => {
+            try{
+              const {data:{session:ss}}=await (await getSB()).auth.getSession();
+              const r=await fetch(`/api/documents?userId=${empSafe.id}&action=download&docId=${doc.id}`,{
+                headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+              });
+              const d=await r.json();
+              if(d.url){ window.open(d.url,"_blank"); }
+            }catch(e){ setDocMsg("Download failed"); }
+          };
+
+          const handleDelete = async(docId) => {
+            if(!confirm("Delete this document? This cannot be undone.")) return;
+            try{
+              const {data:{session:ss}}=await (await getSB()).auth.getSession();
+              await fetch(`/api/documents?docId=${docId}`,{
+                method:"DELETE",
+                headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
+              });
+              setEmpDocs(p=>(p||[]).filter(d=>d.id!==docId));
+              setDocMsg("✓ Document deleted");
+              setTimeout(()=>setDocMsg(""),3000);
+            }catch(e){ setDocMsg("Delete failed"); }
+          };
+
+          return(
+          <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+            {/* Header */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <div>
+                <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text}}>📁 My Documents</div>
+                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>Your employee file — upload and access your documents securely</div>
+              </div>
+              <button onClick={()=>setShowUploadForm(o=>!o)} style={{padding:"9px 16px",background:showUploadForm?"rgba(0,0,0,0.05)":`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:13,color:showUploadForm?E.textD:"#fff",cursor:"pointer",boxShadow:showUploadForm?"none":"0 4px 12px rgba(99,102,241,0.3)"}}>
+                {showUploadForm?"✕ Cancel":"+ Upload"}
+              </button>
+            </div>
+
+            {/* Upload form */}
+            {showUploadForm&&(
+              <div style={{background:"#fff",border:"1.5px solid "+E.indigo+"40",borderRadius:14,padding:"20px",marginBottom:16,boxShadow:"0 4px 20px rgba(99,102,241,0.1)"}}>
+                <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text,marginBottom:14}}>Upload Document</div>
+                <div style={{marginBottom:12}}>
+                  <label style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Document Name *</label>
+                  <input value={docUploadName} onChange={e=>setDocUploadName(e.target.value)} placeholder="e.g. Driver's License, W-4 2024..."
+                    style={{width:"100%",padding:"9px 12px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                  <div>
+                    <label style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Category</label>
+                    <select value={docUploadCat} onChange={e=>setDocUploadCat(e.target.value)}
+                      style={{width:"100%",padding:"9px 12px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                      <option value="identity">🪪 Identity</option>
+                      <option value="tax">📝 Tax Forms</option>
+                      <option value="payroll">💵 Pay Records</option>
+                      <option value="other">📎 Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Notes (optional)</label>
+                    <input value={docUploadNotes} onChange={e=>setDocUploadNotes(e.target.value)} placeholder="e.g. Expires 2027"
+                      style={{width:"100%",padding:"9px 12px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+                  </div>
+                </div>
+                {/* File drop zone */}
+                <label style={{display:"block",border:"2px dashed "+E.indigo+"60",borderRadius:10,padding:"28px",textAlign:"center",cursor:"pointer",background:E.indigoD,marginBottom:12}}>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{display:"none"}}
+                    onChange={e=>{ if(e.target.files?.[0]) handleUpload(e.target.files[0]); }}/>
+                  <div style={{fontSize:32,marginBottom:8}}>📎</div>
+                  <div style={{fontFamily:E.sans,fontWeight:600,fontSize:14,color:E.indigo,marginBottom:4}}>{docUploading?"Uploading…":"Tap to select file"}</div>
+                  <div style={{fontFamily:E.mono,fontSize:10,color:E.textF}}>PDF, JPG, PNG, DOC up to 10MB</div>
+                </label>
+                {docMsg&&<div style={{fontFamily:E.sans,fontSize:13,color:docMsg.startsWith("✓")?E.green:E.red,padding:"8px 12px",background:docMsg.startsWith("✓")?"rgba(16,185,129,0.08)":"rgba(239,68,68,0.08)",borderRadius:8}}>{docMsg}</div>}
+              </div>
+            )}
+
+            {/* Status message */}
+            {!showUploadForm&&docMsg&&(
+              <div style={{padding:"10px 14px",background:docMsg.startsWith("✓")?"rgba(16,185,129,0.1)":"rgba(239,68,68,0.08)",border:"1px solid "+(docMsg.startsWith("✓")?"rgba(16,185,129,0.25)":"rgba(239,68,68,0.2)"),borderRadius:9,marginBottom:14,fontFamily:E.sans,fontSize:13,color:docMsg.startsWith("✓")?E.green:E.red}}>
+                {docMsg}
+              </div>
+            )}
+
+            {/* Category tabs */}
+            <div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",paddingBottom:2}}>
+              {CATS.map(c=>{
+                const count=c.id==="all"?(empDocs||[]).length:(empDocs||[]).filter(d=>d.category===c.id).length;
+                return(
+                  <button key={c.id} onClick={()=>setDocSubTab(c.id)} style={{padding:"7px 14px",borderRadius:20,border:"none",fontFamily:E.sans,fontWeight:600,fontSize:12,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,background:docSubTab===c.id?c.color:"rgba(0,0,0,0.05)",color:docSubTab===c.id?"#fff":E.textD,transition:"all 0.15s"}}>
+                    {c.label} {count>0&&<span style={{background:"rgba(255,255,255,0.3)",borderRadius:10,padding:"1px 6px",fontSize:10,marginLeft:3}}>{count}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* What to upload guide when empty */}
+            {empDocs===null&&(
+              <div style={{textAlign:"center",padding:"40px",background:"#fff",borderRadius:14,border:"1px solid "+E.border}}>
+                <div style={{fontSize:32,marginBottom:8}}>⏳</div>
+                <div style={{fontFamily:E.sans,fontSize:14,color:E.textD}}>Loading documents…</div>
+              </div>
+            )}
+
+            {empDocs!==null&&filteredDocs.length===0&&(
+              <div>
+                <div style={{textAlign:"center",padding:"40px 20px",background:"#fff",borderRadius:14,border:"1px solid "+E.border,marginBottom:16}}>
+                  <div style={{fontSize:40,marginBottom:10}}>📂</div>
+                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text,marginBottom:6}}>
+                    {docSubTab==="all"?"No documents yet":("No "+CAT_INFO[docSubTab]?.label+" documents yet")}
+                  </div>
+                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>
+                    {docSubTab==="all"?"Upload your first document using the button above.":(CAT_INFO[docSubTab]?.desc||"")}
+                  </div>
+                  <button onClick={()=>{ setShowUploadForm(true); if(docSubTab!=="all") setDocUploadCat(docSubTab); }}
+                    style={{padding:"9px 20px",background:E.indigoD,border:"1.5px solid "+E.indigo+"40",borderRadius:8,fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.indigo,cursor:"pointer"}}>
+                    + Upload {docSubTab==="all"?"Document":CAT_INFO[docSubTab]?.label}
+                  </button>
+                </div>
+
+                {/* What to upload guide */}
+                {docSubTab==="all"&&(
+                  <div style={{background:"#fff",border:"1px solid "+E.border,borderRadius:14,padding:"16px 18px"}}>
+                    <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>📋 Suggested Documents to Upload</div>
+                    {Object.entries(CAT_INFO).map(([key,info])=>(
+                      <div key={key} style={{display:"flex",alignItems:"flex-start",gap:12,padding:"10px 0",borderBottom:"1px solid "+E.border}}>
+                        <span style={{fontSize:20,flexShrink:0}}>{info.icon}</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.text}}>{info.label}</div>
+                          <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>{info.desc}</div>
+                        </div>
+                        <button onClick={()=>{ setDocUploadCat(key); setShowUploadForm(true); }}
+                          style={{padding:"5px 12px",background:"none",border:"1px solid "+E.border,borderRadius:7,fontFamily:E.sans,fontSize:11,color:E.textD,cursor:"pointer",flexShrink:0}}>
+                          Upload
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Document list */}
+            {filteredDocs.length>0&&(
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {filteredDocs.map(doc=>(
+                  <div key={doc.id} style={{background:"#fff",border:"1px solid "+E.border,borderRadius:12,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,boxShadow:E.shadow}}>
+                    <div style={{width:44,height:44,borderRadius:10,background:
+                      doc.category==="identity"?"rgba(8,145,178,0.12)":
+                      doc.category==="tax"?"rgba(124,58,237,0.12)":
+                      doc.category==="payroll"?"rgba(26,158,110,0.12)":"rgba(0,0,0,0.05)",
+                      display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>
+                      {fileIcon(doc.file_type)}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginTop:3,flexWrap:"wrap"}}>
+                        <span style={{fontFamily:E.mono,fontSize:9,color:"#fff",background:
+                          doc.category==="identity"?"#0891b2":doc.category==="tax"?"#7c3aed":doc.category==="payroll"?E.green:E.textD,
+                          padding:"2px 7px",borderRadius:10}}>
+                          {CAT_INFO[doc.category]?.icon} {CAT_INFO[doc.category]?.label}
+                        </span>
+                        <span style={{fontFamily:E.mono,fontSize:10,color:E.textF}}>{fmtDate(doc.created_at)}</span>
+                        {doc.file_size&&<span style={{fontFamily:E.mono,fontSize:10,color:E.textF}}>{fmtSize(doc.file_size)}</span>}
+                      </div>
+                      {doc.notes&&<div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginTop:3}}>{doc.notes}</div>}
+                    </div>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button onClick={()=>handleDownload(doc)} style={{padding:"7px 12px",background:E.indigoD,border:"1px solid "+E.indigo+"30",borderRadius:7,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>
+                        ⬇ View
+                      </button>
+                      <button onClick={()=>handleDelete(doc.id)} style={{padding:"7px 10px",background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:7,fontFamily:E.sans,fontSize:12,color:E.red,cursor:"pointer"}}>
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+          );
+        })()}
       </div>
       {swapOpen&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setSwapOpen(false)}>
