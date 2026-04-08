@@ -8,26 +8,23 @@ const sb = () => createClient(
 );
 const NO_CACHE = { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } };
 
-// ─── Column map ─────────────────────────────────────────────────────────────
-// messages table columns (DO NOT reference columns not in this list):
-//   id, org_id, to_id, from_id, subject, body, read, created_at  ← original
-//   from_name, parent_id, type                                    ← added via ALTER TABLE
+// messages table columns:
+//   id, org_id, to_id, from_id, subject, body, read, created_at  (original)
+//   from_name, parent_id, type                                    (added via ALTER TABLE)
+// type CHECK constraint was dropped — all values allowed
 
-// ─── GET ────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
   const orgId  = req.nextUrl.searchParams.get("orgId");
   const role   = req.nextUrl.searchParams.get("role");
 
   if (!orgId) return NextResponse.json({ error: "orgId required" }, { status: 400 });
-
   const client = sb();
 
   let data: any[] | null = null;
   let error: any = null;
 
   if (role === "owner") {
-    // Owner sees all org messages
     ({ data, error } = await client
       .from("messages")
       .select("*")
@@ -35,7 +32,6 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(100));
   } else {
-    // Employee sees messages to them + broadcasts + their own sent messages
     if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
     ({ data, error } = await client
       .from("messages")
@@ -55,7 +51,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ threads }, NO_CACHE);
 }
 
-// ─── Build threaded view ─────────────────────────────────────────────────────
 function buildThreads(messages: any[]) {
   const roots = messages.filter(m => !m.parent_id);
   const replies: Record<string, any[]> = {};
@@ -73,48 +68,30 @@ function buildThreads(messages: any[]) {
   }));
 }
 
-// ─── POST ────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const client = sb();
-
-    const {
-      orgId, fromId, fromName,
-      toId,
-      text,       // what the JSX sends as message content
-      subject,    // optional subject line
-      parentId,   // for replies
-      type,       // "broadcast", "employee_to_manager", "direct", "reply"
-    } = body;
+    const { orgId, fromId, fromName, toId, text, subject, parentId, type } = body;
 
     if (!orgId || !fromId || !text?.trim()) {
-      return NextResponse.json(
-        { error: "orgId, fromId, and text are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "orgId, fromId, and text are required" }, { status: 400 });
     }
 
-    // Resolve message type
     const isBroadcast  = toId === "all"      || type === "broadcast";
     const isToManagers = toId === "managers" || type === "employee_to_manager";
 
-    // Use only values allowed by the DB type column
-    // If constraint exists: direct|broadcast|reply
-    // employee_to_manager is stored as "direct" + identified by to_id=null + from context
+    // employee_to_manager is the correct type — constraint was dropped via SQL
     const msgType = isBroadcast  ? "broadcast"
-                  : isToManagers ? "direct"    // employee→manager = direct with no to_id
+                  : isToManagers ? "employee_to_manager"
                   : parentId     ? "reply"
                   : "direct";
-    // Keep full type in subject for identification when needed
-    const isEmpToMgr = isToManagers;
 
-    // Auto-generate subject if not provided
     const msgSubject = subject?.trim()
       || (isBroadcast  ? "Team Announcement"
-        : isEmpToMgr   ? `[Staff] Message from ${fromName || "Staff"}`
+        : isToManagers ? `Message from ${fromName || "Staff"}`
         : parentId     ? "Reply"
-        : "Direct Message");
+        : "Message");
 
     const { data: msg, error } = await client
       .from("messages")
@@ -124,7 +101,7 @@ export async function POST(req: NextRequest) {
         from_name:  fromName || "Staff",
         to_id:      isBroadcast || isToManagers ? null : (toId || null),
         subject:    msgSubject,
-        body:       text.trim(),   // ← correct column name
+        body:       text.trim(),
         type:       msgType,
         parent_id:  parentId || null,
         read:       false,

@@ -2745,8 +2745,15 @@ function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, 
     setNotifications(prev=>prev.map(n=>({...n,read:true})));
   },[]);
 
-  const iconFor = type => type==="swap"?"🔄":type==="timeoff"?"📆":"👋";
-  const colorFor = type => type==="swap"?O.amber:type==="timeoff"?O.purple:O.green;
+  const iconFor  = type => type==="swap"?"🔄":type==="timeoff"?"📆":type==="staffmsg"?"💬":"👋";
+  const colorFor = type => type==="swap"?O.amber:type==="timeoff"?O.purple:type==="staffmsg"?O.indigo:O.green;
+
+  const notifLabel = n => {
+    if(n.type==="staffmsg") return {from:n.raw?.from_name||"Staff", detail:n.raw?.body||(n.raw?.subject||"Sent you a message"), time: n.raw?.created_at?new Date(n.raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""};
+    if(n.type==="swap") return {from:(n.raw?.users?.first_name||"Employee")+" "+(n.raw?.users?.last_name||""), detail:"Wants to swap a shift"+(n.raw?.shift_date?" on "+new Date(n.raw.shift_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):""), time:n.raw?.created_at?new Date(n.raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""};
+    if(n.type==="timeoff") return {from:(n.raw?.users?.first_name||"Employee")+" "+(n.raw?.users?.last_name||""), detail:"Requested time off"+(n.raw?.start_date?" starting "+new Date(n.raw.start_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):""), time:n.raw?.created_at?new Date(n.raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""};
+    return {from:n.from||"Staff",detail:n.detail||"",time:n.time||""};
+  };
 
   return (
     <div style={{
@@ -2774,22 +2781,31 @@ function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, 
             <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>No pending requests or alerts right now.</div>
           </div>
         )}
-        {notifications.map((n,i)=>(
-          <div key={n.id} style={{
+        {notifications.map((n,i)=>{
+          const {from,detail,time} = notifLabel(n);
+          return(
+          <div key={n.id} onClick={()=>{
+            setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+            if(n.type==="staffmsg"){ setNotifOpen(false); setTab("command"); }
+            else if(n.type==="swap"||n.type==="timeoff"){ setNotifOpen(false); setTab("staff"); setStaffSubTab("requests"); }
+          }} style={{
             padding:"12px 16px",
             borderBottom:i<notifications.length-1?"1px solid "+O.border:"none",
             borderLeft:"3px solid "+colorFor(n.type),
             background:n.read?"#fff":colorFor(n.type)+"08",
             display:"flex",gap:10,alignItems:"flex-start",
+            cursor:"pointer",
           }}>
             <span style={{fontSize:18,flexShrink:0,marginTop:1}}>{iconFor(n.type)}</span>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,marginBottom:2}}>{n.from}</div>
-              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.4}}>{n.detail}</div>
-              <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:4}}>{n.time}</div>
+              <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,marginBottom:2}}>{from}</div>
+              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{detail}</div>
+              <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:4}}>{time}</div>
             </div>
+            {!n.read&&<div style={{width:8,height:8,borderRadius:"50%",background:colorFor(n.type),flexShrink:0,marginTop:4}}/>}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Footer */}
@@ -4698,6 +4714,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [notifOpen,setNotifOpen] = useState(false);
   const [notifications,setNotifications] = useState([]);
   const [notifLoaded,setNotifLoaded] = useState(false);
+  // ── Poll every 60 seconds for new staff messages and requests ──
+  useEffect(()=>{
+    if(!ownerProfile?.orgId) return;
+    const interval = setInterval(()=>{
+      loadNotifications(ownerProfile.orgId, true);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [ownerProfile?.orgId]);
+
   const reloadNotifications = async() => {
     setNotifLoaded(false);
     const orgId = ownerProfile?.org_id || activeOrg?.id;
@@ -4739,6 +4764,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   useEffect(()=>{
     const orgId = ownerProfile?.org_id||activeOrg?.id;
     if((tab==="schedule"||tab==="command") && orgId){
+      // Always refresh notifications when landing on command tab
+      if(tab==="command") loadNotifications(orgId, true);
       loadShifts(orgId, getMonday(currentWeekOffset), activeLocation?.id||null);
     }
   },[tab, ownerProfile?.org_id, activeOrg?.id, currentWeekOffset, activeLocation?.id]);
@@ -5125,11 +5152,19 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         const r = await fetch(`/api/messages?userId=owner&orgId=${orgId}&role=owner&_t=${Date.now()}`, {headers, cache:"no-store"});
         if(r.ok){
           const d = await r.json();
-          const msgs = (d.threads||[]).filter(m=>m.type==="employee_to_manager");
+          const msgs = (d.threads||[]).filter(m=>
+          m.type==="employee_to_manager" ||
+          (m.from_id && !m.to_id && m.type==="direct") // fallback for messages stored before type fix
+        );
           setStaffMessages(msgs);
           setStaffMsgsLoaded(true);
         }
       }catch(e){ console.error("staff msgs load:",e); }
+
+      // Add staff messages to bell notifications
+      staffMessages.forEach(m => {
+        items.push({id:"staffmsg_"+m.id, type:"staffmsg", raw:m, read:!!m.read});
+      });
 
       setRequestsLoaded(true);
     }catch(e){ console.error("loadNotifications:",e); }
@@ -6137,19 +6172,23 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           </div>
                         )}
                         {staffMessages.slice(0,5).map(msg=>(
-                          <div key={msg.id} style={{padding:"10px 12px",background:O.bg3,borderRadius:10,marginBottom:8,borderLeft:"3px solid "+O.indigo}}>
+                          <div key={msg.id} style={{padding:"10px 12px",background:msg.read?O.bg3:"rgba(99,102,241,0.05)",borderRadius:10,marginBottom:8,borderLeft:"3px solid "+(msg.read?O.indigo+"60":O.indigo)}}>
                             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.text}}>{msg.from_name||"Staff"}</div>
-                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>{msg.created_at?new Date(msg.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""}</div>
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                {!msg.read&&<div style={{width:7,height:7,borderRadius:"50%",background:O.indigo,flexShrink:0}}/>}
+                                <div style={{fontFamily:O.sans,fontWeight:msg.read?600:700,fontSize:13,color:O.text}}>{msg.from_name||"Staff"}</div>
+                              </div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>
+                                {msg.created_at?new Date(msg.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}
+                              </div>
                             </div>
-                            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>{msg.body||msg.text||""}</div>
-                            {/* Quick reply - opens employee drawer */}
-                                <button onClick={()=>{
-                                  const staffEmp = (liveEmps||[]).find(e=>e.id===msg.from_id);
-                                  if(staffEmp){ setSelectedEmp(staffEmp); setShowEmpDrawer(true); }
-                                }} style={{marginTop:6,padding:"4px 10px",background:O.indigoD,border:"1px solid "+O.indigo+"30",borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.indigo,cursor:"pointer"}}>
-                                  Reply
-                                </button>
+                            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5,marginBottom:6}}>{msg.body||msg.text||""}</div>
+                            <button onClick={()=>{
+                              const staffEmp = (liveEmps||[]).find(e=>e.id===msg.from_id);
+                              if(staffEmp){ setSelectedEmp(staffEmp); setShowEmpDrawer(true); }
+                            }} style={{padding:"4px 10px",background:O.indigoD,border:"1px solid "+O.indigo+"30",borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.indigo,cursor:"pointer"}}>
+                              Reply to {msg.from_name?.split(" ")[0]||"Staff"}
+                            </button>
                           </div>
                         ))}
                       </div>
