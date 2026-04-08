@@ -1139,9 +1139,30 @@ function EmpPortal({emp,onLogout}){
       <div style={{padding:"16px",maxWidth:720,margin:"0 auto"}}>
         {tab==="home"&&(
           <div style={{animation:"fadeUp 0.3s ease"}}>
+            {/* Greeting banner */}
             <div style={{background:`linear-gradient(135deg,${E.indigo},${E.violet})`,borderRadius:18,padding:"22px 24px",marginBottom:14,color:"#fff",position:"relative",overflow:"hidden",boxShadow:E.shadowB}}>
               <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>{greet}, {empSafe.first}! ✨</div>
               <div style={{fontFamily:E.sans,fontSize:13,opacity:0.8}}>{now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div>
+              {/* Next shift inline in banner */}
+              {(()=>{
+                const next = (empShifts||[]).sort((a,b)=>new Date(a.shift_date)-new Date(b.shift_date))[0];
+                if(!next) return null;
+                const today = new Date().toISOString().split("T")[0];
+                const isToday = next.shift_date===today;
+                const dateLabel = isToday?"Today":new Date(next.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+                const fH = h => h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
+                return(
+                  <div style={{marginTop:12,paddingTop:12,borderTop:"rgba(255,255,255,0.2) 1px solid",display:"flex",alignItems:"center",gap:10}}>
+                    <span style={{fontSize:16}}>{isToday?"⚡":"📅"}</span>
+                    <span style={{fontFamily:E.sans,fontSize:13,opacity:0.9}}>
+                      <strong>{isToday?"Your shift today":"Next shift:"}</strong> {dateLabel} · {fH(next.start_hour)}–{fH(next.end_hour)} · {next.end_hour-next.start_hour}h
+                    </span>
+                  </div>
+                );
+              })()}
+              {empShifts!==null&&empShifts.length===0&&(
+                <div style={{marginTop:12,paddingTop:12,borderTop:"rgba(255,255,255,0.2) 1px solid",fontFamily:E.sans,fontSize:13,opacity:0.7}}>📅 No upcoming shifts scheduled yet</div>
+              )}
             </div>
             <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:20,padding:"22px 24px",marginBottom:14,boxShadow:E.shadow}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
@@ -1568,66 +1589,185 @@ function EmpPortal({emp,onLogout}){
           );
         })()}
         {tab==="team"&&(
-          <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:14}}>Messages</div>
+          <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:16}}>💬 Messages</div>
 
-            {/* Direct messages section */}
-            <div style={{marginBottom:20}}>
-              <div style={{fontFamily:E.mono,fontSize:8,color:E.indigo,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>From Your Manager</div>
-              {msgs.filter(m=>m.to_id===empSafe.id||!m.to_id).length===0?(
-                <div style={{padding:"16px",background:E.bg3,borderRadius:10,fontFamily:E.sans,fontSize:13,color:E.textF,textAlign:"center"}}>No direct messages yet.</div>
-              ):(
-                msgs.filter(m=>m.to_id===empSafe.id||!m.to_id).map(m=>(
-                  <div key={m.id} onClick={()=>{ if(openMsg?.id===m.id){setOpenMsg(null);}else{openMessage(m);} }}
-                    style={{padding:"11px 12px",borderRadius:10,marginBottom:6,background:m.read?E.bg3:`${E.indigo}10`,border:`1px solid ${m.read?E.border:E.indigo+"30"}`,cursor:"pointer"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:openMsg===m.id?7:0}}>
-                      {!m.read&&<div style={{width:6,height:6,borderRadius:"50%",background:E.indigo,flexShrink:0}}/>}
-                      <div style={{fontFamily:E.sans,fontWeight:m.read?500:700,fontSize:14,color:E.text,flex:1}}>{m.subject}</div>
-                      <div style={{fontFamily:E.sans,fontSize:11,color:E.textF}}>{m.time}</div>
-                    </div>
-                    {openMsg?.id===m.id&&(
-                      <div style={{paddingLeft:14}}>
-                        <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,lineHeight:1.6,marginBottom:10}}>{m.body}</div>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Announcements section */}
-            {msgs.filter(m=>!m.to_id).length>0&&(
-              <div>
-                <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>Announcements</div>
-                {msgs.filter(m=>m.broadcast).map(m=>(
-                  <div key={m.id} onClick={()=>{ if(openMsg?.id===m.id){setOpenMsg(null);}else{openMessage(m);} }}
-                    style={{padding:"9px 12px",borderRadius:8,marginBottom:5,background:E.bg3,border:"1px solid "+E.border,cursor:"pointer"}}>
-                    <div style={{fontFamily:E.sans,fontWeight:500,fontSize:13,color:E.text,marginBottom:openMsg===m.id?5:0}}>{m.subject}</div>
-                    {openMsg?.id===m.id&&<div style={{fontFamily:E.sans,fontSize:12,color:E.textD,lineHeight:1.6}}>{m.body}</div>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {msgs.length===0&&(
-              <div style={{textAlign:"center",padding:"60px 20px"}}>
+            {msgs.length===0&&msgsLoaded&&(
+              <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:16,border:"1px solid "+E.border,boxShadow:E.shadow}}>
                 <div style={{fontSize:48,marginBottom:12}}>💬</div>
                 <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No messages yet</div>
-                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Messages from your manager will appear here.</div>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Your manager will send shift updates, announcements, and direct messages here.</div>
+              </div>
+            )}
+
+            {!msgsLoaded&&(
+              <div style={{textAlign:"center",padding:"40px",background:"#fff",borderRadius:14,border:"1px solid "+E.border}}>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Loading messages…</div>
+              </div>
+            )}
+
+            {/* Direct messages */}
+            {msgs.filter(m=>m.to_id===empSafe.id).length>0&&(
+              <div style={{marginBottom:20}}>
+                <div style={{fontFamily:E.mono,fontSize:8,color:E.indigo,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>📩 Direct Messages</div>
+                {msgs.filter(m=>m.to_id===empSafe.id).map(m=>{
+                  const ts = m.created_at ? new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "";
+                  return(
+                    <div key={m.id} onClick={()=>{ if(openMsg?.id===m.id){setOpenMsg(null);}else{openMessage(m);} }}
+                      style={{padding:"13px 14px",borderRadius:12,marginBottom:8,background:m.read?"#fff":`${E.indigo}08`,border:`1.5px solid ${m.read?E.border:E.indigo+"30"}`,cursor:"pointer",boxShadow:E.shadow,transition:"all 0.15s"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        {!m.read&&<div style={{width:8,height:8,borderRadius:"50%",background:E.indigo,flexShrink:0}}/>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontFamily:E.sans,fontWeight:m.read?600:700,fontSize:14,color:E.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject||"Message from manager"}</div>
+                          {openMsg?.id!==m.id&&<div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.body}</div>}
+                        </div>
+                        <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,flexShrink:0,textAlign:"right"}}>{ts}</div>
+                      </div>
+                      {openMsg?.id===m.id&&(
+                        <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+E.border}}>
+                          <div style={{fontFamily:E.sans,fontSize:14,color:E.text,lineHeight:1.7}}>{m.body}</div>
+                          {!m.read&&<div style={{marginTop:8,fontFamily:E.mono,fontSize:9,color:E.green}}>✓ Marked as read</div>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Broadcast announcements */}
+            {msgs.filter(m=>m.broadcast||!m.to_id).length>0&&(
+              <div>
+                <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>📢 Announcements</div>
+                {msgs.filter(m=>m.broadcast||!m.to_id).map(m=>{
+                  const ts = m.created_at ? new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+                  return(
+                    <div key={m.id} onClick={()=>{ if(openMsg?.id===m.id){setOpenMsg(null);}else{openMessage(m);} }}
+                      style={{padding:"12px 14px",borderRadius:10,marginBottom:6,background:E.bg3,border:"1px solid "+E.border,cursor:"pointer"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:16}}>📢</span>
+                        <div style={{flex:1,fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:openMsg?.id===m.id?"normal":"nowrap"}}>{m.subject}</div>
+                        <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,flexShrink:0}}>{ts}</div>
+                      </div>
+                      {openMsg?.id===m.id&&<div style={{fontFamily:E.sans,fontSize:13,color:E.textD,lineHeight:1.6,marginTop:10,paddingTop:10,borderTop:"1px solid "+E.border}}>{m.body}</div>}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         )}
-        {tab==="recognition"&&(
-          <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:14}}>Your Achievements 🏆</div>
-            <div style={{background:`linear-gradient(135deg,${scColor}18,${scColor}06)`,border:`2px solid ${scColor}40`,borderRadius:18,padding:"26px",textAlign:"center",marginBottom:14}}>
-              <div style={{fontSize:44,marginBottom:8}}>{empSafe.streak>=10?"⭐":empSafe.streak>=5?"🔷":"✅"}</div>
-              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,color:scColor,marginBottom:4}}>{sc}</div>
-              <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Keep it up, {empSafe.first}!</div>
+        {tab==="recognition"&&(()=>{
+          // Mirror the tier/points logic from My Growth tab
+          const completedShifts = (empShifts||[]).filter(s=>s.status==="confirmed"||s.status==="published").length;
+          let totalPoints = 500 + completedShifts*10 + Math.round((realMoHrs||0)*2);
+          if(empSafe.streak>=14) totalPoints+=50;
+          else if(empSafe.streak>=7) totalPoints+=25;
+          if(empSafe.rel>=95) totalPoints+=30;
+          if(empSafe.flags>0) totalPoints-=(empSafe.flags*15);
+          totalPoints = Math.max(0,Math.min(1000,totalPoints));
+
+          const TIERS=[
+            {min:0,  max:199, label:"New Hire",      icon:"🌱",color:"#9ca3af"},
+            {min:200,max:399, label:"Getting Started",icon:"📈",color:"#f59e0b"},
+            {min:400,max:599, label:"Reliable",       icon:"✅",color:"#3b82f6"},
+            {min:600,max:799, label:"Star Performer", icon:"⭐",color:"#8b5cf6"},
+            {min:800,max:949, label:"Elite",          icon:"💎",color:"#0891b2"},
+            {min:950,max:1000,label:"Legend",         icon:"🏆",color:"#f59e0b"},
+          ];
+          const tier=TIERS.find(t=>totalPoints>=t.min&&totalPoints<=t.max)||TIERS[0];
+
+          const ALL_BADGES = [
+            {icon:"🎯",label:"First Shift",   desc:"Complete your first shift",          earned:completedShifts>=1||empSafe.shifts>=1},
+            {icon:"📅",label:"Week Warrior",  desc:"Complete a full week of shifts",       earned:completedShifts>=5||empSafe.shifts>=5},
+            {icon:"⭐",label:"Reliable",       desc:"Reach 700+ reliability score",         earned:totalPoints>=700},
+            {icon:"🔥",label:"On Fire",        desc:"Maintain a 7-day streak",             earned:empSafe.streak>=7},
+            {icon:"💎",label:"Elite",          desc:"Reach 800+ score",                    earned:totalPoints>=800},
+            {icon:"💪",label:"Overtime Hero",  desc:"Work 45+ hours in a week",            earned:empSafe.ot>0},
+            {icon:"🤝",label:"Team Player",    desc:"Never miss a shift in a month",       earned:empSafe.flags===0&&completedShifts>0},
+            {icon:"📈",label:"Improving",      desc:"Score increases 3 weeks in a row",    earned:totalPoints>=550},
+            {icon:"🏆",label:"Legend",         desc:"Reach 950+ score — top tier",         earned:totalPoints>=950},
+          ];
+          const earned = ALL_BADGES.filter(b=>b.earned);
+          const locked = ALL_BADGES.filter(b=>!b.earned);
+
+          return(
+          <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:6}}>🏆 Achievements</div>
+            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20}}>Your earned badges and recognition milestones.</div>
+
+            {/* Current tier hero card */}
+            <div style={{background:`linear-gradient(135deg,${tier.color}25,${tier.color}08)`,border:`2px solid ${tier.color}50`,borderRadius:20,padding:"24px",marginBottom:20,textAlign:"center",position:"relative",overflow:"hidden"}}>
+              <div style={{position:"absolute",right:16,top:16,fontSize:64,opacity:0.1}}>{tier.icon}</div>
+              <div style={{fontSize:52,marginBottom:8}}>{tier.icon}</div>
+              <div style={{fontFamily:E.sans,fontWeight:900,fontSize:28,color:tier.color,marginBottom:4}}>{tier.label}</div>
+              <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:12}}>You've earned <strong style={{color:tier.color}}>{earned.length} badge{earned.length!==1?"s":""}</strong> so far</div>
+              <div style={{display:"flex",justifyContent:"center",gap:24}}>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:24,color:tier.color}}>{totalPoints}</div>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>SCORE</div>
+                </div>
+                <div style={{width:1,background:E.border}}/>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:24,color:E.yellow}}>{empSafe.streak||0}d</div>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>STREAK</div>
+                </div>
+                <div style={{width:1,background:E.border}}/>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:24,color:E.green}}>{completedShifts+(empSafe.shifts||0)}</div>
+                  <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>SHIFTS</div>
+                </div>
+              </div>
             </div>
+
+            {/* Earned badges */}
+            {earned.length>0&&(
+              <div style={{marginBottom:20}}>
+                <div style={{fontFamily:E.mono,fontSize:8,color:E.green,letterSpacing:"2px",marginBottom:12,textTransform:"uppercase"}}>✅ Earned — {earned.length} badge{earned.length!==1?"s":""}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  {earned.map(b=>(
+                    <div key={b.label} style={{background:"#fff",border:"2px solid "+tier.color+"40",borderRadius:14,padding:"14px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 2px 8px "+tier.color+"15"}}>
+                      <div style={{width:44,height:44,borderRadius:12,background:tier.color+"15",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{b.icon}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:13,color:E.text}}>{b.label}</div>
+                        <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginTop:1,lineHeight:1.4}}>{b.desc}</div>
+                        <div style={{fontFamily:E.mono,fontSize:9,color:tier.color,marginTop:4}}>✓ EARNED</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Locked badges */}
+            {locked.length>0&&(
+              <div>
+                <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"2px",marginBottom:12,textTransform:"uppercase"}}>🔒 Locked — {locked.length} remaining</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  {locked.map(b=>(
+                    <div key={b.label} style={{background:E.bg3,border:"1.5px solid "+E.border,borderRadius:14,padding:"14px",display:"flex",alignItems:"center",gap:12,opacity:0.55}}>
+                      <div style={{width:44,height:44,borderRadius:12,background:"rgba(0,0,0,0.06)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,filter:"grayscale(1)"}}>{b.icon}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:13,color:E.textD}}>{b.label}</div>
+                        <div style={{fontFamily:E.sans,fontSize:11,color:E.textF,marginTop:1,lineHeight:1.4}}>{b.desc}</div>
+                        <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,marginTop:4}}>🔒 LOCKED</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {earned.length===0&&(
+              <div style={{textAlign:"center",padding:"30px",background:"#fff",borderRadius:14,border:"1px solid "+E.border,marginTop:8}}>
+                <div style={{fontSize:36,marginBottom:8}}>🚀</div>
+                <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text,marginBottom:6}}>Start earning badges</div>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Clock in for your first shift to unlock your first achievement.</div>
+              </div>
+            )}
           </div>
-        )}
+          );
+        })()}
         {tab==="documents"&&(()=>{
           const CATS = [
             {id:"all",    label:"📁 All",       color:E.indigo},
@@ -1741,8 +1881,20 @@ function EmpPortal({emp,onLogout}){
                 <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text,marginBottom:14}}>Upload Document</div>
                 <div style={{marginBottom:12}}>
                   <label style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Document Name *</label>
-                  <input value={docUploadName} onChange={e=>setDocUploadName(e.target.value)} placeholder="e.g. Driver's License, W-4 2024..."
-                    style={{width:"100%",padding:"9px 12px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+                  <select value={docUploadName} onChange={e=>{
+                    setDocUploadName(e.target.value);
+                    // Auto-set category based on selection
+                    if(e.target.value==="Driver's License") setDocUploadCat("identity");
+                    else if(e.target.value==="W-4"||e.target.value==="W-2"||e.target.value==="1099") setDocUploadCat("tax");
+                    else if(e.target.value==="Other") setDocUploadCat("other");
+                  }} style={{width:"100%",padding:"9px 12px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.sans,fontSize:13,color:docUploadName?E.text:E.textF,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                    <option value="" disabled>— Select document type —</option>
+                    <option value="Driver's License">🪪 Driver's License</option>
+                    <option value="W-4">📝 W-4 — Employee Withholding</option>
+                    <option value="W-2">📄 W-2 — Wage & Tax Statement</option>
+                    <option value="1099">📋 1099 — Contractor Income</option>
+                    <option value="Other">📎 Other</option>
+                  </select>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
                   <div>
