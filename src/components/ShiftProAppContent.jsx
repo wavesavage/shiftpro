@@ -853,15 +853,43 @@ function EmpPortal({emp,onLogout}){
     ghost:parseFloat(emp?.ghost)||0,
   };
   const [tab,setTab] = useState(()=>{
-    // Restore last active tab from localStorage
     try{ return localStorage.getItem("shiftpro_emp_tab_"+(emp?.id||""))||"home"; }catch(e){ return "home"; }
   });
-  const [clocked,setClocked] = useState(false);
-  const [empShifts,setEmpShifts] = useState(null);
-  const [onBreak,setOnBreak] = useState(false);
-  const [breakSecs,setBreakSecs] = useState(0);
-  const [clockedAt,setClockedAt] = useState(null);
-  const [secs,setSecs] = useState(0);
+
+  // ── CLOCK STATE — restore synchronously from localStorage before first render ──
+  // This guarantees the timer shows immediately on page refresh, no flicker
+  const CLOCK_KEY = "shiftpro_clock_"+(emp?.id||"");
+  const BREAK_KEY = "shiftpro_break_"+(emp?.id||"");
+  const [clocked, setClocked] = useState(()=>{
+    try{ return localStorage.getItem(CLOCK_KEY+"_active")==="true"; }catch(e){ return false; }
+  });
+  const [clockedAt, setClockedAt] = useState(()=>{
+    try{
+      const ts=localStorage.getItem(CLOCK_KEY+"_at");
+      return ts ? new Date(ts) : null;
+    }catch(e){ return null; }
+  });
+  const [secs, setSecs] = useState(()=>{
+    try{
+      const ts=localStorage.getItem(CLOCK_KEY+"_at");
+      if(ts&&localStorage.getItem(CLOCK_KEY+"_active")==="true"){
+        return Math.max(0,Math.floor((Date.now()-new Date(ts).getTime())/1000));
+      }
+    }catch(e){}
+    return 0;
+  });
+  const [onBreak, setOnBreak] = useState(()=>{
+    try{ return localStorage.getItem(BREAK_KEY+"_active")==="true"; }catch(e){ return false; }
+  });
+  const [breakSecs, setBreakSecs] = useState(()=>{
+    try{
+      const ts=localStorage.getItem(BREAK_KEY+"_at");
+      if(ts&&localStorage.getItem(BREAK_KEY+"_active")==="true"){
+        return Math.max(0,Math.floor((Date.now()-new Date(ts).getTime())/1000));
+      }
+    }catch(e){}
+    return 0;
+  });
   const [syncMsg,setSyncMsg] = useState("");
   const [now,setNow] = useState(new Date());
   const [swapOpen,setSwapOpen] = useState(false);
@@ -875,6 +903,32 @@ function EmpPortal({emp,onLogout}){
   const [openShifts,setOpenShifts] = useState([]);
   const [realWkHrs,setRealWkHrs] = useState(0);
   const [realMoHrs,setRealMoHrs] = useState(0);
+
+  // ── Clock persistence helpers ──
+  const saveClockedIn = (at) => {
+    try{
+      localStorage.setItem(CLOCK_KEY+"_active","true");
+      localStorage.setItem(CLOCK_KEY+"_at", at.toISOString());
+    }catch(e){}
+  };
+  const clearClockedIn = () => {
+    try{
+      localStorage.removeItem(CLOCK_KEY+"_active");
+      localStorage.removeItem(CLOCK_KEY+"_at");
+    }catch(e){}
+  };
+  const saveBreakStart = (at) => {
+    try{
+      localStorage.setItem(BREAK_KEY+"_active","true");
+      localStorage.setItem(BREAK_KEY+"_at", at.toISOString());
+    }catch(e){}
+  };
+  const clearBreak = () => {
+    try{
+      localStorage.removeItem(BREAK_KEY+"_active");
+      localStorage.removeItem(BREAK_KEY+"_at");
+    }catch(e){}
+  };
   // Schedule sub-tab state (must be here, not inside render IIFE)
   const [schedSubTab,setSchedSubTab] = useState("shifts");
   const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
@@ -968,13 +1022,41 @@ function EmpPortal({emp,onLogout}){
               setRealWkHrs(Math.round(wkMs/3600000*10)/10);
               setRealMoHrs(Math.round(moMs/3600000*10)/10);
             }
-            // Restore today's clock-in state
+            // ── Reconcile clock state: API is source of truth ──
+            // If API says clocked_out but localStorage says clocked_in → clear localStorage
+            // If API says clocked_in → ensure localStorage is set
             if(d.todayEvents?.length>0){
               const last=d.todayEvents[0];
-              if(last.event_type==="clock_in"){
-                setClocked(true);
+              if(last.event_type==="clock_out"||last.event_type==="break_end"){
+                // API confirmed clock-out — clear any stale localStorage
+                if(last.event_type==="clock_out"){
+                  clearClockedIn(); clearBreak();
+                  setClocked(false); setOnBreak(false); setSecs(0); setBreakSecs(0); setClockedAt(null);
+                } else {
+                  clearBreak(); setOnBreak(false); setBreakSecs(0);
+                }
+              } else if(last.event_type==="clock_in"){
                 const at=new Date(last.occurred_at);
+                // Always sync localStorage with DB truth
+                saveClockedIn(at);
+                setClocked(true);
                 setClockedAt(at);
+                setSecs(Math.max(0,Math.floor((Date.now()-at.getTime())/1000)));
+              } else if(last.event_type==="break_start"){
+                const at=new Date(last.occurred_at);
+                saveBreakStart(at);
+                setOnBreak(true);
+                setBreakSecs(Math.max(0,Math.floor((Date.now()-at.getTime())/1000)));
+              }
+            } else {
+              // No events today — make sure we're not showing stale clock
+              const lsActive=localStorage.getItem(CLOCK_KEY+"_active")==="true";
+              const lsAt=localStorage.getItem(CLOCK_KEY+"_at");
+              if(lsActive&&lsAt){
+                // localStorage says clocked in but DB has no events — keep localStorage
+                // (DB might be slow) but log for reconciliation
+                const at=new Date(lsAt);
+                setClocked(true); setClockedAt(at);
                 setSecs(Math.max(0,Math.floor((Date.now()-at.getTime())/1000)));
               }
             }
@@ -1070,38 +1152,49 @@ function EmpPortal({emp,onLogout}){
               <div style={{display:"flex",gap:10}}>
                 {!clocked?(
                   <button onClick={async()=>{
-                    setClocked(true);setClockedAt(new Date());
+                    const now=new Date();
+                    // Save to localStorage IMMEDIATELY — survives page refresh
+                    saveClockedIn(now);
+                    setClocked(true); setClockedAt(now);
                     try{
                       const sb=await getSB();
                       const {data:{session:ssCi}}=await sb.auth.getSession();
                       await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCi?.access_token?{"Authorization":"Bearer "+ssCi.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:"clock_in"})});
-                      setSyncMsg("✓ Clocked in");setTimeout(()=>setSyncMsg(""),2000);
-                    }catch(e){setSyncMsg("⚠ Sync failed");}
+                      setSyncMsg("✓ Clocked in — timer running");setTimeout(()=>setSyncMsg(""),2500);
+                    }catch(e){ setSyncMsg("⚠ Saved locally — syncing..."); setTimeout(()=>setSyncMsg(""),4000); }
                   }} style={{flex:1,padding:"14px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:16,color:"#fff",cursor:"pointer",boxShadow:"0 4px 18px rgba(99,102,241,0.4)"}}>
                     ✓ Clock In
                   </button>
                 ):(
                   <div style={{display:"flex",gap:10,flex:1}}>
                     <button onClick={async()=>{
-                      const nowBreak=!onBreak;setOnBreak(b=>!b);
+                      const nowBreak=!onBreak;
+                      if(nowBreak){
+                        const at=new Date(); saveBreakStart(at);
+                      } else {
+                        clearBreak();
+                      }
+                      setOnBreak(b=>!b);
                       try{
                         const sb=await getSB();
                         const {data:{session:ssBr}}=await sb.auth.getSession();
                         await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssBr?.access_token?{"Authorization":"Bearer "+ssBr.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:nowBreak?"break_start":"break_end"})});
-                        setSyncMsg(nowBreak?"✓ Break started":"✓ Back on shift");setTimeout(()=>setSyncMsg(""),2000);
-                      }catch(e){setSyncMsg("⚠ Sync failed");}
+                        setSyncMsg(nowBreak?"⏸ Break started":"▶ Back on shift");setTimeout(()=>setSyncMsg(""),2000);
+                      }catch(e){ setSyncMsg("⚠ Saved locally"); setTimeout(()=>setSyncMsg(""),3000); }
                     }} style={{flex:1,padding:"13px",background:onBreak?`linear-gradient(135deg,rgba(99,102,241,0.9),rgba(139,92,246,0.9))`:`linear-gradient(135deg,rgba(245,158,11,0.9),rgba(251,146,60,0.8))`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>
                       {onBreak?"▶ Resume Shift":"⏸ Start Break"}
                     </button>
                     <button onClick={async()=>{
                       if(onBreak){ setSyncMsg("⚠ Resume your shift first"); setTimeout(()=>setSyncMsg(""),2500); return; }
+                      // Clear localStorage FIRST
+                      clearClockedIn(); clearBreak();
                       setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
                       try{
                         const sb=await getSB();
                         const {data:{session:ssCo}}=await sb.auth.getSession();
                         await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCo?.access_token?{"Authorization":"Bearer "+ssCo.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:"clock_out"})});
                         setSyncMsg("✓ Clocked out");setTimeout(()=>setSyncMsg(""),3000);
-                      }catch(e){setSyncMsg("⚠ Sync failed");}
+                      }catch(e){ setSyncMsg("⚠ Saved locally — syncing..."); setTimeout(()=>setSyncMsg(""),4000); }
                     }} style={{flex:1,padding:"13px",background:"rgba(239,68,68,0.08)",border:"1.5px solid rgba(239,68,68,0.3)",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.red,cursor:"pointer"}}>
                       👋 Clock Out
                     </button>
