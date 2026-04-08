@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Enrich with user names in a separate query
-    const userIds = [...new Set((swaps || []).map(s => s.user_id).filter(Boolean))];
-    let userMap: Record<string, any> = {};
+    const userIds: string[] = Array.from(new Set((swaps || []).map((s: any) => s.user_id).filter(Boolean)));
+    const userMap: Record<string, any> = {};
     if (userIds.length > 0) {
       const { data: users } = await client
         .from("users")
@@ -63,8 +63,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: toErr.message }, { status: 500 });
     }
 
-    const userIds = [...new Set((timeoff || []).map(t => t.user_id).filter(Boolean))];
-    let userMap: Record<string, any> = {};
+    const userIds: string[] = Array.from(new Set((timeoff || []).map((t: any) => t.user_id).filter(Boolean)));
+    const userMap: Record<string, any> = {};
     if (userIds.length > 0) {
       const { data: users } = await client
         .from("users")
