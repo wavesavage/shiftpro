@@ -473,7 +473,7 @@ function Login({onLogin}){
         role:profile.role||"Employee",
         dept:profile.department||"",
         rate:parseFloat(profile.hourly_rate)||15,
-        avatar:profile.avatar_initials||((profile.first_name||"?")[0]+(profile.last_name||"?")[0]).toUpperCase(),
+        avatar:profile.avatar_initials||(profile.first_name&&profile.last_name?(profile.first_name[0]+profile.last_name[0]).toUpperCase():profile.first_name?profile.first_name.slice(0,2).toUpperCase():data.user.email[0].toUpperCase()),
         color:profile.avatar_color||"#6366f1",
         email:data.user.email,
         status:"active", hired:profile.hire_date||"",
@@ -948,9 +948,12 @@ function MessageThread({ thread, empSafe, fmtTs, sendReply, E, isOwner=false }) 
 function EmpPortal({emp,onLogout}){
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
-    first:emp?.first||(emp?.name?.split(" ")[0])||"there", role:emp?.role||"Employee",
-    dept:emp?.dept||"", rate:parseFloat(emp?.rate)||15, avatar:emp?.avatar||"?",
-    color:emp?.color||"#6366f1", email:emp?.email||"", wkHrs:parseFloat(emp?.wkHrs)||0,
+    first:emp?.first&&emp.first!=="there"?emp.first:emp?.email?.split("@")[0]||"there",
+    role:emp?.role||"Employee", dept:emp?.dept||"",
+    rate:parseFloat(emp?.rate)||15,
+    avatar:emp?.avatar&&emp.avatar!=="??"&&emp.avatar!=="?"?emp.avatar:(emp?.first&&emp?.first!=="there"?emp.first[0].toUpperCase():emp?.email?.[0]?.toUpperCase()||"?"),
+    color:emp?.color||"#6366f1", email:emp?.email||"",
+    wkHrs:parseFloat(emp?.wkHrs)||0,
     moHrs:parseFloat(emp?.moHrs)||0, ot:parseFloat(emp?.ot)||0, streak:parseInt(emp?.streak)||0,
     flags:parseInt(emp?.flags)||0, shifts:parseInt(emp?.shifts)||0, risk:emp?.risk||"Low",
     orgId:emp?.orgId||null, locId:emp?.locId||null, appRole:emp?.appRole||"employee",
@@ -1258,8 +1261,8 @@ function EmpPortal({emp,onLogout}){
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <Av emp={empSafe} size={32}/>
           <div>
-            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {empSafe.first}!</div>
-            <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>{empSafe.role}</div>
+            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {empSafe.first==="there"||!empSafe.first?empSafe.email?.split("@")[0]||"there":empSafe.first}!</div>
+            <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>{empSafe.role&&empSafe.role!=="Employee"?empSafe.role:"Employee"}</div>
           </div>
           <button onClick={onLogout} style={{padding:"5px 14px",background:"none",border:`1.5px solid ${E.border}`,borderRadius:20,fontFamily:E.sans,fontSize:12,color:E.textD,cursor:"pointer",marginLeft:4}}>Sign out</button>
         </div>
@@ -1458,7 +1461,7 @@ function EmpPortal({emp,onLogout}){
                 <div style={{width:4,height:s.notes?64:48,background:`linear-gradient(${E.indigo},${E.violet})`,borderRadius:2}}/>
                 <div style={{flex:1}}>
                   <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text}}>{s.day_of_week||s.d} - {fH(s.start_hour||s.ss?.[0]?.s)} – {fH(s.end_hour||s.ss?.[0]?.e)}</div>
-                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>{empSafe.role}</div>
+                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>{s.role_label||empSafe.role||s.locations?.name||""}</div>
                   {s.notes&&<div style={{fontFamily:E.sans,fontSize:12,color:E.indigo,marginTop:4,padding:"4px 8px",background:E.indigoD,borderRadius:6}}>📝 {s.notes}</div>}
                 </div>
                 <EBadge label="✓ Confirmed" color={E.green}/>
@@ -4697,7 +4700,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     id:e.id, name:e.first_name+" "+e.last_name, first:e.first_name,
     role:e.role||"Employee", dept:e.department||"",
     rate:parseFloat(e.hourly_rate)||15,
-    avatar:e.avatar_initials||(((e.first_name||"?")[0])+((e.last_name||"?")[0])).toUpperCase(),
+    avatar:e.avatar_initials||(e.first_name&&e.last_name?(e.first_name[0]+e.last_name[0]).toUpperCase():e.first_name?e.first_name.slice(0,2).toUpperCase():e.email?.[0]?.toUpperCase()||"?"),
     color:e.avatar_color||"#6366f1", email:e.email||"",
     status:e.status==="active"?"active":"invited", hired:e.hire_date||"",
     wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100, flags:0, streak:0, shifts:0,
@@ -7297,7 +7300,7 @@ export default function App(){
             role:profile?.role||"Employee",
             dept:profile?.department||s.user.user_metadata?.department||"",
             rate:parseFloat(profile?.hourly_rate||s.user.user_metadata?.hourly_rate)||15,
-            avatar:profile?.avatar_initials||(s.user.email?.[0]?.toUpperCase()||"?"),
+            avatar:profile?.avatar_initials||(profile?.first_name&&profile?.last_name?(profile.first_name[0]+profile.last_name[0]).toUpperCase():s.user.email?.[0]?.toUpperCase()||"?"),
             color:profile?.avatar_color||"#6366f1",
             email:s.user.email||"",
             status:"active",
