@@ -852,7 +852,10 @@ function EmpPortal({emp,onLogout}){
     rel:parseInt(emp?.rel)||100, prod:parseInt(emp?.prod)||80, cam:parseInt(emp?.cam)||85,
     ghost:parseFloat(emp?.ghost)||0,
   };
-  const [tab,setTab] = useState("home");
+  const [tab,setTab] = useState(()=>{
+    // Restore last active tab from localStorage
+    try{ return localStorage.getItem("shiftpro_emp_tab_"+(emp?.id||""))||"home"; }catch(e){ return "home"; }
+  });
   const [clocked,setClocked] = useState(false);
   const [empShifts,setEmpShifts] = useState(null);
   const [onBreak,setOnBreak] = useState(false);
@@ -1205,29 +1208,65 @@ function EmpPortal({emp,onLogout}){
             {/* Set Availability sub-tab */}
             {schedSubTab==="availability"&&(
               <div>
-                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16,lineHeight:1.6}}>
-                  Set your weekly availability so your manager never schedules you on a day you can't work.
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20,lineHeight:1.6}}>
+                  Tap a day to set your availability. Your manager sees this when building the schedule.
                 </div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
-                  {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>(
-                    <button key={day} onClick={()=>cycleAvail(day)}
-                      style={{padding:"10px 14px",borderRadius:10,border:"2px solid "+availColor(avail[day]),background:availBg(avail[day]),fontFamily:E.sans,fontWeight:700,fontSize:13,color:avail[day]==="available"?E.green:avail[day]==="unavailable"?"#ef4444":E.textD,cursor:"pointer",minWidth:60,transition:"all 0.15s"}}>
-                      {day}<br/>
-                      <span style={{fontSize:9,fontWeight:400,letterSpacing:0.5}}>{avail[day]==="available"?"✓ Avail":avail[day]==="unavailable"?"✗ Off":"—"}</span>
-                    </button>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:20}}>
+                  {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>{
+                    const s=avail[day];
+                    const isAvail=s==="available"; const isUnavail=s==="unavailable";
+                    return(
+                      <button key={day} onClick={()=>cycleAvail(day)} style={{
+                        padding:"12px 4px",borderRadius:12,cursor:"pointer",transition:"all 0.18s",textAlign:"center",
+                        border:"2px solid "+(isAvail?E.green:isUnavail?"#ef4444":E.border),
+                        background:isAvail?"rgba(16,185,129,0.12)":isUnavail?"rgba(239,68,68,0.09)":"#fff",
+                      }}>
+                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:12,color:isAvail?E.green:isUnavail?"#ef4444":E.textD,marginBottom:4}}>{day}</div>
+                        <div style={{fontSize:16}}>{isAvail?"✅":isUnavail?"🚫":"—"}</div>
+                        <div style={{fontFamily:E.mono,fontSize:8,color:isAvail?E.green:isUnavail?"#ef4444":E.textF,marginTop:3,letterSpacing:0.5}}>
+                          {isAvail?"AVAIL":isUnavail?"OFF":"TAP"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div style={{display:"flex",gap:16,marginBottom:20}}>
+                  {[["✅","Available — I can work",E.green],["🚫","Off — Don't schedule me","#ef4444"],["—","No preference",E.textF]].map(([icon,label,color])=>(
+                    <div key={label} style={{display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{fontSize:13}}>{icon}</span>
+                      <span style={{fontFamily:E.sans,fontSize:11,color}}>{label}</span>
+                    </div>
                   ))}
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-                  <span style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Repeat every week</span>
-                  <button onClick={()=>setAvailRecurring(r=>!r)} style={{width:42,height:24,borderRadius:12,border:"none",background:availRecurring?E.indigo:E.border,cursor:"pointer",position:"relative",transition:"background 0.2s"}}>
-                    <div style={{position:"absolute",top:3,left:availRecurring?18:3,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
+
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,padding:"12px 14px",background:E.bg3,borderRadius:10}}>
+                  <span style={{fontFamily:E.sans,fontSize:13,color:E.text}}>Repeat every week</span>
+                  <button onClick={()=>setAvailRecurring(r=>!r)} style={{width:44,height:26,borderRadius:13,border:"none",background:availRecurring?E.indigo:E.border,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                    <div style={{position:"absolute",top:3,left:availRecurring?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
                   </button>
-                  <span style={{fontFamily:E.mono,fontSize:10,color:E.textF}}>{availRecurring?"Recurring weekly":"One-time only"}</span>
+                  <span style={{fontFamily:E.mono,fontSize:10,color:availRecurring?E.indigo:E.textF}}>{availRecurring?"Recurring weekly":"One-time only"}</span>
                 </div>
-                {availSaved&&<div style={{fontFamily:E.sans,fontSize:13,color:E.green,marginBottom:12}}>✓ Availability saved! Your manager can now see this when scheduling.</div>}
-                <button onClick={saveAvail} style={{padding:"11px 24px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:availBusy?"not-allowed":"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>
-                  {availBusy?"Saving…":"Save Availability"}
-                </button>
+
+                {availSaved&&(
+                  <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:9,marginBottom:14}}>
+                    <span style={{fontSize:16}}>✅</span>
+                    <span style={{fontFamily:E.sans,fontSize:13,color:E.green,fontWeight:600}}>Saved! Your manager can now see your availability.</span>
+                  </div>
+                )}
+                {syncMsg&&syncMsg.includes("availability")&&(
+                  <div style={{padding:"10px 14px",background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:9,marginBottom:14,fontFamily:E.sans,fontSize:13,color:"#ef4444"}}>{syncMsg}</div>
+                )}
+
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={saveAvail} disabled={availBusy} style={{flex:1,padding:"13px",background:availBusy?"rgba(99,102,241,0.5)":"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:availBusy?"not-allowed":"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>
+                    {availBusy?"Saving…":"💾 Save Availability"}
+                  </button>
+                  <button onClick={()=>setAvail({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"})} style={{padding:"13px 16px",background:"none",border:"1.5px solid "+E.border,borderRadius:10,fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.textD,cursor:"pointer"}}>
+                    Clear
+                  </button>
+                </div>
               </div>
             )}
 
