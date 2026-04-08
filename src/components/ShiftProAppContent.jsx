@@ -884,7 +884,7 @@ function EmpPortal({emp,onLogout}){
     setOpenMsg(msg);
     if(!msg.read){
       setMsgs(prev=>prev.map(m=>m.id===msg.id?{...m,read:true}:m));
-      try{ const sb=await getSB(); await sb.from("messages").update({read:true}).eq("id",msg.id); }catch(e){}
+      try{ const {data:{session:ssMr}}=await (await getSB()).auth.getSession(); await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssMr?.access_token?{"Authorization":"Bearer "+ssMr.access_token}:{})},body:JSON.stringify({_action:"mark_read",messageId:msg.id})}); }catch(e){}
     }
   };
   const [msgsLoaded,setMsgsLoaded] = useState(false);
@@ -908,76 +908,77 @@ function EmpPortal({emp,onLogout}){
     const load=async()=>{
       try{
         const sb=await getSB();
-        const today=new Date().toISOString().split("T")[0];
+        const {data:{session:ss}}=await sb.auth.getSession();
+        const headers=ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{};
+        const baseUrl="/api/employee";
 
-        // Load upcoming shifts
-        const {data:shifts}=await sb.from("shifts").select("*, locations(name)").eq("user_id",empSafe.id).gte("shift_date",today).in("status",["scheduled","published","confirmed"]).order("shift_date");
-        setEmpShifts(shifts||[]);
-
-        // Load open shifts for employee's org/location
+        // ── Load shifts + open shifts via service role ──
         try{
-          const {data:openS}=await sb.from("shifts").select("*, locations(name)").eq("org_id",empSafe.orgId||"").eq("status","open").gte("shift_date",today).order("shift_date").limit(20);
-          setOpenShifts(openS||[]);
-        }catch(e){}
+          const r=await fetch(`${baseUrl}?type=shifts&userId=${empSafe.id}&orgId=${empSafe.orgId||""}&_t=${Date.now()}`,{headers,cache:"no-store"});
+          if(r.ok){
+            const d=await r.json();
+            setEmpShifts(d.shifts||[]);
+            setOpenShifts(d.openShifts||[]);
+          }
+        }catch(e){ setEmpShifts([]); }
 
-        // Load messages
+        // ── Load messages via service role ──
         try{
-          const {data:msgData}=await sb.from("messages").select("*").or("to_id.eq."+empSafe.id+",broadcast.eq.true").eq("org_id",empSafe.orgId||"").order("created_at",{ascending:false}).limit(20);
-          if(msgData&&msgData.length>0) setMsgs(msgData);
+          const r=await fetch(`${baseUrl}?type=messages&userId=${empSafe.id}&orgId=${empSafe.orgId||""}&_t=${Date.now()}`,{headers,cache:"no-store"});
+          if(r.ok){ const d=await r.json(); if(d.messages?.length>0) setMsgs(d.messages); }
         }catch(e){}
         setMsgsLoaded(true);
 
-        // Load saved availability via service role API
+        // ── Load availability via service role ──
         try{
-          const {data:{session:sav}}=await sb.auth.getSession();
-          const avRes=await fetch("/api/availability?userId="+empSafe.id,{
-            headers:sav?.access_token?{"Authorization":"Bearer "+sav.access_token}:{}
-          });
-          if(avRes.ok){
-            const avJson=await avRes.json();
-            if(avJson.availability&&avJson.availability.length>0){
+          const r=await fetch(`/api/availability?userId=${empSafe.id}&_t=${Date.now()}`,{headers,cache:"no-store"});
+          if(r.ok){
+            const d=await r.json();
+            if(d.availability?.length>0){
               const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
-              avJson.availability.forEach((r)=>{ if(map.hasOwnProperty(r.day_of_week)) map[r.day_of_week]=r.status; });
+              d.availability.forEach((a)=>{ if(map.hasOwnProperty(a.day_of_week)) map[a.day_of_week]=a.status; });
               setAvail(map);
-              if(avJson.availability[0]?.recurring!==undefined) setAvailRecurring(!!avJson.availability[0].recurring);
+              if(d.availability[0]?.recurring!==undefined) setAvailRecurring(!!d.availability[0].recurring);
             }
           }
         }catch(e){}
 
-        // Calculate real hours from clock_events
+        // ── Load clock events for hours calculation + today's state ──
         try{
-          const weekStart=new Date(); weekStart.setDate(weekStart.getDate()-weekStart.getDay()); weekStart.setHours(0,0,0,0);
-          const monthStart=new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
-          const {data:clockData}=await sb.from("clock_events").select("*").eq("user_id",empSafe.id).gte("occurred_at",monthStart.toISOString()).order("occurred_at");
-          if(clockData&&clockData.length>0){
-            let wkMs=0, moMs=0, lastIn=null;
-            clockData.forEach(ev=>{
-              if(ev.event_type==="clock_in"){ lastIn=new Date(ev.occurred_at); }
-              else if(ev.event_type==="clock_out"&&lastIn){
-                const dur=new Date(ev.occurred_at)-lastIn;
-                moMs+=dur;
-                if(lastIn>=weekStart) wkMs+=dur;
-                lastIn=null;
+          const r=await fetch(`${baseUrl}?type=clock&userId=${empSafe.id}&_t=${Date.now()}`,{headers,cache:"no-store"});
+          if(r.ok){
+            const d=await r.json();
+            // Calculate real hours
+            if(d.monthEvents?.length>0){
+              const weekStart=new Date(); weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7)); weekStart.setHours(0,0,0,0);
+              const monthStart=new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+              let wkMs=0,moMs=0,lastIn=null;
+              d.monthEvents.forEach(ev=>{
+                if(ev.event_type==="clock_in"){ lastIn=new Date(ev.occurred_at); }
+                else if(ev.event_type==="clock_out"&&lastIn){
+                  const dur=new Date(ev.occurred_at)-lastIn;
+                  moMs+=dur;
+                  if(lastIn>=weekStart) wkMs+=dur;
+                  lastIn=null;
+                }
+              });
+              setRealWkHrs(Math.round(wkMs/3600000*10)/10);
+              setRealMoHrs(Math.round(moMs/3600000*10)/10);
+            }
+            // Restore today's clock-in state
+            if(d.todayEvents?.length>0){
+              const last=d.todayEvents[0];
+              if(last.event_type==="clock_in"){
+                setClocked(true);
+                const at=new Date(last.occurred_at);
+                setClockedAt(at);
+                setSecs(Math.max(0,Math.floor((Date.now()-at.getTime())/1000)));
               }
-            });
-            setRealWkHrs(Math.round(wkMs/3600000*10)/10);
-            setRealMoHrs(Math.round(moMs/3600000*10)/10);
+            }
           }
         }catch(e){}
 
-        // Restore clock-in state if employee already clocked in today
-        const {data:clockEvents}=await sb.from("clock_events").select("*").eq("user_id",empSafe.id).gte("occurred_at",today).order("occurred_at",{ascending:false}).limit(10);
-        if(clockEvents&&clockEvents.length>0){
-          const lastEvent = clockEvents[0];
-          if(lastEvent.event_type==="clock_in"){
-            setClocked(true);
-            const clockedInAt = new Date(lastEvent.occurred_at);
-            setClockedAt(clockedInAt);
-            const elapsedSecs = Math.floor((Date.now() - clockedInAt.getTime()) / 1000);
-            setSecs(Math.max(0, elapsedSecs));
-          }
-        }
-      }catch(e){setEmpShifts([]);}
+      }catch(e){ setEmpShifts([]); }
     };
     load();
   },[empSafe.id]);
@@ -1069,7 +1070,8 @@ function EmpPortal({emp,onLogout}){
                     setClocked(true);setClockedAt(new Date());
                     try{
                       const sb=await getSB();
-                      await sb.from("clock_events").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,event_type:"clock_in",occurred_at:new Date().toISOString()});
+                      const {data:{session:ssCi}}=await sb.auth.getSession();
+                      await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCi?.access_token?{"Authorization":"Bearer "+ssCi.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:"clock_in"})});
                       setSyncMsg("✓ Clocked in");setTimeout(()=>setSyncMsg(""),2000);
                     }catch(e){setSyncMsg("⚠ Sync failed");}
                   }} style={{flex:1,padding:"14px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:16,color:"#fff",cursor:"pointer",boxShadow:"0 4px 18px rgba(99,102,241,0.4)"}}>
@@ -1081,7 +1083,8 @@ function EmpPortal({emp,onLogout}){
                       const nowBreak=!onBreak;setOnBreak(b=>!b);
                       try{
                         const sb=await getSB();
-                        await sb.from("clock_events").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,event_type:nowBreak?"break_start":"break_end",occurred_at:new Date().toISOString()});
+                        const {data:{session:ssBr}}=await sb.auth.getSession();
+                        await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssBr?.access_token?{"Authorization":"Bearer "+ssBr.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:nowBreak?"break_start":"break_end"})});
                         setSyncMsg(nowBreak?"✓ Break started":"✓ Back on shift");setTimeout(()=>setSyncMsg(""),2000);
                       }catch(e){setSyncMsg("⚠ Sync failed");}
                     }} style={{flex:1,padding:"13px",background:onBreak?`linear-gradient(135deg,rgba(99,102,241,0.9),rgba(139,92,246,0.9))`:`linear-gradient(135deg,rgba(245,158,11,0.9),rgba(251,146,60,0.8))`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>
@@ -1092,7 +1095,8 @@ function EmpPortal({emp,onLogout}){
                       setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
                       try{
                         const sb=await getSB();
-                        await sb.from("clock_events").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,location_id:empSafe.locId||null,event_type:"clock_out",occurred_at:new Date().toISOString()});
+                        const {data:{session:ssCo}}=await sb.auth.getSession();
+                        await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCo?.access_token?{"Authorization":"Bearer "+ssCo.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:"clock_out"})});
                         setSyncMsg("✓ Clocked out");setTimeout(()=>setSyncMsg(""),3000);
                       }catch(e){setSyncMsg("⚠ Sync failed");}
                     }} style={{flex:1,padding:"13px",background:"rgba(239,68,68,0.08)",border:"1.5px solid rgba(239,68,68,0.3)",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.red,cursor:"pointer"}}>
@@ -1247,7 +1251,8 @@ function EmpPortal({emp,onLogout}){
                       <button onClick={async()=>{
                         try{
                           const sb=await getSB();
-                          await sb.from("shifts").update({user_id:empSafe.id,status:"confirmed"}).eq("id",s.id);
+                          const {data:{session:ssCl}}=await getSB().then(sb2=>sb2.auth.getSession());
+                        await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCl?.access_token?{"Authorization":"Bearer "+ssCl.access_token}:{})},body:JSON.stringify({_action:"claim_shift",userId:empSafe.id,shiftId:s.id})});
                           setOpenShifts(p=>p.filter(x=>x.id!==s.id));
                           setEmpShifts(p=>[...p,{...s,user_id:empSafe.id,status:"confirmed"}]);
                           setSyncMsg("✓ Shift claimed!");setTimeout(()=>setSyncMsg(""),2500);
@@ -1407,7 +1412,8 @@ function EmpPortal({emp,onLogout}){
                 if(!swapReason?.trim()){setSyncMsg("Please add a reason");setTimeout(()=>setSyncMsg(""),2000);return;}
                 try{
                   const sb=await getSB();
-                  await sb.from("shift_swap_requests").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,reason:swapReason.trim(),status:"pending",created_at:new Date().toISOString()});
+                  const {data:{session:ssSw}}=await getSB().then(s=>s.auth.getSession());
+                  await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssSw?.access_token?{"Authorization":"Bearer "+ssSw.access_token}:{})},body:JSON.stringify({_action:"swap_request",userId:empSafe.id,orgId:empSafe.orgId||null,reason:swapReason.trim()})});
                   setSwapDone("✓ Swap request sent to your manager!");
                   setSwapReason("");
                   setTimeout(()=>{setSwapOpen(false);setSwapDone("");},2000);
@@ -1442,7 +1448,8 @@ function EmpPortal({emp,onLogout}){
                 if(!toStart||!toEnd){setSyncMsg("Please select start and end dates");setTimeout(()=>setSyncMsg(""),2000);return;}
                 try{
                   const sb=await getSB();
-                  await sb.from("time_off_requests").insert({user_id:empSafe.id,org_id:empSafe.orgId||null,start_date:toStart,end_date:toEnd,reason:toReason||"",status:"pending",created_at:new Date().toISOString()});
+                  const {data:{session:ssTo}}=await getSB().then(s=>s.auth.getSession());
+                  await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssTo?.access_token?{"Authorization":"Bearer "+ssTo.access_token}:{})},body:JSON.stringify({_action:"time_off",userId:empSafe.id,orgId:empSafe.orgId||null,startDate:toStart,endDate:toEnd,reason:toReason||""})});
                   setToDone("✓ Time off request sent!");
                   setTimeout(()=>{setToOpen(false);setToStart("");setToEnd("");setToReason("");setToDone("");},2000);
                 }catch(e){setToDone("✓ Request submitted!");}
