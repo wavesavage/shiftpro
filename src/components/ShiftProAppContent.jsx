@@ -3944,7 +3944,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       });
       if(!res.ok) throw new Error("Delete failed");
     }catch(e){
-      if(ownerProfile?.org_id) await loadShifts(ownerProfile.org_id, weekStart, activeLocation?.id||null);
+      if(ownerProfile?.org_id||activeOrg?.id) await loadShifts(ownerProfile?.org_id||activeOrg?.id, weekStart, activeLocation?.id||null);
       toast("Failed to remove shift","error");
     }
   };
@@ -3976,8 +3976,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       const {data:{session:ss}}=await sb2.auth.getSession();
       const lastMon = getMonday(currentWeekOffset - 1);
       const thisMon = getMonday(currentWeekOffset);
-      const orgId = ownerProfile?.org_id;
-      if(!orgId){ toast("No company found","error"); return; }
+      const orgId = ownerProfile?.org_id||activeOrg?.id||localStorage.getItem("shiftpro_active_orgid")||null;
+      if(!orgId){ toast("No company found — try refreshing the page","error"); return; }
       // Fetch last week's shifts via service role
       let url=`/api/shifts?orgId=${orgId}&weekStart=${lastMon}`;
       if(activeLocation) url+=`&locId=${activeLocation.id}`;
