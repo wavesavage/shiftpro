@@ -2259,19 +2259,28 @@ function EmpPortal({emp,onLogout}){
 
             <div style={{marginBottom:16}}>
               <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Reason for Swap *</label>
-              <textarea value={swapReason||""} onChange={e=>setSwapReason(e.target.value)}
+              <textarea value={swapReason||""} onChange={e=>{setSwapReason(e.target.value);setSwapDone("");}}
                 placeholder="e.g. Doctor appointment, family obligation, car trouble..."
                 rows={3}
-                style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box"}}/>
+                style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${swapDone&&swapDone.startsWith("⚠")?"#ef4444":E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box",transition:"border-color 0.2s"}}/>
             </div>
 
-            {swapDone&&<div style={{fontFamily:E.sans,fontSize:13,color:E.green,marginBottom:10,textAlign:"center",padding:"8px",background:"rgba(16,185,129,0.08)",borderRadius:8}}>{swapDone}</div>}
+            {swapDone&&(
+              <div style={{
+                fontFamily:E.sans,fontSize:13,
+                color:swapDone.startsWith("⚠")?E.red:E.green,
+                marginBottom:10,padding:"9px 12px",
+                background:swapDone.startsWith("⚠")?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
+                border:`1px solid ${swapDone.startsWith("⚠")?"rgba(239,68,68,0.25)":"rgba(16,185,129,0.25)"}`,
+                borderRadius:8,
+              }}>{swapDone}</div>
+            )}
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>{setSwapOpen(false);setSwapReason("");setSwapDate("");setSwapShiftPick("");setSwapDone("");}}
                 style={{flex:1,padding:"11px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
               <button onClick={async()=>{
-                if(!swapReason?.trim()){setSyncMsg("⚠ Please add a reason");setTimeout(()=>setSyncMsg(""),2500);return;}
-                if(!swapDate){setSyncMsg("⚠ Please select a date");setTimeout(()=>setSyncMsg(""),2500);return;}
+                if(!swapReason?.trim()){setSwapDone("⚠ Please enter a reason for the swap request");return;}
+                if(!swapDate){setSwapDone("⚠ Please select the shift date");return;}
                 try{
                   const {data:{session:ssSw}}=await (await getSB()).auth.getSession();
                   const r=await fetch("/api/employee",{method:"POST",
@@ -2283,7 +2292,7 @@ function EmpPortal({emp,onLogout}){
                   setSwapDone("✓ Swap request sent to your manager!");
                   setSwapReason(""); setSwapDate(""); setSwapShiftPick("");
                   setTimeout(()=>{setSwapOpen(false);setSwapDone("");},2000);
-                }catch(e){setSwapDone("✓ Request submitted!");}
+                }catch(e){setSwapDone("⚠ Could not submit: "+(e.message||"Please try again"));}
               }} style={{flex:1,padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>Submit Request</button>
             </div>
           </div>
