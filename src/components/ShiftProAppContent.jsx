@@ -1811,19 +1811,19 @@ function EmpPortal({emp,onLogout}){
 
             {empDocs!==null&&filteredDocs.length===0&&(
               <div>
-                {/* Tax Forms — employer uploads these */}
+                {/* Tax Forms — W-4 employee uploads, W-2 employer uploads */}
                 {docSubTab==="tax"&&(
                   <div style={{background:"#fff",border:"1.5px solid rgba(124,58,237,0.2)",borderRadius:14,padding:"28px",textAlign:"center",marginBottom:12}}>
                     <div style={{fontSize:40,marginBottom:10}}>📝</div>
                     <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text,marginBottom:6}}>Tax Forms</div>
-                    <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20,maxWidth:320,margin:"0 auto 20px"}}>Your W-2, W-4, and other tax documents will appear here when your employer uploads them. You can also upload your own copies.</div>
+                    <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20,maxWidth:360,margin:"0 auto 20px"}}>Upload your W-4 below so your employer knows your withholding. Your W-2 will appear here automatically when your employer uploads it at year end.</div>
                     <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
-                      <div style={{padding:"10px 16px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:8,fontFamily:E.mono,fontSize:10,color:"#7c3aed",letterSpacing:1}}>⏳ W-2 — Pending from employer</div>
-                      <div style={{padding:"10px 16px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:8,fontFamily:E.mono,fontSize:10,color:"#7c3aed",letterSpacing:1}}>⏳ W-4 — Pending from employer</div>
+                      <div style={{padding:"10px 16px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:8,textAlign:"left"}}><div style={{fontFamily:E.mono,fontSize:9,color:"#7c3aed",letterSpacing:1,marginBottom:3}}>📝 W-4 — Employee Withholding</div><div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>You fill this out & upload it</div></div>
+                      <div style={{padding:"10px 16px",background:"rgba(124,58,237,0.04)",border:"1px dashed rgba(124,58,237,0.2)",borderRadius:8,textAlign:"left"}}><div style={{fontFamily:E.mono,fontSize:9,color:"#9ca3af",letterSpacing:1,marginBottom:3}}>⏳ W-2 — Year-End Earnings</div><div style={{fontFamily:E.sans,fontSize:11,color:E.textF}}>Your employer uploads by Jan 31</div></div>
                     </div>
-                    <button onClick={()=>{ setShowUploadForm(true); setDocUploadCat("tax"); }}
+                    <button onClick={()=>{ setShowUploadForm(true); setDocUploadCat("tax"); setDocUploadName("W-4 Employee Withholding"); }}
                       style={{marginTop:16,padding:"9px 20px",background:"rgba(124,58,237,0.1)",border:"1.5px solid rgba(124,58,237,0.25)",borderRadius:8,fontFamily:E.sans,fontWeight:600,fontSize:13,color:"#7c3aed",cursor:"pointer"}}>
-                      + Upload My Own Tax Document
+                      + Upload My W-4
                     </button>
                   </div>
                 )}
