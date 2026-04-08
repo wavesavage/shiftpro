@@ -1,5 +1,4 @@
 export const dynamic = "force-dynamic";
-
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -7,45 +6,84 @@ const sb = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+const NO_CACHE = { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } };
 
-const NO_CACHE = { headers: { "Cache-Control": "no-store" } };
-
-// GET — load pending requests for owner
 export async function GET(req: NextRequest) {
-  const type = req.nextUrl.searchParams.get("type");
+  const type  = req.nextUrl.searchParams.get("type");
   const orgId = req.nextUrl.searchParams.get("orgId");
   if (!orgId) return NextResponse.json({ error: "orgId required" }, { status: 400 });
 
   const client = sb();
 
   if (type === "swaps") {
-    const { data, error } = await client
+    // Simple query — no FK joins that might fail with wrong constraint name
+    const { data: swaps, error: swapsErr } = await client
       .from("shift_swap_requests")
-      .select("*, users!shift_swap_requests_user_id_fkey(first_name,last_name,avatar_initials,avatar_color)")
+      .select("*")
       .eq("org_id", orgId)
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(20);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ swaps: data || [] }, NO_CACHE);
+
+    if (swapsErr) {
+      console.error("[requests GET swaps]", swapsErr.message);
+      return NextResponse.json({ error: swapsErr.message }, { status: 500 });
+    }
+
+    // Enrich with user names in a separate query
+    const userIds = [...new Set((swaps || []).map(s => s.user_id).filter(Boolean))];
+    let userMap: Record<string, any> = {};
+    if (userIds.length > 0) {
+      const { data: users } = await client
+        .from("users")
+        .select("id, first_name, last_name, avatar_color")
+        .in("id", userIds);
+      (users || []).forEach(u => { userMap[u.id] = u; });
+    }
+
+    const enriched = (swaps || []).map(s => ({
+      ...s,
+      users: userMap[s.user_id] || null,
+    }));
+
+    return NextResponse.json({ swaps: enriched }, NO_CACHE);
   }
 
   if (type === "timeoff") {
-    const { data, error } = await client
+    const { data: timeoff, error: toErr } = await client
       .from("time_off_requests")
-      .select("*, users!time_off_requests_user_id_fkey(first_name,last_name,avatar_initials,avatar_color)")
+      .select("*")
       .eq("org_id", orgId)
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(20);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ timeoff: data || [] }, NO_CACHE);
+
+    if (toErr) {
+      console.error("[requests GET timeoff]", toErr.message);
+      return NextResponse.json({ error: toErr.message }, { status: 500 });
+    }
+
+    const userIds = [...new Set((timeoff || []).map(t => t.user_id).filter(Boolean))];
+    let userMap: Record<string, any> = {};
+    if (userIds.length > 0) {
+      const { data: users } = await client
+        .from("users")
+        .select("id, first_name, last_name, avatar_color")
+        .in("id", userIds);
+      (users || []).forEach(u => { userMap[u.id] = u; });
+    }
+
+    const enriched = (timeoff || []).map(t => ({
+      ...t,
+      users: userMap[t.user_id] || null,
+    }));
+
+    return NextResponse.json({ timeoff: enriched }, NO_CACHE);
   }
 
   return NextResponse.json({ error: "type must be swaps or timeoff" }, { status: 400 });
 }
 
-// POST — approve or deny a request
 export async function POST(req: NextRequest) {
   try {
     const { table, id, status } = await req.json();

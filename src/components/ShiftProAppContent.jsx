@@ -5125,49 +5125,51 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       const {data:{session:ss}} = await sb.auth.getSession();
       const headers = ss?.access_token ? {"Authorization":"Bearer "+ss.access_token} : {};
 
-      // Load swap requests via service role API
+      // ── Load swap requests ───────────────────────────────────────────
       try{
         const r = await fetch(`/api/requests?type=swaps&orgId=${orgId}&_t=${Date.now()}`, {headers, cache:"no-store"});
-        if(r.ok){
-          const d = await r.json();
-          const swaps = d.swaps||[];
-          swaps.forEach(s=>items.push({id:"swap_"+s.id,type:"swap",raw:s}));
-          setSwapRequests(swaps);
-        }
-      }catch(e){ console.error("swap load:",e); }
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error||"Failed to load swaps");
+        const swaps = d.swaps||[];
+        setSwapRequests(swaps);
+        // Push to bell immediately — no stale closure
+        swaps.forEach(s=>items.push({
+          id:"swap_"+s.id, type:"swap", read:false, raw:s,
+        }));
+      }catch(e){ console.error("[notif] swaps:", e.message); }
 
-      // Load time off requests via service role API
+      // ── Load time off requests ────────────────────────────────────────
       try{
         const r = await fetch(`/api/requests?type=timeoff&orgId=${orgId}&_t=${Date.now()}`, {headers, cache:"no-store"});
-        if(r.ok){
-          const d = await r.json();
-          const timeoff = d.timeoff||[];
-          timeoff.forEach(t=>items.push({id:"toff_"+t.id,type:"timeoff",raw:t}));
-          setTimeOffRequests(timeoff);
-        }
-      }catch(e){ console.error("timeoff load:",e); }
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error||"Failed to load timeoff");
+        const timeoff = d.timeoff||[];
+        setTimeOffRequests(timeoff);
+        timeoff.forEach(t=>items.push({
+          id:"toff_"+t.id, type:"timeoff", read:false, raw:t,
+        }));
+      }catch(e){ console.error("[notif] timeoff:", e.message); }
 
-      // Load employee-to-manager messages
+      // ── Load staff messages ───────────────────────────────────────────
       try{
         const r = await fetch(`/api/messages?userId=owner&orgId=${orgId}&role=owner&_t=${Date.now()}`, {headers, cache:"no-store"});
-        if(r.ok){
-          const d = await r.json();
-          const msgs = (d.threads||[]).filter(m=>
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error||"Failed to load messages");
+        const allMsgs = d.threads||[];
+        const staffMsgs = allMsgs.filter(m=>
           m.type==="employee_to_manager" ||
-          (m.from_id && !m.to_id && m.type==="direct") // fallback for messages stored before type fix
+          m.type==="direct"  // fallback for messages before type constraint fix
         );
-          setStaffMessages(msgs);
-          setStaffMsgsLoaded(true);
-        }
-      }catch(e){ console.error("staff msgs load:",e); }
-
-      // Add staff messages to bell notifications
-      staffMessages.forEach(m => {
-        items.push({id:"staffmsg_"+m.id, type:"staffmsg", raw:m, read:!!m.read});
-      });
+        setStaffMessages(staffMsgs);
+        setStaffMsgsLoaded(true);
+        // Push unread staff messages to bell immediately
+        staffMsgs.filter(m=>!m.read).forEach(m=>items.push({
+          id:"staffmsg_"+m.id, type:"staffmsg", read:false, raw:m,
+        }));
+      }catch(e){ console.error("[notif] staffmsgs:", e.message); }
 
       setRequestsLoaded(true);
-    }catch(e){ console.error("loadNotifications:",e); }
+    }catch(e){ console.error("[notif] outer:", e.message); }
     setNotifications(items);
   };
 
