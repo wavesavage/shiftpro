@@ -3629,7 +3629,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               return mon.getFullYear()+"-"+String(mon.getMonth()+1).padStart(2,"0")+"-"+String(mon.getDate()).padStart(2,"0");
             })();
             const {data:{session:sss}}=await sb.auth.getSession();
-            const sRes=await fetch("/api/shifts?orgId="+orgId+"&weekStart="+weekStr,{
+            const sRes=await fetch("/api/shifts?orgId="+orgId+"&weekStart="+weekStr+"&_t="+Date.now(),{
               headers:sss?.access_token?{"Authorization":"Bearer "+sss.access_token}:{},
               cache:"no-store",
             });
@@ -3837,8 +3837,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         }
         setLiveShifts([]);
       } else {
-        // Final fallback: direct Supabase
-        const {data:shifts}=await sb.from("shifts").select("*, users(first_name,last_name,avatar_initials,avatar_color,role)").eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
+        // Final fallback: direct Supabase, no users join to avoid FK ambiguity
+        const {data:shifts}=await sb.from("shifts").select("*").eq("org_id",orgId).eq("week_start",weekStr).order("start_hour");
         setLiveShifts(shifts||[]);
       }
     }catch(e){setLiveShifts([]);}
