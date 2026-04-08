@@ -453,8 +453,8 @@ function Login({onLogin}){
 
       if(!profile) throw new Error("Profile not found. Contact your manager.");
 
-      // Mark invited employee as active on first login
-      if(profile.status==="invited"&&!profile._fromCache){
+      // Ensure employee is marked active on every login
+      if(!profile._fromCache){
         try{
           const {data:{session:ss}}=await sb.auth.getSession();
           await fetch("/api/user",{
@@ -1012,7 +1012,18 @@ function EmpPortal({emp,onLogout}){
   const [realWkHrs,setRealWkHrs] = useState(0);
   const [realMoHrs,setRealMoHrs] = useState(0);
   const [empDocs,setEmpDocs] = useState(null);
+  const [empLocationName,setEmpLocationName] = useState("");
   const [empThreads,setEmpThreads] = useState(null);
+  // Profile edit state
+  const [profileEdit,setProfileEdit] = useState(false);
+  const [profileForm,setProfileForm] = useState({firstName:"",lastName:"",phone:"",emergency:""});
+  const [profileBusy,setProfileBusy] = useState(false);
+  const [profileMsg,setProfileMsg] = useState("");
+  // Compose message state
+  const [composeOpen,setComposeOpen] = useState(false);
+  const [composeText,setComposeText] = useState("");
+  const [composeBusy,setComposeBusy] = useState(false);
+  const [composeMsg,setComposeMsg] = useState("");
   const [docSubTab,setDocSubTab] = useState("all");
   const [docUploading,setDocUploading] = useState(false);
   const [docUploadName,setDocUploadName] = useState("");
@@ -1110,8 +1121,17 @@ function EmpPortal({emp,onLogout}){
         try{
           const r=await fetch(`/api/documents?userId=${empSafe.id}&_t=${Date.now()}`,{headers,cache:"no-store"});
           if(r.ok){ const d=await r.json(); setEmpDocs(d.documents||[]); }
-          else { setEmpDocs([]); } // Route exists but returned error — show empty state
-        }catch(e){ setEmpDocs([]); } // Route not deployed yet — show empty state
+          else { setEmpDocs([]); }
+        }catch(e){ setEmpDocs([]); }
+
+        // ── Load location name ──
+        if(empSafe.locId){
+          try{
+            const sb=await getSB();
+            const {data:loc}=await sb.from("locations").select("name").eq("id",empSafe.locId).single();
+            if(loc?.name) setEmpLocationName(loc.name);
+          }catch(e){}
+        }
 
         // ── Load availability via service role ──
         try{
@@ -1741,14 +1761,68 @@ function EmpPortal({emp,onLogout}){
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div>
                 <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text}}>💬 Messages</div>
-                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>All conversations are permanent records</div>
+                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>Direct line to your management team</div>
               </div>
-              {(threads||[]).some(t=>!t.read&&t.to_id===empSafe.id)&&(
-                <div style={{background:E.indigo,borderRadius:20,padding:"4px 12px",fontFamily:E.mono,fontSize:10,color:"#fff",fontWeight:700}}>
-                  {(threads||[]).filter(t=>!t.read&&t.to_id===empSafe.id).length} NEW
-                </div>
-              )}
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                {(threads||[]).some(t=>!t.read&&t.to_id===empSafe.id)&&(
+                  <div style={{background:E.indigo,borderRadius:20,padding:"4px 12px",fontFamily:E.mono,fontSize:10,color:"#fff",fontWeight:700}}>
+                    {(threads||[]).filter(t=>!t.read&&t.to_id===empSafe.id).length} NEW
+                  </div>
+                )}
+                <button onClick={()=>{setComposeOpen(true);setComposeMsg("");setComposeText("");}}
+                  style={{padding:"8px 14px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",boxShadow:"0 3px 10px rgba(99,102,241,0.3)"}}>
+                  + Message Manager
+                </button>
+              </div>
             </div>
+
+            {/* Compose Modal */}
+            {composeOpen&&(
+              <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setComposeOpen(false)}>
+                <div style={{background:E.bg2,borderRadius:18,padding:"26px",width:"100%",maxWidth:420,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>📨 Message Management</div>
+                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Your message goes directly to your manager's ShiftPro terminal. They'll be notified immediately.</div>
+                  <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"}}>Your Message *</label>
+                  <textarea value={composeText} onChange={e=>{setComposeText(e.target.value);setComposeMsg("");}}
+                    placeholder="e.g. Running 10 min late, need coverage, have a question about my schedule..."
+                    rows={4}
+                    style={{width:"100%",padding:"10px 12px",background:E.bg3,border:"1.5px solid "+(composeMsg&&composeMsg.startsWith("!")?"#ef4444":E.border),borderRadius:9,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box",marginBottom:12}}/>
+                  {composeMsg&&(
+                    <div style={{fontFamily:E.sans,fontSize:13,padding:"8px 12px",borderRadius:8,marginBottom:12,
+                      color:composeMsg.startsWith("!")?E.red:E.green,
+                      background:composeMsg.startsWith("!")?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
+                      border:"1px solid "+(composeMsg.startsWith("!")?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"),
+                    }}>{composeMsg}</div>
+                  )}
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>setComposeOpen(false)}
+                      style={{flex:1,padding:"11px",background:E.bg3,border:"1px solid "+E.border,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
+                    <button disabled={composeBusy} onClick={async()=>{
+                      if(!composeText.trim()){setComposeMsg("! Please enter a message before sending");return;}
+                      setComposeBusy(true);
+                      try{
+                        const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                        const r=await fetch("/api/messages",{method:"POST",
+                          headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                          body:JSON.stringify({
+                            orgId:empSafe.orgId, fromId:empSafe.id,
+                            fromName:empSafe.name, toId:"managers",
+                            text:composeText.trim(), type:"employee_to_manager",
+                          })});
+                        const d=await r.json();
+                        if(!r.ok) throw new Error(d.error||"Failed");
+                        setComposeMsg("✓ Message sent! Your manager has been notified.");
+                        setComposeText("");
+                        setTimeout(()=>setComposeOpen(false),2000);
+                      }catch(e){ setComposeMsg("! Could not send: "+(e.message||"Try again")); }
+                      finally{ setComposeBusy(false); }
+                    }} style={{flex:2,padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:composeBusy?"not-allowed":"pointer",opacity:composeBusy?0.7:1,boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>
+                      {composeBusy?"Sending...":"Send to Manager"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Loading */}
             {!msgsLoaded&&(
@@ -1757,12 +1831,16 @@ function EmpPortal({emp,onLogout}){
               </div>
             )}
 
-            {/* Empty */}
+            {/* Empty state - with prompt to message manager */}
             {msgsLoaded&&(threads||[]).length===0&&(
               <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:16,border:"1px solid "+E.border,boxShadow:E.shadow}}>
                 <div style={{fontSize:48,marginBottom:12}}>💬</div>
                 <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No messages yet</div>
-                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,maxWidth:320,margin:"0 auto"}}>Your manager will send shift updates, schedule changes, and announcements here. You can reply directly.</div>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,maxWidth:320,margin:"0 auto 16px"}}>Your manager will send updates here. You can also message them directly anytime.</div>
+                <button onClick={()=>{setComposeOpen(true);setComposeMsg("");setComposeText("");}}
+                  style={{padding:"10px 20px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(99,102,241,0.3)"}}>
+                  Send First Message
+                </button>
               </div>
             )}
 
@@ -1885,6 +1963,29 @@ function EmpPortal({emp,onLogout}){
           );
         })()}
         {tab==="documents"&&(()=>{
+          // Profile save handler
+          const saveProfile = async() => {
+            setProfileBusy(true); setProfileMsg("");
+            try{
+              const {data:{session:ss}}=await (await getSB()).auth.getSession();
+              const r=await fetch("/api/user",{
+                method:"PATCH",
+                headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                body:JSON.stringify({userId:empSafe.id,updates:{
+                  first_name:profileForm.firstName.trim()||empSafe.first,
+                  last_name:profileForm.lastName.trim(),
+                  phone:profileForm.phone,
+                  emergency_contact:profileForm.emergency,
+                }}),
+              });
+              if(!r.ok) throw new Error("Save failed");
+              setProfileMsg("✓ Profile updated!");
+              setProfileEdit(false);
+              setTimeout(()=>setProfileMsg(""),3000);
+            }catch(e){ setProfileMsg("Failed: "+e.message); }
+            finally{ setProfileBusy(false); }
+          };
+
           const CATS = [
             {id:"all",    label:"📁 All",       color:E.indigo},
             {id:"identity",label:"🪪 Identity",  color:"#0891b2"},
@@ -1980,6 +2081,81 @@ function EmpPortal({emp,onLogout}){
 
           return(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+
+            {/* ── My Profile Card ── */}
+            <div style={{background:"#fff",border:"1.5px solid "+E.border,borderRadius:16,padding:"18px 20px",marginBottom:16,boxShadow:E.shadow}}>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                <div style={{width:54,height:54,borderRadius:"50%",background:empSafe.color||E.indigo,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:E.mono,fontWeight:700,fontSize:18,color:"#fff",flexShrink:0}}>{empSafe.avatar}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:17,color:E.text}}>{empSafe.name}</div>
+                  <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:1}}>{empSafe.role}{empSafe.dept?" — "+empSafe.dept:""}</div>
+                  {empLocationName&&<div style={{fontFamily:E.mono,fontSize:9,color:E.indigo,letterSpacing:1,marginTop:3}}>📍 {empLocationName}</div>}
+                  {emp.locations&&emp.locations.length>0&&(
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>
+                      {emp.locations.map(loc=>(
+                        <span key={loc.id} style={{fontFamily:E.mono,fontSize:8,color:E.indigo,background:E.indigoD,border:"1px solid "+E.indigo+"30",borderRadius:10,padding:"1px 7px",letterSpacing:0.5}}>📍 {loc.name}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button onClick={()=>{
+                  setProfileEdit(o=>!o);
+                  if(!profileEdit) setProfileForm({
+                    firstName:empSafe.first==="there"?"":empSafe.first,
+                    lastName:empSafe.name.split(" ").slice(1).join(" ")||"",
+                    phone:emp.phone||"",
+                    emergency:emp.emergency||"",
+                  });
+                  setProfileMsg("");
+                }} style={{padding:"7px 14px",background:profileEdit?"rgba(0,0,0,0.04)":E.indigoD,border:"1px solid "+E.indigo+"25",borderRadius:9,fontFamily:E.sans,fontWeight:600,fontSize:12,color:profileEdit?E.textD:E.indigo,cursor:"pointer",flexShrink:0}}>
+                  {profileEdit?"Cancel":"Edit Profile"}
+                </button>
+              </div>
+
+              {profileEdit&&(
+                <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid "+E.border}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                    {[
+                      {l:"First Name",k:"firstName",ph:"First name"},
+                      {l:"Last Name",k:"lastName",ph:"Last name"},
+                      {l:"Phone",k:"phone",ph:"(555) 000-0000"},
+                      {l:"Emergency Contact",k:"emergency",ph:"Name and number"},
+                    ].map(f=>(
+                      <div key={f.k}>
+                        <label style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:4,textTransform:"uppercase"}}>{f.l}</label>
+                        <input value={profileForm[f.k]||""} onChange={e=>setProfileForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph}
+                          style={{width:"100%",padding:"8px 10px",background:E.bg3,border:"1px solid "+E.border,borderRadius:7,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+                      </div>
+                    ))}
+                  </div>
+                  {profileMsg&&<div style={{fontFamily:E.sans,fontSize:12,color:profileMsg.startsWith("✓")?E.green:E.red,marginBottom:8}}>{profileMsg}</div>}
+                  <button onClick={async()=>{
+                    setProfileBusy(true); setProfileMsg("");
+                    try{
+                      const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                      const r=await fetch("/api/user",{method:"PATCH",
+                        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                        body:JSON.stringify({userId:empSafe.id,updates:{
+                          first_name:profileForm.firstName.trim()||empSafe.first,
+                          last_name:profileForm.lastName.trim(),
+                          phone:profileForm.phone,
+                          emergency_contact:profileForm.emergency,
+                        }}),
+                      });
+                      if(!r.ok) throw new Error("Save failed");
+                      setProfileMsg("✓ Profile updated!");
+                      setProfileEdit(false);
+                      setTimeout(()=>setProfileMsg(""),3000);
+                    }catch(e){ setProfileMsg("Failed: "+e.message); }
+                    finally{ setProfileBusy(false); }
+                  }} disabled={profileBusy}
+                    style={{width:"100%",padding:"10px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(99,102,241,0.25)"}}>
+                    {profileBusy?"Saving...":"Save Profile"}
+                  </button>
+                </div>
+              )}
+              {!profileEdit&&profileMsg&&<div style={{fontFamily:E.sans,fontSize:12,color:E.green,marginTop:8}}>{profileMsg}</div>}
+            </div>
             {/* Header */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div>
@@ -4455,6 +4631,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [swapRequests,setSwapRequests] = useState([]);
   const [timeOffRequests,setTimeOffRequests] = useState([]);
   const [requestsLoaded,setRequestsLoaded] = useState(false);
+  const [staffMessages,setStaffMessages] = useState([]);
+  const [staffMsgsLoaded,setStaffMsgsLoaded] = useState(false);
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
 
@@ -4860,6 +5038,17 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setTimeOffRequests(timeoff);
         }
       }catch(e){ console.error("timeoff load:",e); }
+
+      // Load employee-to-manager messages
+      try{
+        const r = await fetch(`/api/messages?userId=owner&orgId=${orgId}&role=owner&_t=${Date.now()}`, {headers, cache:"no-store"});
+        if(r.ok){
+          const d = await r.json();
+          const msgs = (d.threads||[]).filter((m:any)=>m.type==="employee_to_manager");
+          setStaffMessages(msgs);
+          setStaffMsgsLoaded(true);
+        }
+      }catch(e){ console.error("staff msgs load:",e); }
 
       setRequestsLoaded(true);
     }catch(e){ console.error("loadNotifications:",e); }
@@ -5845,6 +6034,43 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                             </button>
                           ))}
                         </div>
+                      </div>
+
+                      {/* Staff inbox - employee messages to management */}
+                      <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"18px",boxShadow:O.shadow}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>Staff Inbox</div>
+                            {staffMessages.length>0&&(
+                              <span style={{background:O.indigo,color:"#fff",fontFamily:O.mono,fontSize:9,fontWeight:700,borderRadius:10,padding:"2px 7px"}}>{staffMessages.length}</span>
+                            )}
+                          </div>
+                          <button onClick={()=>{ setNotifLoaded(false); if(orgId) loadNotifications(orgId,true); }}
+                            style={{fontFamily:O.mono,fontSize:9,color:O.textF,background:"none",border:"none",cursor:"pointer",letterSpacing:1}}>REFRESH</button>
+                        </div>
+                        {!staffMsgsLoaded&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"8px 0"}}>Loading...</div>}
+                        {staffMsgsLoaded&&staffMessages.length===0&&(
+                          <div style={{textAlign:"center",padding:"14px 0"}}>
+                            <div style={{fontSize:28,marginBottom:6}}>📥</div>
+                            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>No messages from staff yet</div>
+                          </div>
+                        )}
+                        {staffMessages.slice(0,5).map(msg=>(
+                          <div key={msg.id} style={{padding:"10px 12px",background:O.bg3,borderRadius:10,marginBottom:8,borderLeft:"3px solid "+O.indigo}}>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.text}}>{msg.from_name||"Staff"}</div>
+                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>{msg.created_at?new Date(msg.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""}</div>
+                            </div>
+                            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>{msg.text}</div>
+                            {/* Quick reply - opens employee drawer */}
+                                <button onClick={()=>{
+                                  const staffEmp = (liveEmps||[]).find(e=>e.id===msg.from_id);
+                                  if(staffEmp){ setSelectedEmp(staffEmp); setShowEmpDrawer(true); }
+                                }} style={{marginTop:6,padding:"4px 10px",background:O.indigoD,border:"1px solid "+O.indigo+"30",borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.indigo,cursor:"pointer"}}>
+                                  Reply
+                                </button>
+                          </div>
+                        ))}
                       </div>
 
                       {/* Team status */}
@@ -7042,11 +7268,15 @@ export default function App(){
       // Update password
       const {error}=await sb.auth.updateUser({password:newPw});
       if(error) throw error;
-      // Mark user as active and get their profile to auto-login
+      // Mark user as active via service role (anon client blocked by RLS)
       try{
         const {data:{session:s2}}=await sb.auth.getSession();
         if(s2?.user?.id){
-          await sb.from("users").update({status:"active"}).eq("id",s2.user.id);
+          await fetch("/api/user",{
+            method:"PATCH",
+            headers:{"Content-Type":"application/json",...(s2?.access_token?{"Authorization":"Bearer "+s2.access_token}:{})},
+            body:JSON.stringify({userId:s2.user.id, updates:{status:"active"}}),
+          });
         }
       }catch(e){}
       setPwDone(true);
