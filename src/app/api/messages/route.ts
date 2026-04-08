@@ -99,15 +99,20 @@ export async function POST(req: NextRequest) {
     const isBroadcast  = toId === "all"      || type === "broadcast";
     const isToManagers = toId === "managers" || type === "employee_to_manager";
 
+    // Use only values allowed by the DB type column
+    // If constraint exists: direct|broadcast|reply
+    // employee_to_manager is stored as "direct" + identified by to_id=null + from context
     const msgType = isBroadcast  ? "broadcast"
-                  : isToManagers ? "employee_to_manager"
+                  : isToManagers ? "direct"    // employee→manager = direct with no to_id
                   : parentId     ? "reply"
-                  : type         || "direct";
+                  : "direct";
+    // Keep full type in subject for identification when needed
+    const isEmpToMgr = isToManagers;
 
     // Auto-generate subject if not provided
     const msgSubject = subject?.trim()
       || (isBroadcast  ? "Team Announcement"
-        : isToManagers ? `Message from ${fromName || "Staff"}`
+        : isEmpToMgr   ? `[Staff] Message from ${fromName || "Staff"}`
         : parentId     ? "Reply"
         : "Direct Message");
 
