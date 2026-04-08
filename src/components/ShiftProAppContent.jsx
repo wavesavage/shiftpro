@@ -1765,16 +1765,16 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
       const sb2=await getSB();
       const {data:{session:ss}}=await sb2.auth.getSession();
       const orgId=activeOrg?.id||ownerProfile?.org_id||localStorage.getItem("shiftpro_active_orgid")||null;
+
+      if(!emp.email){ toast("No email on file for this employee","error"); return; }
+
       const res = await fetch("/api/invite",{
         method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          ...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})
-        },
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({
           email:emp.email,
-          firstName:emp.first||emp.name.split(" ")[0],
-          lastName:emp.name.split(" ").slice(1).join(" "),
+          firstName:emp.first||emp.name?.split(" ")[0]||"",
+          lastName:emp.name?.split(" ").slice(1).join(" ")||"",
           orgId,
           locationId:emp.locId||null,
           role:emp.role||"Employee",
@@ -1784,10 +1784,20 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
         }),
       });
       const result=await res.json();
-      if(!res.ok && !result.resenOk) throw new Error(result.error||"Resend failed");
-      toast("Invite resent to "+emp.email+" ✓","success");
+      if(!res.ok) throw new Error(result.error||"Resend failed");
+      const msg = result.isExisting
+        ? "✓ Password reset email sent to "+emp.email+" (existing account)"
+        : "✓ Invite sent to "+emp.email;
+      toast(msg,"success");
     } catch(e) {
-      toast("Failed: "+e.message,"error");
+      // Final fallback: send password reset directly
+      try{
+        const sb3=await getSB();
+        await sb3.auth.resetPasswordForEmail(emp.email,{redirectTo:"https://shiftpro.ai/"});
+        toast("✓ Password reset sent to "+emp.email,"success");
+      }catch(e2){
+        toast("Failed: "+(e as any).message,"error");
+      }
     } finally { setResendBusy(false); }
   };
 
