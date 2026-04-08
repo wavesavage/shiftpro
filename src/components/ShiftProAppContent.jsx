@@ -538,7 +538,7 @@ function Login({onLogin}){
                 <div>
                   <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:16,color:"#fff",marginBottom:5}}>I'm an Employee</div>
                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(16,185,129,0.65)",letterSpacing:"1.5px"}}>MY SCHEDULE & TIME CLOCK</div>
-                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}>← INVITED STAFF CLICK HERE</div>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}><- INVITED STAFF CLICK HERE</div>
                 </div>
               </button>
             </div>
@@ -547,7 +547,7 @@ function Login({onLogin}){
               <a href="/signup" style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(245,158,11,0.5)",letterSpacing:1,textDecoration:"none"}}
                 onMouseEnter={e=>e.target.style.color="rgba(245,158,11,0.9)"}
                 onMouseLeave={e=>e.target.style.color="rgba(245,158,11,0.5)"}>
-                Create your account →
+                Create your account ->
               </a>
             </div>
           </div>
@@ -555,7 +555,7 @@ function Login({onLogin}){
 
         {mode==="owner"&&(
           <div style={{background:"rgba(9,14,26,0.96)",border:"1px solid "+amberB,borderRadius:16,padding:"28px",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");setShowReset(false);setResetSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.3)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:18}}>← BACK</button>
+            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");setShowReset(false);setResetSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.3)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:18}}><- BACK</button>
             {!showReset?(
               <div>
                 <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:22,color:"#fff",marginBottom:3}}>Owner / Manager</div>
@@ -569,7 +569,7 @@ function Login({onLogin}){
                 ))}
                 {err&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:red,marginBottom:12,padding:"8px 10px",background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>{err}</div>}
                 <button onClick={doOwnerLogin} style={{width:"100%",padding:"14px",background:busy?"rgba(245,158,11,0.5)":"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",borderRadius:10,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:15,color:"#030c14",cursor:busy?"not-allowed":"pointer",boxShadow:"0 4px 20px rgba(245,158,11,0.3)",marginBottom:12}}>
-                  {busy?"Signing in…":"Enter Command Center →"}
+                  {busy?"Signing in…":"Enter Command Center ->"}
                 </button>
                 <div style={{textAlign:"center"}}>
                   <button onClick={()=>{setShowReset(true);setErr("");}} style={{background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(245,158,11,0.5)",cursor:"pointer",textDecoration:"underline"}}>Forgot password?</button>
@@ -587,9 +587,9 @@ function Login({onLogin}){
                     </div>
                     {err&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:red,marginBottom:12}}>{err}</div>}
                     <button onClick={doReset} style={{width:"100%",padding:"13px",background:"rgba(245,158,11,0.15)",border:"1px solid "+amberB,borderRadius:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:14,color:amber,cursor:"pointer",marginBottom:10}}>
-                      {busy?"Sending…":"Send Reset Link →"}
+                      {busy?"Sending…":"Send Reset Link ->"}
                     </button>
-                    <button onClick={()=>{setShowReset(false);setErr("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(255,255,255,0.3)",cursor:"pointer"}}>← Back to sign in</button>
+                    <button onClick={()=>{setShowReset(false);setErr("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(255,255,255,0.3)",cursor:"pointer"}}><- Back to sign in</button>
                   </div>
                 ):(
                   <div>
@@ -606,7 +606,7 @@ function Login({onLogin}){
 
         {mode==="employee"&&(
           <div style={{background:"rgba(255,255,255,0.98)",borderRadius:16,padding:"28px",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}}>
-            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");}} style={{background:"none",border:"none",color:"#9ca3af",fontFamily:"'Nunito',sans-serif",fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}>← Back</button>
+            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");}} style={{background:"none",border:"none",color:"#9ca3af",fontFamily:"'Nunito',sans-serif",fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}><- Back</button>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
               <div style={{width:44,height:44,borderRadius:12,flexShrink:0,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:22}}>👋</span></div>
               <div>
@@ -624,7 +624,7 @@ function Login({onLogin}){
             ))}
             {err&&<div style={{fontFamily:"'Nunito',sans-serif",fontSize:12,color:"#ef4444",marginBottom:12,padding:"8px 10px",background:"rgba(239,68,68,0.05)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:6}}>{err}</div>}
             <button onClick={doEmpLogin} style={{width:"100%",padding:"14px",background:busy?"#a5b4fc":"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:10,fontFamily:"'Nunito',sans-serif",fontWeight:700,fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 8px 28px rgba(99,102,241,0.18)",marginBottom:12}}>
-              {busy?"Signing in…":"Go to My Work Hub →"}
+              {busy?"Signing in…":"Go to My Work Hub ->"}
             </button>
             <div style={{textAlign:"center",marginBottom:8}}>
               <button onClick={async()=>{
@@ -750,7 +750,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
             <label style={lbl}>Mobile Phone <span style={{color:"#ef4444"}}>*</span></label>
             <input value={form.phone} onChange={e=>upd("phone",e.target.value)} placeholder="(555) 000-0000" type="tel" style={inp} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="rgba(99,102,241,0.15)"}/>
             {err&&<div style={{color:"#ef4444",fontFamily:E.sans,fontSize:12,marginBottom:8}}>{err}</div>}
-            <button onClick={next} style={primaryBtn}>Continue →</button>
+            <button onClick={next} style={primaryBtn}>Continue -></button>
           </div>
         )}
 
@@ -774,8 +774,8 @@ function EmpOnboarding({ empSafe, onComplete }) {
               </div>
             </div>
             {err&&<div style={{color:"#ef4444",fontFamily:E.sans,fontSize:12,marginBottom:8}}>{err}</div>}
-            <button onClick={next} style={primaryBtn}>Continue →</button>
-            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}>← Back</button>
+            <button onClick={next} style={primaryBtn}>Continue -></button>
+            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}><- Back</button>
           </div>
         )}
 
@@ -793,10 +793,10 @@ function EmpOnboarding({ empSafe, onComplete }) {
               ))}
             </div>
             <div style={{padding:"12px 14px",background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:10,marginBottom:20,fontFamily:E.sans,fontSize:12,color:"#6b7280"}}>
-              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span> → <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span> → No preference
+              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span> -> <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span> -> No preference
             </div>
-            <button onClick={()=>{setErr("");setStep(4);}} style={primaryBtn}>Save & Continue →</button>
-            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}>← Back</button>
+            <button onClick={()=>{setErr("");setStep(4);}} style={primaryBtn}>Save & Continue -></button>
+            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}><- Back</button>
           </div>
         )}
 
@@ -832,7 +832,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
               </div>
             </div>
             <button onClick={finish} disabled={busy} style={{...primaryBtn,opacity:busy?0.7:1,cursor:busy?"not-allowed":"pointer"}}>
-              {busy?"Setting up your account…":"Enter My Work Hub →"}
+              {busy?"Setting up your account…":"Enter My Work Hub ->"}
             </button>
           </div>
         )}
@@ -1150,8 +1150,8 @@ function EmpPortal({emp,onLogout}){
               setRealMoHrs(Math.round(moMs/3600000*10)/10);
             }
             // ── Reconcile clock state: API is source of truth ──
-            // If API says clocked_out but localStorage says clocked_in → clear localStorage
-            // If API says clocked_in → ensure localStorage is set
+            // If API says clocked_out but localStorage says clocked_in -> clear localStorage
+            // If API says clocked_in -> ensure localStorage is set
             if(d.todayEvents?.length>0){
               const last=d.todayEvents[0];
               if(last.event_type==="clock_out"||last.event_type==="break_end"){
@@ -2421,7 +2421,7 @@ function LocationGateNone({ activeOrg, ownerProfile, setLiveLocations, toast, se
             }finally{setBusy(false);}
           }}
           style={{width:"100%",padding:"14px",background:busy?"rgba(224,123,0,0.5)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(224,123,0,0.3)"}}>
-          {busy?"Creating location...":"Create Location and Continue →"}
+          {busy?"Creating location...":"Create Location and Continue ->"}
         </button>
       </div>
     </div>
@@ -2531,7 +2531,7 @@ function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, 
         <button
           onClick={()=>{ setNotifOpen(false); setTab("staff"); setStaffSubTab("requests"); }}
           style={{width:"100%",padding:"9px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.amber,cursor:"pointer"}}>
-          View All Requests →
+          View All Requests ->
         </button>
       </div>
     </div>
@@ -2815,7 +2815,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                   }catch(e){toast("Failed: "+e.message,"error");}
                   finally{setMsgBusy(false);}
                 }} style={{marginTop:8,padding:"8px 18px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:msgBusy?"not-allowed":"pointer"}}>
-                  {msgBusy?"Sending…":"Send →"}
+                  {msgBusy?"Sending…":"Send ->"}
                 </button>
               </div>
             ):(
@@ -3308,7 +3308,7 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
                           toast("Payroll exported ✓","success");
                         }}
             style={{width:"100%",padding:"10px",background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:12,color:cyan,cursor:"pointer"}}>
-            Optimize for Budget →
+            Optimize for Budget ->
           </button>
         </div>
       </div>
@@ -3452,7 +3452,7 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
             setSelectedCell(null);
           }}
           style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#0891b2,#0e7490)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(8,145,178,0.3)"}}>
-          Add Shift →
+          Add Shift ->
         </button>
       </div>
     </div>
@@ -3924,7 +3924,7 @@ function SettingsTab({
               <button
                 onClick={changePassword}
                 style={{width:"100%",padding:"10px",background:settingsPwBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:settingsPwBusy?"not-allowed":"pointer"}}>
-                {settingsPwBusy?"Updating…":"Update Password →"}
+                {settingsPwBusy?"Updating…":"Update Password ->"}
               </button>
             </div>
           )}
@@ -4184,7 +4184,7 @@ function InviteModal({
                     }catch(e){ setInviteErr(e.message||"Resend failed"); }
                     finally{ setInviteBusy(false); }
                   }} style={{width:"100%",padding:"8px",background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#6366f1",cursor:"pointer",textAlign:"center"}}>
-                    📧 Resend invite to this email instead →
+                    📧 Resend invite to this email instead ->
                   </button>
                 )}
               </div>
@@ -4225,7 +4225,7 @@ function InviteModal({
                 }finally{setInviteBusy(false);}
               }}
               style={{width:"100%",padding:"13px",background:inviteBusy?"rgba(124,58,237,0.4)":"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:inviteBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(124,58,237,0.25)"}}>
-              {inviteBusy?"Sending...":"Send Invite →"}
+              {inviteBusy?"Sending...":"Send Invite ->"}
             </button>
           </div>
         )}
@@ -4538,7 +4538,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           const already = Array.isArray(locs) && locs.find(l=>l.id===savedLoc.id);
           return already ? locs : [savedLoc, ...locs.filter(l=>l.id!==savedLoc.id)];
         });
-        setLocationGate("ready"); // ← SET IMMEDIATELY, async load will NOT override this
+        setLocationGate("ready"); // <- SET IMMEDIATELY, async load will NOT override this
       }
     }catch(e){}
 
@@ -5243,7 +5243,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               }catch(e){setAddOrgErr(e.message||"Failed to create company.");}
               finally{setAddOrgBusy(false);}
             }} style={{width:"100%",padding:"14px",background:addOrgBusy?"rgba(224,123,0,0.5)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:addOrgBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(224,123,0,0.3)"}}>
-              {addOrgBusy?"Creating...":"Create Company →"}
+              {addOrgBusy?"Creating...":"Create Company ->"}
             </button>
           </div>
         </div>
@@ -5639,7 +5639,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       </div>
                     </div>
                   ):(
-                    <div style={{padding:"10px 0",marginBottom:12,fontFamily:O.sans,fontSize:13,color:O.textF}}>No shifts scheduled for today. <button onClick={()=>setTab("schedule")} style={{background:"none",border:"none",color:O.amber,fontFamily:O.sans,fontSize:13,cursor:"pointer",textDecoration:"underline"}}>Build schedule →</button></div>
+                    <div style={{padding:"10px 0",marginBottom:12,fontFamily:O.sans,fontSize:13,color:O.textF}}>No shifts scheduled for today. <button onClick={()=>setTab("schedule")} style={{background:"none",border:"none",color:O.amber,fontFamily:O.sans,fontSize:13,cursor:"pointer",textDecoration:"underline"}}>Build schedule -></button></div>
                   )}
 
                   {/* Status pills */}
@@ -5766,7 +5766,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"18px",boxShadow:O.shadow}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>📅 This Week's Schedule</div>
-                          <button onClick={()=>setTab("schedule")} style={{fontFamily:O.sans,fontSize:12,fontWeight:600,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>View Full →</button>
+                          <button onClick={()=>setTab("schedule")} style={{fontFamily:O.sans,fontSize:12,fontWeight:600,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>View Full -></button>
                         </div>
                         {liveShifts===null&&(
                           <div style={{fontFamily:O.sans,fontSize:13,color:O.textF,padding:"12px 0",textAlign:"center"}}>
@@ -5842,7 +5842,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"18px",boxShadow:O.shadow}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>Team Status</div>
-                          <button onClick={()=>setTab("staff")} style={{fontFamily:O.sans,fontSize:12,fontWeight:600,color:O.amber,background:"none",border:"none",cursor:"pointer"}}>View All →</button>
+                          <button onClick={()=>setTab("staff")} style={{fontFamily:O.sans,fontSize:12,fontWeight:600,color:O.amber,background:"none",border:"none",cursor:"pointer"}}>View All -></button>
                         </div>
                         {LIVE.length===0?(
                           <div style={{textAlign:"center",padding:"20px 0"}}>
@@ -5879,7 +5879,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text,marginBottom:4}}>Start by inviting your first employee</div>
                         <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>They'll get an email to set their password and access their Work Hub on mobile or desktop.</div>
                       </div>
-                      <button onClick={()=>setShowInvite(true)} style={{padding:"10px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>Invite Employee →</button>
+                      <button onClick={()=>setShowInvite(true)} style={{padding:"10px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>Invite Employee -></button>
                     </div>
                   )}
                   {LIVE.length>0&&(liveShifts||[]).length===0&&(
@@ -5889,7 +5889,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text,marginBottom:4}}>No shifts scheduled this week</div>
                         <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>Build your schedule so employees know when to come in. Publish it to notify your team.</div>
                       </div>
-                      <button onClick={()=>setTab("schedule")} style={{padding:"10px 20px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(224,123,0,0.3)"}}>Build Schedule →</button>
+                      <button onClick={()=>setTab("schedule")} style={{padding:"10px 20px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(224,123,0,0.3)"}}>Build Schedule -></button>
                     </div>
                   )}
                 </div>
@@ -6065,7 +6065,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     const av=req.users?.avatar_initials||empName[0]||"?";
                     const fmtD=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"TBD";
                     const isSameDay=req.start_date&&req.end_date&&req.start_date===req.end_date;
-                    const dateLabel=isSameDay?fmtD(req.start_date):`${fmtD(req.start_date)} → ${fmtD(req.end_date)}`;
+                    const dateLabel=isSameDay?fmtD(req.start_date):`${fmtD(req.start_date)} -> ${fmtD(req.end_date)}`;
                     const days=req.start_date&&req.end_date?Math.round((new Date(req.end_date)-new Date(req.start_date))/86400000)+1:1;
                     return(
                     <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid #7c3aed",borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
@@ -6156,11 +6156,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   ))}
                 </div>
                 {schedViewMode==="week"&&<>
-                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>← Prev</button>
+                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}><- Prev</button>
                   <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,padding:"0 8px"}}>
                     {(()=>{const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);const mon=new Date(y,m-1,d);const sun=new Date(y,m-1,d+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
                   </div>
-                  <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next →</button>
+                  <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next -></button>
                 </>}
                 {!mobile&&schedViewMode==="week"&&(
                   <button onClick={()=>{
@@ -6190,7 +6190,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 <div style={{fontSize:52,marginBottom:14}}>📅</div>
                 <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,color:O.text,marginBottom:8}}>Add employees before scheduling</div>
                 <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.7,maxWidth:400,margin:"0 auto 20px"}}>Invite your team from the Staff tab first. Once added, their names appear in the schedule grid.</div>
-                <button onClick={()=>setTab("staff")} style={{padding:"11px 24px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:"#fff",cursor:"pointer"}}>Go to Staff →</button>
+                <button onClick={()=>setTab("staff")} style={{padding:"11px 24px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:"#fff",cursor:"pointer"}}>Go to Staff -></button>
               </div>
             )}
 
@@ -6398,7 +6398,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   </div>
                   {/* Feature list */}
                   <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:14}}>
-                    {["✓ Auto pay stub delivery","✓ W-2 sync by Dec 31","✓ Hours → QB Payroll","✓ Employee self-service","✓ Oregon tax tables"].map(f=>(
+                    {["✓ Auto pay stub delivery","✓ W-2 sync by Dec 31","✓ Hours -> QB Payroll","✓ Employee self-service","✓ Oregon tax tables"].map(f=>(
                       <div key={f} style={{background:"rgba(255,255,255,0.12)",borderRadius:20,padding:"4px 10px",fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(255,255,255,0.9)",letterSpacing:0.5}}>{f}</div>
                     ))}
                   </div>
@@ -6621,7 +6621,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 <div style={{fontSize:56,marginBottom:14}}>💵</div>
                 <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,color:O.text,marginBottom:8}}>No payroll data yet</div>
                 <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.7,maxWidth:400,margin:"0 auto 20px"}}>Hours appear here automatically as employees clock in. Invite your team first, then publish a schedule.</div>
-                <button onClick={()=>setTab("staff")} style={{padding:"11px 24px",background:O.greenD,border:"1px solid rgba(26,158,110,0.2)",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.green,cursor:"pointer"}}>Go to Staff →</button>
+                <button onClick={()=>setTab("staff")} style={{padding:"11px 24px",background:O.greenD,border:"1px solid rgba(26,158,110,0.2)",borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.green,cursor:"pointer"}}>Go to Staff -></button>
               </div>
             )}
 
@@ -6630,7 +6630,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 <div style={{fontSize:56,marginBottom:14}}>⏱</div>
                 <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,color:O.text,marginBottom:8}}>No clock events yet</div>
                 <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.7,maxWidth:400,margin:"0 auto 20px"}}>Hours appear as employees clock in via their Work Hub. Publish a schedule so they know when to work.</div>
-                <button onClick={()=>setTab("schedule")} style={{padding:"11px 24px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.amber,cursor:"pointer"}}>Build Schedule →</button>
+                <button onClick={()=>setTab("schedule")} style={{padding:"11px 24px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:9,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.amber,cursor:"pointer"}}>Build Schedule -></button>
               </div>
             )}
 
@@ -6830,7 +6830,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     <button
                       onClick={()=>{ if(waitlistForm.name&&waitlistForm.email){ setWaitlistDone(true); toast("You're on the Intelligence waitlist! ✓","success"); }}}
                       style={{width:"100%",padding:"12px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 16px rgba(124,58,237,0.25)"}}>
-                      Join Waitlist →
+                      Join Waitlist ->
                     </button>
                   </div>
                 )}
@@ -6889,7 +6889,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     </div>
                     <button onClick={()=>{if(waitlistForm.name&&waitlistForm.email){setWaitlistDone(true);toast("You're on the waitlist! ✓","success");}}}
                       style={{width:"100%",padding:"12px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 16px rgba(224,123,0,0.25)"}}>
-                      Join Waitlist →
+                      Join Waitlist ->
                     </button>
                   </div>
                 )}
@@ -7126,7 +7126,7 @@ export default function App(){
                 ))}
                 {pwErr&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"#ef4444",marginBottom:12,padding:"7px 10px",background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>{pwErr}</div>}
                 <button onClick={handleSetPassword} style={{width:"100%",padding:"14px",background:pwBusy?"rgba(245,158,11,0.5)":"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",borderRadius:10,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:15,color:"#030c14",cursor:pwBusy?"not-allowed":"pointer",boxShadow:"0 4px 20px rgba(245,158,11,0.3)"}}>
-                  {pwBusy?"Setting password…":"Set Password & Sign In →"}
+                  {pwBusy?"Setting password…":"Set Password & Sign In ->"}
                 </button>
               </div>
             )}
