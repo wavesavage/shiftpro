@@ -1442,7 +1442,6 @@ function EmpPortal({emp,onLogout}){
           // Point rules reference
           const RULES = [
             {icon:"✅",action:"Clock in on time",pts:"+10",color:E.green},
-            {icon:"⚡",action:"Clock in early (5+ min)",pts:"+15",color:E.green},
             {icon:"📅",action:"Complete full shift",pts:"+10",color:E.green},
             {icon:"🔥",action:"7-day streak",pts:"+25",color:E.yellow},
             {icon:"⏰",action:"Late (5–15 min)",pts:"−5",color:"#f59e0b"},
