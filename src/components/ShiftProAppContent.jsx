@@ -309,13 +309,34 @@ const byId = id => EMPS.find(e => e.id === id);
 const stC = s => ({active:E.green,break:E.yellow,offline:E.textF})[s] || E.textF;
 
 function Av({emp,size=36,dark=false}){
-  const bg = emp.color + (dark ? "28" : "18");
-  const bd = emp.color + (dark ? "50" : "30");
+  // Always derive initials from name — never show ?, emoji, or undefined
+  const initials = (()=>{
+    const n = (emp.name||"").trim();
+    const parts = n.split(" ").filter(Boolean);
+    if(parts.length>=2) return (parts[0][0]+parts[parts.length-1][0]).toUpperCase();
+    if(parts.length===1&&parts[0].length>=2) return parts[0].slice(0,2).toUpperCase();
+    // Fall back to email prefix initials
+    const emailPfx = (emp.email||"").split("@")[0];
+    if(emailPfx.length>=2) return emailPfx.slice(0,2).toUpperCase();
+    return "??";
+  })();
+  const col = emp.color||"#6366f1";
   return (
-    <div style={{width:size,height:size,borderRadius:size*.28,background:bg,border:`1.5px solid ${bd}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:dark?"'JetBrains Mono',monospace":"'Nunito',sans-serif",fontSize:size*.3,color:emp.color,fontWeight:600,flexShrink:0}}>
-      {emp.avatar}
+    <div style={{width:size,height:size,borderRadius:size*.28,background:col,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'JetBrains Mono',monospace",fontSize:size*.33,color:"#fff",fontWeight:700,flexShrink:0,letterSpacing:0.5}}>
+      {initials}
     </div>
   );
+}
+
+// Helper: always get clean 2-letter initials from an emp object
+function getInitials(emp){
+  const n=(emp.name||"").trim();
+  const parts=n.split(" ").filter(Boolean);
+  if(parts.length>=2) return (parts[0][0]+parts[parts.length-1][0]).toUpperCase();
+  if(parts.length===1&&parts[0].length>=2) return parts[0].slice(0,2).toUpperCase();
+  const pfx=(emp.email||"").split("@")[0];
+  if(pfx.length>=2) return pfx.slice(0,2).toUpperCase();
+  return "??";
 }
 
 function EBadge({label,color}){
@@ -951,7 +972,15 @@ function EmpPortal({emp,onLogout}){
     first:emp?.first&&emp.first!=="there"?emp.first:emp?.email?.split("@")[0]||"there",
     role:emp?.role||"Employee", dept:emp?.dept||"",
     rate:parseFloat(emp?.rate)||15,
-    avatar:emp?.avatar&&emp.avatar!=="??"&&emp.avatar!=="?"?emp.avatar:(emp?.first&&emp?.first!=="there"?emp.first[0].toUpperCase():emp?.email?.[0]?.toUpperCase()||"?"),
+    avatar:(()=>{
+    const n=((emp?.name)||((emp?.first||"")+" "+(emp?.last||""))).trim();
+    const parts=n.split(" ").filter(p=>p&&p!=="Employee"&&p!=="there");
+    if(parts.length>=2) return (parts[0][0]+parts[parts.length-1][0]).toUpperCase();
+    if(parts.length===1&&parts[0].length>=2) return parts[0].slice(0,2).toUpperCase();
+    const epfx=(emp?.email||"").split("@")[0];
+    if(epfx.length>=2) return epfx.slice(0,2).toUpperCase();
+    return "?";
+  })(),
     color:emp?.color||"#6366f1", email:emp?.email||"",
     wkHrs:parseFloat(emp?.wkHrs)||0,
     moHrs:parseFloat(emp?.moHrs)||0, ot:parseFloat(emp?.ot)||0, streak:parseInt(emp?.streak)||0,
@@ -1461,7 +1490,14 @@ function EmpPortal({emp,onLogout}){
                 <div style={{width:4,height:s.notes?64:48,background:`linear-gradient(${E.indigo},${E.violet})`,borderRadius:2}}/>
                 <div style={{flex:1}}>
                   <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text}}>{s.day_of_week||s.d} - {fH(s.start_hour||s.ss?.[0]?.s)} – {fH(s.end_hour||s.ss?.[0]?.e)}</div>
-                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>{s.role_label||empSafe.role||s.locations?.name||""}</div>
+                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>
+                    {(()=>{
+                      const parts=(empSafe.name||"").trim().split(" ").filter(Boolean);
+                      const initials=parts.length>=2?(parts[0][0]+parts[parts.length-1][0]).toUpperCase():parts[0]?parts[0].slice(0,2).toUpperCase():"";
+                      const title=s.role_label||empSafe.role||"";
+                      return initials&&title?initials+" - "+title:title||initials||"";
+                    })()}
+                  </div>
                   {s.notes&&<div style={{fontFamily:E.sans,fontSize:12,color:E.indigo,marginTop:4,padding:"4px 8px",background:E.indigoD,borderRadius:6}}>📝 {s.notes}</div>}
                 </div>
                 <EBadge label="✓ Confirmed" color={E.green}/>
@@ -2751,7 +2787,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
   const [displayRole, setDisplayRole] = React.useState(emp.role||"Employee");
   const [displayDept, setDisplayDept] = React.useState(emp.dept||"");
   const [displayRate, setDisplayRate] = React.useState(emp.rate||15);
-  const [displayAvatar, setDisplayAvatar] = React.useState(emp.avatar||"?");
+  const [displayAvatar, setDisplayAvatar] = React.useState(getInitials(emp));
   // Document state
   const [empDocList, setEmpDocList] = React.useState(null);
   const [docDrawerOpen, setDocDrawerOpen] = React.useState(false);
@@ -2834,7 +2870,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
           role:           editForm.role.trim(),
           department:     editForm.dept,
           hourly_rate:    parseFloat(editForm.rate)||15,
-          avatar_initials:((editForm.firstName[0]||"?")+(editForm.lastName[0]||"?")).toUpperCase(),
+          avatar_initials:((editForm.firstName[0]||"")+(editForm.lastName[0]||"")).toUpperCase()||"??",
         }
       };
 
@@ -2856,7 +2892,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
       setDisplayRole(editForm.role.trim());
       setDisplayDept(editForm.dept);
       setDisplayRate(parseFloat(editForm.rate)||15);
-      setDisplayAvatar(((newFirst[0]||"?")+(newLast[0]||"?")).toUpperCase());
+      setDisplayAvatar(((newFirst[0]||"")+(newLast[0]||"")).toUpperCase()||"??");
 
       // Refresh staff list
       if(orgId){
@@ -4700,7 +4736,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     id:e.id, name:e.first_name+" "+e.last_name, first:e.first_name,
     role:e.role||"Employee", dept:e.department||"",
     rate:parseFloat(e.hourly_rate)||15,
-    avatar:e.avatar_initials||(e.first_name&&e.last_name?(e.first_name[0]+e.last_name[0]).toUpperCase():e.first_name?e.first_name.slice(0,2).toUpperCase():e.email?.[0]?.toUpperCase()||"?"),
+    avatar:(e.first_name&&e.last_name?(e.first_name[0]+e.last_name[0]).toUpperCase():e.first_name?e.first_name.slice(0,2).toUpperCase():(e.email||"").split("@")[0].slice(0,2).toUpperCase()||"??"),
     color:e.avatar_color||"#6366f1", email:e.email||"",
     status:e.status==="active"?"active":"invited", hired:e.hire_date||"",
     wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100, flags:0, streak:0, shifts:0,
@@ -6000,7 +6036,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div style={{display:"flex",flexDirection:"column",gap:8}}>
                             {LIVE.slice(0,5).map((emp,i)=>(
                               <div key={emp.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:O.bg3,borderRadius:8}}>
-                                <div style={{width:32,height:32,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div>
+                                <div style={{width:32,height:32,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff",flexShrink:0}}>{getInitials(emp)}</div>
                                 <div style={{flex:1}}>
                                   <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{emp.name}</div>
                                   <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>Status: {emp.status==="active"?"Active":"Invited"}</div>
@@ -6092,7 +6128,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div style={{display:"flex",flexDirection:"column",gap:8}}>
                             {LIVE.slice(0,6).map(emp=>(
                               <div key={emp.id} style={{display:"flex",alignItems:"center",gap:10}}>
-                                <div style={{width:32,height:32,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div>
+                                <div style={{width:32,height:32,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff",flexShrink:0}}>{getInitials(emp)}</div>
                                 <div style={{flex:1,minWidth:0}}>
                                   <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{emp.name}</div>
                                   <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{emp.role}</div>
@@ -6198,7 +6234,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+(deptColor(emp.dept)||O.amberB),borderRadius:"0 12px 12px 0",padding:"16px 18px",display:"flex",alignItems:"center",gap:14,boxShadow:O.shadow,transition:"all 0.15s",cursor:"pointer"}}
                         onMouseEnter={e=>{e.currentTarget.style.transform="translateX(3px)";}}
                         onMouseLeave={e=>{e.currentTarget.style.transform="none";}}>
-                        <div style={{width:44,height:44,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff"}}>{emp.avatar||"?"}</div>
+                        <div style={{width:44,height:44,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff"}}>{getInitials(emp)}</div>
                         <div style={{flex:1}}>
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text,marginBottom:2}}>{emp.name}</div>
                           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -6243,7 +6279,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   )}
                   {swapRequests.map(req=>{
                     const empName=((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
-                    const av=req.users?.avatar_initials||empName[0]||"?";
+                    const av=(()=>{const parts=(((req.users?.first_name||'')+' '+(req.users?.last_name||'')).trim()).split(' ').filter(Boolean);return parts.length>=2?(parts[0][0]+parts[1][0]).toUpperCase():parts[0]?parts[0].slice(0,2).toUpperCase():'??';})();
                     const shiftLabel=req.shift_date?new Date(req.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"Upcoming shift";
                     return(
                       <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
@@ -6296,7 +6332,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   )}
                   {timeOffRequests.map(req=>{
                     const empName=((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
-                    const av=req.users?.avatar_initials||empName[0]||"?";
+                    const av=(()=>{const parts=(((req.users?.first_name||'')+' '+(req.users?.last_name||'')).trim()).split(' ').filter(Boolean);return parts.length>=2?(parts[0][0]+parts[1][0]).toUpperCase():parts[0]?parts[0].slice(0,2).toUpperCase():'??';})();
                     const fmtD=function(d){return d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"TBD";};
                     const isSameDay=req.start_date&&req.end_date&&req.start_date===req.end_date;
                     const dateLabel=isSameDay?fmtD(req.start_date):fmtD(req.start_date)+" to "+fmtD(req.end_date);
@@ -6486,7 +6522,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               }
 
               // ── WEEK VIEW with drag-and-drop ──
-              if(mobile){return(<div style={{display:"flex",flexDirection:"column",gap:12}}>{STAFF.map(emp=>{const empShifts=(liveShifts||[]).filter(s=>s.user_id===emp.id);return(<div key={emp.id} style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"14px 16px",boxShadow:O.shadow}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:empShifts.length>0?12:0}}><div style={{width:36,height:36,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div><div style={{flex:1}}><div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>{emp.name}</div><div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{empShifts.length} shift{empShifts.length!==1?"s":""} this week</div></div><button onClick={()=>setSelectedCell({day:"Mon",empId:emp.id,emp,start:9,end:17,roleLabel:""})} style={{padding:"5px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.amber,cursor:"pointer"}}>+ Add</button></div>{empShifts.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{empShifts.map(sh=>(<div key={sh.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",background:emp.color+"18",border:"1px solid "+emp.color+"30",borderRadius:20}}><span style={{fontFamily:O.mono,fontSize:9,color:emp.color,fontWeight:600}}>{sh.day_of_week} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}</span><button onClick={async()=>removeShift(sh.id,getMonday(currentWeekOffset))} style={{background:"none",border:"none",cursor:"pointer",color:emp.color,fontSize:12,lineHeight:1,opacity:0.5}}>×</button></div>))}</div>)}</div>);})}{(liveShifts||[]).length===0&&<div style={{textAlign:"center",padding:"20px",fontFamily:O.sans,fontSize:13,color:O.textD}}>Tap + Add on any employee to schedule their first shift.</div>}</div>);}
+              if(mobile){return(<div style={{display:"flex",flexDirection:"column",gap:12}}>{STAFF.map(emp=>{const empShifts=(liveShifts||[]).filter(s=>s.user_id===emp.id);return(<div key={emp.id} style={{background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"14px 16px",boxShadow:O.shadow}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:empShifts.length>0?12:0}}><div style={{width:36,height:36,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{getInitials(emp)}</div><div style={{flex:1}}><div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>{emp.name}</div><div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{empShifts.length} shift{empShifts.length!==1?"s":""} this week</div></div><button onClick={()=>setSelectedCell({day:"Mon",empId:emp.id,emp,start:9,end:17,roleLabel:""})} style={{padding:"5px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.amber,cursor:"pointer"}}>+ Add</button></div>{empShifts.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{empShifts.map(sh=>(<div key={sh.id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",background:emp.color+"18",border:"1px solid "+emp.color+"30",borderRadius:20}}><span style={{fontFamily:O.mono,fontSize:9,color:emp.color,fontWeight:600}}>{sh.day_of_week} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}</span><button onClick={async()=>removeShift(sh.id,getMonday(currentWeekOffset))} style={{background:"none",border:"none",cursor:"pointer",color:emp.color,fontSize:12,lineHeight:1,opacity:0.5}}>×</button></div>))}</div>)}</div>);})}{(liveShifts||[]).length===0&&<div style={{textAlign:"center",padding:"20px",fontFamily:O.sans,fontSize:13,color:O.textD}}>Tap + Add on any employee to schedule their first shift.</div>}</div>);}
 
               const grid={};
               DAYS_FULL.forEach(d=>{grid[d]={};STAFF.forEach(e=>{grid[d][e.id]=[];});});
@@ -6542,7 +6578,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     return(
                       <div key={emp.id} style={{display:"grid",gridTemplateColumns:"140px repeat(7,1fr)",gap:3,marginBottom:3,minWidth:780}}>
                         <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px"}}>
-                          <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontSize:10,fontWeight:700,color:"#fff"}}>{emp.avatar||"?"}</div>
+                          <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontSize:10,fontWeight:700,color:"#fff"}}>{getInitials(emp)}</div>
                           <div style={{minWidth:0}}>
                             <div style={{fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{emp.first||emp.name?.split(" ")[0]||"?"}</div>
                             <div style={{fontFamily:O.mono,fontSize:8,color:empHrs>40?O.red:empHrs>0?O.amber:O.textF}}>{empHrs>0?empHrs+"h":emp.role}</div>
@@ -6708,7 +6744,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           last_name:empMatch.name.split(" ").slice(1).join(" "),
                           hourly_rate:empMatch.rate||15,
                           role:empMatch.role||"Employee",
-                          avatar_initials:empMatch.avatar||"?",
+                          avatar_initials:getInitials(empMatch),
                           avatar_color:empMatch.color||"#6366f1",
                         }:null;
                         byUser[ev.user_id]={events:[],user:ev.users||userFallback};
@@ -6814,7 +6850,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       const pay=reg*emp.rate+ot*emp.rate*1.5;
                       return(
                         <div key={emp.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:O.bg3,borderRadius:9,marginBottom:6}}>
-                          <div style={{width:32,height:32,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div>
+                          <div style={{width:32,height:32,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff",flexShrink:0}}>{getInitials(emp)}</div>
                           <div style={{flex:1}}>
                             <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{emp.name}</div>
                             <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{emp.role} - ${emp.rate}/hr{ot>0?" - "+ot+"h OT":""}</div>
@@ -6878,7 +6914,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     last_name:empMatch.name.split(" ").slice(1).join(" "),
                     hourly_rate:empMatch.rate||15,
                     role:empMatch.role||"Employee",
-                    avatar_initials:empMatch.avatar||"?",
+                    avatar_initials:getInitials(empMatch),
                     avatar_color:empMatch.color||"#6366f1",
                   }:null;
                   byUser[ev.user_id]={events:[],user:ev.users||userFallback};
@@ -6894,7 +6930,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 const hrs=Math.round(totalMins/60*100)/100;const rate=parseFloat(user?.hourly_rate)||15;
                 const regHrs=Math.min(hrs,40);const otHrs=Math.max(hrs-40,0);
                 const totalPay=regHrs*rate+otHrs*rate*1.5;
-                return {uid,name:(user?.first_name||"")+" "+(user?.last_name||""),avatar:(user?.avatar_initials)||"?",color:(user?.avatar_color)||"#6366f1",role:user?.role||"",rate,hrs,regHrs,otHrs,totalPay};
+                return {uid,name:(user?.first_name||"")+" "+(user?.last_name||""),avatar:((user?.first_name&&user?.last_name)?((user.first_name[0]+user.last_name[0]).toUpperCase()):(user?.first_name||"").slice(0,2).toUpperCase()||"??"),color:(user?.avatar_color)||"#6366f1",role:user?.role||"",rate,hrs,regHrs,otHrs,totalPay};
               }).filter(r=>r.hrs>0).sort((a,b)=>b.totalPay-a.totalPay);
 
               const totalLabor=payRows.reduce((s,r)=>s+r.totalPay,0);
@@ -7300,7 +7336,7 @@ export default function App(){
             role:profile?.role||"Employee",
             dept:profile?.department||s.user.user_metadata?.department||"",
             rate:parseFloat(profile?.hourly_rate||s.user.user_metadata?.hourly_rate)||15,
-            avatar:profile?.avatar_initials||(profile?.first_name&&profile?.last_name?(profile.first_name[0]+profile.last_name[0]).toUpperCase():s.user.email?.[0]?.toUpperCase()||"?"),
+            avatar:(profile?.first_name&&profile?.last_name?(profile.first_name[0]+profile.last_name[0]).toUpperCase():(s.user.email||'').split('@')[0].slice(0,2).toUpperCase()||'??'),
             color:profile?.avatar_color||"#6366f1",
             email:s.user.email||"",
             status:"active",
