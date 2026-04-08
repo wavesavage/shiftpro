@@ -1734,14 +1734,23 @@ function EmpPortal({emp,onLogout}){
                       style={{width:"100%",padding:"9px 12px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                 </div>
-                {/* File drop zone */}
-                <label style={{display:"block",border:"2px dashed "+E.indigo+"60",borderRadius:10,padding:"28px",textAlign:"center",cursor:"pointer",background:E.indigoD,marginBottom:12}}>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{display:"none"}}
-                    onChange={e=>{ if(e.target.files?.[0]) handleUpload(e.target.files[0]); }}/>
-                  <div style={{fontSize:32,marginBottom:8}}>📎</div>
-                  <div style={{fontFamily:E.sans,fontWeight:600,fontSize:14,color:E.indigo,marginBottom:4}}>{docUploading?"Uploading…":"Tap to select file"}</div>
-                  <div style={{fontFamily:E.mono,fontSize:10,color:E.textF}}>PDF, JPG, PNG, DOC up to 10MB</div>
-                </label>
+                {/* File selection buttons */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                  <label style={{display:"block",border:"2px dashed "+E.indigo+"60",borderRadius:10,padding:"20px",textAlign:"center",cursor:"pointer",background:E.indigoD}}>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{display:"none"}}
+                      onChange={e=>{ if(e.target.files?.[0]) handleUpload(e.target.files[0]); }}/>
+                    <div style={{fontSize:28,marginBottom:6}}>📎</div>
+                    <div style={{fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.indigo,marginBottom:2}}>{docUploading?"Uploading…":"Choose File"}</div>
+                    <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>PDF, JPG, PNG, DOC</div>
+                  </label>
+                  <label style={{display:"block",border:"2px dashed #0891b2",borderRadius:10,padding:"20px",textAlign:"center",cursor:"pointer",background:"rgba(8,145,178,0.06)"}}>
+                    <input type="file" accept="image/*" capture="environment" style={{display:"none"}}
+                      onChange={e=>{ if(e.target.files?.[0]) handleUpload(e.target.files[0]); }}/>
+                    <div style={{fontSize:28,marginBottom:6}}>📷</div>
+                    <div style={{fontFamily:E.sans,fontWeight:600,fontSize:13,color:"#0891b2",marginBottom:2}}>Take Photo</div>
+                    <div style={{fontFamily:E.mono,fontSize:9,color:E.textF}}>Use camera</div>
+                  </label>
+                </div>
                 {docMsg&&<div style={{fontFamily:E.sans,fontSize:13,color:docMsg.startsWith("✓")?E.green:E.red,padding:"8px 12px",background:docMsg.startsWith("✓")?"rgba(16,185,129,0.08)":"rgba(239,68,68,0.08)",borderRadius:8}}>{docMsg}</div>}
               </div>
             )}
