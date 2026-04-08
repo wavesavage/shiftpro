@@ -1053,6 +1053,59 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
   const [profileForm,setProfileForm] = useState({firstName:"",lastName:"",nick:"",title:"",phone:"",emergency:""});
   const [profileBusy,setProfileBusy] = useState(false);
   const [profileMsg,setProfileMsg] = useState("");
+
+  // ── Profile save — lives at component level to avoid stale closures ──
+  const saveProfile = async () => {
+    setProfileBusy(true);
+    setProfileMsg("");
+    try {
+      const sb = await getSB();
+      const { data:{ session:ss } } = await sb.auth.getSession();
+      if (!ss?.user?.id) throw new Error("Not authenticated");
+
+      const updates = {
+        first_name:    profileForm.firstName.trim() || empSafe.first,
+        last_name:     profileForm.lastName.trim(),
+        preferred_name:profileForm.nick.trim(),
+        role:          profileForm.title.trim(),
+        phone:         profileForm.phone.trim(),
+        emergency_contact: profileForm.emergency.trim(),
+      };
+
+      const r = await fetch("/api/user", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(ss?.access_token ? { "Authorization": "Bearer " + ss.access_token } : {}),
+        },
+        body: JSON.stringify({ userId: ss.user.id, updates }),
+      });
+
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error || "Save failed");
+
+      // Update session immediately from what we just saved — no DB re-fetch needed
+      if (onProfileUpdate) {
+        const firstName = updates.first_name;
+        const lastName  = updates.last_name;
+        onProfileUpdate({
+          first: firstName || empSafe.first,
+          name:  (firstName + " " + lastName).trim() || empSafe.name,
+          nick:  updates.preferred_name,
+          role:  updates.role && updates.role !== "Employee" ? updates.role : "",
+          phone: updates.phone,
+          emergency: updates.emergency_contact,
+        });
+      }
+
+      setProfileMsg("✓ Saved! Your profile has been updated.");
+      setProfileEdit(false);
+    } catch (e) {
+      setProfileMsg("⚠ " + (e.message || "Could not save. Please try again."));
+    } finally {
+      setProfileBusy(false);
+    }
+  };
   // Compose message state
   const [composeOpen,setComposeOpen] = useState(false);
   const [composeText,setComposeText] = useState("");
@@ -2007,46 +2060,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
         })()}
         {tab==="documents"&&(()=>{
           // Profile save handler
-          const saveProfile = async() => {
-            setProfileBusy(true); setProfileMsg("");
-            try{
-              const {data:{session:ss}}=await (await getSB()).auth.getSession();
-              const r=await fetch("/api/user",{
-                method:"PATCH",
-                headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-                body:JSON.stringify({userId:empSafe.id,updates:{
-                  first_name:profileForm.firstName.trim()||empSafe.first,
-                  last_name:profileForm.lastName.trim(),
-                  preferred_name:(profileForm.nick||"").trim(),
-                  role:(profileForm.title||"").trim(),
-                  phone:profileForm.phone||"",
-                  emergency_contact:profileForm.emergency||"",
-                }}),
-              });
-              if(!r.ok) throw new Error("Save failed");
-              // Re-fetch and update session so changes show immediately without refresh
-              try{
-                const sb2=await getSB();
-                const {data:fp}=await sb2.from("users").select("*").eq("id",empSafe.id).single();
-                if(fp&&onProfileUpdate){
-                  onProfileUpdate({
-                    first:fp.first_name||empSafe.first,
-                    name:(fp.first_name||"")+" "+(fp.last_name||""),
-                    nick:fp.preferred_name||"",
-                    role:fp.role&&fp.role!=="Employee"?fp.role:"",
-                    dept:fp.department||empSafe.dept,
-                    phone:fp.phone||"",
-                    emergency:fp.emergency_contact||"",
-                  });
-                }
-              }catch(e){}
-              setProfileMsg("✓ Profile updated!");
-              setProfileEdit(false);
-              setTimeout(()=>setProfileMsg(""),3000);
-            }catch(e){ setProfileMsg("Failed: "+e.message); }
-            finally{ setProfileBusy(false); }
-          };
-
           const CATS = [
             {id:"all",    label:"📁 All",       color:E.indigo},
             {id:"identity",label:"🪪 Identity",  color:"#0891b2"},
@@ -2160,16 +2173,19 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
                   )}
                 </div>
                 <button onClick={()=>{
+                  if(!profileEdit){
+                    // Populate form fresh from current empSafe before opening
+                    setProfileForm({
+                      firstName: empSafe.first && empSafe.first!=="there" ? empSafe.first : "",
+                      lastName:  empSafe.name ? empSafe.name.split(" ").slice(1).join(" ") : "",
+                      nick:      empSafe.nick  || "",
+                      title:     empSafe.role && empSafe.role!=="Employee" ? empSafe.role : "",
+                      phone:     emp.phone     || "",
+                      emergency: emp.emergency || "",
+                    });
+                    setProfileMsg("");
+                  }
                   setProfileEdit(o=>!o);
-                  if(!profileEdit) setProfileForm({
-                    firstName:empSafe.first==="there"?"":empSafe.first,
-                    lastName:empSafe.name.split(" ").slice(1).join(" ")||"",
-                    nick:empSafe.nick||"",
-                    title:empSafe.role&&empSafe.role!=="Employee"?empSafe.role:"",
-                    phone:emp.phone||"",
-                    emergency:emp.emergency||"",
-                  });
-                  setProfileMsg("");
                 }} style={{padding:"7px 14px",background:profileEdit?"rgba(0,0,0,0.04)":E.indigoD,border:"1px solid "+E.indigo+"25",borderRadius:9,fontFamily:E.sans,fontWeight:600,fontSize:12,color:profileEdit?E.textD:E.indigo,cursor:"pointer",flexShrink:0}}>
                   {profileEdit?"Cancel":"Edit Profile"}
                 </button>
@@ -7443,11 +7459,19 @@ export default function App(){
     <>
       <style>{FONTS}{GCSS}</style>
       {!session && <Login onLogin={login}/>}
-      {session?.role==="employee" && <EmpPortal emp={session.emp} onLogout={logout} onProfileUpdate={updatedEmp=>{
-        const merged={...session.emp,...updatedEmp};
-        setSession(s=>({...s,emp:merged}));
-        try{ localStorage.setItem("shiftpro_cached_emp_"+merged.id, JSON.stringify(merged)); }catch(e){}
-      }}/>}
+      {session?.role==="employee" && <EmpPortal
+        key={session.emp?.id}
+        emp={session.emp}
+        onLogout={logout}
+        onProfileUpdate={updatedFields => {
+          setSession(s => {
+            const merged = { ...s.emp, ...updatedFields };
+            // Update localStorage so next refresh picks up the changes
+            try { localStorage.setItem("shiftpro_cached_emp_" + merged.id, JSON.stringify(merged)); } catch(e) {}
+            return { ...s, emp: merged };
+          });
+        }}
+      />}
       {session?.role==="owner" && <OwnerCmd onLogout={logout} ownerInitialProfile={session.emp}/>}
     </>
   );
