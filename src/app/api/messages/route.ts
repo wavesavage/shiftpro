@@ -6,86 +6,126 @@ const sb = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-const NO_CACHE = { headers: { "Cache-Control": "no-store" } };
+const NO_CACHE = { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } };
 
+// ── GET ─────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
   const orgId  = req.nextUrl.searchParams.get("orgId");
   const role   = req.nextUrl.searchParams.get("role"); // "employee" | "owner"
 
-  if (!userId || !orgId) return NextResponse.json({ error: "userId and orgId required" }, { status: 400 });
+  if (!orgId) return NextResponse.json({ error: "orgId required" }, { status: 400 });
+
   const client = sb();
 
-  if (role === "owner") {
-    // Owner sees: broadcasts + employee-to-manager messages for their org
-    const { data } = await client.from("messages").select("*")
-      .eq("org_id", orgId)
-      .or("broadcast.eq.true,type.eq.employee_to_manager")
-      .order("created_at", { ascending: false }).limit(50);
+  let query = client
+    .from("messages")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(100);
 
-    const threads = buildThreads(data || []);
-    return NextResponse.json({ threads }, NO_CACHE);
+  if (role === "owner") {
+    // Owner sees: all messages in org (broadcasts, direct, employee-to-manager)
+    // No extra filter needed — org_id scopes to their org
+  } else {
+    // Employee sees: messages sent to them, broadcasts, and their own sent messages
+    if (!userId) return NextResponse.json({ error: "userId required for employee" }, { status: 400 });
+    query = query.or(
+      `to_id.eq.${userId},type.eq.broadcast,from_id.eq.${userId},type.eq.employee_to_manager`
+    );
   }
 
-  // Employee sees: messages to them + broadcasts + their own sent messages
-  const { data } = await client.from("messages").select("*")
-    .eq("org_id", orgId)
-    .or(`to_id.eq.${userId},broadcast.eq.true,from_id.eq.${userId}`)
-    .order("created_at", { ascending: false }).limit(50);
+  const { data, error } = await query;
+  if (error) {
+    console.error("[messages GET]", error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   const threads = buildThreads(data || []);
   return NextResponse.json({ threads }, NO_CACHE);
 }
 
+// ── Build threaded structure ─────────────────────────────────────────────────
 function buildThreads(messages: any[]) {
   const roots = messages.filter(m => !m.parent_id);
+  const byParent: Record<string, any[]> = {};
+  messages.forEach(m => {
+    if (m.parent_id) {
+      if (!byParent[m.parent_id]) byParent[m.parent_id] = [];
+      byParent[m.parent_id].push(m);
+    }
+  });
   return roots.map(root => ({
     ...root,
-    replies: messages.filter(m => m.parent_id === root.id)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+    replies: (byParent[root.id] || []).sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    ),
   }));
 }
 
+// ── POST ─────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const client = sb();
-    const { orgId, fromId, fromName, toId, text, parentId, type } = body;
+    const { orgId, fromId, fromName, toId, text, subject, parentId, type } = body;
 
-    if (!orgId || !fromId || !text) {
-      return NextResponse.json({ error: "orgId, fromId, text required" }, { status: 400 });
+    if (!orgId || !fromId || !text?.trim()) {
+      return NextResponse.json(
+        { error: "orgId, fromId, and text are required" },
+        { status: 400 }
+      );
     }
 
-    const isBroadcast = toId === "all";
-    const isToManagers = toId === "managers";
-    const msgType = type || (isBroadcast ? "broadcast" : isToManagers ? "employee_to_manager" : "direct");
+    // Determine message type from toId/type hints
+    const isBroadcast    = toId === "all"      || type === "broadcast";
+    const isToManagers   = toId === "managers" || type === "employee_to_manager";
+    const msgType = isBroadcast
+      ? "broadcast"
+      : isToManagers
+      ? "employee_to_manager"
+      : parentId
+      ? "reply"
+      : type || "direct";
 
-    const { data: msg, error } = await client.from("messages").insert({
-      org_id: orgId,
-      from_id: fromId,
-      from_name: fromName || "Staff",
-      to_id: isToManagers || isBroadcast ? null : toId,
-      text: text.trim(),
-      parent_id: parentId || null,
-      type: msgType,
-      broadcast: isBroadcast,
-      read: false,
+    const insertPayload: Record<string, any> = {
+      org_id:     orgId,
+      from_id:    fromId,
+      from_name:  fromName || "Staff",
+      to_id:      isBroadcast || isToManagers ? null : (toId || null),
+      text:       text.trim(),
+      type:       msgType,
+      parent_id:  parentId || null,
+      read:       false,
       created_at: new Date().toISOString(),
-    }).select().single();
+    };
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // Add subject only if the column exists (graceful — will be ignored by DB if missing)
+    if (subject) insertPayload.subject = subject;
 
-    // For employee_to_manager: mark unread for all owners/managers in org
-    if (isToManagers) {
-      const { data: managers } = await client.from("users")
-        .select("id").eq("org_id", orgId)
-        .in("app_role", ["owner", "manager"]);
-      // Insert notification records if needed (future: push notifications)
-      // For now the message itself is flagged as employee_to_manager
+    const { data: msg, error } = await client
+      .from("messages")
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    if (error) {
+      // If subject column doesn't exist, retry without it
+      if (error.message.includes("subject") && subject) {
+        delete insertPayload.subject;
+        const { data: msg2, error: err2 } = await client
+          .from("messages").insert(insertPayload).select().single();
+        if (err2) return NextResponse.json({ error: err2.message }, { status: 500 });
+        return NextResponse.json({ ok: true, message: msg2 });
+      }
+      console.error("[messages POST]", error.message, insertPayload);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, message: msg });
   } catch (e: any) {
+    console.error("[messages POST exception]", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

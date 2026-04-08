@@ -875,7 +875,7 @@ function MessageThread({ thread, empSafe, fmtTs, sendReply, E, isOwner=false }) 
   const unread = !thread.read && thread.to_id === (empSafe?.id);
   const allMsgs = [thread, ...(thread.replies||[])];
   const lastMsg = allMsgs[allMsgs.length-1];
-  const isBroadcast = thread.broadcast || thread.type==="broadcast";
+  const isBroadcast = thread.type==="broadcast";
 
   const handleSend = async() => {
     if(!replyText.trim()) return;
@@ -4566,7 +4566,7 @@ function BroadcastModal({
                   await fetch("/api/messages",{
                     method:"POST",
                     headers:{"Content-Type":"application/json",...(session?.access_token?{"Authorization":"Bearer "+session.access_token}:{})},
-                    body:JSON.stringify({orgId,fromId:session?.user?.id,fromName,subject:broadcastForm.subject,text:broadcastForm.body,broadcast:true,type:"owner"}),
+                    body:JSON.stringify({orgId,fromId:session?.user?.id,fromName,toId:"all",text:broadcastForm.body,type:"broadcast"}),
                   });
                   const count=(liveEmps||[]).filter(e=>e.status==="active").length;
                   setBroadcastDone("📢 Sent to "+count+" employee"+(count!==1?"s":"")+" ✓");
