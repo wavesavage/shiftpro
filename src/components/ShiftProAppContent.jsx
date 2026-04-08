@@ -1796,7 +1796,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
         await sb3.auth.resetPasswordForEmail(emp.email,{redirectTo:"https://shiftpro.ai/"});
         toast("✓ Password reset sent to "+emp.email,"success");
       }catch(e2){
-        toast("Failed: "+(e as any).message,"error");
+        toast("Failed: "+(e&&e.message?e.message:String(e)),"error");
       }
     } finally { setResendBusy(false); }
   };
