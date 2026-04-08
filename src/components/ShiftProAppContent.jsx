@@ -5044,7 +5044,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         const r = await fetch(`/api/messages?userId=owner&orgId=${orgId}&role=owner&_t=${Date.now()}`, {headers, cache:"no-store"});
         if(r.ok){
           const d = await r.json();
-          const msgs = (d.threads||[]).filter((m:any)=>m.type==="employee_to_manager");
+          const msgs = (d.threads||[]).filter(m=>m.type==="employee_to_manager");
           setStaffMessages(msgs);
           setStaffMsgsLoaded(true);
         }
