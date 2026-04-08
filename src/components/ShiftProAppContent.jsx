@@ -840,6 +840,110 @@ function EmpOnboarding({ empSafe, onComplete }) {
   );
 }
 
+// ══════════════════════════════════════════════════
+//  MESSAGE THREAD — used by both employee and owner
+// ══════════════════════════════════════════════════
+function MessageThread({ thread, empSafe, fmtTs, sendReply, E, isOwner=false }) {
+  const [open, setOpen] = React.useState(false);
+  const [replyText, setReplyText] = React.useState("");
+  const [replying, setReplying] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
+  const unread = !thread.read && thread.to_id === (empSafe?.id);
+  const allMsgs = [thread, ...(thread.replies||[])];
+  const lastMsg = allMsgs[allMsgs.length-1];
+  const isBroadcast = thread.broadcast || thread.type==="broadcast";
+
+  const handleSend = async() => {
+    if(!replyText.trim()) return;
+    setBusy(true);
+    const toId = isOwner ? thread.from_id : thread.from_id;
+    const ok = await sendReply(thread.id, replyText, toId);
+    if(ok){ setReplyText(""); setReplying(false); setSent(true); setTimeout(()=>setSent(false),3000); }
+    setBusy(false);
+  };
+
+  return(
+    <div style={{background:"#fff",border:"1.5px solid "+(unread?E.indigo+"40":E.border),borderRadius:14,marginBottom:10,overflow:"hidden",boxShadow:unread?"0 2px 12px rgba(99,102,241,0.12)":E.shadow,transition:"all 0.15s"}}>
+      {/* Thread header */}
+      <div onClick={()=>setOpen(o=>!o)} style={{padding:"14px 16px",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:12}}>
+        {/* Avatar */}
+        <div style={{width:38,height:38,borderRadius:"50%",background:isBroadcast?"rgba(245,158,11,0.15)":"rgba(99,102,241,0.12)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+          {isBroadcast?"📢":isOwner?"👤":"👔"}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+            {unread&&<div style={{width:8,height:8,borderRadius:"50%",background:E.indigo,flexShrink:0}}/>}
+            <div style={{fontFamily:E.sans,fontWeight:unread?700:600,fontSize:14,color:E.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>
+              {thread.subject||"Message"}
+            </div>
+            <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,flexShrink:0}}>{fmtTs(thread.created_at)}</div>
+          </div>
+          <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {open?"":(lastMsg.body||"").substring(0,80)}
+          </div>
+          {thread.replies?.length>0&&!open&&(
+            <div style={{fontFamily:E.mono,fontSize:9,color:E.indigo,marginTop:4}}>💬 {thread.replies.length} repl{thread.replies.length===1?"y":"ies"}</div>
+          )}
+        </div>
+        <div style={{fontSize:14,color:E.textF,flexShrink:0}}>{open?"▲":"▼"}</div>
+      </div>
+
+      {/* Thread body */}
+      {open&&(
+        <div style={{borderTop:"1px solid "+E.border}}>
+          {/* All messages in thread */}
+          <div style={{padding:"0 16px"}}>
+            {allMsgs.map((m,i)=>{
+              const isFromEmp = m.from_id!==thread.from_id||i>0&&m.type==="reply";
+              const fromMe = m.from_id===empSafe?.id;
+              return(
+                <div key={m.id} style={{padding:"14px 0",borderBottom:i<allMsgs.length-1?"1px solid "+E.border:"none"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                    <div style={{width:28,height:28,borderRadius:"50%",background:fromMe?"rgba(99,102,241,0.15)":"rgba(0,0,0,0.06)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0}}>
+                      {fromMe?"👤":"👔"}
+                    </div>
+                    <div style={{flex:1}}>
+                      <span style={{fontFamily:E.sans,fontWeight:700,fontSize:12,color:fromMe?E.indigo:E.text}}>{fromMe?"You":m.from_name||"Manager"}</span>
+                      <span style={{fontFamily:E.mono,fontSize:9,color:E.textF,marginLeft:8}}>{fmtTs(m.created_at)}</span>
+                    </div>
+                  </div>
+                  <div style={{fontFamily:E.sans,fontSize:14,color:E.text,lineHeight:1.7,paddingLeft:36}}>{m.body}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Reply box */}
+          <div style={{padding:"12px 16px",background:E.bg3,borderTop:"1px solid "+E.border}}>
+            {sent&&<div style={{fontFamily:E.mono,fontSize:10,color:E.green,marginBottom:8}}>✓ Message sent</div>}
+            {!replying?(
+              <button onClick={()=>setReplying(true)} style={{padding:"8px 18px",background:E.indigoD,border:"1.5px solid "+E.indigo+"40",borderRadius:8,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>
+                ↩ Reply
+              </button>
+            ):(
+              <div>
+                <textarea value={replyText} onChange={e=>setReplyText(e.target.value)}
+                  placeholder="Write your reply…"
+                  style={{width:"100%",padding:"10px 12px",background:"#fff",border:"1.5px solid "+E.indigo+"40",borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box",minHeight:80,lineHeight:1.5}}/>
+                <div style={{display:"flex",gap:8,marginTop:8}}>
+                  <button onClick={handleSend} disabled={busy||!replyText.trim()} style={{flex:1,padding:"9px",background:busy||!replyText.trim()?"rgba(99,102,241,0.3)":"linear-gradient(135deg,"+E.indigo+","+E.violet+")",border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:busy?"not-allowed":"pointer"}}>
+                    {busy?"Sending…":"Send Reply"}
+                  </button>
+                  <button onClick={()=>{setReplying(false);setReplyText("");}} style={{padding:"9px 14px",background:"none",border:"1px solid "+E.border,borderRadius:8,fontFamily:E.sans,fontSize:12,color:E.textD,cursor:"pointer"}}>
+                    Cancel
+                  </button>
+                </div>
+                <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,marginTop:6}}>🔒 Messages are permanent records and cannot be deleted</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EmpPortal({emp,onLogout}){
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
@@ -905,6 +1009,7 @@ function EmpPortal({emp,onLogout}){
   const [realWkHrs,setRealWkHrs] = useState(0);
   const [realMoHrs,setRealMoHrs] = useState(0);
   const [empDocs,setEmpDocs] = useState(null);
+  const [empThreads,setEmpThreads] = useState(null);
   const [docSubTab,setDocSubTab] = useState("all");
   const [docUploading,setDocUploading] = useState(false);
   const [docUploadName,setDocUploadName] = useState("");
@@ -988,11 +1093,16 @@ function EmpPortal({emp,onLogout}){
           }
         }catch(e){ setEmpShifts([]); }
 
-        // ── Load messages via service role ──
+        // ── Load messages (threaded) via new messages API ──
         try{
-          const r=await fetch(`${baseUrl}?type=messages&userId=${empSafe.id}&orgId=${empSafe.orgId||""}&_t=${Date.now()}`,{headers,cache:"no-store"});
-          if(r.ok){ const d=await r.json(); if(d.messages?.length>0) setMsgs(d.messages); }
-        }catch(e){}
+          const r=await fetch(`/api/messages?userId=${empSafe.id}&orgId=${empSafe.orgId||""}&role=employee&_t=${Date.now()}`,{headers,cache:"no-store"});
+          if(r.ok){
+            const d=await r.json();
+            setEmpThreads(d.threads||[]);
+            setMsgs((d.threads||[]).filter(t=>!t.read&&t.to_id===empSafe.id));
+          } else { setEmpThreads([]); }
+        }catch(e){ setEmpThreads([]); }
+        setMsgsLoaded(true);
         // ── Load documents ──
         try{
           const r=await fetch(`/api/documents?userId=${empSafe.id}&_t=${Date.now()}`,{headers,cache:"no-store"});
@@ -1588,75 +1698,78 @@ function EmpPortal({emp,onLogout}){
           </div>
           );
         })()}
-        {tab==="team"&&(
+        {tab==="team"&&(()=>{
+          const [threads,setThreads] = [empThreads,setEmpThreads];
+          const fmtTs = s => {
+            if(!s) return "";
+            const d = new Date(s);
+            const today = new Date();
+            const isToday = d.toDateString()===today.toDateString();
+            return isToday
+              ? d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})
+              : d.toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+          };
+
+          const sendReply = async(parentId, text, toId) => {
+            if(!text.trim()) return false;
+            try{
+              const {data:{session:ss}}=await (await getSB()).auth.getSession();
+              const r=await fetch("/api/messages",{
+                method:"POST",
+                headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                body:JSON.stringify({
+                  orgId:empSafe.orgId, fromId:empSafe.id,
+                  fromName:empSafe.name, toId,
+                  text, parentId, type:"employee",
+                }),
+              });
+              const d=await r.json();
+              if(!r.ok) throw new Error(d.error);
+              // Add reply to thread locally
+              setEmpThreads(prev=>(prev||[]).map(t=>t.id===parentId
+                ?{...t,replies:[...(t.replies||[]),d.message]}:t));
+              return true;
+            }catch(e){ return false; }
+          };
+
+          return(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text,marginBottom:16}}>💬 Messages</div>
-
-            {msgs.length===0&&msgsLoaded&&(
-              <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:16,border:"1px solid "+E.border,boxShadow:E.shadow}}>
-                <div style={{fontSize:48,marginBottom:12}}>💬</div>
-                <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No messages yet</div>
-                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Your manager will send shift updates, announcements, and direct messages here.</div>
+            {/* Header */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <div>
+                <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text}}>💬 Messages</div>
+                <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>All conversations are permanent records</div>
               </div>
-            )}
+              {(threads||[]).some(t=>!t.read&&t.to_id===empSafe.id)&&(
+                <div style={{background:E.indigo,borderRadius:20,padding:"4px 12px",fontFamily:E.mono,fontSize:10,color:"#fff",fontWeight:700}}>
+                  {(threads||[]).filter(t=>!t.read&&t.to_id===empSafe.id).length} NEW
+                </div>
+              )}
+            </div>
 
+            {/* Loading */}
             {!msgsLoaded&&(
               <div style={{textAlign:"center",padding:"40px",background:"#fff",borderRadius:14,border:"1px solid "+E.border}}>
                 <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Loading messages…</div>
               </div>
             )}
 
-            {/* Direct messages */}
-            {msgs.filter(m=>m.to_id===empSafe.id).length>0&&(
-              <div style={{marginBottom:20}}>
-                <div style={{fontFamily:E.mono,fontSize:8,color:E.indigo,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>📩 Direct Messages</div>
-                {msgs.filter(m=>m.to_id===empSafe.id).map(m=>{
-                  const ts = m.created_at ? new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "";
-                  return(
-                    <div key={m.id} onClick={()=>{ if(openMsg?.id===m.id){setOpenMsg(null);}else{openMessage(m);} }}
-                      style={{padding:"13px 14px",borderRadius:12,marginBottom:8,background:m.read?"#fff":`${E.indigo}08`,border:`1.5px solid ${m.read?E.border:E.indigo+"30"}`,cursor:"pointer",boxShadow:E.shadow,transition:"all 0.15s"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        {!m.read&&<div style={{width:8,height:8,borderRadius:"50%",background:E.indigo,flexShrink:0}}/>}
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontFamily:E.sans,fontWeight:m.read?600:700,fontSize:14,color:E.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.subject||"Message from manager"}</div>
-                          {openMsg?.id!==m.id&&<div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.body}</div>}
-                        </div>
-                        <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,flexShrink:0,textAlign:"right"}}>{ts}</div>
-                      </div>
-                      {openMsg?.id===m.id&&(
-                        <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+E.border}}>
-                          <div style={{fontFamily:E.sans,fontSize:14,color:E.text,lineHeight:1.7}}>{m.body}</div>
-                          {!m.read&&<div style={{marginTop:8,fontFamily:E.mono,fontSize:9,color:E.green}}>✓ Marked as read</div>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            {/* Empty */}
+            {msgsLoaded&&(threads||[]).length===0&&(
+              <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:16,border:"1px solid "+E.border,boxShadow:E.shadow}}>
+                <div style={{fontSize:48,marginBottom:12}}>💬</div>
+                <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No messages yet</div>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,maxWidth:320,margin:"0 auto"}}>Your manager will send shift updates, schedule changes, and announcements here. You can reply directly.</div>
               </div>
             )}
 
-            {/* Broadcast announcements */}
-            {msgs.filter(m=>m.broadcast||!m.to_id).length>0&&(
-              <div>
-                <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"2px",marginBottom:10,textTransform:"uppercase"}}>📢 Announcements</div>
-                {msgs.filter(m=>m.broadcast||!m.to_id).map(m=>{
-                  const ts = m.created_at ? new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
-                  return(
-                    <div key={m.id} onClick={()=>{ if(openMsg?.id===m.id){setOpenMsg(null);}else{openMessage(m);} }}
-                      style={{padding:"12px 14px",borderRadius:10,marginBottom:6,background:E.bg3,border:"1px solid "+E.border,cursor:"pointer"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontSize:16}}>📢</span>
-                        <div style={{flex:1,fontFamily:E.sans,fontWeight:600,fontSize:13,color:E.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:openMsg?.id===m.id?"normal":"nowrap"}}>{m.subject}</div>
-                        <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,flexShrink:0}}>{ts}</div>
-                      </div>
-                      {openMsg?.id===m.id&&<div style={{fontFamily:E.sans,fontSize:13,color:E.textD,lineHeight:1.6,marginTop:10,paddingTop:10,borderTop:"1px solid "+E.border}}>{m.body}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Thread list */}
+            {(threads||[]).map(thread=>(
+              <MessageThread key={thread.id} thread={thread} empSafe={empSafe} fmtTs={fmtTs} sendReply={sendReply} E={E}/>
+            ))}
           </div>
-        )}
+          );
+        })()}
         {tab==="recognition"&&(()=>{
           // Mirror the tier/points logic from My Growth tab
           const completedShifts = (empShifts||[]).filter(s=>s.status==="confirmed"||s.status==="published").length;
@@ -2617,9 +2730,15 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                   try{
                     const sb=await getSB();
                     const {data:{session}}=await sb.auth.getSession();
-                    await sb.from("messages").insert({org_id:ownerProfile?.org_id||null,from_id:session?.user?.id||null,to_id:emp.id,subject:"Message from manager",body:msgText.trim(),read:false});
+                    const orgId=activeOrg?.id||ownerProfile?.org_id||null;
+                    const fromName=(ownerProfile?.first_name||"Manager")+" "+(ownerProfile?.last_name||"");
+                    await fetch("/api/messages",{
+                      method:"POST",
+                      headers:{"Content-Type":"application/json",...(session?.access_token?{"Authorization":"Bearer "+session.access_token}:{})},
+                      body:JSON.stringify({orgId,fromId:session?.user?.id,fromName:fromName.trim(),toId:emp.id,subject:"Message from your manager",text:msgText.trim(),type:"owner"}),
+                    });
                     setMsgSent(true);setMsgText("");
-                    toast("Message sent ✓","success");
+                    toast("Message sent to "+emp.name.split(" ")[0]+" ✓","success");
                   }catch(e){toast("Failed: "+e.message,"error");}
                   finally{setMsgBusy(false);}
                 }} style={{marginTop:8,padding:"8px 18px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:msgBusy?"not-allowed":"pointer"}}>
@@ -4103,14 +4222,19 @@ function BroadcastModal({
                 try{
                   const sb=await getSB();
                   const {data:{session}}=await sb.auth.getSession();
-                  const activeEmps=(liveEmps||[]).filter(e=>e.status==="active");
-                  const msgs=activeEmps.map(emp=>({org_id:ownerProfile?.org_id||null,from_id:session?.user?.id||null,to_id:emp.id,subject:broadcastForm.subject,body:broadcastForm.body,read:false}));
-                  if(msgs.length>0) await sb.from("messages").insert(msgs);
-                  setBroadcastDone("Message sent to "+activeEmps.length+" employee"+(activeEmps.length!==1?"s":"")+" ✓");
-                  toast("Message sent to "+activeEmps.length+" employees ✓","success");
+                  const orgId=activeOrg?.id||ownerProfile?.org_id||null;
+                  const fromName=((ownerProfile?.first_name||"")+" "+(ownerProfile?.last_name||"")).trim()||"Manager";
+                  await fetch("/api/messages",{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json",...(session?.access_token?{"Authorization":"Bearer "+session.access_token}:{})},
+                    body:JSON.stringify({orgId,fromId:session?.user?.id,fromName,subject:broadcastForm.subject,text:broadcastForm.body,broadcast:true,type:"owner"}),
+                  });
+                  const count=(liveEmps||[]).filter(e=>e.status==="active").length;
+                  setBroadcastDone("📢 Sent to "+count+" employee"+(count!==1?"s":"")+" ✓");
+                  setBroadcastForm({subject:"",body:""});
+                  toast("Broadcast sent to "+count+" employees ✓","success");
                 }catch(e){
-                  setBroadcastDone("Message sent ✓");
-                  toast("Message sent ✓","success");
+                  setBroadcastDone("Failed: "+e.message);
                 }finally{setBroadcastBusy(false);}
               }}
               style={{width:"100%",padding:"13px",background:broadcastBusy?"rgba(217,64,64,0.4)":"linear-gradient(135deg,#d94040,#b91c1c)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:broadcastBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(217,64,64,0.25)"}}>
