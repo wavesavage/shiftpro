@@ -3483,6 +3483,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
           )}
         </div>
       </div>
+      </div>
     </>
   );
 }
@@ -7426,6 +7427,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
       </div>
     </div>
+  </div>
+  </div>
+  </div>
+  </div>
   );
 }
 
