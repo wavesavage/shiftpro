@@ -262,6 +262,7 @@ const O = {
   amber:"#e07b00", amberD:"rgba(224,123,0,0.09)", amberB:"rgba(224,123,0,0.22)",
   red:"#d94040", redD:"rgba(217,64,64,0.09)",
   green:"#1a9e6e", greenD:"rgba(26,158,110,0.09)",
+  indigo:"#6366f1", indigoD:"rgba(99,102,241,0.08)",
   blue:"#2563eb", cyan:"#0891b2", purple:"#7c3aed",
   text:"#1a1a2e", textD:"#52525b", textF:"#a1a1aa",
   border:"rgba(0,0,0,0.07)", borderA:"rgba(224,123,0,0.18)",
@@ -999,6 +1000,8 @@ function EmpPortal({emp,onLogout}){
   const [empShifts,setEmpShifts] = useState(null);
   const [swapOpen,setSwapOpen] = useState(false);
   const [swapReason,setSwapReason] = useState("");
+  const [swapDate,setSwapDate] = useState("");
+  const [swapShiftPick,setSwapShiftPick] = useState("");
   const [swapDone,setSwapDone] = useState("");
   const [toOpen,setToOpen] = useState(false);
   const [toStart,setToStart] = useState("");
@@ -1699,7 +1702,7 @@ function EmpPortal({emp,onLogout}){
           );
         })()}
         {tab==="team"&&(()=>{
-          const [threads,setThreads] = [empThreads,setEmpThreads];
+          const threads = empThreads; const setThreads = setEmpThreads;
           const fmtTs = s => {
             if(!s) return "";
             const d = new Date(s);
@@ -2207,32 +2210,81 @@ function EmpPortal({emp,onLogout}){
         })()}
       </div>
       {swapOpen&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setSwapOpen(false)}>
-          <div style={{background:E.bg2,borderRadius:16,padding:"26px",width:"100%",maxWidth:380,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setSwapOpen(false)}>
+          <div style={{background:E.bg2,borderRadius:18,padding:"26px",width:"100%",maxWidth:420,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
             <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>🔄 Request Shift Swap</div>
-            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Let your manager know which shift you need covered.</div>
-            <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Reason</label>
-            <textarea
-              value={swapReason||""}
-              onChange={e=>setSwapReason(e.target.value)}
-              placeholder="e.g. Doctor appointment, family obligation..."
-              rows={3}
-              style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:16}}
-            />
-            {swapDone&&<div style={{fontFamily:E.sans,fontSize:13,color:"#10b981",marginBottom:10,textAlign:"center"}}>{swapDone}</div>}
+            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Select the shift you need covered and your manager will review it.</div>
+
+            {/* My upcoming shifts quick-pick */}
+            {(empShifts||[]).length>0&&(
+              <div style={{marginBottom:14}}>
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:8,textTransform:"uppercase"}}>Select a Scheduled Shift</label>
+                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto"}}>
+                  {(empShifts||[]).slice(0,6).map(s=>{
+                    const fH=h=>h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
+                    const label=`${s.day_of_week} ${s.shift_date} · ${fH(s.start_hour)}–${fH(s.end_hour)}`;
+                    const isSelected=swapShiftPick===s.id;
+                    return(
+                      <button key={s.id} onClick={()=>{ setSwapShiftPick(s.id); setSwapDate(s.shift_date); }}
+                        style={{padding:"10px 12px",background:isSelected?E.indigoD:"#fff",border:`1.5px solid ${isSelected?E.indigo:E.border}`,borderRadius:9,fontFamily:E.sans,fontSize:13,color:isSelected?E.indigo:E.text,cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}>
+                        <span style={{fontWeight:isSelected?700:500}}>📅 {label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Manual date if no shifts or different date needed */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Shift Date</label>
+                <input type="date" value={swapDate||""} onChange={e=>{setSwapDate(e.target.value);setSwapShiftPick("");}}
+                  min={new Date().toISOString().split("T")[0]}
+                  style={{width:"100%",padding:"9px 10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Time Needed Off</label>
+                <select value={swapReason.includes("AM")||swapReason.includes("PM")?swapReason:""} onChange={e=>{ if(e.target.value) setSwapReason(e.target.value); }}
+                  style={{width:"100%",padding:"9px 10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:12,color:E.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                  <option value="">— Full shift —</option>
+                  <option value="Entire shift">Entire shift</option>
+                  <option value="Morning (AM)">Morning (AM)</option>
+                  <option value="Afternoon (PM)">Afternoon (PM)</option>
+                  <option value="First half">First half</option>
+                  <option value="Second half">Second half</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{marginBottom:16}}>
+              <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Reason for Swap *</label>
+              <textarea value={swapReason||""} onChange={e=>setSwapReason(e.target.value)}
+                placeholder="e.g. Doctor appointment, family obligation, car trouble..."
+                rows={3}
+                style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box"}}/>
+            </div>
+
+            {swapDone&&<div style={{fontFamily:E.sans,fontSize:13,color:E.green,marginBottom:10,textAlign:"center",padding:"8px",background:"rgba(16,185,129,0.08)",borderRadius:8}}>{swapDone}</div>}
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{setSwapOpen(false);setSwapReason("");setSwapDone("");}} style={{flex:1,padding:"10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
+              <button onClick={()=>{setSwapOpen(false);setSwapReason("");setSwapDate("");setSwapShiftPick("");setSwapDone("");}}
+                style={{flex:1,padding:"11px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
               <button onClick={async()=>{
-                if(!swapReason?.trim()){setSyncMsg("Please add a reason");setTimeout(()=>setSyncMsg(""),2000);return;}
+                if(!swapReason?.trim()){setSyncMsg("⚠ Please add a reason");setTimeout(()=>setSyncMsg(""),2500);return;}
+                if(!swapDate){setSyncMsg("⚠ Please select a date");setTimeout(()=>setSyncMsg(""),2500);return;}
                 try{
-                  const sb=await getSB();
-                  const {data:{session:ssSw}}=await getSB().then(s=>s.auth.getSession());
-                  await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssSw?.access_token?{"Authorization":"Bearer "+ssSw.access_token}:{})},body:JSON.stringify({_action:"swap_request",userId:empSafe.id,orgId:empSafe.orgId||null,reason:swapReason.trim()})});
+                  const {data:{session:ssSw}}=await (await getSB()).auth.getSession();
+                  const r=await fetch("/api/employee",{method:"POST",
+                    headers:{"Content-Type":"application/json",...(ssSw?.access_token?{"Authorization":"Bearer "+ssSw.access_token}:{})},
+                    body:JSON.stringify({_action:"swap_request",userId:empSafe.id,orgId:empSafe.orgId||null,
+                      reason:swapReason.trim(),shiftDate:swapDate,shiftId:swapShiftPick||null})});
+                  const d=await r.json();
+                  if(!r.ok) throw new Error(d.error);
                   setSwapDone("✓ Swap request sent to your manager!");
-                  setSwapReason("");
+                  setSwapReason(""); setSwapDate(""); setSwapShiftPick("");
                   setTimeout(()=>{setSwapOpen(false);setSwapDone("");},2000);
                 }catch(e){setSwapDone("✓ Request submitted!");}
-              }} style={{flex:1,padding:"10px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,color:"#fff",cursor:"pointer"}}>Submit Request</button>
+              }} style={{flex:1,padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>Submit Request</button>
             </div>
           </div>
         </div>
@@ -2526,9 +2578,8 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
     if(!emp.id) return;
     (async()=>{
       try{
-        const {createClient} = await import("@supabase/supabase-js");
-        const sb2 = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-        const {data:{session:ss}}=await sb2.auth.getSession();
+        const _sb=await getSB();
+        const {data:{session:ss}}=await _sb.auth.getSession();
         const r=await fetch(`/api/documents?userId=${emp.id}&_t=${Date.now()}`,{
           headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
         });
@@ -2543,9 +2594,8 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
     if(file.size>10*1024*1024){ setOwnerDocMsg("⚠ File must be under 10MB"); return; }
     setOwnerDocBusy(true); setOwnerDocMsg("");
     try{
-      const {createClient} = await import("@supabase/supabase-js");
-      const sb2 = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-      const {data:{session:ss}}=await sb2.auth.getSession();
+      const _sb2=await getSB();
+      const {data:{session:ss}}=await _sb2.auth.getSession();
       const fd=new FormData();
       fd.append("file",file);
       fd.append("userId",emp.id);
@@ -2600,7 +2650,6 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
         }
       };
 
-      console.log("[saveChanges] Sending:", JSON.stringify(payload));
 
       const res = await fetch("/api/user", {
         method:"PATCH",
@@ -2609,7 +2658,6 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
       });
 
       const resJson = await res.json();
-      console.log("[saveChanges] Response:", JSON.stringify(resJson));
 
       if(!res.ok) throw new Error(resJson.error||"Save failed");
 
@@ -2763,7 +2811,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                       body:JSON.stringify({orgId,fromId:session?.user?.id,fromName:fromName.trim(),toId:emp.id,subject:"Message from your manager",text:msgText.trim(),type:"owner"}),
                     });
                     setMsgSent(true);setMsgText("");
-                    toast("Message sent to "+emp.name.split(" ")[0]+" ✓","success");
+                    toast("Message sent to "+(displayName||emp.name||"employee").split(" ")[0]+" ✓","success");
                   }catch(e){toast("Failed: "+e.message,"error");}
                   finally{setMsgBusy(false);}
                 }} style={{marginTop:8,padding:"8px 18px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:msgBusy?"not-allowed":"pointer"}}>
@@ -2950,9 +2998,8 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                   <div style={{fontFamily:O.mono,fontSize:9,color:catColor}}>{new Date(doc.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
                 </div>
                 <button onClick={async()=>{
-                  const {createClient}=await import("@supabase/supabase-js");
-                  const sb3=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-                  const {data:{session:ss}}=await sb3.auth.getSession();
+                  const _sb3=await getSB();
+                  const {data:{session:ss}}=await _sb3.auth.getSession();
                   const r=await fetch(`/api/documents?userId=${emp.id}&action=download&docId=${doc.id}`,{headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}});
                   const d=await r.json();
                   if(d.url) window.open(d.url,"_blank");
@@ -4774,26 +4821,39 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   },[]);
 
   // Load notifications
-  const loadNotifications = async(orgId) => {
-    if(!orgId || notifLoaded) return;
+  const loadNotifications = async(orgId, force=false) => {
+    if(!orgId || (notifLoaded && !force)) return;
     setNotifLoaded(true);
     const items = [];
     try{
       const sb = await getSB();
-      // Try swap requests
+      const {data:{session:ss}} = await sb.auth.getSession();
+      const headers = ss?.access_token ? {"Authorization":"Bearer "+ss.access_token} : {};
+
+      // Load swap requests via service role API
       try{
-        const {data:swaps} = await sb.from("shift_swap_requests").select("*, users(first_name,last_name)").eq("org_id",orgId).eq("status","pending").order("created_at",{ascending:false}).limit(10);
-        (swaps||[]).forEach(s=>items.push({id:"swap_"+s.id,type:"swap",from:(s.requester?.first_name||"")+" "+(s.requester?.last_name||""),detail:"Wants to swap shift with "+(s.target?.first_name||"someone"),time:"Recently",read:false,raw:s}));
-        setSwapRequests(swaps||[]);
-      }catch(e){}
-      // Try time off requests
+        const r = await fetch(`/api/requests?type=swaps&orgId=${orgId}&_t=${Date.now()}`, {headers, cache:"no-store"});
+        if(r.ok){
+          const d = await r.json();
+          const swaps = d.swaps||[];
+          swaps.forEach(s=>items.push({id:"swap_"+s.id,type:"swap",raw:s}));
+          setSwapRequests(swaps);
+        }
+      }catch(e){ console.error("swap load:",e); }
+
+      // Load time off requests via service role API
       try{
-        const {data:toffs} = await sb.from("time_off_requests").select("*, users(first_name,last_name)").eq("org_id",orgId).eq("status","pending").order("created_at",{ascending:false}).limit(10);
-        (toffs||[]).forEach(t=>items.push({id:"toff_"+t.id,type:"timeoff",from:(t.users?.first_name||"")+" "+(t.users?.last_name||""),detail:(t.dates||t.date_range||"Time off")+" · "+(t.reason||"Personal"),time:"Recently",read:false,raw:t}));
-        setTimeOffRequests(toffs||[]);
-      }catch(e){}
+        const r = await fetch(`/api/requests?type=timeoff&orgId=${orgId}&_t=${Date.now()}`, {headers, cache:"no-store"});
+        if(r.ok){
+          const d = await r.json();
+          const timeoff = d.timeoff||[];
+          timeoff.forEach(t=>items.push({id:"toff_"+t.id,type:"timeoff",raw:t}));
+          setTimeOffRequests(timeoff);
+        }
+      }catch(e){ console.error("timeoff load:",e); }
+
       setRequestsLoaded(true);
-    }catch(e){}
+    }catch(e){ console.error("loadNotifications:",e); }
     setNotifications(items);
   };
 
@@ -5853,7 +5913,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             {/* Sub-tab pills */}
             <div style={{display:"flex",gap:6,marginBottom:18}}>
               {[["team","👥 Team"],["requests","📋 Requests"+(swapRequests.length+timeOffRequests.length>0?" ("+( swapRequests.length+timeOffRequests.length)+")":"")]].map(([id,label])=>(
-                <button key={id} onClick={()=>{ setStaffSubTab(id); if(id==="requests"&&!requestsLoaded&&activeOrg?.id) loadNotifications(activeOrg.id); }}
+                <button key={id} onClick={()=>{ setStaffSubTab(id); if(id==="requests"&&activeOrg?.id) loadNotifications(activeOrg.id, true); }}
                   style={{padding:"7px 16px",borderRadius:20,border:"none",fontFamily:O.sans,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.15s",background:staffSubTab===id?"#7c3aed":O.bg3,color:staffSubTab===id?"#fff":O.textD}}>
                   {label}
                 </button>
@@ -5943,15 +6003,19 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Swap requests from employees will appear here for your approval.</div>
                     </div>
                   )}
-                  {swapRequests.map(req=>(
+                  {swapRequests.map(req=>{
+                    const empName=((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
+                    const av=req.users?.avatar_initials||empName[0]||"?";
+                    const shiftLabel=req.shift_date?new Date(req.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"Upcoming shift";
+                    return(
                     <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
                       <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                        <span style={{fontSize:20,flexShrink:0}}>🔄</span>
+                        <div style={{width:36,height:36,borderRadius:"50%",background:req.users?.avatar_color||"#f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{av}</div>
                         <div style={{flex:1}}>
-                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:3}}>
-                            {req.users?.first_name||"Employee"} {req.users?.last_name||""} · Shift Swap Request
-                          </div>
-                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{req.shift_date||"Upcoming shift"}</div>
+                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,marginBottom:4}}>🔄 SWAP REQUEST · {shiftLabel}</div>
+                          {req.reason&&<div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>{req.reason}</div>}
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:3}}>{req.created_at?new Date(req.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
                         </div>
                         <div style={{display:"flex",gap:8,flexShrink:0}}>
                           <button onClick={async()=>{
@@ -5960,9 +6024,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                               const {data:{session:ss}}=await (await getSB()).auth.getSession();
                               const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:req.id,status:"approved"})});
                               if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
-                              setNotifications(prev=>prev.filter(n=>n.id!=="swap_"+req.id));
                               setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
-                              setSwapRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Swap approved ✓","success");
                             }catch(e){ toast("Failed: "+e.message,"error"); }
                           }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>✓ Approve</button>
@@ -5972,16 +6034,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                               const {data:{session:ss2}}=await (await getSB()).auth.getSession();
                               const r2=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss2?.access_token?{"Authorization":"Bearer "+ss2.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:req.id,status:"denied"})});
                               if(!r2.ok){const d2=await r2.json();throw new Error(d2.error||"Failed");}
-                              setNotifications(prev=>prev.filter(n=>n.id!=="swap_"+req.id));
                               setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
-                              setSwapRequests(p=>p.filter(r=>r.id!==req.id));
-                              toast("Swap denied","success");
+                              toast("Swap denied","info");
                             }catch(e){ toast("Failed: "+e.message,"error"); }
                           }} style={{padding:"6px 12px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.red,cursor:"pointer"}}>✕ Deny</button>
                         </div>
                       </div>
                     </div>
-                  ))}
+                    </div>
+                    );
+                  })}
                 </div>
 
                 {/* Time Off Requests */}
@@ -5998,45 +6060,47 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Time off requests from employees will appear here.</div>
                     </div>
                   )}
-                  {timeOffRequests.map(req=>(
+                  {timeOffRequests.map(req=>{
+                    const empName=((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
+                    const av=req.users?.avatar_initials||empName[0]||"?";
+                    const fmtD=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"TBD";
+                    const isSameDay=req.start_date&&req.end_date&&req.start_date===req.end_date;
+                    const dateLabel=isSameDay?fmtD(req.start_date):`${fmtD(req.start_date)} → ${fmtD(req.end_date)}`;
+                    const days=req.start_date&&req.end_date?Math.round((new Date(req.end_date)-new Date(req.start_date))/86400000)+1:1;
+                    return(
                     <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid #7c3aed",borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
                       <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                        <span style={{fontSize:20,flexShrink:0}}>📆</span>
+                        <div style={{width:36,height:36,borderRadius:"50%",background:req.users?.avatar_color||"#7c3aed",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{av}</div>
                         <div style={{flex:1}}>
-                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:3}}>
-                            {req.users?.first_name||"Employee"} {req.users?.last_name||""} · {req.start_date||"Date TBD"}{req.end_date&&req.start_date!==req.end_date?" → "+req.end_date:""}
-                          </div>
-                          <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>{req.reason||"Personal"}</div>
+                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
+                          <div style={{fontFamily:O.mono,fontSize:9,color:"#7c3aed",marginBottom:4}}>📆 TIME OFF · {dateLabel} · {days} day{days!==1?"s":""}</div>
+                          {req.reason&&<div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>{req.reason}</div>}
+                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:3}}>{req.created_at?new Date(req.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
                         </div>
                         <div style={{display:"flex",gap:8,flexShrink:0}}>
                           <button onClick={async()=>{
                             try{
-                              const sb=await getSB();
                               const {data:{session:ss3}}=await (await getSB()).auth.getSession();
-                              const r3=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss3?.access_token?{"Authorization":"Bearer "+ss3.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"approved"})});
-                              if(!r3.ok){const d3=await r3.json();throw new Error(d3.error||"Failed");}
-                              setNotifications(prev=>prev.filter(n=>n.id!=="toff_"+req.id));
+                              const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss3?.access_token?{"Authorization":"Bearer "+ss3.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"approved"})});
+                              if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
                               setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
-                              setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
                               toast("Time off approved ✓","success");
                             }catch(e){ toast("Failed: "+e.message,"error"); }
                           }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>✓ Approve</button>
                           <button onClick={async()=>{
                             try{
-                              const sb=await getSB();
                               const {data:{session:ss4}}=await (await getSB()).auth.getSession();
-                              const r4=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss4?.access_token?{"Authorization":"Bearer "+ss4.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"denied"})});
-                              if(!r4.ok){const d4=await r4.json();throw new Error(d4.error||"Failed");}
-                              setNotifications(prev=>prev.filter(n=>n.id!=="toff_"+req.id));
+                              const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss4?.access_token?{"Authorization":"Bearer "+ss4.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"denied"})});
+                              if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
                               setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
-                              setTimeOffRequests(p=>p.filter(r=>r.id!==req.id));
-                              toast("Request denied","success");
+                              toast("Request denied","info");
                             }catch(e){ toast("Failed: "+e.message,"error"); }
                           }} style={{padding:"6px 12px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.red,cursor:"pointer"}}>✕ Deny</button>
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
