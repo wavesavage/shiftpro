@@ -6014,6 +6014,76 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         {/* ══ PAYROLL TAB ══ */}
         {tab==="roi"&&(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+
+            {/* ── QuickBooks Integration Card ── */}
+            <div style={{background:"linear-gradient(135deg,#1a5c2e,#2d7a45)",borderRadius:16,padding:"22px 24px",marginBottom:20,position:"relative",overflow:"hidden",boxShadow:"0 4px 20px rgba(26,92,46,0.25)"}}>
+              {/* QB logo watermark */}
+              <div style={{position:"absolute",right:-10,top:-10,fontSize:80,opacity:0.08,lineHeight:1}}>🏢</div>
+              <div style={{position:"absolute",right:20,top:"50%",transform:"translateY(-50%)",opacity:0.06,fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:64,color:"#fff",letterSpacing:-2}}>QB</div>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                    <div style={{background:"rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 10px",fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:16,color:"#fff",letterSpacing:-0.5}}>QuickBooks</div>
+                    <div style={{background:"rgba(255,193,7,0.9)",borderRadius:20,padding:"3px 10px",fontFamily:"'JetBrains Mono',monospace",fontWeight:700,fontSize:9,color:"#1a1a00",letterSpacing:1}}>COMING SOON</div>
+                  </div>
+                  <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:17,color:"#fff",marginBottom:6}}>Connect QuickBooks Online</div>
+                  <div style={{fontFamily:"'Outfit',sans-serif",fontSize:13,color:"rgba(255,255,255,0.75)",lineHeight:1.6,maxWidth:400}}>
+                    Sync payroll automatically — employee hours flow into QB, pay stubs deliver to each employee's document file. W-2s populated before tax season.
+                  </div>
+                  {/* Feature list */}
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:14}}>
+                    {["✓ Auto pay stub delivery","✓ W-2 sync by Dec 31","✓ Hours → QB Payroll","✓ Employee self-service","✓ Oregon tax tables"].map(f=>(
+                      <div key={f} style={{background:"rgba(255,255,255,0.12)",borderRadius:20,padding:"4px 10px",fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(255,255,255,0.9)",letterSpacing:0.5}}>{f}</div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0,alignItems:"flex-end"}}>
+                  <button onClick={()=>toast("QuickBooks integration launching soon — we'll notify you when it's ready to connect!","info")} style={{padding:"10px 20px",background:"rgba(255,255,255,0.95)",border:"none",borderRadius:10,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:13,color:"#1a5c2e",cursor:"pointer",boxShadow:"0 2px 12px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>
+                    🔗 Connect QB
+                  </button>
+                  <button onClick={()=>toast("You'll be notified when QuickBooks sync is available for your account.","success")} style={{padding:"7px 16px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:8,fontFamily:"'Outfit',sans-serif",fontWeight:600,fontSize:11,color:"rgba(255,255,255,0.85)",cursor:"pointer",whiteSpace:"nowrap"}}>
+                    🔔 Notify Me
+                  </button>
+                </div>
+              </div>
+              {/* Timeline bar */}
+              <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid rgba(255,255,255,0.15)"}}>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(255,255,255,0.5)",letterSpacing:1,marginBottom:8,textTransform:"uppercase"}}>Integration Roadmap</div>
+                <div style={{display:"flex",gap:0,alignItems:"center"}}>
+                  {[
+                    {label:"OAuth Setup",done:true},
+                    {label:"Employee Sync",done:false},
+                    {label:"Payroll Export",done:false},
+                    {label:"W-2 Auto-Fill",done:false},
+                    {label:"Live",done:false},
+                  ].map((s,i,arr)=>(
+                    <React.Fragment key={s.label}>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                        <div style={{width:20,height:20,borderRadius:"50%",background:s.done?"#ffd700":"rgba(255,255,255,0.2)",border:"2px solid "+(s.done?"#ffd700":"rgba(255,255,255,0.3)"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:9}}>{s.done?"✓":""}</div>
+                        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:7,color:s.done?"#ffd700":"rgba(255,255,255,0.4)",textAlign:"center",whiteSpace:"nowrap"}}>{s.label}</div>
+                      </div>
+                      {i<arr.length-1&&<div style={{flex:1,height:2,background:s.done?"rgba(255,215,0,0.4)":"rgba(255,255,255,0.15)",margin:"0 4px",marginBottom:16}}/>}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Other integrations teaser */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:20}}>
+              {[
+                {name:"Gusto",icon:"💼",desc:"Full-service payroll"},
+                {name:"ADP",icon:"🏦",desc:"Enterprise payroll"},
+                {name:"Square Payroll",icon:"◾",desc:"Small business"},
+              ].map(p=>(
+                <div key={p.name} style={{background:"#fff",border:"1px solid "+O.border,borderRadius:10,padding:"12px",textAlign:"center",opacity:0.65}}>
+                  <div style={{fontSize:20,marginBottom:4}}>{p.icon}</div>
+                  <div style={{fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.text}}>{p.name}</div>
+                  <div style={{fontFamily:O.sans,fontSize:10,color:O.textD,marginBottom:6}}>{p.desc}</div>
+                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,background:O.bg3,borderRadius:10,padding:"2px 8px",display:"inline-block",letterSpacing:1}}>PLANNED</div>
+                </div>
+              ))}
+            </div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
               <div>
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.green,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Payroll Tracking</div>
