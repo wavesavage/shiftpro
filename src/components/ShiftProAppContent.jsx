@@ -3978,28 +3978,43 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       const thisMon = getMonday(currentWeekOffset);
       const orgId = ownerProfile?.org_id||activeOrg?.id||localStorage.getItem("shiftpro_active_orgid")||null;
       if(!orgId){ toast("No company found — try refreshing the page","error"); return; }
-      // Fetch last week's shifts via service role
-      let url=`/api/shifts?orgId=${orgId}&weekStart=${lastMon}`;
-      if(activeLocation) url+=`&locId=${activeLocation.id}`;
-      const fetchRes=await fetch(url,{headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}});
+      // Fetch ALL last week's shifts for org — NO location filter so nothing gets missed
+      const url=`/api/shifts?orgId=${orgId}&weekStart=${lastMon}&_t=${Date.now()}`;
+      const fetchRes=await fetch(url,{
+        headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
+        cache:"no-store",
+      });
       const fetchData=await fetchRes.json();
       const lastWeekShifts=fetchData.shifts||[];
       if(!lastWeekShifts.length){ toast("No shifts found from last week","error"); return; }
       const DAYS_ORDER=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
       const newShifts=lastWeekShifts.map(s=>({
-        org_id:s.org_id, location_id:s.location_id, user_id:s.user_id,
-        week_start:thisMon, day_of_week:s.day_of_week,
-        shift_date:(()=>{ const DAYS_ORDER=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]; const [y,m,d]=thisMon.split("-").map(Number); const base=new Date(y,m-1,d); base.setDate(base.getDate()+DAYS_ORDER.indexOf(s.day_of_week)); return base.getFullYear()+"-"+String(base.getMonth()+1).padStart(2,"0")+"-"+String(base.getDate()).padStart(2,"0"); })(),
-        start_hour:s.start_hour, end_hour:s.end_hour, role_label:s.role_label||"", status:"scheduled", created_by:ownerProfile?.id||null,
+        org_id:s.org_id,
+        location_id:s.location_id,
+        user_id:s.user_id,
+        week_start:thisMon,
+        day_of_week:s.day_of_week,
+        shift_date:(()=>{
+          const [y,m,d]=thisMon.split("-").map(Number);
+          const base=new Date(y,m-1,d);
+          base.setDate(base.getDate()+DAYS_ORDER.indexOf(s.day_of_week));
+          return base.getFullYear()+"-"+String(base.getMonth()+1).padStart(2,"0")+"-"+String(base.getDate()).padStart(2,"0");
+        })(),
+        start_hour:s.start_hour,
+        end_hour:s.end_hour,
+        role_label:s.role_label||"",
+        notes:s.notes||"",
+        status:"scheduled",
+        created_by:ownerProfile?.id||null,
       }));
       const copyRes=await fetch("/api/shifts",{
         method:"POST",
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({_action:"copyLastWeek",shifts:newShifts}),
       });
-      if(!copyRes.ok) throw new Error("Copy failed");
-      await loadShifts(orgId, thisMon, activeLocation?.id||null);
-      toast("Copied "+newShifts.length+" shift"+(newShifts.length!==1?"s":"")+" from last week ✓","success");
+      if(!copyRes.ok){ const d=await copyRes.json(); throw new Error(d.error||"Copy failed"); }
+      await loadShifts(orgId, thisMon, null); // reload without location filter to show all
+      toast("✓ Copied "+newShifts.length+" shift"+(newShifts.length!==1?"s":"")+" from last week","success");
     }catch(e){ toast("Copy failed: "+e.message,"error"); }
   };
 
