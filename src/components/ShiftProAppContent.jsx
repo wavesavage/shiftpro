@@ -2736,199 +2736,259 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
 // ══════════════════════════════════════════════════
 //  NOTIFICATIONS DROPDOWN (outside OwnerCmd)
 // ══════════════════════════════════════════════════
-function NotificationsDropdown({ notifications, setNotifications, setNotifOpen, setTab, setStaffSubTab, liveEmps, setSelectedEmp, setShowEmpDrawer }) {
+function NotificationsDropdown({
+  notifications, setNotifications, setNotifOpen,
+  setTab, setStaffSubTab,
+  setSwapRequests, setTimeOffRequests,
+  orgId, loadNotifications
+}) {
   const mobile = useIsMobile();
-  const [expanded, setExpanded] = React.useState(null); // id of expanded notification
-
-  const iconFor  = type => type==="swap"?"🔄":type==="timeoff"?"📆":type==="staffmsg"?"💬":"🔔";
-  const colorFor = type => type==="swap"?O.amber:type==="timeoff"?O.purple:type==="staffmsg"?O.indigo:O.green;
-
-  const labelFor = n => {
-    if(n.type==="staffmsg")  return { from: n.raw?.from_name||"Staff",       detail: (n.raw?.body||"").substring(0,60) };
-    if(n.type==="swap")      return { from: (n.raw?.users?.first_name||"Employee")+" "+(n.raw?.users?.last_name||""), detail: "Shift swap"+(n.raw?.shift_date?" · "+new Date(n.raw.shift_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"") };
-    if(n.type==="timeoff")   return { from: (n.raw?.users?.first_name||"Employee")+" "+(n.raw?.users?.last_name||""), detail: "Time off"+(n.raw?.start_date?" · "+new Date(n.raw.start_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"") };
-    return { from: "Staff", detail: "" };
-  };
-
-  const handleClick = (e, n) => {
-    e.stopPropagation();
-    // Mark this item read
-    setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
-    // Toggle inline action panel
-    setExpanded(prev => prev===n.id ? null : n.id);
-  };
+  const [expanded, setExpanded] = React.useState(null); // id of expanded notif
+  const [actionBusy, setActionBusy] = React.useState(false);
+  const [replyText, setReplyText] = React.useState("");
+  const [replyBusy, setReplyBusy] = React.useState(false);
+  const [msgResult, setMsgResult] = React.useState("");
 
   const unreadCount = notifications.filter(n=>!n.read).length;
 
-  return (
-    <div style={{position:"fixed",top:62,right:mobile?8:20,width:mobile?"calc(100vw - 16px)":360,
-      background:"#fff",border:"1px solid "+O.border,borderRadius:16,
-      boxShadow:"0 12px 40px rgba(0,0,0,0.15)",zIndex:500,overflow:"hidden",animation:"fadeUp 0.2s ease"}}
-      onClick={e=>e.stopPropagation()}>
+  const colorOf = t => t==="swap"?O.amber : t==="timeoff"?O.purple : t==="staffmsg"?O.indigo : O.green;
+  const iconOf  = t => t==="swap"?"🔄"    : t==="timeoff"?"📆"    : t==="staffmsg"?"💬"     : "👋";
 
-      {/* Header */}
-      <div style={{padding:"14px 18px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>Notifications</div>
-          {unreadCount>0&&<span style={{fontFamily:O.mono,fontSize:9,color:"#fff",background:O.red,borderRadius:10,padding:"2px 8px",fontWeight:700}}>{unreadCount} new</span>}
+  const labelOf = n => {
+    const raw = n.raw || {};
+    const ts  = raw.created_at ? new Date(raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) : "";
+    if(n.type==="staffmsg") return {
+      from: raw.from_name || "Staff",
+      detail: raw.body || raw.subject || "Sent a message",
+      time: ts, reason: raw.body || "",
+    };
+    const name = ((raw.users?.first_name||"")+" "+(raw.users?.last_name||"")).trim() || "Employee";
+    if(n.type==="swap") return {
+      from: name,
+      detail: "Wants to swap" + (raw.shift_date?" on "+new Date(raw.shift_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):""),
+      time: ts, reason: raw.reason||"",
+    };
+    if(n.type==="timeoff") {
+      const s = raw.start_date ? new Date(raw.start_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+      const e = raw.end_date   ? new Date(raw.end_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+      return {
+        from: name,
+        detail: "Time off request" + (s?" — "+s+(e&&e!==s?" to "+e:""):""),
+        time: ts, reason: raw.reason||"",
+      };
+    }
+    return {from:"Staff", detail:"Notification", time:ts, reason:""};
+  };
+
+  const handleRequest = async(n, status) => {
+    setActionBusy(true);
+    try{
+      const sb = await getSB();
+      const {data:{session:ss}} = await sb.auth.getSession();
+      const table = n.type==="swap" ? "shift_swap_requests" : "time_off_requests";
+      const r = await fetch("/api/requests", {
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({table, id:n.raw.id, status}),
+      });
+      const d = await r.json();
+      if(!r.ok) throw new Error(d.error||"Failed");
+      // Remove from bell + requests list
+      setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+      if(n.type==="swap"      && setSwapRequests)     setSwapRequests(prev=>(prev||[]).filter(r=>r.id!==n.raw.id));
+      if(n.type==="timeoff"   && setTimeOffRequests)  setTimeOffRequests(prev=>(prev||[]).filter(r=>r.id!==n.raw.id));
+      setExpanded(null);
+    }catch(e){ alert("Error: "+e.message); }
+    setActionBusy(false);
+  };
+
+  const handleReply = async(n) => {
+    if(!replyText.trim()) return;
+    setReplyBusy(true);
+    setMsgResult("");
+    try{
+      const sb = await getSB();
+      const {data:{session:ss}} = await sb.auth.getSession();
+      const r = await fetch("/api/messages", {
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({
+          orgId, fromId:ss?.user?.id, fromName:"Manager",
+          toId:n.raw?.from_id, text:replyText.trim(),
+          parentId:n.raw?.id, type:"direct",
+        }),
+      });
+      const d = await r.json();
+      if(!r.ok) throw new Error(d.error||"Failed");
+      setMsgResult("✓ Sent!");
+      setReplyText("");
+      setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+      setTimeout(()=>{ setMsgResult(""); setExpanded(null); }, 1500);
+    }catch(e){ setMsgResult("⚠ "+e.message); }
+    setReplyBusy(false);
+  };
+
+  return (
+    <div
+      onClick={e=>e.stopPropagation()}
+      style={{
+        position:"fixed", top:62, right:mobile?8:20,
+        width:mobile?"calc(100vw - 16px)":370,
+        background:"#fff", border:"1px solid "+O.border,
+        borderRadius:16, boxShadow:"0 12px 40px rgba(0,0,0,0.18)",
+        zIndex:600, display:"flex", flexDirection:"column",
+        maxHeight:"calc(100vh - 80px)", animation:"fadeUp 0.15s ease",
+      }}>
+
+      {/* ── Header ── */}
+      <div style={{padding:"13px 16px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,display:"flex",alignItems:"center",gap:8}}>
+          Notifications
+          {unreadCount>0&&<span style={{background:O.red,color:"#fff",fontFamily:O.mono,fontSize:9,fontWeight:700,borderRadius:10,padding:"2px 8px"}}>{unreadCount} new</span>}
         </div>
-        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);}} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:O.textF,lineHeight:1}}>×</button>
+        <button onClick={()=>setNotifOpen(false)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:O.textF,lineHeight:1,padding:"0 4px"}}>×</button>
       </div>
 
-      {/* List */}
-      <div style={{maxHeight:420,overflowY:"auto"}}>
-        {notifications.length===0&&(
-          <div style={{padding:"40px 20px",textAlign:"center"}}>
-            <div style={{fontSize:36,marginBottom:10}}>✅</div>
-            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text,marginBottom:4}}>All caught up!</div>
-            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Employee activity will appear here.</div>
-          </div>
-        )}
+      {/* ── Empty state ── */}
+      {notifications.length===0&&(
+        <div style={{padding:"36px 20px",textAlign:"center"}}>
+          <div style={{fontSize:36,marginBottom:8}}>✅</div>
+          <div style={{fontFamily:O.sans,fontWeight:600,fontSize:14,color:O.text,marginBottom:4}}>All caught up!</div>
+          <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Requests and staff messages appear here.</div>
+        </div>
+      )}
 
+      {/* ── Notification list ── */}
+      <div style={{overflowY:"auto",flex:1}}>
         {notifications.map((n,i)=>{
-          const {from,detail} = labelFor(n);
+          const {from,detail,time,reason} = labelOf(n);
+          const col = colorOf(n.type);
           const isOpen = expanded===n.id;
-          const col = colorFor(n.type);
           return(
-            <div key={n.id} style={{borderBottom:i<notifications.length-1?"1px solid "+O.border:"none"}}>
-              {/* Row */}
-              <div onClick={e=>handleClick(e,n)} style={{
-                padding:"12px 16px",
-                borderLeft:"3px solid "+(n.read?col+"60":col),
-                background:n.read?"#fff":col+"08",
-                display:"flex",gap:10,alignItems:"flex-start",
-                cursor:"pointer",
-                transition:"background 0.15s",
-              }}>
-                <span style={{fontSize:18,flexShrink:0,marginTop:1}}>{iconFor(n.type)}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
-                    {!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0}}/>}
-                    <div style={{fontFamily:O.sans,fontWeight:n.read?500:700,fontSize:13,color:O.text}}>{from}</div>
-                    <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginLeft:"auto",flexShrink:0}}>
-                      {n.raw?.created_at?new Date(n.raw.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""}
-                    </div>
-                  </div>
-                  <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:isOpen?"normal":"nowrap"}}>{detail}</div>
-                </div>
-                <span style={{fontFamily:O.mono,fontSize:11,color:col,flexShrink:0,marginTop:2}}>{isOpen?"▲":"▼"}</span>
-              </div>
+          <div key={n.id} style={{borderBottom:i<notifications.length-1?"1px solid "+O.border:"none"}}>
 
-              {/* Inline action panel */}
-              {isOpen&&(
-                <div style={{padding:"12px 16px 14px",background:col+"06",borderLeft:"3px solid "+col}}>
-                  {/* Staff message */}
-                  {n.type==="staffmsg"&&(
-                    <div>
-                      <div style={{fontFamily:O.sans,fontSize:13,color:O.text,lineHeight:1.6,marginBottom:10,padding:"8px 10px",background:"#fff",borderRadius:8,border:"1px solid "+O.border}}>
-                        {n.raw?.body||""}
-                      </div>
-                      <div style={{display:"flex",gap:8}}>
-                        <button onClick={e=>{
-                          e.stopPropagation();
-                          const staffEmp=(liveEmps||[]).find(emp=>emp.id===n.raw?.from_id);
-                          if(staffEmp){setSelectedEmp(staffEmp);setShowEmpDrawer(true);}
-                          setNotifOpen(false);
-                        }} style={{flex:1,padding:"8px",background:`linear-gradient(135deg,${O.indigo},#7c3aed)`,border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer"}}>
-                          💬 Reply to {from.split(" ")[0]}
-                        </button>
-                        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);setTab("command");}} style={{padding:"8px 12px",background:"rgba(0,0,0,0.04)",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,color:O.textD,cursor:"pointer"}}>
-                          View All
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {/* Swap request */}
-                  {n.type==="swap"&&(
-                    <div>
-                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginBottom:8,lineHeight:1.5}}>
-                        <strong>{from}</strong> wants to swap their shift{n.raw?.shift_date?" on "+new Date(n.raw.shift_date+"T12:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):""}.{n.raw?.reason?" Reason: "+n.raw.reason:""}
-                      </div>
-                      <div style={{display:"flex",gap:8}}>
-                        <button onClick={async e=>{
-                          e.stopPropagation();
-                          try{
-                            const {data:{session:ss}}=await (await getSB()).auth.getSession();
-                            await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:n.raw.id,status:"approved"})});
-                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                          }catch(e2){}
-                        }} style={{flex:1,padding:"8px",background:"rgba(26,158,110,0.1)",border:"1px solid rgba(26,158,110,0.3)",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.green,cursor:"pointer"}}>
-                          ✓ Approve
-                        </button>
-                        <button onClick={async e=>{
-                          e.stopPropagation();
-                          try{
-                            const {data:{session:ss}}=await (await getSB()).auth.getSession();
-                            await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:n.raw.id,status:"denied"})});
-                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                          }catch(e2){}
-                        }} style={{flex:1,padding:"8px",background:"rgba(217,64,64,0.08)",border:"1px solid rgba(217,64,64,0.25)",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.red,cursor:"pointer"}}>
-                          ✕ Deny
-                        </button>
-                        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}} style={{padding:"8px 10px",background:"rgba(0,0,0,0.04)",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
-                          Details
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {/* Time off request */}
-                  {n.type==="timeoff"&&(
-                    <div>
-                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginBottom:8,lineHeight:1.5}}>
-                        <strong>{from}</strong> is requesting time off{n.raw?.start_date?" from "+new Date(n.raw.start_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):""}
-                        {n.raw?.end_date&&n.raw.start_date!==n.raw.end_date?" to "+new Date(n.raw.end_date+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"."}{n.raw?.reason?" Reason: "+n.raw.reason:""}
-                      </div>
-                      <div style={{display:"flex",gap:8}}>
-                        <button onClick={async e=>{
-                          e.stopPropagation();
-                          try{
-                            const {data:{session:ss}}=await (await getSB()).auth.getSession();
-                            await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:n.raw.id,status:"approved"})});
-                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                          }catch(e2){}
-                        }} style={{flex:1,padding:"8px",background:"rgba(26,158,110,0.1)",border:"1px solid rgba(26,158,110,0.3)",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.green,cursor:"pointer"}}>
-                          ✓ Approve
-                        </button>
-                        <button onClick={async e=>{
-                          e.stopPropagation();
-                          try{
-                            const {data:{session:ss}}=await (await getSB()).auth.getSession();
-                            await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:n.raw.id,status:"denied"})});
-                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                          }catch(e2){}
-                        }} style={{flex:1,padding:"8px",background:"rgba(217,64,64,0.08)",border:"1px solid rgba(217,64,64,0.25)",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:O.red,cursor:"pointer"}}>
-                          ✕ Deny
-                        </button>
-                        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}} style={{padding:"8px 10px",background:"rgba(0,0,0,0.04)",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
-                          Details
-                        </button>
-                      </div>
-                    </div>
-                  )}
+            {/* Row */}
+            <div
+              onClick={()=>{
+                setExpanded(isOpen?null:n.id);
+                setReplyText(""); setMsgResult("");
+                if(!n.read) setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+              }}
+              style={{
+                padding:"11px 14px",
+                borderLeft:"3px solid "+col,
+                background: isOpen?col+"12" : n.read?"#fff" : col+"07",
+                display:"flex",gap:10,alignItems:"flex-start",
+                cursor:"pointer",transition:"background 0.12s",
+              }}>
+              <span style={{fontSize:19,flexShrink:0,marginTop:1}}>{iconOf(n.type)}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:4}}>
+                  <div style={{fontFamily:O.sans,fontWeight:n.read?600:700,fontSize:13,color:O.text}}>{from}</div>
+                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,flexShrink:0,marginTop:1}}>{time}</div>
                 </div>
-              )}
+                <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{detail}</div>
+              </div>
+              {!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,marginTop:5}}/>}
+              <span style={{fontFamily:O.mono,fontSize:10,color:O.textF,flexShrink:0}}>{isOpen?"▲":"▼"}</span>
             </div>
+
+            {/* ── Action panel ── */}
+            {isOpen&&(
+              <div style={{padding:"12px 14px 14px",background:col+"06",borderLeft:"3px solid "+col}}>
+
+                {/* Reason/body preview */}
+                {reason&&(
+                  <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"7px 10px",background:"#fff",borderRadius:8,marginBottom:10,lineHeight:1.5,border:"1px solid "+O.border}}>
+                    {reason}
+                  </div>
+                )}
+
+                {/* SWAP: approve / deny */}
+                {n.type==="swap"&&(
+                  <div style={{display:"flex",gap:8}}>
+                    <button disabled={actionBusy} onClick={()=>handleRequest(n,"approved")}
+                      style={{flex:1,padding:"9px",background:O.greenD,border:"1px solid rgba(26,158,110,0.3)",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.green,cursor:"pointer"}}>
+                      {actionBusy?"…":"✓ Approve"}
+                    </button>
+                    <button disabled={actionBusy} onClick={()=>handleRequest(n,"denied")}
+                      style={{flex:1,padding:"9px",background:O.redD,border:"1px solid rgba(217,64,64,0.25)",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.red,cursor:"pointer"}}>
+                      {actionBusy?"…":"✕ Deny"}
+                    </button>
+                    <button onClick={()=>{setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}}
+                      style={{padding:"9px 11px",background:"none",border:"1px solid "+O.border,borderRadius:9,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
+                      View all
+                    </button>
+                  </div>
+                )}
+
+                {/* TIMEOFF: approve / deny */}
+                {n.type==="timeoff"&&(
+                  <div style={{display:"flex",gap:8}}>
+                    <button disabled={actionBusy} onClick={()=>handleRequest(n,"approved")}
+                      style={{flex:1,padding:"9px",background:O.greenD,border:"1px solid rgba(26,158,110,0.3)",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.green,cursor:"pointer"}}>
+                      {actionBusy?"…":"✓ Approve"}
+                    </button>
+                    <button disabled={actionBusy} onClick={()=>handleRequest(n,"denied")}
+                      style={{flex:1,padding:"9px",background:O.redD,border:"1px solid rgba(217,64,64,0.25)",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:O.red,cursor:"pointer"}}>
+                      {actionBusy?"…":"✕ Deny"}
+                    </button>
+                    <button onClick={()=>{setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}}
+                      style={{padding:"9px 11px",background:"none",border:"1px solid "+O.border,borderRadius:9,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
+                      View all
+                    </button>
+                  </div>
+                )}
+
+                {/* STAFF MESSAGE: inline reply */}
+                {n.type==="staffmsg"&&(
+                  <div>
+                    {msgResult?(
+                      <div style={{fontFamily:O.sans,fontSize:13,color:msgResult.startsWith("✓")?O.green:O.red,textAlign:"center",padding:"6px",fontWeight:600}}>{msgResult}</div>
+                    ):(
+                      <div style={{display:"flex",gap:6}}>
+                        <input
+                          value={replyText}
+                          onChange={e=>setReplyText(e.target.value)}
+                          onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleReply(n); }}}
+                          placeholder="Reply to this message…"
+                          style={{flex:1,padding:"8px 10px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none"}}
+                        />
+                        <button disabled={replyBusy||!replyText.trim()} onClick={()=>handleReply(n)}
+                          style={{padding:"8px 14px",background:replyText.trim()?O.indigo:"#ccc",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:replyText.trim()?"pointer":"default",flexShrink:0}}>
+                          {replyBusy?"…":"Send"}
+                        </button>
+                        <button onClick={()=>{setNotifOpen(false);setTab("command");}}
+                          style={{padding:"8px 10px",background:"none",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer",flexShrink:0}}>
+                          Full
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           );
         })}
       </div>
 
-      {/* Footer */}
-      <div style={{padding:"10px 16px",borderTop:"1px solid "+O.border,display:"flex",gap:8}}>
-        <button onClick={e=>{e.stopPropagation();setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}}
-          style={{flex:1,padding:"9px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.amber,cursor:"pointer"}}>
-          View All Requests
-        </button>
-        {notifications.filter(n=>!n.read).length>0&&(
-          <button onClick={e=>{e.stopPropagation();setNotifications(prev=>prev.map(n=>({...n,read:true})));}}
-            style={{padding:"9px 12px",background:"rgba(0,0,0,0.04)",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
-            Mark all read
+      {/* ── Footer ── */}
+      {notifications.length>0&&(
+        <div style={{padding:"10px 14px",borderTop:"1px solid "+O.border,flexShrink:0,display:"flex",gap:8}}>
+          <button onClick={()=>{setNotifOpen(false);setTab("staff");setStaffSubTab("requests");}}
+            style={{flex:1,padding:"8px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.amber,cursor:"pointer"}}>
+            All Requests
           </button>
-        )}
-      </div>
+          <button onClick={()=>setNotifications(prev=>prev.map(n=>({...n,read:true})))}
+            style={{padding:"8px 12px",background:"none",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
+            Mark read
+          </button>
+        </div>
+      )}
     </div>
   );
 }
-
 // ══════════════════════════════════════════════════
 //  EMPLOYEE DRAWER (outside OwnerCmd)
 // ══════════════════════════════════════════════════
@@ -5560,9 +5620,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setNotifOpen={setNotifOpen}
           setTab={setTab}
           setStaffSubTab={setStaffSubTab}
-          liveEmps={liveEmps}
-          setSelectedEmp={setSelectedEmp}
-          setShowEmpDrawer={setShowEmpDrawer}
+          setSwapRequests={setSwapRequests}
+          setTimeOffRequests={setTimeOffRequests}
+          orgId={orgId}
+          loadNotifications={loadNotifications}
         />
       )}
 
