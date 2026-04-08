@@ -997,7 +997,8 @@ function EmpPortal({emp,onLogout}){
         try{
           const r=await fetch(`/api/documents?userId=${empSafe.id}&_t=${Date.now()}`,{headers,cache:"no-store"});
           if(r.ok){ const d=await r.json(); setEmpDocs(d.documents||[]); }
-        }catch(e){ setEmpDocs([]); }
+          else { setEmpDocs([]); } // Route exists but returned error — show empty state
+        }catch(e){ setEmpDocs([]); } // Route not deployed yet — show empty state
 
         // ── Load availability via service role ──
         try{
@@ -1102,6 +1103,7 @@ function EmpPortal({emp,onLogout}){
   // Tab navigation with localStorage persistence
   const persistTab = (t) => {
     setTab(t);
+    setDocMsg(""); // Clear doc messages when switching tabs
     try{ localStorage.setItem("shiftpro_emp_tab_"+empSafe.id, t); }catch(e){}
   };
 
@@ -1646,14 +1648,22 @@ function EmpPortal({emp,onLogout}){
           const fileIcon = t => t?.includes("pdf")?"📄":t?.includes("image")?"🖼️":t?.includes("word")?"📝":"📎";
 
           const handleUpload = async(file) => {
-            if(!file||!docUploadName.trim()){ setDocMsg("Please enter a document name"); return; }
-            if(file.size>10*1024*1024){ setDocMsg("File must be under 10MB"); return; }
+            if(!file||!docUploadName.trim()){ setDocMsg("⚠ Please enter a document name first"); return; }
+            if(file.size>10*1024*1024){ setDocMsg("⚠ File must be under 10MB"); return; }
+            const allowedTypes = ["application/pdf","image/jpeg","image/jpg","image/png","image/heic","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+            if(!allowedTypes.includes(file.type)&&!file.name.match(/\.(pdf|jpg|jpeg|png|heic|doc|docx)$/i)){
+              setDocMsg("⚠ File type not supported. Use PDF, JPG, PNG, or DOC.");
+              return;
+            }
             setDocUploading(true); setDocMsg("");
             try{
               const fd=new FormData();
-              fd.append("file",file); fd.append("userId",empSafe.id);
-              fd.append("orgId",empSafe.orgId||""); fd.append("name",docUploadName.trim());
-              fd.append("category",docUploadCat); fd.append("notes",docUploadNotes);
+              fd.append("file",file);
+              fd.append("userId",empSafe.id);
+              fd.append("orgId",empSafe.orgId||"");
+              fd.append("name",docUploadName.trim());
+              fd.append("category",docUploadCat);
+              fd.append("notes",docUploadNotes);
               const {data:{session:ss}}=await (await getSB()).auth.getSession();
               const r=await fetch("/api/documents",{
                 method:"POST",
@@ -1662,23 +1672,40 @@ function EmpPortal({emp,onLogout}){
               });
               const d=await r.json();
               if(!r.ok) throw new Error(d.error||"Upload failed");
+              // Add to list immediately
               setEmpDocs(p=>[d.document,...(p||[])]);
-              setShowUploadForm(false); setDocUploadName(""); setDocUploadNotes("");
-              setDocMsg("✓ Document uploaded successfully!");
-              setTimeout(()=>setDocMsg(""),4000);
-            }catch(e){ setDocMsg("Upload failed: "+e.message); }
+              // Reset form
+              setShowUploadForm(false);
+              setDocUploadName("");
+              setDocUploadCat("identity");
+              setDocUploadNotes("");
+              setDocSubTab("all"); // Switch to All to show the new doc
+              setDocMsg("✓ "+file.name+" uploaded successfully!");
+              setTimeout(()=>setDocMsg(""),5000);
+            }catch(e){
+              setDocMsg("Upload failed: "+e.message);
+            }
             finally{ setDocUploading(false); }
           };
 
           const handleDownload = async(doc) => {
+            setDocMsg(""); 
             try{
               const {data:{session:ss}}=await (await getSB()).auth.getSession();
               const r=await fetch(`/api/documents?userId=${empSafe.id}&action=download&docId=${doc.id}`,{
                 headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
               });
               const d=await r.json();
-              if(d.url){ window.open(d.url,"_blank"); }
-            }catch(e){ setDocMsg("Download failed"); }
+              if(d.url){ 
+                window.open(d.url,"_blank");
+              } else {
+                setDocMsg("⚠ Could not generate download link. Try again.");
+                setTimeout(()=>setDocMsg(""),4000);
+              }
+            }catch(e){ 
+              setDocMsg("⚠ Download failed: "+e.message);
+              setTimeout(()=>setDocMsg(""),4000);
+            }
           };
 
           const handleDelete = async(docId) => {
