@@ -1268,7 +1268,7 @@ function EmpPortal({emp,onLogout}){
                   <div style={{marginTop:12,paddingTop:12,borderTop:"rgba(255,255,255,0.2) 1px solid",display:"flex",alignItems:"center",gap:10}}>
                     <span style={{fontSize:16}}>{isToday?"⚡":"📅"}</span>
                     <span style={{fontFamily:E.sans,fontSize:13,opacity:0.9}}>
-                      <strong>{isToday?"Your shift today":"Next shift:"}</strong> {dateLabel} · {fH(next.start_hour)}–{fH(next.end_hour)} · {next.end_hour-next.start_hour}h
+                      <strong>{isToday?"Your shift today":"Next shift:"}</strong> {dateLabel} - {fH(next.start_hour)}–{fH(next.end_hour)} - {next.end_hour-next.start_hour}h
                     </span>
                   </div>
                 );
@@ -1437,7 +1437,7 @@ function EmpPortal({emp,onLogout}){
               <div key={i} style={{background:E.bg2,border:`1.5px solid ${E.border}`,borderRadius:14,padding:"16px 18px",marginBottom:10,boxShadow:E.shadow,display:"flex",alignItems:"center",gap:12}}>
                 <div style={{width:4,height:s.notes?64:48,background:`linear-gradient(${E.indigo},${E.violet})`,borderRadius:2}}/>
                 <div style={{flex:1}}>
-                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text}}>{s.day_of_week||s.d} · {fH(s.start_hour||s.ss?.[0]?.s)} – {fH(s.end_hour||s.ss?.[0]?.e)}</div>
+                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text}}>{s.day_of_week||s.d} - {fH(s.start_hour||s.ss?.[0]?.s)} – {fH(s.end_hour||s.ss?.[0]?.e)}</div>
                   <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>{empSafe.role}</div>
                   {s.notes&&<div style={{fontFamily:E.sans,fontSize:12,color:E.indigo,marginTop:4,padding:"4px 8px",background:E.indigoD,borderRadius:6}}>📝 {s.notes}</div>}
                 </div>
@@ -1526,8 +1526,8 @@ function EmpPortal({emp,onLogout}){
                   openShifts.map(s=>(
                     <div key={s.id} style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:12,padding:"14px 16px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                       <div>
-                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>{s.shift_date} · {s.start_hour}:00–{s.end_hour}:00</div>
-                        <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>{s.locations?.name||"Location TBD"} · {s.end_hour-s.start_hour}h</div>
+                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>{s.shift_date} - {s.start_hour}:00–{s.end_hour}:00</div>
+                        <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>{s.locations?.name||"Location TBD"} - {s.end_hour-s.start_hour}h</div>
                       </div>
                       <button onClick={async()=>{
                         try{
@@ -2222,7 +2222,7 @@ function EmpPortal({emp,onLogout}){
                 <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto"}}>
                   {(empShifts||[]).slice(0,6).map(s=>{
                     const fH=h=>h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
-                    const label=`${s.day_of_week} ${s.shift_date} · ${fH(s.start_hour)}–${fH(s.end_hour)}`;
+                    const label=`${s.day_of_week} ${s.shift_date} - ${fH(s.start_hour)}–${fH(s.end_hour)}`;
                     const isSelected=swapShiftPick===s.id;
                     return(
                       <button key={s.id} onClick={()=>{ setSwapShiftPick(s.id); setSwapDate(s.shift_date); }}
@@ -3148,7 +3148,7 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
         <div style={{position:"relative"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
             <div style={{width:8,height:8,borderRadius:"50%",background:cyan,animation:"blink 2s infinite"}}/>
-            <div style={{fontFamily:O.mono,fontSize:9,color:cyan,letterSpacing:"2px",textTransform:"uppercase"}}>ShiftPro Intelligence · Beta</div>
+            <div style={{fontFamily:O.mono,fontSize:9,color:cyan,letterSpacing:"2px",textTransform:"uppercase"}}>ShiftPro Intelligence - Beta</div>
           </div>
           <div style={{fontFamily:O.sans,fontWeight:800,fontSize:26,color:"#fff",marginBottom:6}}>🧠 AI Command Center</div>
           <div style={{fontFamily:O.sans,fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.6,maxWidth:600}}>
@@ -3257,7 +3257,7 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
           </div>
 
           <div style={{marginTop:14,fontFamily:O.mono,fontSize:8,color:"rgba(255,255,255,0.2)",letterSpacing:1}}>
-            BETA · AI insights update nightly
+            BETA - AI insights update nightly
           </div>
         </div>
 
@@ -3268,7 +3268,7 @@ Respond in a clear, practical, manager-friendly way. If asked to build a schedul
 
           {/* Big number */}
           <div style={{textAlign:"center",marginBottom:20,flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-            <div style={{fontFamily:O.mono,fontSize:9,color:"rgba(255,255,255,0.3)",letterSpacing:"2px",marginBottom:8,textTransform:"uppercase"}}>Projected Labor Cost · This Week</div>
+            <div style={{fontFamily:O.mono,fontSize:9,color:"rgba(255,255,255,0.3)",letterSpacing:"2px",marginBottom:8,textTransform:"uppercase"}}>Projected Labor Cost - This Week</div>
             <div style={{fontFamily:O.sans,fontWeight:800,fontSize:40,color:cyan,letterSpacing:"-1px"}}>
               ${Math.round(projectedCost).toLocaleString()}
             </div>
@@ -3799,7 +3799,7 @@ function SettingsTab({
                     </div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc.name}</div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:1}}>{loc.address||"No address set"} {loc.timezone?" · "+loc.timezone:""}</div>
+                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:1}}>{loc.address||"No address set"} {loc.timezone?" - "+loc.timezone:""}</div>
                     </div>
                     {isActive&&(
                       <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:20,padding:"3px 10px",letterSpacing:"0.5px",flexShrink:0}}>● ACTIVE</span>
@@ -3867,7 +3867,7 @@ function SettingsTab({
           <div style={{background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
             <span style={{fontSize:14}}>💡</span>
             <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,lineHeight:1.5}}>
-              <strong style={{color:O.text}}>Starter:</strong> 1 location · <strong style={{color:O.text}}>Pro:</strong> up to 5 · <strong style={{color:O.text}}>Enterprise:</strong> unlimited
+              <strong style={{color:O.text}}>Starter:</strong> 1 location - <strong style={{color:O.text}}>Pro:</strong> up to 5 - <strong style={{color:O.text}}>Enterprise:</strong> unlimited
               <span style={{marginLeft:8,fontFamily:O.mono,fontSize:9,color:O.purple,background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:4,padding:"2px 6px"}}>BILLING COMING SOON</span>
             </div>
           </div>
@@ -5620,7 +5620,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         ))}
                         {/* Shift blocks */}
                         {timelineBlocks.map((b,i)=>(
-                          <div key={i} title={b.emp.name+" · "+b.sh.start_hour+"–"+b.sh.end_hour} style={{position:"absolute",left:b.left+"%",width:b.width+"%",top:4,bottom:4,background:b.emp.color||O.amber,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"default"}}>
+                          <div key={i} title={b.emp.name+" - "+b.sh.start_hour+"–"+b.sh.end_hour} style={{position:"absolute",left:b.left+"%",width:b.width+"%",top:4,bottom:4,background:b.emp.color||O.amber,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"default"}}>
                             <span style={{fontFamily:O.mono,fontSize:9,color:"#fff",fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",padding:"0 4px"}}>{b.emp.avatar}</span>
                           </div>
                         ))}
@@ -6008,43 +6008,39 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     const av=req.users?.avatar_initials||empName[0]||"?";
                     const shiftLabel=req.shift_date?new Date(req.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"Upcoming shift";
                     return(
-                    <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
-                      <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                        <div style={{width:36,height:36,borderRadius:"50%",background:req.users?.avatar_color||"#f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{av}</div>
-                        <div style={{flex:1}}>
-                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
-                          <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,marginBottom:4}}>🔄 SWAP REQUEST · {shiftLabel}</div>
-                          {req.reason&&<div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>{req.reason}</div>}
-                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:3}}>{req.created_at?new Date(req.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
-                        </div>
-                        <div style={{display:"flex",gap:8,flexShrink:0}}>
-                          <button onClick={async()=>{
-                            try{
-                              const sb=await getSB();
-                              const {data:{session:ss}}=await (await getSB()).auth.getSession();
-                              const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:req.id,status:"approved"})});
-                              if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
-                              setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
-                              toast("Swap approved ✓","success");
-                            }catch(e){ toast("Failed: "+e.message,"error"); }
-                          }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>✓ Approve</button>
-                          <button onClick={async()=>{
-                            try{
-                              const sb=await getSB();
-                              const {data:{session:ss2}}=await (await getSB()).auth.getSession();
-                              const r2=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss2?.access_token?{"Authorization":"Bearer "+ss2.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:req.id,status:"denied"})});
-                              if(!r2.ok){const d2=await r2.json();throw new Error(d2.error||"Failed");}
-                              setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
-                              toast("Swap denied","info");
-                            }catch(e){ toast("Failed: "+e.message,"error"); }
-                          }} style={{padding:"6px 12px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.red,cursor:"pointer"}}>✕ Deny</button>
+                      <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
+                        <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                          <div style={{width:36,height:36,borderRadius:"50%",background:req.users?.avatar_color||"#f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{av}</div>
+                          <div style={{flex:1}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,marginBottom:4}}>SWAP REQUEST - {shiftLabel}</div>
+                            {req.reason&&<div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>{req.reason}</div>}
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:3}}>{req.created_at?new Date(req.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
+                          </div>
+                          <div style={{display:"flex",gap:8,flexShrink:0}}>
+                            <button onClick={async()=>{
+                              try{
+                                const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                                const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:req.id,status:"approved"})});
+                                if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
+                                setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
+                                toast("Swap approved","success");
+                              }catch(e){ toast("Failed: "+e.message,"error"); }
+                            }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>Approve</button>
+                            <button onClick={async()=>{
+                              try{
+                                const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                                const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"shift_swap_requests",id:req.id,status:"denied"})});
+                                if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
+                                setSwapRequests(prev=>prev.filter(r=>r.id!==req.id));
+                                toast("Swap denied","info");
+                              }catch(e){ toast("Failed: "+e.message,"error"); }
+                            }} style={{padding:"6px 12px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.red,cursor:"pointer"}}>Deny</button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    </div>
                     );
-                  })}
-                </div>
+                  })}                </div>
 
                 {/* Time Off Requests */}
                 <div>
@@ -6063,42 +6059,42 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   {timeOffRequests.map(req=>{
                     const empName=((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
                     const av=req.users?.avatar_initials||empName[0]||"?";
-                    const fmtD=d=>d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"TBD";
+                    const fmtD=function(d){return d?new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"TBD";};
                     const isSameDay=req.start_date&&req.end_date&&req.start_date===req.end_date;
                     const dateLabel=isSameDay?fmtD(req.start_date):fmtD(req.start_date)+" to "+fmtD(req.end_date);
                     const days=req.start_date&&req.end_date?Math.round((new Date(req.end_date)-new Date(req.start_date))/86400000)+1:1;
                     return(
-                    <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid #7c3aed",borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
-                      <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                        <div style={{width:36,height:36,borderRadius:"50%",background:req.users?.avatar_color||"#7c3aed",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{av}</div>
-                        <div style={{flex:1}}>
-                          <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
-                          <div style={{fontFamily:O.mono,fontSize:9,color:"#7c3aed",marginBottom:4}}>📆 TIME OFF · {dateLabel} · {days} day{days!==1?"s":""}</div>
-                          {req.reason&&<div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>{req.reason}</div>}
-                          <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:3}}>{req.created_at?new Date(req.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
-                        </div>
-                        <div style={{display:"flex",gap:8,flexShrink:0}}>
-                          <button onClick={async()=>{
-                            try{
-                              const {data:{session:ss3}}=await (await getSB()).auth.getSession();
-                              const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss3?.access_token?{"Authorization":"Bearer "+ss3.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"approved"})});
-                              if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
-                              setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
-                              toast("Time off approved ✓","success");
-                            }catch(e){ toast("Failed: "+e.message,"error"); }
-                          }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>✓ Approve</button>
-                          <button onClick={async()=>{
-                            try{
-                              const {data:{session:ss4}}=await (await getSB()).auth.getSession();
-                              const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss4?.access_token?{"Authorization":"Bearer "+ss4.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"denied"})});
-                              if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
-                              setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
-                              toast("Request denied","info");
-                            }catch(e){ toast("Failed: "+e.message,"error"); }
-                          }} style={{padding:"6px 12px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.red,cursor:"pointer"}}>✕ Deny</button>
+                      <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid #7c3aed",borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
+                        <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                          <div style={{width:36,height:36,borderRadius:"50%",background:req.users?.avatar_color||"#7c3aed",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{av}</div>
+                          <div style={{flex:1}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:"#7c3aed",marginBottom:4}}>TIME OFF - {dateLabel} - {days} day{days!==1?"s":""}</div>
+                            {req.reason&&<div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>{req.reason}</div>}
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:3}}>{req.created_at?new Date(req.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
+                          </div>
+                          <div style={{display:"flex",gap:8,flexShrink:0}}>
+                            <button onClick={async()=>{
+                              try{
+                                const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                                const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"approved"})});
+                                if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
+                                setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
+                                toast("Time off approved","success");
+                              }catch(e){ toast("Failed: "+e.message,"error"); }
+                            }} style={{padding:"6px 12px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.green,cursor:"pointer"}}>Approve</button>
+                            <button onClick={async()=>{
+                              try{
+                                const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                                const r=await fetch("/api/requests",{method:"POST",headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},body:JSON.stringify({table:"time_off_requests",id:req.id,status:"denied"})});
+                                if(!r.ok){const d=await r.json();throw new Error(d.error||"Failed");}
+                                setTimeOffRequests(prev=>prev.filter(r=>r.id!==req.id));
+                                toast("Request denied","info");
+                              }catch(e){ toast("Failed: "+e.message,"error"); }
+                            }} style={{padding:"6px 12px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:7,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.red,cursor:"pointer"}}>Deny</button>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -6132,9 +6128,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 <div style={{display:"flex",alignItems:"center",gap:16,padding:"10px 16px",background:"#fff",border:"1px solid "+O.border,borderRadius:10,marginBottom:12,boxShadow:O.shadow}}>
                   <span style={{fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1,textTransform:"uppercase"}}>Week Labor</span>
                   <span style={{fontFamily:O.mono,fontSize:14,fontWeight:700,color:overBudget?O.red:O.green}}>${Math.round(totalCost).toLocaleString()}</span>
-                  <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>·</span>
+                  <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>-</span>
                   <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>{totalH}h scheduled</span>
-                  <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>·</span>
+                  <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>-</span>
                   <span style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>${avgR.toFixed(2)} avg/hr</span>
                   {overBudget&&<span style={{fontFamily:O.mono,fontSize:8,color:O.red,background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:4,padding:"2px 6px",letterSpacing:1}}>OVER $3K</span>}
                 </div>
@@ -6332,7 +6328,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                                   onDragStart={e=>{e.stopPropagation();setDragShift(sh);e.currentTarget.style.opacity="0.4";}}
                                   onDragEnd={e=>{e.currentTarget.style.opacity="1";setDragShift(null);}}
                                   style={{background:emp.color+"22",border:"1px solid "+emp.color+"50",borderRadius:4,padding:"3px 6px",marginBottom:2,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"grab",userSelect:"none"}}>
-                                  <span style={{fontFamily:O.mono,fontSize:8,color:emp.color||O.text,fontWeight:600}}>{fmtH2(sh.start_hour)}–{fmtH2(sh.end_hour)}{sh.role_label?" · "+sh.role_label:""}</span>
+                                  <span style={{fontFamily:O.mono,fontSize:8,color:emp.color||O.text,fontWeight:600}}>{fmtH2(sh.start_hour)}–{fmtH2(sh.end_hour)}{sh.role_label?" - "+sh.role_label:""}</span>
                                   <button onClick={async(e2)=>{e2.stopPropagation();await removeShift(sh.id,getMonday(currentWeekOffset));}} style={{background:"none",border:"none",color:"rgba(0,0,0,0.25)",fontSize:11,cursor:"pointer",lineHeight:1,padding:"0 1px",flexShrink:0}}>×</button>
                                 </div>
                               ))}
@@ -6530,11 +6526,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     <div>
                       <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>📊 Schedule Projection</div>
                       <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:O.text}}>Estimated This Week's Payroll</div>
-                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:2}}>Based on published schedule · actual hours may vary</div>
+                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:2}}>Based on published schedule - actual hours may vary</div>
                     </div>
                     <div style={{textAlign:"right"}}>
                       <div style={{fontFamily:O.sans,fontWeight:800,fontSize:32,color:O.green}}>${Math.round(totalCost).toLocaleString()}</div>
-                      <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>{totalHrs}h · ${avgRate.toFixed(2)}/hr avg</div>
+                      <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>{totalHrs}h - ${avgRate.toFixed(2)}/hr avg</div>
                     </div>
                   </div>
 
@@ -6583,7 +6579,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div style={{width:32,height:32,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div>
                           <div style={{flex:1}}>
                             <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{emp.name}</div>
-                            <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{emp.role} · ${emp.rate}/hr{ot>0?" · "+ot+"h OT":""}</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{emp.role} - ${emp.rate}/hr{ot>0?" - "+ot+"h OT":""}</div>
                           </div>
                           <div style={{textAlign:"right"}}>
                             <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.green}}>${Math.round(pay).toLocaleString()}</div>
@@ -6698,7 +6694,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{width:40,height:40,borderRadius:"50%",flexShrink:0,background:r.color,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:13,color:"#fff"}}>{r.avatar}</div>
                         <div style={{flex:1}}>
                           <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{r.name}</div>
-                          <div style={{fontFamily:O.sans,fontSize:11,color:O.textD}}>{r.role} · ${r.rate}/hr</div>
+                          <div style={{fontFamily:O.sans,fontSize:11,color:O.textD}}>{r.role} - ${r.rate}/hr</div>
                         </div>
                         <div style={{textAlign:"right",flexShrink:0}}>
                           <div style={{fontFamily:O.mono,fontSize:12,color:r.otHrs>0?O.red:O.amber,fontWeight:600,marginBottom:2}}>{r.hrs.toFixed(2)}h {r.otHrs>0&&<span style={{fontSize:10}}>({r.otHrs.toFixed(1)}h OT)</span>}</div>
@@ -6760,7 +6756,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
               <span style={{fontSize:32}}>🧠</span>
               <div>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2.5px",marginBottom:3,textTransform:"uppercase"}}>AI Intelligence · Coming Soon</div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2.5px",marginBottom:3,textTransform:"uppercase"}}>AI Intelligence - Coming Soon</div>
                 <div style={{fontFamily:O.sans,fontWeight:700,fontSize:22,color:O.text}}>ShiftPro Intelligence Platform</div>
               </div>
             </div>
@@ -6768,7 +6764,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
               {/* What's Coming card */}
               <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:16,padding:"24px",boxShadow:O.shadow}}>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2px",marginBottom:6,textTransform:"uppercase"}}>Heavy Plan · Corporate Plan</div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2px",marginBottom:6,textTransform:"uppercase"}}>Heavy Plan - Corporate Plan</div>
                 <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text,marginBottom:4}}>What's Coming</div>
                 <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:20,lineHeight:1.6}}>
                   The AI brain behind ShiftPro — behavioral pattern detection, predictive scheduling, and labor intelligence that no other platform offers.
@@ -6851,7 +6847,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
               <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:16,padding:"24px",boxShadow:O.shadow}}>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:6,textTransform:"uppercase"}}>Heavy Plan · Corporate Plan</div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:6,textTransform:"uppercase"}}>Heavy Plan - Corporate Plan</div>
                 <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text,marginBottom:4}}>What's Coming</div>
                 <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:20,lineHeight:1.6}}>Full camera-to-payroll intelligence — the feature that makes ShiftPro unlike anything else on the market.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
