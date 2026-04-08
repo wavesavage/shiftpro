@@ -5354,6 +5354,113 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               </div>
             </div>
 
+            {/* ── PROJECTED PAYROLL WIDGET — always shows when shifts exist ── */}
+            {liveShifts!==null&&liveShifts.length>0&&liveEmps!==null&&liveEmps.length>0&&(()=>{
+              const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+              // Build per-employee projected hours from current week's shifts
+              const projByEmp={};
+              liveShifts.forEach(sh=>{
+                const emp=(liveEmps||[]).find(e=>e.id===sh.user_id);
+                if(!emp) return;
+                if(!projByEmp[sh.user_id]) projByEmp[sh.user_id]={emp,hrs:0};
+                projByEmp[sh.user_id].hrs+=(sh.end_hour-sh.start_hour);
+              });
+              const rows=Object.values(projByEmp);
+              if(rows.length===0) return null;
+              const totalHrs=rows.reduce((s,r)=>s+r.hrs,0);
+              const totalCost=rows.reduce((s,r)=>{
+                const reg=Math.min(r.hrs,40); const ot=Math.max(r.hrs-40,0);
+                return s+(reg*r.emp.rate)+(ot*r.emp.rate*1.5);
+              },0);
+              const avgRate=rows.length>0?rows.reduce((s,r)=>s+r.emp.rate,0)/rows.length:15;
+              // Hours per day breakdown
+              const hrsPerDay={};
+              DAYS_FULL.forEach(d=>{
+                hrsPerDay[d]=(liveShifts||[]).filter(s=>s.day_of_week===d).reduce((s,sh)=>s+(sh.end_hour-sh.start_hour),0);
+              });
+              const maxDayHrs=Math.max(...Object.values(hrsPerDay),1);
+              return(
+                <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:16,padding:"22px 24px",marginBottom:20,boxShadow:O.shadow}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
+                    <div>
+                      <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>📊 Schedule Projection</div>
+                      <div style={{fontFamily:O.sans,fontWeight:700,fontSize:16,color:O.text}}>Estimated This Week's Payroll</div>
+                      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:2}}>Based on published schedule · actual hours may vary</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontFamily:O.sans,fontWeight:800,fontSize:32,color:O.green}}>${Math.round(totalCost).toLocaleString()}</div>
+                      <div style={{fontFamily:O.mono,fontSize:10,color:O.textD}}>{totalHrs}h · ${avgRate.toFixed(2)}/hr avg</div>
+                    </div>
+                  </div>
+
+                  {/* Summary stat cards */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18}}>
+                    {[
+                      {l:"Total Hours",v:totalHrs+"h",c:O.indigo,icon:"⏱"},
+                      {l:"Est. Labor Cost",v:"$"+Math.round(totalCost).toLocaleString(),c:O.green,icon:"💵"},
+                      {l:"Staff Scheduled",v:rows.length+" employee"+(rows.length!==1?"s":""),c:O.amber,icon:"👥"},
+                    ].map(s=>(
+                      <div key={s.l} style={{background:O.bg3,borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+                        <div style={{fontSize:18,marginBottom:4}}>{s.icon}</div>
+                        <div style={{fontFamily:O.sans,fontWeight:800,fontSize:18,color:s.c}}>{s.v}</div>
+                        <div style={{fontFamily:O.sans,fontSize:10,color:O.textD,marginTop:2}}>{s.l}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Hours per day bar chart */}
+                  <div style={{marginBottom:18}}>
+                    <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:8,textTransform:"uppercase"}}>Hours by Day</div>
+                    <div style={{display:"flex",gap:6,alignItems:"flex-end",height:60}}>
+                      {DAYS_FULL.map(d=>{
+                        const h=hrsPerDay[d]||0;
+                        const pct=h/maxDayHrs;
+                        const isToday=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()]===d;
+                        return(
+                          <div key={d} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:h>0?O.amber:O.textF}}>{h>0?h+"h":""}</div>
+                            <div style={{width:"100%",height:Math.max(pct*48,2)+"px",background:isToday?O.indigo:h>0?O.amber+"60":O.bg3,borderRadius:"3px 3px 0 0",transition:"height 0.3s ease",border:isToday?"1px solid "+O.indigo+"80":"none"}}/>
+                            <div style={{fontFamily:O.mono,fontSize:8,color:isToday?O.indigo:O.textD,fontWeight:isToday?700:400}}>{d}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Per employee breakdown */}
+                  <div>
+                    <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:8,textTransform:"uppercase"}}>Per Employee Estimate</div>
+                    {rows.map(({emp,hrs})=>{
+                      const reg=Math.min(hrs,40); const ot=Math.max(hrs-40,0);
+                      const pay=reg*emp.rate+ot*emp.rate*1.5;
+                      return(
+                        <div key={emp.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:O.bg3,borderRadius:9,marginBottom:6}}>
+                          <div style={{width:32,height:32,borderRadius:"50%",background:emp.color||"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:11,color:"#fff",flexShrink:0}}>{emp.avatar||"?"}</div>
+                          <div style={{flex:1}}>
+                            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{emp.name}</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{emp.role} · ${emp.rate}/hr{ot>0?" · "+ot+"h OT":""}</div>
+                          </div>
+                          <div style={{textAlign:"right"}}>
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.green}}>${Math.round(pay).toLocaleString()}</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.textD}}>{hrs}h est.</div>
+                          </div>
+                          {/* Mini hours bar */}
+                          <div style={{width:60,height:6,background:O.border,borderRadius:3,overflow:"hidden",flexShrink:0}}>
+                            <div style={{width:Math.min(hrs/40*100,100)+"%",height:"100%",background:ot>0?O.red:O.green,borderRadius:3}}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{marginTop:12,padding:"8px 12px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:14}}>💡</span>
+                    <span style={{fontFamily:O.sans,fontSize:12,color:O.amber}}>Actual payroll populates below as employees clock in. Export CSV anytime.</span>
+                  </div>
+                </div>
+              );
+            })()}
+
             {livePayroll===null&&(
               <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:14,border:"1px solid "+O.border,boxShadow:O.shadow}}>
                 <div style={{fontSize:48,marginBottom:12}}>⏳</div>
