@@ -491,7 +491,8 @@ function Login({onLogin}){
         id:profile.id||data.user.id,
         name:(profile.first_name||"")+" "+(profile.last_name||""),
         first:profile.first_name||data.user.email.split("@")[0],
-        role:profile.role||"Employee",
+        nick:profile.preferred_name||"",
+        role:profile.role&&profile.role!=="Employee"?profile.role:"",
         dept:profile.department||"",
         rate:parseFloat(profile.hourly_rate)||15,
         avatar:profile.avatar_initials||(profile.first_name&&profile.last_name?(profile.first_name[0]+profile.last_name[0]).toUpperCase():profile.first_name?profile.first_name.slice(0,2).toUpperCase():data.user.email[0].toUpperCase()),
@@ -970,7 +971,8 @@ function EmpPortal({emp,onLogout}){
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
     first:emp?.first&&emp.first!=="there"?emp.first:emp?.email?.split("@")[0]||"there",
-    role:emp?.role||"Employee", dept:emp?.dept||"",
+    nick:emp?.nick||emp?.preferred_name||"",
+    role:emp?.role&&emp.role!=="Employee"?emp.role:"", dept:emp?.dept||"",
     rate:parseFloat(emp?.rate)||15,
     avatar:(()=>{
     const n=((emp?.name)||((emp?.first||"")+" "+(emp?.last||""))).trim();
@@ -1048,7 +1050,7 @@ function EmpPortal({emp,onLogout}){
   const [empThreads,setEmpThreads] = useState(null);
   // Profile edit state
   const [profileEdit,setProfileEdit] = useState(false);
-  const [profileForm,setProfileForm] = useState({firstName:"",lastName:"",phone:"",emergency:""});
+  const [profileForm,setProfileForm] = useState({firstName:"",lastName:"",nick:"",title:"",phone:"",emergency:""});
   const [profileBusy,setProfileBusy] = useState(false);
   const [profileMsg,setProfileMsg] = useState("");
   // Compose message state
@@ -1306,7 +1308,7 @@ function EmpPortal({emp,onLogout}){
           <div style={{animation:"fadeUp 0.3s ease"}}>
             {/* Greeting banner */}
             <div style={{background:`linear-gradient(135deg,${E.indigo},${E.violet})`,borderRadius:18,padding:"22px 24px",marginBottom:14,color:"#fff",position:"relative",overflow:"hidden",boxShadow:E.shadowB}}>
-              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>{greet}, {empSafe.first}! ✨</div>
+              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>{greet}, {empSafe.nick||empSafe.first||"there"}! ✨</div>
               <div style={{fontFamily:E.sans,fontSize:13,opacity:0.8}}>{now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div>
               {/* Next shift inline in banner */}
               {(()=>{
@@ -1492,9 +1494,11 @@ function EmpPortal({emp,onLogout}){
                   <div style={{fontFamily:E.sans,fontWeight:700,fontSize:16,color:E.text}}>{s.day_of_week||s.d} - {fH(s.start_hour||s.ss?.[0]?.s)} – {fH(s.end_hour||s.ss?.[0]?.e)}</div>
                   <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>
                     {(()=>{
-                      const parts=(empSafe.name||"").trim().split(" ").filter(Boolean);
+                      const nm=(empSafe.name||"").replace(" Employee","").replace("Employee","").trim();
+                      const parts=nm.split(" ").filter(p=>p&&p!=="Employee");
                       const initials=parts.length>=2?(parts[0][0]+parts[parts.length-1][0]).toUpperCase():parts[0]?parts[0].slice(0,2).toUpperCase():"";
-                      const title=s.role_label||empSafe.role||"";
+                      const title=s.role_label||(empSafe.role&&empSafe.role!=="Employee"&&empSafe.role?empSafe.role:"");
+                      if(!initials&&!title) return empSafe.nick||empSafe.first||"";
                       return initials&&title?initials+" - "+title:title||initials||"";
                     })()}
                   </div>
@@ -2142,6 +2146,8 @@ function EmpPortal({emp,onLogout}){
                   if(!profileEdit) setProfileForm({
                     firstName:empSafe.first==="there"?"":empSafe.first,
                     lastName:empSafe.name.split(" ").slice(1).join(" ")||"",
+                    nick:empSafe.nick||"",
+                    title:empSafe.role&&empSafe.role!=="Employee"?empSafe.role:"",
                     phone:emp.phone||"",
                     emergency:emp.emergency||"",
                   });
@@ -2153,10 +2159,31 @@ function EmpPortal({emp,onLogout}){
 
               {profileEdit&&(
                 <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid "+E.border}}>
+                  {/* Nickname + Title — shown prominently first */}
+                  <div style={{background:E.indigoD,border:"1px solid "+E.indigo+"25",borderRadius:10,padding:"12px",marginBottom:12}}>
+                    <div style={{fontFamily:E.mono,fontSize:8,color:E.indigo,letterSpacing:"1.5px",marginBottom:8,textTransform:"uppercase",fontWeight:700}}>What Shows On Your Profile</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                      <div>
+                        <label style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:4,textTransform:"uppercase"}}>Nickname / Display Name</label>
+                        <input value={profileForm.nick||""} onChange={e=>setProfileForm(p=>({...p,nick:e.target.value}))}
+                          placeholder="e.g. Jake, Kiki, Coach..."
+                          style={{width:"100%",padding:"9px 10px",background:"#fff",border:"1.5px solid "+E.indigo+"40",borderRadius:7,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+                        <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,marginTop:3}}>Shows in greeting + header</div>
+                      </div>
+                      <div>
+                        <label style={{fontFamily:E.mono,fontSize:8,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:4,textTransform:"uppercase"}}>Job Title</label>
+                        <input value={profileForm.title||""} onChange={e=>setProfileForm(p=>({...p,title:e.target.value}))}
+                          placeholder="e.g. Barista, Bartender, Co-Manager..."
+                          style={{width:"100%",padding:"9px 10px",background:"#fff",border:"1.5px solid "+E.indigo+"40",borderRadius:7,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+                        <div style={{fontFamily:E.mono,fontSize:8,color:E.textF,marginTop:3}}>Shows on shift cards</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Legal name + contact */}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
                     {[
-                      {l:"First Name",k:"firstName",ph:"First name"},
-                      {l:"Last Name",k:"lastName",ph:"Last name"},
+                      {l:"First Name",k:"firstName",ph:"Legal first name"},
+                      {l:"Last Name",k:"lastName",ph:"Legal last name"},
                       {l:"Phone",k:"phone",ph:"(555) 000-0000"},
                       {l:"Emergency Contact",k:"emergency",ph:"Name and number"},
                     ].map(f=>(
@@ -2177,18 +2204,20 @@ function EmpPortal({emp,onLogout}){
                         body:JSON.stringify({userId:empSafe.id,updates:{
                           first_name:profileForm.firstName.trim()||empSafe.first,
                           last_name:profileForm.lastName.trim(),
+                          preferred_name:profileForm.nick.trim(),
+                          role:profileForm.title.trim(),
                           phone:profileForm.phone,
                           emergency_contact:profileForm.emergency,
                         }}),
                       });
                       if(!r.ok) throw new Error("Save failed");
-                      setProfileMsg("✓ Profile updated!");
+                      setProfileMsg("✓ Profile updated! Refresh to see your changes.");
                       setProfileEdit(false);
-                      setTimeout(()=>setProfileMsg(""),3000);
+                      setTimeout(()=>setProfileMsg(""),4000);
                     }catch(e){ setProfileMsg("Failed: "+e.message); }
                     finally{ setProfileBusy(false); }
                   }} disabled={profileBusy}
-                    style={{width:"100%",padding:"10px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(99,102,241,0.25)"}}>
+                    style={{width:"100%",padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(99,102,241,0.25)"}}>
                     {profileBusy?"Saving...":"Save Profile"}
                   </button>
                 </div>
