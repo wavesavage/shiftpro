@@ -967,6 +967,145 @@ function MessageThread({ thread, empSafe, fmtTs, sendReply, E, isOwner=false }) 
   );
 }
 
+// ══════════════════════════════════════════════════
+//  EMPLOYEE MESSAGE CENTER — Messenger-style chat with management
+// ══════════════════════════════════════════════════
+function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
+  const [replyText, setReplyText] = React.useState("");
+  const [localSent, setLocalSent] = React.useState([]);
+  const scrollRef = React.useRef(null);
+  const E = empSafe._theme || {
+    sans:"'Inter',sans-serif", mono:"'JetBrains Mono',monospace",
+    text:"#1a1a2e", textD:"#64748b", textF:"#94a3b8",
+    bg2:"#fff", bg3:"#f1f5f9", border:"#e2e8f0",
+    indigo:"#6366f1", violet:"#7c3aed", green:"#10b981", red:"#ef4444",
+    shadow:"0 2px 12px rgba(0,0,0,0.06)",
+  };
+
+  // Flatten all threads + replies into one chronological conversation
+  const allMsgs = [];
+  (threads||[]).forEach(t=>{
+    allMsgs.push(t);
+    if(t.replies) t.replies.forEach(r=>allMsgs.push(r));
+  });
+  // Add optimistic
+  localSent.forEach(s=>{
+    if(!allMsgs.some(m=>m.id===s.id)) allMsgs.push(s);
+  });
+  allMsgs.sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||""));
+
+  // Auto-scroll
+  React.useEffect(()=>{
+    if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  });
+
+  const hasText = replyText.trim().length > 0;
+
+  const handleSend = async() => {
+    if(!replyText.trim()) return;
+    const text = replyText.trim();
+    const optId = "opt_"+Date.now();
+    setLocalSent(prev=>[...prev, {
+      id:optId, body:text, text, from_id:empSafe.id,
+      from_name:empSafe.name, type:"employee_to_manager",
+      created_at:new Date().toISOString(), read:false,
+    }]);
+    setReplyText("");
+    try{
+      const {data:{session:ss}} = await (await getSB()).auth.getSession();
+      const r = await fetch("/api/messages", {
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({
+          orgId:empSafe.orgId, fromId:empSafe.id,
+          fromName:empSafe.name, toId:"managers",
+          text, type:"employee_to_manager",
+        }),
+      });
+      const d = await r.json();
+      if(!r.ok) throw new Error(d.error||"Failed");
+      // Remove optimistic after a bit (next data load will have real msg)
+      setTimeout(()=>setLocalSent(prev=>prev.filter(x=>x.id!==optId)), 2000);
+    }catch(e){ /* silently fail, optimistic msg stays */ }
+  };
+
+  const empId = empSafe.id;
+
+  return(
+  <div style={{background:"#fff",border:"1px solid "+E.border,borderRadius:16,overflow:"hidden",boxShadow:E.shadow,display:"flex",flexDirection:"column",minHeight:460,maxHeight:"calc(100vh - 220px)"}}>
+    {/* Header */}
+    <div style={{padding:"14px 20px",borderBottom:"1px solid "+E.border,display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+      <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff"}}>👔</div>
+      <div>
+        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text}}>Management</div>
+        <div style={{fontFamily:E.mono||E.sans,fontSize:9,color:E.textF}}>Direct messages with your manager</div>
+      </div>
+    </div>
+
+    {/* Messages area */}
+    {!msgsLoaded?(
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
+        <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Loading messages…</div>
+      </div>
+    ):allMsgs.length===0?(
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:48,marginBottom:12}}>💬</div>
+          <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No messages yet</div>
+          <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,maxWidth:300,margin:"0 auto"}}>Type a message below to start a conversation with your manager.</div>
+        </div>
+      </div>
+    ):(
+      <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:8}}>
+        {allMsgs.map((m,i)=>{
+          const isMe = m.from_id===empId || m.type==="employee_to_manager" || m.type==="employee";
+          const ts = m.created_at?new Date(m.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
+          const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+          const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+          const isLast = isMe && !allMsgs.slice(i+1).some(x=>x.from_id===empId||x.type==="employee_to_manager"||x.type==="employee");
+          return(
+            <React.Fragment key={m.id||i}>
+              {dateStr!==prevDate&&(
+                <div style={{textAlign:"center",padding:"8px 0",fontFamily:E.mono||E.sans,fontSize:9,color:E.textF,letterSpacing:1}}>{dateStr}</div>
+              )}
+              <div style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start"}}>
+                <div style={{maxWidth:"75%"}}>
+                  {!isMe&&<div style={{fontFamily:E.sans,fontSize:10,color:E.textF,marginBottom:3,paddingLeft:4}}>{m.from_name||"Manager"}</div>}
+                  <div style={{padding:"10px 14px",borderRadius:isMe?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isMe?"linear-gradient(135deg,"+E.indigo+","+E.violet+")":"#f1f5f9",border:isMe?"none":"1px solid "+E.border}}>
+                    <div style={{fontFamily:E.sans,fontSize:13,color:isMe?"#fff":E.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
+                    <div style={{fontFamily:E.mono||E.sans,fontSize:8,color:isMe?"rgba(255,255,255,0.6)":E.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
+                  </div>
+                  {isMe&&isLast&&(
+                    <div style={{fontFamily:E.mono||E.sans,fontSize:8,color:m.read?"#6366f1":E.textF,textAlign:"right",marginTop:3,paddingRight:4}}>
+                      {m.read?"✓✓ Read":"✓ Sent"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    )}
+
+    {/* Reply bar — always visible */}
+    <div style={{padding:"12px 20px",borderTop:"1px solid "+E.border,display:"flex",gap:8,flexShrink:0,background:"#fafafa"}}>
+      <input
+        value={replyText}
+        onChange={e=>setReplyText(e.target.value)}
+        onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); }}}
+        placeholder="Message your manager..."
+        style={{flex:1,padding:"10px 14px",background:"#fff",border:"1px solid "+E.border,borderRadius:20,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none"}}
+      />
+      <button onClick={handleSend} disabled={!hasText}
+        style={{padding:"10px 18px",background:hasText?"#6366f1":"#ddd",border:"none",borderRadius:20,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:hasText?"pointer":"default",flexShrink:0,transition:"background 0.15s"}}>
+        Send
+      </button>
+    </div>
+  </div>
+  );
+}
+
 function EmpPortal({emp,onLogout,onProfileUpdate}){
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
@@ -1818,132 +1957,21 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
           );
         })()}
         {tab==="team"&&(()=>{
-          const threads = empThreads; const setThreads = setEmpThreads;
-          const fmtTs = s => {
-            if(!s) return "";
-            const d = new Date(s);
-            const today = new Date();
-            const isToday = d.toDateString()===today.toDateString();
-            return isToday
-              ? d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})
-              : d.toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
-          };
-
-          const sendReply = async(parentId, text, toId) => {
-            if(!text.trim()) return false;
-            try{
-              const {data:{session:ss}}=await (await getSB()).auth.getSession();
-              const r=await fetch("/api/messages",{
-                method:"POST",
-                headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-                body:JSON.stringify({
-                  orgId:empSafe.orgId, fromId:empSafe.id,
-                  fromName:empSafe.name, toId,
-                  text, parentId, type:"employee",
-                }),
-              });
-              const d=await r.json();
-              if(!r.ok) throw new Error(d.error);
-              // Add reply to thread locally
-              setEmpThreads(prev=>(prev||[]).map(t=>t.id===parentId
-                ?{...t,replies:[...(t.replies||[]),d.message]}:t));
-              return true;
-            }catch(e){ return false; }
-          };
+          const threads = empThreads;
 
           return(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
-            {/* Header */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div>
                 <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text}}>💬 Messages</div>
                 <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>Direct line to your management team</div>
               </div>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                {(threads||[]).some(t=>!t.read&&t.to_id===empSafe.id)&&(
-                  <div style={{background:E.indigo,borderRadius:20,padding:"4px 12px",fontFamily:E.mono,fontSize:10,color:"#fff",fontWeight:700}}>
-                    {(threads||[]).filter(t=>!t.read&&t.to_id===empSafe.id).length} NEW
-                  </div>
-                )}
-                <button onClick={()=>{setComposeOpen(true);setComposeMsg("");setComposeText("");}}
-                  style={{padding:"8px 14px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",boxShadow:"0 3px 10px rgba(99,102,241,0.3)"}}>
-                  + Message Manager
-                </button>
-              </div>
             </div>
-
-            {/* Compose Modal */}
-            {composeOpen&&(
-              <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setComposeOpen(false)}>
-                <div style={{background:E.bg2,borderRadius:18,padding:"26px",width:"100%",maxWidth:420,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
-                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>📨 Message Management</div>
-                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Send a message directly to your manager. For time-sensitive issues like running late, contact your supervisor directly by phone.</div>
-                  <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"}}>Your Message *</label>
-                  <textarea value={composeText} onChange={e=>{setComposeText(e.target.value);setComposeMsg("");}}
-                    placeholder="e.g. Need coverage for my shift, have a question about scheduling, requesting a change..."
-                    rows={4}
-                    style={{width:"100%",padding:"10px 12px",background:E.bg3,border:"1.5px solid "+(composeMsg&&composeMsg.startsWith("!")?"#ef4444":E.border),borderRadius:9,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box",marginBottom:12}}/>
-                  {composeMsg&&(
-                    <div style={{fontFamily:E.sans,fontSize:13,padding:"8px 12px",borderRadius:8,marginBottom:12,
-                      color:composeMsg.startsWith("!")?E.red:E.green,
-                      background:composeMsg.startsWith("!")?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
-                      border:"1px solid "+(composeMsg.startsWith("!")?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"),
-                    }}>{composeMsg}</div>
-                  )}
-                  <div style={{display:"flex",gap:10}}>
-                    <button onClick={()=>setComposeOpen(false)}
-                      style={{flex:1,padding:"11px",background:E.bg3,border:"1px solid "+E.border,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
-                    <button disabled={composeBusy} onClick={async()=>{
-                      if(!composeText.trim()){setComposeMsg("! Please enter a message before sending");return;}
-                      setComposeBusy(true);
-                      try{
-                        const {data:{session:ss}}=await (await getSB()).auth.getSession();
-                        const r=await fetch("/api/messages",{method:"POST",
-                          headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-                          body:JSON.stringify({
-                            orgId:empSafe.orgId, fromId:empSafe.id,
-                            fromName:empSafe.name, toId:"managers",
-                            text:composeText.trim(), type:"employee_to_manager",
-                          })});
-                        const d=await r.json();
-                        if(!r.ok) throw new Error(d.error||"Failed");
-                        setComposeMsg("✓ Message sent! Your manager has been notified.");
-                        setComposeText("");
-                        setTimeout(()=>setComposeOpen(false),2000);
-                      }catch(e){ setComposeMsg("! Could not send: "+(e.message||"Try again")); }
-                      finally{ setComposeBusy(false); }
-                    }} style={{flex:2,padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:composeBusy?"not-allowed":"pointer",opacity:composeBusy?0.7:1,boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>
-                      {composeBusy?"Sending...":"Send to Manager"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Loading */}
-            {!msgsLoaded&&(
-              <div style={{textAlign:"center",padding:"40px",background:"#fff",borderRadius:14,border:"1px solid "+E.border}}>
-                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Loading messages…</div>
-              </div>
-            )}
-
-            {/* Empty state - with prompt to message manager */}
-            {msgsLoaded&&(threads||[]).length===0&&(
-              <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:16,border:"1px solid "+E.border,boxShadow:E.shadow}}>
-                <div style={{fontSize:48,marginBottom:12}}>💬</div>
-                <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No messages yet</div>
-                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,maxWidth:320,margin:"0 auto 16px"}}>Your manager will send updates here. You can also message them directly anytime.</div>
-                <button onClick={()=>{setComposeOpen(true);setComposeMsg("");setComposeText("");}}
-                  style={{padding:"10px 20px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(99,102,241,0.3)"}}>
-                  Send First Message
-                </button>
-              </div>
-            )}
-
-            {/* Thread list */}
-            {(threads||[]).map(thread=>(
-              <MessageThread key={thread.id} thread={thread} empSafe={empSafe} fmtTs={fmtTs} sendReply={sendReply} E={E}/>
-            ))}
+            <EmployeeMessageCenter
+              threads={threads}
+              empSafe={{...empSafe, _theme:E}}
+              msgsLoaded={msgsLoaded}
+            />
           </div>
           );
         })()}
