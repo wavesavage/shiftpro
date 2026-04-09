@@ -3483,7 +3483,6 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
           )}
         </div>
       </div>
-      </div>
     </>
   );
 }
