@@ -994,7 +994,7 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
   });
   allMsgs.sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||""));
   // Remove empty messages
-  const filteredMsgs = allMsgs.filter(m=>(m.body||m.text||"").trim());
+  const filteredMsgs = allMsgs.filter(m=>(m.body||m.text||m.content||m.message||m.subject||"").trim());
 
   // Auto-scroll
   React.useEffect(()=>{
@@ -1079,7 +1079,7 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
                     <div style={{fontFamily:E.sans,fontSize:10,fontWeight:700,color:isMe?"#6366f1":"#e07b00",marginBottom:3,paddingLeft:isMe?0:4,paddingRight:isMe?4:0,textAlign:isMe?"right":"left"}}>{senderName}</div>
                   )}
                   <div style={{padding:"10px 14px",borderRadius:isMe?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isMe?"linear-gradient(135deg,"+E.indigo+","+E.violet+")":"#f1f5f9",border:isMe?"none":"1px solid "+E.border}}>
-                    <div style={{fontFamily:E.sans,fontSize:13,color:isMe?"#fff":E.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
+                    <div style={{fontFamily:E.sans,fontSize:13,color:isMe?"#fff":E.text,lineHeight:1.5}}>{m.body||m.text||m.content||m.message||m.subject||""}</div>
                     <div style={{fontFamily:E.mono||E.sans,fontSize:8,color:isMe?"rgba(255,255,255,0.6)":E.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
                   </div>
                   {isMe&&isLast&&(
@@ -2811,7 +2811,7 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
     if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   });
 
-  const allMsgs = activeConvo ? [...activeConvo.messages].filter(m=>(m.body||m.text||"").trim()).sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
+  const allMsgs = activeConvo ? [...activeConvo.messages].filter(m=>(m.body||m.text||m.content||m.message||m.subject||"").trim()).sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
   const empFromId = activeConvo?.from_id; // the employee's ID — anything else is the owner
   const ownerId = ownerProfile?.user_id||ownerProfile?.id||"owner";
 
@@ -2881,7 +2881,7 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
                     <div style={{fontFamily:O.sans,fontWeight:c.unread>0?700:600,fontSize:13,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.from_name}</div>
                     {c.unread>0&&<div style={{width:8,height:8,borderRadius:"50%",background:O.indigo,flexShrink:0}}/>}
                   </div>
-                  <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2}}>{lastMsg?.body||lastMsg?.text||""}</div>
+                  <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2}}>{lastMsg?.body||lastMsg?.text||lastMsg?.content||lastMsg?.message||lastMsg?.subject||""}</div>
                   <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:3}}>{lastMsg?.created_at?new Date(lastMsg.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
                 </div>
               </div>
@@ -2929,7 +2929,8 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
               const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.from_id!==empFromId);
               const prevIsOwner = i>0 && allMsgs[i-1].from_id!==empFromId;
               const showName = i===0 || isOwner!==prevIsOwner || dateStr!==prevDate;
-              const senderName = isOwner ? "You" : (m.from_name||activeConvo?.from_name||"Employee");
+              const senderName = isOwner ? (m.from_name||ownerProfile?.first_name?((ownerProfile?.first_name||"")+" "+(ownerProfile?.last_name||"")).trim():"Manager") : (m.from_name||activeConvo?.from_name||"Employee");
+              const msgText = m.body||m.text||m.content||m.message||m.subject||"";
               return(
                 <React.Fragment key={m.id||i}>
                   {dateStr!==prevDate&&(
@@ -2941,7 +2942,7 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
                         <div style={{fontFamily:O.sans,fontSize:10,fontWeight:700,color:isOwner?O.indigo:O.amber,marginBottom:3,paddingLeft:isOwner?0:4,paddingRight:isOwner?4:0,textAlign:isOwner?"right":"left"}}>{senderName}</div>
                       )}
                       <div style={{padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.violet+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
-                        <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
+                        <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{msgText}</div>
                         <div style={{fontFamily:O.mono,fontSize:8,color:isOwner?"rgba(255,255,255,0.6)":O.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
                       </div>
                       {isOwner&&isLast&&(
