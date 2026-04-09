@@ -4907,6 +4907,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [msgConvoId,setMsgConvoId] = useState(null); // from_id of selected conversation
   const [msgReplyText,setMsgReplyText] = useState("");
   const [msgReplyBusy,setMsgReplyBusy] = useState(false);
+  const [sentMsgs,setSentMsgs] = useState([]); // optimistic owner-sent messages {toFromId, body, created_at, ...}
   const [swapRequests,setSwapRequests] = useState([]);
   const [timeOffRequests,setTimeOffRequests] = useState([]);
   const [requestsLoaded,setRequestsLoaded] = useState(false);
@@ -6541,35 +6542,37 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 const key = m.from_id||"unknown";
                 if(!convos[key]) convos[key] = {from_id:key, from_name:m.from_name||"Staff", messages:[], latest:m.created_at, unread:0};
                 convos[key].messages.push(m);
-                // Also include replies
                 if(m.replies) m.replies.forEach(r=>convos[key].messages.push(r));
                 if(!m.read) convos[key].unread++;
                 if(m.created_at>convos[key].latest) convos[key].latest = m.created_at;
               });
+              // Merge in optimistic sent messages
+              sentMsgs.forEach(sm=>{
+                const key = sm.toFromId;
+                if(convos[key]){
+                  // Avoid duplicates
+                  if(!convos[key].messages.some(x=>x.id===sm.id)) convos[key].messages.push(sm);
+                  if(sm.created_at>convos[key].latest) convos[key].latest = sm.created_at;
+                }
+              });
               const convoList = Object.values(convos).sort((a,b)=>(b.latest||"").localeCompare(a.latest||""));
-              // Auto-select first if none selected
               const activeConvo = convoList.find(c=>c.from_id===msgConvoId) || (convoList.length>0?convoList[0]:null);
               if(activeConvo && !msgConvoId) setTimeout(()=>setMsgConvoId(activeConvo.from_id),0);
-              // All messages in active convo sorted chronologically
               const allMsgs = activeConvo ? [...activeConvo.messages].sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
 
               const handleMsgSend = async() => {
                 if(!msgReplyText.trim()||!activeConvo) return;
                 const text = msgReplyText.trim();
-                setMsgReplyText("");
-                setMsgReplyBusy(true);
-                // Optimistic: add message locally immediately
-                const optimistic = {
-                  id:"opt_"+Date.now(), body:text, text:text,
+                const nowIso = new Date().toISOString();
+                const optId = "opt_"+Date.now();
+                // Optimistic: add to sentMsgs immediately
+                setSentMsgs(prev=>[...prev, {
+                  id:optId, body:text, text:text, toFromId:activeConvo.from_id,
                   from_id:ownerProfile?.user_id||ownerProfile?.id||"owner",
                   from_name:ownerProfile?.first_name?(ownerProfile.first_name+" "+(ownerProfile.last_name||"")):"Manager",
-                  type:"direct", created_at:new Date().toISOString(), read:false,
-                };
-                setStaffMessages(prev=>(prev||[]).map(m=>
-                  m.from_id===activeConvo.from_id
-                    ? {...m, replies:[...(m.replies||[]), optimistic]}
-                    : m
-                ));
+                  type:"direct", created_at:nowIso, read:false,
+                }]);
+                setMsgReplyText("");
                 try{
                   const sb = await getSB();
                   const {data:{session:ss}} = await sb.auth.getSession();
@@ -6585,11 +6588,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   });
                   const d = await r.json();
                   if(!r.ok) throw new Error(d.error||"Failed");
-                  // Background refresh to sync real IDs
+                  // Background refresh — clear optimistic after real data loads
                   const orgId = activeOrg?.id||ownerProfile?.org_id;
-                  if(orgId) setTimeout(()=>loadNotifications(orgId, true), 500);
+                  if(orgId) setTimeout(()=>{
+                    loadNotifications(orgId, true);
+                    setSentMsgs(prev=>prev.filter(x=>x.id!==optId));
+                  }, 800);
                 }catch(e){ toast("Could not send: "+(e.message||"Try again"),"error"); }
-                setMsgReplyBusy(false);
               };
 
               return(
