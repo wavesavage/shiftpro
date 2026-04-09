@@ -2734,6 +2734,203 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
 }
 
 // ══════════════════════════════════════════════════
+//  MESSAGE CENTER — proper component for owner messaging
+// ══════════════════════════════════════════════════
+function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadNotifications, toast }) {
+  const [convoId, setConvoId] = React.useState(null);
+  const [replyText, setReplyText] = React.useState("");
+  const [localSent, setLocalSent] = React.useState([]);
+  const scrollRef = React.useRef(null);
+
+  // Build conversations
+  const convos = {};
+  (staffMessages||[]).forEach(m=>{
+    const key = m.from_id||"unknown";
+    if(!convos[key]) convos[key] = {from_id:key, from_name:m.from_name||"Staff", messages:[], latest:m.created_at, unread:0};
+    convos[key].messages.push(m);
+    if(m.replies) m.replies.forEach(r=>convos[key].messages.push(r));
+    if(!m.read) convos[key].unread++;
+    if(m.created_at>convos[key].latest) convos[key].latest = m.created_at;
+  });
+  // Merge optimistic
+  localSent.forEach(sm=>{
+    if(convos[sm.toFromId]){
+      if(!convos[sm.toFromId].messages.some(x=>x.id===sm.id)) convos[sm.toFromId].messages.push(sm);
+      if(sm.created_at>convos[sm.toFromId].latest) convos[sm.toFromId].latest = sm.created_at;
+    }
+  });
+  const convoList = Object.values(convos).sort((a,b)=>(b.latest||"").localeCompare(a.latest||""));
+  const activeConvo = convoList.find(c=>c.from_id===convoId) || convoList[0] || null;
+
+  // Auto-select
+  React.useEffect(()=>{
+    if(activeConvo && !convoId) setConvoId(activeConvo.from_id);
+  },[activeConvo, convoId]);
+
+  // Auto-scroll
+  React.useEffect(()=>{
+    if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  });
+
+  const allMsgs = activeConvo ? [...activeConvo.messages].sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
+  const ownerId = ownerProfile?.user_id||ownerProfile?.id||"owner";
+
+  const handleSend = async() => {
+    if(!replyText.trim()||!activeConvo) return;
+    const text = replyText.trim();
+    const optId = "opt_"+Date.now();
+    setLocalSent(prev=>[...prev, {
+      id:optId, body:text, text, toFromId:activeConvo.from_id,
+      from_id:ownerId, type:"direct", created_at:new Date().toISOString(), read:false,
+    }]);
+    setReplyText("");
+    try{
+      const sb = await getSB();
+      const {data:{session:ss}} = await sb.auth.getSession();
+      const r = await fetch("/api/messages", {
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({
+          orgId:activeOrg?.id||ownerProfile?.org_id,
+          fromId:ss?.user?.id,
+          fromName:ownerProfile?.first_name?(ownerProfile.first_name+" "+(ownerProfile.last_name||"")):"Manager",
+          toId:activeConvo.from_id, text,
+          parentId:activeConvo.messages[0]?.id, type:"direct",
+        }),
+      });
+      const d = await r.json();
+      if(!r.ok) throw new Error(d.error||"Failed");
+      const orgId = activeOrg?.id||ownerProfile?.org_id;
+      if(orgId) setTimeout(()=>{
+        loadNotifications(orgId, true);
+        setLocalSent(prev=>prev.filter(x=>x.id!==optId));
+      }, 800);
+    }catch(e){ if(toast) toast("Could not send: "+(e.message||"Try again"),"error"); }
+  };
+
+  const hasText = replyText.trim().length > 0;
+
+  return(
+  <div style={{display:"flex",gap:0,background:"#fff",border:"1px solid "+O.border,borderRadius:14,overflow:"hidden",minHeight:500,boxShadow:O.shadow}}>
+    {/* Left: Conversation List */}
+    <div style={{width:260,borderRight:"1px solid "+O.border,display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{padding:"14px 16px",borderBottom:"1px solid "+O.border}}>
+        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>Conversations</div>
+        <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:2}}>{convoList.length} thread{convoList.length!==1?"s":""}</div>
+      </div>
+      <div style={{flex:1,overflowY:"auto"}}>
+        {convoList.length===0&&(
+          <div style={{padding:"40px 16px",textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:8}}>📥</div>
+            <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>No messages yet</div>
+            <div style={{fontFamily:O.sans,fontSize:11,color:O.textF,marginTop:4}}>Messages from employees appear here</div>
+          </div>
+        )}
+        {convoList.map(c=>{
+          const active = c.from_id===activeConvo?.from_id;
+          const lastMsg = [...c.messages].sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""))[0];
+          const initials = (c.from_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+          const emp = (liveEmps||[]).find(e=>e.id===c.from_id);
+          return(
+            <div key={c.from_id} onClick={()=>{setConvoId(c.from_id);setReplyText("");}}
+              style={{padding:"12px 16px",cursor:"pointer",background:active?"rgba(99,102,241,0.08)":"#fff",borderLeft:active?"3px solid "+O.indigo:"3px solid transparent",borderBottom:"1px solid "+O.border,transition:"background 0.1s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:emp?.color||O.indigo,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{initials}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}>
+                    <div style={{fontFamily:O.sans,fontWeight:c.unread>0?700:600,fontSize:13,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.from_name}</div>
+                    {c.unread>0&&<div style={{width:8,height:8,borderRadius:"50%",background:O.indigo,flexShrink:0}}/>}
+                  </div>
+                  <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2}}>{lastMsg?.body||lastMsg?.text||""}</div>
+                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:3}}>{lastMsg?.created_at?new Date(lastMsg.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    {/* Right: Thread View */}
+    <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+      {!activeConvo?(
+        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:48,marginBottom:12}}>💬</div>
+            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:16,color:O.textD}}>Select a conversation</div>
+          </div>
+        </div>
+      ):(
+        <React.Fragment>
+          {/* Thread header */}
+          <div style={{padding:"12px 18px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+            {(()=>{
+              const emp = (liveEmps||[]).find(e=>e.id===activeConvo.from_id);
+              const initials = (activeConvo.from_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+              return(
+                <React.Fragment>
+                  <div style={{width:40,height:40,borderRadius:"50%",background:emp?.color||O.indigo,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:13,color:"#fff",flexShrink:0}}>{initials}</div>
+                  <div>
+                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{activeConvo.from_name}</div>
+                    <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{emp?.role||"Employee"} • {emp?.status==="active"?"Active":"Invited"}</div>
+                  </div>
+                </React.Fragment>
+              );
+            })()}
+          </div>
+
+          {/* Messages */}
+          <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:8}}>
+            {allMsgs.map((m,i)=>{
+              const isOwner = m.type==="direct" || m.from_id===ownerId;
+              const ts = m.created_at?new Date(m.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
+              const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+              const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+              const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.type==="direct"||x.from_id===ownerId);
+              return(
+                <React.Fragment key={m.id||i}>
+                  {dateStr!==prevDate&&(
+                    <div style={{textAlign:"center",padding:"8px 0",fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1}}>{dateStr}</div>
+                  )}
+                  <div style={{display:"flex",justifyContent:isOwner?"flex-end":"flex-start"}}>
+                    <div style={{maxWidth:"70%"}}>
+                      <div style={{padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.violet+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
+                        <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
+                        <div style={{fontFamily:O.mono,fontSize:8,color:isOwner?"rgba(255,255,255,0.6)":O.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
+                      </div>
+                      {isOwner&&isLast&&(
+                        <div style={{fontFamily:O.mono,fontSize:8,color:m.read?O.indigo:O.textF,textAlign:"right",marginTop:3,paddingRight:4}}>
+                          {m.read?"✓✓ Read":"✓ Sent"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          {/* Reply bar */}
+          <div style={{padding:"12px 18px",borderTop:"1px solid "+O.border,display:"flex",gap:8,flexShrink:0,background:"#fafafa"}}>
+            <input
+              value={replyText}
+              onChange={e=>setReplyText(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); }}}
+              placeholder={"Message "+((activeConvo.from_name||"").split(" ")[0]||"employee")+"..."}
+              style={{flex:1,padding:"10px 14px",background:"#fff",border:"1px solid "+O.border,borderRadius:20,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none"}}
+            />
+            <button onClick={handleSend} disabled={!hasText}
+              style={{padding:"10px 18px",background:hasText?"#6366f1":"#ddd",border:"none",borderRadius:20,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:hasText?"pointer":"default",flexShrink:0,transition:"background 0.15s"}}>
+              Send
+            </button>
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  </div>
+  );
+}
+
 //  NOTIFICATIONS DROPDOWN (outside OwnerCmd)
 // ══════════════════════════════════════════════════
 function NotificationsDropdown({
@@ -6535,192 +6732,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             )}
 
             {/* ── MESSAGES sub-tab — Messenger-style ── */}
-            {staffSubTab==="messages"&&(()=>{
-              // Group messages by from_id into conversations
-              const convos = {};
-              (staffMessages||[]).forEach(m=>{
-                const key = m.from_id||"unknown";
-                if(!convos[key]) convos[key] = {from_id:key, from_name:m.from_name||"Staff", messages:[], latest:m.created_at, unread:0};
-                convos[key].messages.push(m);
-                if(m.replies) m.replies.forEach(r=>convos[key].messages.push(r));
-                if(!m.read) convos[key].unread++;
-                if(m.created_at>convos[key].latest) convos[key].latest = m.created_at;
-              });
-              // Merge in optimistic sent messages
-              sentMsgs.forEach(sm=>{
-                const key = sm.toFromId;
-                if(convos[key]){
-                  // Avoid duplicates
-                  if(!convos[key].messages.some(x=>x.id===sm.id)) convos[key].messages.push(sm);
-                  if(sm.created_at>convos[key].latest) convos[key].latest = sm.created_at;
-                }
-              });
-              const convoList = Object.values(convos).sort((a,b)=>(b.latest||"").localeCompare(a.latest||""));
-              const activeConvo = convoList.find(c=>c.from_id===msgConvoId) || (convoList.length>0?convoList[0]:null);
-              if(activeConvo && !msgConvoId) setTimeout(()=>setMsgConvoId(activeConvo.from_id),0);
-              const allMsgs = activeConvo ? [...activeConvo.messages].sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
-
-              const handleMsgSend = async() => {
-                if(!msgReplyText.trim()||!activeConvo) return;
-                const text = msgReplyText.trim();
-                const nowIso = new Date().toISOString();
-                const optId = "opt_"+Date.now();
-                // Optimistic: add to sentMsgs immediately
-                setSentMsgs(prev=>[...prev, {
-                  id:optId, body:text, text:text, toFromId:activeConvo.from_id,
-                  from_id:ownerProfile?.user_id||ownerProfile?.id||"owner",
-                  from_name:ownerProfile?.first_name?(ownerProfile.first_name+" "+(ownerProfile.last_name||"")):"Manager",
-                  type:"direct", created_at:nowIso, read:false,
-                }]);
-                setMsgReplyText("");
-                try{
-                  const sb = await getSB();
-                  const {data:{session:ss}} = await sb.auth.getSession();
-                  const r = await fetch("/api/messages", {
-                    method:"POST",
-                    headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-                    body:JSON.stringify({
-                      orgId:activeOrg?.id||ownerProfile?.org_id,
-                      fromId:ss?.user?.id, fromName:ownerProfile?.first_name?ownerProfile.first_name+" "+(ownerProfile.last_name||""):"Manager",
-                      toId:activeConvo.from_id, text,
-                      parentId:activeConvo.messages[0]?.id, type:"direct",
-                    }),
-                  });
-                  const d = await r.json();
-                  if(!r.ok) throw new Error(d.error||"Failed");
-                  // Background refresh — clear optimistic after real data loads
-                  const orgId = activeOrg?.id||ownerProfile?.org_id;
-                  if(orgId) setTimeout(()=>{
-                    loadNotifications(orgId, true);
-                    setSentMsgs(prev=>prev.filter(x=>x.id!==optId));
-                  }, 800);
-                }catch(e){ toast("Could not send: "+(e.message||"Try again"),"error"); }
-              };
-
-              return(
-              <div style={{display:"flex",gap:0,background:"#fff",border:"1px solid "+O.border,borderRadius:14,overflow:"hidden",minHeight:500,boxShadow:O.shadow}}>
-                {/* ── Left: Conversation List ── */}
-                <div style={{width:260,borderRight:"1px solid "+O.border,display:"flex",flexDirection:"column",flexShrink:0}}>
-                  <div style={{padding:"14px 16px",borderBottom:"1px solid "+O.border}}>
-                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>Conversations</div>
-                    <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:2}}>{convoList.length} thread{convoList.length!==1?"s":""}</div>
-                  </div>
-                  <div style={{flex:1,overflowY:"auto"}}>
-                    {convoList.length===0&&(
-                      <div style={{padding:"40px 16px",textAlign:"center"}}>
-                        <div style={{fontSize:36,marginBottom:8}}>📥</div>
-                        <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>No messages yet</div>
-                        <div style={{fontFamily:O.sans,fontSize:11,color:O.textF,marginTop:4}}>Messages from employees will appear here</div>
-                      </div>
-                    )}
-                    {convoList.map(c=>{
-                      const active = c.from_id===activeConvo?.from_id;
-                      const lastMsg = c.messages.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""))[0];
-                      const initials = (c.from_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-                      const emp = (liveEmps||[]).find(e=>e.id===c.from_id);
-                      return(
-                        <div key={c.from_id} onClick={()=>{setMsgConvoId(c.from_id);setMsgReplyText("");}}
-                          style={{padding:"12px 16px",cursor:"pointer",background:active?"rgba(99,102,241,0.08)":"#fff",borderLeft:active?"3px solid "+O.indigo:"3px solid transparent",borderBottom:"1px solid "+O.border,transition:"background 0.1s"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:10}}>
-                            <div style={{width:36,height:36,borderRadius:"50%",background:emp?.color||O.indigo,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{initials}</div>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}>
-                                <div style={{fontFamily:O.sans,fontWeight:c.unread>0?700:600,fontSize:13,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.from_name}</div>
-                                {c.unread>0&&<div style={{width:8,height:8,borderRadius:"50%",background:O.indigo,flexShrink:0}}/>}
-                              </div>
-                              <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2}}>
-                                {lastMsg?.body||lastMsg?.text||""}
-                              </div>
-                              <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:3}}>
-                                {lastMsg?.created_at?new Date(lastMsg.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* ── Right: Thread View ── */}
-                <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
-                  {!activeConvo?(
-                    <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
-                      <div style={{textAlign:"center"}}>
-                        <div style={{fontSize:48,marginBottom:12}}>💬</div>
-                        <div style={{fontFamily:O.sans,fontWeight:600,fontSize:16,color:O.textD}}>Select a conversation</div>
-                      </div>
-                    </div>
-                  ):(
-                    <React.Fragment>
-                      {/* Thread header */}
-                      <div style={{padding:"12px 18px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
-                        {(()=>{
-                          const emp = (liveEmps||[]).find(e=>e.id===activeConvo.from_id);
-                          const initials = (activeConvo.from_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-                          return(
-                            <React.Fragment>
-                              <div style={{width:40,height:40,borderRadius:"50%",background:emp?.color||O.indigo,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:13,color:"#fff",flexShrink:0}}>{initials}</div>
-                              <div>
-                                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{activeConvo.from_name}</div>
-                                <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{emp?.role||"Employee"} • {emp?.status==="active"?"Active":"Invited"}</div>
-                              </div>
-                            </React.Fragment>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Messages */}
-                      <div ref={el=>{if(el)setTimeout(()=>el.scrollTop=el.scrollHeight,50);}} style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:8}}>
-                        {allMsgs.map((m,i)=>{
-                          const isOwner = m.type==="direct" || m.from_id===(ownerProfile?.user_id||ownerProfile?.id);
-                          const ts = m.created_at?new Date(m.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
-                          const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-                          const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-                          const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.type==="direct"||x.from_id===(ownerProfile?.user_id||ownerProfile?.id));
-                          return(
-                            <React.Fragment key={m.id||i}>
-                              {dateStr!==prevDate&&(
-                                <div style={{textAlign:"center",padding:"8px 0",fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1}}>{dateStr}</div>
-                              )}
-                              <div style={{display:"flex",justifyContent:isOwner?"flex-end":"flex-start"}}>
-                                <div style={{maxWidth:"70%"}}>
-                                  <div style={{padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.violet+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
-                                    <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
-                                    <div style={{fontFamily:O.mono,fontSize:8,color:isOwner?"rgba(255,255,255,0.6)":O.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
-                                  </div>
-                                  {isOwner&&isLast&&(
-                                    <div style={{fontFamily:O.mono,fontSize:8,color:m.read?O.indigo:O.textF,textAlign:"right",marginTop:3,paddingRight:4}}>
-                                      {m.read?"✓✓ Read":"✓ Sent"}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
-
-                      {/* Reply bar */}
-                      <div style={{padding:"12px 18px",borderTop:"1px solid "+O.border,display:"flex",gap:8,flexShrink:0,background:"#fafafa"}}>
-                        <input
-                          value={msgReplyText}
-                          onChange={e=>setMsgReplyText(e.target.value)}
-                          onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleMsgSend(); }}}
-                          placeholder={"Message "+((activeConvo.from_name||"").split(" ")[0]||"employee")+"..."}
-                          style={{flex:1,padding:"10px 14px",background:"#fff",border:"1px solid "+O.border,borderRadius:20,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none"}}
-                        />
-                        <button disabled={msgReplyBusy||!msgReplyText.trim()} onClick={handleMsgSend}
-                          style={{padding:"10px 18px",background:msgReplyText.trim()?"linear-gradient(135deg,"+O.indigo+","+O.violet+")":"#ddd",border:"none",borderRadius:20,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:msgReplyText.trim()?"pointer":"default",flexShrink:0}}>
-                          {msgReplyBusy?"…":"Send"}
-                        </button>
-                      </div>
-                    </React.Fragment>
-                  )}
-                </div>
-              </div>
-              );
-            })()}
+            {staffSubTab==="messages"&&(
+              <MessageCenter
+                staffMessages={staffMessages}
+                liveEmps={liveEmps}
+                ownerProfile={ownerProfile}
+                activeOrg={activeOrg}
+                loadNotifications={loadNotifications}
+                toast={toast}
+              />
+            )}
 
             {/* ── REQUESTS sub-tab ── */}
             {staffSubTab==="requests"&&(
