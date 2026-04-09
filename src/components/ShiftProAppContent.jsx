@@ -2958,7 +2958,7 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
                       {showName&&(
                         <div style={{fontFamily:O.sans,fontSize:10,fontWeight:700,color:isOwner?O.indigo:O.amber,marginBottom:3,paddingLeft:isOwner?0:4,paddingRight:isOwner?4:0,textAlign:isOwner?"right":"left"}}>{senderName}</div>
                       )}
-                      <div style={{padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.violet+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
+                      <div style={{padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.purple+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
                         <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{msgText}</div>
                         <div style={{fontFamily:O.mono,fontSize:8,color:isOwner?"rgba(255,255,255,0.6)":O.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
                       </div>
