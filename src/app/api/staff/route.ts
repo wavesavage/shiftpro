@@ -25,9 +25,10 @@ export async function GET(req: NextRequest) {
 
   // Merge emails from auth.users since public.users has no email column
   const ids = employees.map(e => e.id);
-  const { data: { users: authUsers } } = await sb.auth.admin.listUsers({ perPage: 1000 });
+  const authResponse = await sb.auth.admin.listUsers({ perPage: 1000 });
+  const authUsers = (authResponse.data?.users ?? []) as { id: string; email?: string }[];
   const emailMap: Record<string, string> = {};
-  (authUsers || []).forEach(u => { if (ids.includes(u.id)) emailMap[u.id] = u.email || ""; });
+  authUsers.forEach(u => { if (ids.includes(u.id)) emailMap[u.id] = u.email || ""; });
 
   const merged = employees.map(e => ({ ...e, email: emailMap[e.id] || "" }));
   return NextResponse.json({ employees: merged });
