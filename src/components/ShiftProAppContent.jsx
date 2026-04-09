@@ -993,6 +993,8 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
     if(!allMsgs.some(m=>m.id===s.id)) allMsgs.push(s);
   });
   allMsgs.sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||""));
+  // Remove empty messages
+  const filteredMsgs = allMsgs.filter(m=>(m.body||m.text||"").trim());
 
   // Auto-scroll
   React.useEffect(()=>{
@@ -1047,7 +1049,7 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
         <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Loading messages…</div>
       </div>
-    ):allMsgs.length===0?(
+    ):filteredMsgs.length===0?(
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:48,marginBottom:12}}>💬</div>
@@ -1057,13 +1059,13 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
       </div>
     ):(
       <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:8}}>
-        {allMsgs.map((m,i)=>{
+        {filteredMsgs.map((m,i)=>{
           const isMe = m.from_id===empId || m.type==="employee_to_manager" || m.type==="employee";
           const ts = m.created_at?new Date(m.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
           const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-          const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-          const isLast = isMe && !allMsgs.slice(i+1).some(x=>x.from_id===empId||x.type==="employee_to_manager"||x.type==="employee");
-          const prevIsMe = i>0 && (allMsgs[i-1].from_id===empId||allMsgs[i-1].type==="employee_to_manager"||allMsgs[i-1].type==="employee");
+          const prevDate = i>0&&filteredMsgs[i-1].created_at?new Date(filteredMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+          const isLast = isMe && !filteredMsgs.slice(i+1).some(x=>x.from_id===empId||x.type==="employee_to_manager"||x.type==="employee");
+          const prevIsMe = i>0 && (filteredMsgs[i-1].from_id===empId||filteredMsgs[i-1].type==="employee_to_manager"||filteredMsgs[i-1].type==="employee");
           const showName = i===0 || isMe!==prevIsMe || dateStr!==prevDate;
           const senderName = isMe ? "You" : (m.from_name||"Manager");
           return(
@@ -2779,7 +2781,11 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
   const convos = {};
   (staffMessages||[]).forEach(m=>{
     const key = m.from_id||"unknown";
-    if(!convos[key]) convos[key] = {from_id:key, from_name:m.from_name||"Staff", messages:[], latest:m.created_at, unread:0};
+    if(!convos[key]){
+      const empMatch = (liveEmps||[]).find(e=>e.id===key);
+      const name = m.from_name || (empMatch?empMatch.name:null) || "Staff";
+      convos[key] = {from_id:key, from_name:name, messages:[], latest:m.created_at, unread:0};
+    }
     convos[key].messages.push(m);
     if(m.replies) m.replies.forEach(r=>convos[key].messages.push(r));
     if(!m.read) convos[key].unread++;
@@ -2805,7 +2811,8 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
     if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   });
 
-  const allMsgs = activeConvo ? [...activeConvo.messages].sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
+  const allMsgs = activeConvo ? [...activeConvo.messages].filter(m=>(m.body||m.text||"").trim()).sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
+  const empFromId = activeConvo?.from_id; // the employee's ID — anything else is the owner
   const ownerId = ownerProfile?.user_id||ownerProfile?.id||"owner";
 
   const handleSend = async() => {
@@ -2915,12 +2922,12 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
           {/* Messages */}
           <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:8}}>
             {allMsgs.map((m,i)=>{
-              const isOwner = m.type==="direct" || m.from_id===ownerId;
+              const isOwner = m.from_id!==empFromId;
               const ts = m.created_at?new Date(m.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
               const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
               const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-              const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.type==="direct"||x.from_id===ownerId);
-              const prevIsOwner = i>0 && (allMsgs[i-1].type==="direct"||allMsgs[i-1].from_id===ownerId);
+              const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.from_id!==empFromId);
+              const prevIsOwner = i>0 && allMsgs[i-1].from_id!==empFromId;
               const showName = i===0 || isOwner!==prevIsOwner || dateStr!==prevDate;
               const senderName = isOwner ? "You" : (m.from_name||activeConvo?.from_name||"Employee");
               return(
