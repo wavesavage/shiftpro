@@ -2750,7 +2750,7 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
             </button>
           ))}
           <button
-            onClick={()=>{setLocationGate("ready");setActiveLocation(null);}}
+            onClick={()=>{selectLocation(null);}}
             style={{padding:"18px 16px",background:"none",border:"1.5px dashed rgba(26,158,110,0.3)",borderRadius:14,cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6}}
             onMouseEnter={e=>{e.currentTarget.style.background=O.greenD;e.currentTarget.style.borderColor=O.green;}}
             onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.borderColor="rgba(26,158,110,0.3)";}}>
@@ -5690,7 +5690,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     try{
       const sb=await getSB();
       let q=sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
-      if(locationId) q=q.eq("location_id",locationId);
+      if(locationId) q=q.or("location_id.eq."+locationId+",location_id.is.null");
       const {data:emps}=await q;
       setLiveEmps(emps&&emps.length>0?emps.map(mapEmp):[]);
     }catch(e){setLiveEmps([]);}
@@ -5699,23 +5699,26 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const selectLocation = (loc) => {
     setActiveLocation(loc);
     if(typeof window!=="undefined"){
-      localStorage.setItem("shiftpro_active_loc", loc.id);
-      try{ localStorage.setItem("shiftpro_active_loc_obj", JSON.stringify(loc)); }catch(e){}
-      // Also keep the full list cache current with this location included
-      try{
-        const raw = localStorage.getItem("shiftpro_all_locs");
-        const existing = raw ? JSON.parse(raw) : [];
-        // Always ensure selected loc is in the list
-        const merged = [...existing.filter(l=>l.id!==loc.id), loc];
-        localStorage.setItem("shiftpro_all_locs", JSON.stringify(merged));
-        const orgId4 = loc.org_id||activeOrg?.id||ownerProfile?.org_id;
-        if(orgId4) localStorage.setItem("shiftpro_cached_locs_"+orgId4, JSON.stringify(merged));
-      }catch(e){}
+      if(loc){
+        localStorage.setItem("shiftpro_active_loc", loc.id);
+        try{ localStorage.setItem("shiftpro_active_loc_obj", JSON.stringify(loc)); }catch(e){}
+        try{
+          const raw = localStorage.getItem("shiftpro_all_locs");
+          const existing = raw ? JSON.parse(raw) : [];
+          const merged = [...existing.filter(l=>l.id!==loc.id), loc];
+          localStorage.setItem("shiftpro_all_locs", JSON.stringify(merged));
+          const orgId4 = loc.org_id||activeOrg?.id||ownerProfile?.org_id;
+          if(orgId4) localStorage.setItem("shiftpro_cached_locs_"+orgId4, JSON.stringify(merged));
+        }catch(e){}
+      } else {
+        try{ localStorage.removeItem("shiftpro_active_loc"); localStorage.removeItem("shiftpro_active_loc_obj"); }catch(e){}
+      }
     }
     setLocationGate("ready");
     setLiveShifts(null);
     setLivePayroll(null);
-    loadEmployeesForLocation(activeOrg?.id||ownerProfile?.org_id, loc.id);
+    const orgId = activeOrg?.id||ownerProfile?.org_id;
+    if(orgId) loadEmployeesForLocation(orgId, loc?.id||null);
   };
 
   const addShift = async(sd) => {
@@ -6245,6 +6248,14 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 {locSwitcherOpen&&(
                   <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:8,minWidth:240,zIndex:300,boxShadow:O.shadowB}} onClick={e=>e.stopPropagation()}>
                     <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"2px",padding:"4px 8px 8px",textTransform:"uppercase"}}>Locations</div>
+                    <button onClick={()=>{setLocSwitcherOpen(false);if(activeLocation){selectLocation(null);}}}
+                      style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",textAlign:"left",background:!activeLocation?"rgba(8,145,178,0.07)":"none"}}
+                      onMouseEnter={e=>e.currentTarget.style.background=O.bg3}
+                      onMouseLeave={e=>e.currentTarget.style.background=!activeLocation?"rgba(8,145,178,0.07)":"none"}>
+                      <div style={{width:28,height:28,borderRadius:7,background:"linear-gradient(135deg,#1a9e6e,#15803d)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff",flexShrink:0}}>🌐</div>
+                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.text}}>All Locations</div>
+                      {!activeLocation&&<span style={{color:O.cyan,fontSize:13,flexShrink:0,marginLeft:"auto"}}>✓</span>}
+                    </button>
                     {liveLocations.map((loc,idx)=>(
                       <button key={loc.id} onClick={async()=>{
                         setLocSwitcherOpen(false);
