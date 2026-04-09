@@ -6555,7 +6555,21 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
               const handleMsgSend = async() => {
                 if(!msgReplyText.trim()||!activeConvo) return;
+                const text = msgReplyText.trim();
+                setMsgReplyText("");
                 setMsgReplyBusy(true);
+                // Optimistic: add message locally immediately
+                const optimistic = {
+                  id:"opt_"+Date.now(), body:text, text:text,
+                  from_id:ownerProfile?.user_id||ownerProfile?.id||"owner",
+                  from_name:ownerProfile?.first_name?(ownerProfile.first_name+" "+(ownerProfile.last_name||"")):"Manager",
+                  type:"direct", created_at:new Date().toISOString(), read:false,
+                };
+                setStaffMessages(prev=>(prev||[]).map(m=>
+                  m.from_id===activeConvo.from_id
+                    ? {...m, replies:[...(m.replies||[]), optimistic]}
+                    : m
+                ));
                 try{
                   const sb = await getSB();
                   const {data:{session:ss}} = await sb.auth.getSession();
@@ -6565,16 +6579,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     body:JSON.stringify({
                       orgId:activeOrg?.id||ownerProfile?.org_id,
                       fromId:ss?.user?.id, fromName:ownerProfile?.first_name?ownerProfile.first_name+" "+(ownerProfile.last_name||""):"Manager",
-                      toId:activeConvo.from_id, text:msgReplyText.trim(),
+                      toId:activeConvo.from_id, text,
                       parentId:activeConvo.messages[0]?.id, type:"direct",
                     }),
                   });
                   const d = await r.json();
                   if(!r.ok) throw new Error(d.error||"Failed");
-                  setMsgReplyText("");
-                  // Refresh
+                  // Background refresh to sync real IDs
                   const orgId = activeOrg?.id||ownerProfile?.org_id;
-                  if(orgId) loadNotifications(orgId, true);
+                  if(orgId) setTimeout(()=>loadNotifications(orgId, true), 500);
                 }catch(e){ toast("Could not send: "+(e.message||"Try again"),"error"); }
                 setMsgReplyBusy(false);
               };
@@ -6653,21 +6666,29 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       </div>
 
                       {/* Messages */}
-                      <div style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:8}}>
+                      <div ref={el=>{if(el)setTimeout(()=>el.scrollTop=el.scrollHeight,50);}} style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:8}}>
                         {allMsgs.map((m,i)=>{
                           const isOwner = m.type==="direct" || m.from_id===(ownerProfile?.user_id||ownerProfile?.id);
                           const ts = m.created_at?new Date(m.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
                           const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
                           const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+                          const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.type==="direct"||x.from_id===(ownerProfile?.user_id||ownerProfile?.id));
                           return(
                             <React.Fragment key={m.id||i}>
                               {dateStr!==prevDate&&(
                                 <div style={{textAlign:"center",padding:"8px 0",fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1}}>{dateStr}</div>
                               )}
                               <div style={{display:"flex",justifyContent:isOwner?"flex-end":"flex-start"}}>
-                                <div style={{maxWidth:"70%",padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.violet+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
-                                  <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
-                                  <div style={{fontFamily:O.mono,fontSize:8,color:isOwner?"rgba(255,255,255,0.6)":O.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
+                                <div style={{maxWidth:"70%"}}>
+                                  <div style={{padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.violet+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
+                                    <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
+                                    <div style={{fontFamily:O.mono,fontSize:8,color:isOwner?"rgba(255,255,255,0.6)":O.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
+                                  </div>
+                                  {isOwner&&isLast&&(
+                                    <div style={{fontFamily:O.mono,fontSize:8,color:m.read?O.indigo:O.textF,textAlign:"right",marginTop:3,paddingRight:4}}>
+                                      {m.read?"✓✓ Read":"✓ Sent"}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </React.Fragment>
