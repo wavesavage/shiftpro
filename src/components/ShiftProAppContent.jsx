@@ -1522,6 +1522,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
                     <span style={{fontSize:16}}>{isToday?"⚡":"📅"}</span>
                     <span style={{fontFamily:E.sans,fontSize:13,opacity:0.9}}>
                       <strong>{isToday?"Your shift today":"Next shift:"}</strong> {dateLabel} - {fH(next.start_hour)}–{fH(next.end_hour)} - {next.end_hour-next.start_hour}h
+                      {next.lunch_hour&&<span style={{marginLeft:6,fontFamily:E.mono||E.sans,fontSize:10,color:E.textD}}> | 🍴 Lunch {fH(next.lunch_hour)} ({next.lunch_duration_min||30}min)</span>}
                     </span>
                   </div>
                 );
@@ -1702,6 +1703,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
                     })()}
                   </div>
                   {s.notes&&<div style={{fontFamily:E.sans,fontSize:12,color:E.indigo,marginTop:4,padding:"4px 8px",background:E.indigoD,borderRadius:6}}>📝 {s.notes}</div>}
+                  {s.lunch_hour&&<div style={{fontFamily:E.sans,fontSize:12,color:"#e07b00",marginTop:4,padding:"4px 8px",background:"rgba(224,123,0,0.08)",borderRadius:6}}>🍴 Lunch at {fH(s.lunch_hour)} ({s.lunch_duration_min||30} min)</div>}
                 </div>
                 <EBadge label="✓ Confirmed" color={E.green}/>
               </div>
@@ -4140,6 +4142,30 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
             style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
           />
         </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div>
+            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Lunch Break At</div>
+            <select
+              value={selectedCell.lunchHour||""}
+              onChange={e=>setSelectedCell(p=>({...p,lunchHour:e.target.value?parseInt(e.target.value):""}))}
+              style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+              <option value="">No lunch</option>
+              {HOURS_LIST.filter(h=>h>=(selectedCell.start||9)&&h<(selectedCell.end||17)).map(h=><option key={h} value={h}>{fmtH2(h)}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Break Length</div>
+            <select
+              value={selectedCell.lunchDuration||30}
+              onChange={e=>setSelectedCell(p=>({...p,lunchDuration:parseInt(e.target.value)}))}
+              style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+              <option value={15}>15 min</option>
+              <option value={30}>30 min</option>
+              <option value={45}>45 min</option>
+              <option value={60}>1 hour</option>
+            </select>
+          </div>
+        </div>
         <div style={{marginBottom:16}}>
           <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Shift Note (optional)</div>
           <textarea
@@ -4170,7 +4196,9 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
               start:selectedCell.start||9,
               end:selectedCell.end||17,
               role:selectedCell.roleLabel||"",
-              notes:selectedCell.shiftNote||""
+              notes:selectedCell.shiftNote||"",
+              lunchHour:selectedCell.lunchHour||null,
+              lunchDuration:selectedCell.lunchDuration||30,
             });
             setSelectedCell(null);
           }}
@@ -5736,6 +5764,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         end_hour:sd.end,
         role_label:sd.role||"",
         notes:sd.notes||"",
+        lunch_hour:sd.lunchHour||null,
+        lunch_duration_min:sd.lunchDuration||null,
         status:"scheduled",
         created_by:ownerProfile?.id,
       };
@@ -6420,11 +6450,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div key={h} style={{position:"absolute",left:((h-START_H)/SPAN*100)+"%",top:0,bottom:0,borderLeft:"1px solid rgba(0,0,0,0.07)"}}/>
                         ))}
                         {/* Shift blocks */}
-                        {timelineBlocks.map((b,i)=>(
-                          <div key={i} title={b.emp.name+" - "+b.sh.start_hour+"–"+b.sh.end_hour} style={{position:"absolute",left:b.left+"%",width:b.width+"%",top:4,bottom:4,background:b.emp.color||O.amber,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"default"}}>
+                        {timelineBlocks.map((b,i)=>{
+                          const lunchH = b.sh.lunch_hour;
+                          const lunchDur = b.sh.lunch_duration_min||30;
+                          const lunchLeft = lunchH ? ((lunchH-b.sh.start_hour)/(b.sh.end_hour-b.sh.start_hour)*100) : 0;
+                          const lunchWidth = lunchH ? ((lunchDur/60)/(b.sh.end_hour-b.sh.start_hour)*100) : 0;
+                          return(
+                          <div key={i} title={b.emp.name+" "+b.sh.start_hour+"–"+b.sh.end_hour+(lunchH?" | Lunch "+lunchH+":00":"")} style={{position:"absolute",left:b.left+"%",width:b.width+"%",top:4,bottom:4,background:b.emp.color||O.amber,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"default"}}>
                             <span style={{fontFamily:O.mono,fontSize:9,color:"#fff",fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",padding:"0 4px"}}>{b.emp.avatar}</span>
+                            {lunchH&&<div style={{position:"absolute",left:lunchLeft+"%",width:Math.max(lunchWidth,3)+"%",top:0,bottom:0,background:"rgba(0,0,0,0.35)",borderRadius:2}} title={"Lunch "+lunchDur+"min"}/>}
                           </div>
-                        ))}
+                          );
+                        })}
                         {/* Now line */}
                         {nowPct>0&&nowPct<100&&(
                           <div style={{position:"absolute",left:nowPct+"%",top:0,bottom:0,width:2,background:O.red,borderRadius:1}}>
