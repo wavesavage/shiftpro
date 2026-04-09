@@ -2771,7 +2771,7 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
 // ══════════════════════════════════════════════════
 //  MESSAGE CENTER — proper component for owner messaging
 // ══════════════════════════════════════════════════
-function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadNotifications, toast }) {
+function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadNotifications, toast, setActiveDrawerEmp }) {
   const [convoId, setConvoId] = React.useState(null);
   const [replyText, setReplyText] = React.useState("");
   const [localSent, setLocalSent] = React.useState([]);
@@ -2799,7 +2799,8 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
 
     if(!convos[empKey]){
       const empMatch = (liveEmps||[]).find(e=>e.id===empKey);
-      const name = (empIds.has(m.from_id) ? m.from_name : null) || (empMatch?empMatch.name:null) || "Employee";
+      // Always prefer liveEmps name, then message from_name, then email prefix, then fallback
+      const name = (empMatch?.name||"").trim() || (empMatch?.first||"").trim() || (empIds.has(m.from_id) ? m.from_name : null) || (empMatch?.email||"").split("@")[0] || "Employee";
       convos[empKey] = {from_id:empKey, from_name:name, messages:[], latest:m.created_at, unread:0};
     }
     convos[empKey].messages.push(m);
@@ -2919,17 +2920,22 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
       ):(
         <React.Fragment>
           {/* Thread header */}
-          <div style={{padding:"12px 18px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+          <div style={{padding:"12px 18px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",gap:12,flexShrink:0,cursor:"pointer"}}
+            onClick={()=>{
+              const emp = (liveEmps||[]).find(e=>e.id===activeConvo.from_id);
+              if(emp && setActiveDrawerEmp) setActiveDrawerEmp(emp);
+            }}>
             {(()=>{
               const emp = (liveEmps||[]).find(e=>e.id===activeConvo.from_id);
               const initials = (activeConvo.from_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
               return(
                 <React.Fragment>
                   <div style={{width:40,height:40,borderRadius:"50%",background:emp?.color||O.indigo,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:13,color:"#fff",flexShrink:0}}>{initials}</div>
-                  <div>
+                  <div style={{flex:1}}>
                     <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{activeConvo.from_name}</div>
                     <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{emp?.role||"Employee"} • {emp?.status==="active"?"Active":"Invited"}</div>
                   </div>
+                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,display:"flex",alignItems:"center",gap:4}}>✏️ Edit</div>
                 </React.Fragment>
               );
             })()}
@@ -6819,6 +6825,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 activeOrg={activeOrg}
                 loadNotifications={loadNotifications}
                 toast={toast}
+                setActiveDrawerEmp={setActiveDrawerEmp}
               />
             )}
 
