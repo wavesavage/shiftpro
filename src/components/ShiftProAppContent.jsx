@@ -2777,19 +2777,36 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
   const [localSent, setLocalSent] = React.useState([]);
   const scrollRef = React.useRef(null);
 
-  // Build conversations
+  // Build conversations — keyed by EMPLOYEE id
   const convos = {};
+  const empIds = new Set((liveEmps||[]).map(e=>e.id));
+  const ownerId = ownerProfile?.user_id||ownerProfile?.id||"owner";
+
   (staffMessages||[]).forEach(m=>{
-    const key = m.from_id||"unknown";
-    if(!convos[key]){
-      const empMatch = (liveEmps||[]).find(e=>e.id===key);
-      const name = m.from_name || (empMatch?empMatch.name:null) || "Staff";
-      convos[key] = {from_id:key, from_name:name, messages:[], latest:m.created_at, unread:0};
+    // Determine which employee this message belongs to
+    let empKey;
+    if(empIds.has(m.from_id)){
+      empKey = m.from_id; // employee sent this
+    } else if(m.to_id && empIds.has(m.to_id)){
+      empKey = m.to_id; // owner sent this TO an employee
+    } else if(m.from_id === ownerId && m.to_id){
+      empKey = m.to_id; // owner message — route to recipient
+    } else if(m.type==="employee_to_manager"){
+      empKey = m.from_id; // trust the type
+    } else {
+      empKey = m.to_id || m.from_id || "unknown"; // fallback
     }
-    convos[key].messages.push(m);
-    if(m.replies) m.replies.forEach(r=>convos[key].messages.push(r));
-    if(!m.read) convos[key].unread++;
-    if(m.created_at>convos[key].latest) convos[key].latest = m.created_at;
+
+    if(!convos[empKey]){
+      const empMatch = (liveEmps||[]).find(e=>e.id===empKey);
+      const name = (empIds.has(m.from_id) ? m.from_name : null) || (empMatch?empMatch.name:null) || "Employee";
+      convos[empKey] = {from_id:empKey, from_name:name, messages:[], latest:m.created_at, unread:0};
+    }
+    convos[empKey].messages.push(m);
+    // Also add nested replies
+    if(m.replies) m.replies.forEach(r=>convos[empKey].messages.push(r));
+    if(!m.read && m.from_id!==ownerId) convos[empKey].unread++;
+    if(m.created_at>convos[empKey].latest) convos[empKey].latest = m.created_at;
   });
   // Merge optimistic
   localSent.forEach(sm=>{
@@ -2813,7 +2830,6 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
 
   const allMsgs = activeConvo ? [...activeConvo.messages].filter(m=>(m.body||m.text||m.content||m.message||m.subject||"").trim()).sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
   const empFromId = activeConvo?.from_id; // the employee's ID — anything else is the owner
-  const ownerId = ownerProfile?.user_id||ownerProfile?.id||"owner";
 
   const handleSend = async() => {
     if(!replyText.trim()||!activeConvo) return;
@@ -2929,7 +2945,8 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
               const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.from_id!==empFromId);
               const prevIsOwner = i>0 && allMsgs[i-1].from_id!==empFromId;
               const showName = i===0 || isOwner!==prevIsOwner || dateStr!==prevDate;
-              const senderName = isOwner ? (m.from_name||ownerProfile?.first_name?((ownerProfile?.first_name||"")+" "+(ownerProfile?.last_name||"")).trim():"Manager") : (m.from_name||activeConvo?.from_name||"Employee");
+              const ownerName = ownerProfile?.first_name ? ((ownerProfile.first_name||"")+" "+(ownerProfile.last_name||"")).trim() : "Manager";
+              const senderName = isOwner ? (m.from_name||ownerName) : (m.from_name||activeConvo?.from_name||"Employee");
               const msgText = m.body||m.text||m.content||m.message||m.subject||"";
               return(
                 <React.Fragment key={m.id||i}>
