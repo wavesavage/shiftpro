@@ -1063,6 +1063,9 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
           const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
           const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
           const isLast = isMe && !allMsgs.slice(i+1).some(x=>x.from_id===empId||x.type==="employee_to_manager"||x.type==="employee");
+          const prevIsMe = i>0 && (allMsgs[i-1].from_id===empId||allMsgs[i-1].type==="employee_to_manager"||allMsgs[i-1].type==="employee");
+          const showName = i===0 || isMe!==prevIsMe || dateStr!==prevDate;
+          const senderName = isMe ? "You" : (m.from_name||"Manager");
           return(
             <React.Fragment key={m.id||i}>
               {dateStr!==prevDate&&(
@@ -1070,7 +1073,9 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
               )}
               <div style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start"}}>
                 <div style={{maxWidth:"75%"}}>
-                  {!isMe&&<div style={{fontFamily:E.sans,fontSize:10,color:E.textF,marginBottom:3,paddingLeft:4}}>{m.from_name||"Manager"}</div>}
+                  {showName&&(
+                    <div style={{fontFamily:E.sans,fontSize:10,fontWeight:700,color:isMe?"#6366f1":"#e07b00",marginBottom:3,paddingLeft:isMe?0:4,paddingRight:isMe?4:0,textAlign:isMe?"right":"left"}}>{senderName}</div>
+                  )}
                   <div style={{padding:"10px 14px",borderRadius:isMe?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isMe?"linear-gradient(135deg,"+E.indigo+","+E.violet+")":"#f1f5f9",border:isMe?"none":"1px solid "+E.border}}>
                     <div style={{fontFamily:E.sans,fontSize:13,color:isMe?"#fff":E.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
                     <div style={{fontFamily:E.mono||E.sans,fontSize:8,color:isMe?"rgba(255,255,255,0.6)":E.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
@@ -2915,6 +2920,9 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
               const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
               const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
               const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.type==="direct"||x.from_id===ownerId);
+              const prevIsOwner = i>0 && (allMsgs[i-1].type==="direct"||allMsgs[i-1].from_id===ownerId);
+              const showName = i===0 || isOwner!==prevIsOwner || dateStr!==prevDate;
+              const senderName = isOwner ? "You" : (m.from_name||activeConvo?.from_name||"Employee");
               return(
                 <React.Fragment key={m.id||i}>
                   {dateStr!==prevDate&&(
@@ -2922,6 +2930,9 @@ function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadN
                   )}
                   <div style={{display:"flex",justifyContent:isOwner?"flex-end":"flex-start"}}>
                     <div style={{maxWidth:"70%"}}>
+                      {showName&&(
+                        <div style={{fontFamily:O.sans,fontSize:10,fontWeight:700,color:isOwner?O.indigo:O.amber,marginBottom:3,paddingLeft:isOwner?0:4,paddingRight:isOwner?4:0,textAlign:isOwner?"right":"left"}}>{senderName}</div>
+                      )}
                       <div style={{padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.violet+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
                         <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{m.body||m.text||""}</div>
                         <div style={{fontFamily:O.mono,fontSize:8,color:isOwner?"rgba(255,255,255,0.6)":O.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
