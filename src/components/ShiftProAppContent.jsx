@@ -7426,10 +7426,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
       </div>
     </div>
-  </div>
-  </div>
-  </div>
-  </div>
   );
 }
 
