@@ -2937,7 +2937,7 @@ function NotificationsDropdown({
   notifications, setNotifications, setNotifOpen,
   setTab, setStaffSubTab, setMsgConvoId,
   setSwapRequests, setTimeOffRequests,
-  orgId, loadNotifications
+  orgId, loadNotifications, seenNotifIds
 }) {
   const mobile = useIsMobile();
   const [expanded, setExpanded] = React.useState(null); // id of expanded notif
@@ -3019,6 +3019,7 @@ function NotificationsDropdown({
       if(!r.ok) throw new Error(d.error||"Failed");
       setMsgResult("✓ Sent!");
       setReplyText("");
+      seenNotifIds?.current?.add(n.id);
       setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
       setTimeout(()=>{ setMsgResult(""); setExpanded(null); }, 1500);
     }catch(e){ setMsgResult("⚠ "+e.message); }
@@ -3070,7 +3071,7 @@ function NotificationsDropdown({
               onClick={()=>{
                 setExpanded(isOpen?null:n.id);
                 setReplyText(""); setMsgResult("");
-                if(!n.read) setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+                if(!n.read){ seenNotifIds?.current?.add(n.id); setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x)); }
               }}
               style={{
                 padding:"11px 14px",
@@ -3178,7 +3179,10 @@ function NotificationsDropdown({
             style={{flex:1,padding:"8px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.amber,cursor:"pointer"}}>
             All Requests
           </button>
-          <button onClick={()=>setNotifications(prev=>prev.map(n=>({...n,read:true})))}
+          <button onClick={()=>{
+            notifications.forEach(n=>seenNotifIds?.current?.add(n.id));
+            setNotifications(prev=>prev.map(n=>({...n,read:true})));
+          }}
             style={{padding:"8px 12px",background:"none",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
             Mark read
           </button>
@@ -5081,6 +5085,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [notifOpen,setNotifOpen] = useState(false);
   const [notifications,setNotifications] = useState([]);
   const [notifLoaded,setNotifLoaded] = useState(false);
+  const seenNotifIds = React.useRef(new Set());
   // ── Poll every 60 seconds for new staff messages and requests ──
   useEffect(()=>{
     if(!ownerProfile?.orgId) return;
@@ -5554,7 +5559,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
       setRequestsLoaded(true);
     }catch(e){ console.error("[notif] outer:", e.message); }
-    setNotifications(items);
+    // Preserve read state for previously-seen notifications
+    setNotifications(items.map(n=>seenNotifIds.current.has(n.id)?{...n,read:true}:n));
   };
 
   const loadPayroll = async(orgId, locId, periodDays=14) => {
@@ -5840,6 +5846,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setTimeOffRequests={setTimeOffRequests}
           orgId={activeOrg?.id || ownerProfile?.org_id || null}
           loadNotifications={loadNotifications}
+          seenNotifIds={seenNotifIds}
         />
       )}
 
@@ -6210,7 +6217,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           {/* Bell */}
           <div style={{position:"relative"}}>
             <button
-              onClick={()=>setNotifOpen(o=>!o)}
+              onClick={()=>{
+                setNotifOpen(o=>{
+                  if(!o){ // opening — mark all as seen
+                    notifications.forEach(n=>seenNotifIds.current.add(n.id));
+                    setNotifications(prev=>prev.map(n=>({...n,read:true})));
+                  }
+                  return !o;
+                });
+              }}
               style={{width:36,height:36,borderRadius:"50%",background:notifOpen?O.amberD:"none",border:"1px solid "+(notifOpen?O.amberB:O.border),display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,position:"relative",transition:"all 0.15s"}}
               onMouseEnter={e=>{e.currentTarget.style.background=O.amberD;e.currentTarget.style.borderColor=O.amberB;}}
               onMouseLeave={e=>{if(!notifOpen){e.currentTarget.style.background="none";e.currentTarget.style.borderColor=O.border;}}}>
