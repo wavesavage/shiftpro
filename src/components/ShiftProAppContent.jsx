@@ -1522,7 +1522,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
                     <span style={{fontSize:16}}>{isToday?"⚡":"📅"}</span>
                     <span style={{fontFamily:E.sans,fontSize:13,opacity:0.9}}>
                       <strong>{isToday?"Your shift today":"Next shift:"}</strong> {dateLabel} - {fH(next.start_hour)}–{fH(next.end_hour)} - {next.end_hour-next.start_hour}h
-                      {next.lunch_hour&&<span style={{marginLeft:6,fontFamily:E.mono||E.sans,fontSize:10,color:E.textD}}> | 🍴 Lunch {fH(next.lunch_hour)} ({next.lunch_duration_min||30}min)</span>}
+                      {next.lunch_hour&&<span style={{marginLeft:6,fontFamily:E.mono||E.sans,fontSize:10,color:E.textD}}> | 🍴 Lunch {(()=>{const h=Math.floor(next.lunch_hour);const m=Math.round((next.lunch_hour-h)*60);const hr=h%12||12;const mm=m?":"+String(m).padStart(2,"0"):"";return hr+mm+(h<12?"am":"pm");})()}{" "}({next.lunch_duration_min||30}min)</span>}
                     </span>
                   </div>
                 );
@@ -1703,7 +1703,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
                     })()}
                   </div>
                   {s.notes&&<div style={{fontFamily:E.sans,fontSize:12,color:E.indigo,marginTop:4,padding:"4px 8px",background:E.indigoD,borderRadius:6}}>📝 {s.notes}</div>}
-                  {s.lunch_hour&&<div style={{fontFamily:E.sans,fontSize:12,color:"#e07b00",marginTop:4,padding:"4px 8px",background:"rgba(224,123,0,0.08)",borderRadius:6}}>🍴 Lunch at {fH(s.lunch_hour)} ({s.lunch_duration_min||30} min)</div>}
+                  {s.lunch_hour&&<div style={{fontFamily:E.sans,fontSize:12,color:"#e07b00",marginTop:4,padding:"4px 8px",background:"rgba(224,123,0,0.08)",borderRadius:6}}>🍴 Lunch at {(()=>{const h=Math.floor(s.lunch_hour);const m=Math.round((s.lunch_hour-h)*60);const hr=h%12||12;const mm=m?":"+String(m).padStart(2,"0"):"";return hr+mm+(h<12?"am":"pm");})()}{" "}({s.lunch_duration_min||30} min)</div>}
                 </div>
                 <EBadge label="✓ Confirmed" color={E.green}/>
               </div>
@@ -4147,10 +4147,24 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
             <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Lunch Break At</div>
             <select
               value={selectedCell.lunchHour||""}
-              onChange={e=>setSelectedCell(p=>({...p,lunchHour:e.target.value?parseInt(e.target.value):""}))}
+              onChange={e=>setSelectedCell(p=>({...p,lunchHour:e.target.value?parseFloat(e.target.value):""}))}
               style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
               <option value="">No lunch</option>
-              {HOURS_LIST.filter(h=>h>=(selectedCell.start||9)&&h<(selectedCell.end||17)).map(h=><option key={h} value={h}>{fmtH2(h)}</option>)}
+              {(()=>{
+                const opts=[];
+                const s=selectedCell.start||9; const e=selectedCell.end||17;
+                for(let h=s;h<e;h++){
+                  for(let m=0;m<60;m+=15){
+                    const val=h+m/60;
+                    if(val>=s&&val<e-0.25){
+                      const hr=h%12||12; const ampm=h<12?"AM":"PM";
+                      const mm=m===0?"00":String(m);
+                      opts.push(<option key={val} value={val}>{hr}:{mm} {ampm}</option>);
+                    }
+                  }
+                }
+                return opts;
+              })()}
             </select>
           </div>
           <div>
