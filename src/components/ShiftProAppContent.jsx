@@ -5622,7 +5622,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setStaffSubTab={setStaffSubTab}
           setSwapRequests={setSwapRequests}
           setTimeOffRequests={setTimeOffRequests}
-          orgId={orgId}
+          orgId={activeOrg?.id || ownerProfile?.org_id || null}
           loadNotifications={loadNotifications}
         />
       )}
