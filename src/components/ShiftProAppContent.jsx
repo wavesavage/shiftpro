@@ -2830,7 +2830,8 @@ function NotificationsDropdown({
 
   return (
     <div
-      onClick={e=>e.stopPropagation()}
+      data-notif-dropdown="true"
+      onClick={e=>{ e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); }}
       style={{
         position:"fixed", top:62, right:mobile?8:20,
         width:mobile?"calc(100vw - 16px)":370,
@@ -4924,7 +4925,12 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   // Close dropdowns on outside click (must be AFTER all state declarations)
   useEffect(()=>{
     if(!orgSwitcherOpen && !locSwitcherOpen && !notifOpen) return;
-    const handler = ()=>{ setOrgSwitcherOpen(false); setLocSwitcherOpen(false); setNotifOpen(false); };
+    const handler = (ev) => {
+      // Don't close if click was inside the notification dropdown
+      const notifEl = document.querySelector('[data-notif-dropdown]');
+      if(notifEl && notifEl.contains(ev.target)) return;
+      setOrgSwitcherOpen(false); setLocSwitcherOpen(false); setNotifOpen(false);
+    };
     const t = setTimeout(()=>document.addEventListener("click", handler), 0);
     return()=>{ clearTimeout(t); document.removeEventListener("click", handler); };
   },[orgSwitcherOpen, locSwitcherOpen, notifOpen]);
