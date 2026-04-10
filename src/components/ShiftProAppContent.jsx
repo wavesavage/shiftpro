@@ -4243,6 +4243,11 @@ function SettingsTab({
   settingsAddingDept, setSettingsAddingDept,
   settingsSaveBusy, setSettingsSaveBusy,
   settingsShowPwChange, setSettingsShowPwChange,
+  settingsEditName, setSettingsEditName,
+  settingsOwnerFirst, setSettingsOwnerFirst,
+  settingsOwnerLast, setSettingsOwnerLast,
+  settingsNameBusy, setSettingsNameBusy,
+  setOwnerProfile,
   settingsPw1, setSettingsPw1,
   settingsPw2, setSettingsPw2,
   settingsPwMsg, setSettingsPwMsg,
@@ -4643,18 +4648,50 @@ function SettingsTab({
           <div style={sectionTitle}>👤 My Account</div>
           <div style={sectionSub}>Manage your login credentials and sign out.</div>
 
-          {/* Owner info display */}
-          <div style={{background:O.bg3,borderRadius:10,padding:"14px 16px",marginBottom:18,display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff",flexShrink:0}}>
-              {(ownerProfile?.first_name||"?")[0].toUpperCase()}{(ownerProfile?.last_name||"?")[0].toUpperCase()}
-            </div>
-            <div>
-              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{ownerProfile?.first_name} {ownerProfile?.last_name}</div>
-              <div style={{fontFamily:O.mono,fontSize:10,color:O.textF,marginTop:2}}>{ownerProfile?.email||"—"}</div>
-              <div style={{marginTop:4}}>
-                <OBadge label={ownerProfile?.app_role||"owner"} color={O.amber} sm/>
+          {/* Owner info display — with inline edit */}
+          <div style={{background:O.bg3,borderRadius:10,padding:"14px 16px",marginBottom:18}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:settingsEditName?12:0}}>
+              <div style={{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff",flexShrink:0}}>
+                {(ownerProfile?.first_name||ownerProfile?.email||"?")[0].toUpperCase()}{(ownerProfile?.last_name||"")[0]?.toUpperCase()||""}
               </div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{((ownerProfile?.first_name||"")+" "+(ownerProfile?.last_name||"")).trim()||ownerProfile?.email||"Owner"}</div>
+                <div style={{fontFamily:O.mono,fontSize:10,color:O.textF,marginTop:2}}>{ownerProfile?.email||"—"}</div>
+                <div style={{marginTop:4}}>
+                  <OBadge label={ownerProfile?.app_role||"owner"} color={O.amber} sm/>
+                </div>
+              </div>
+              <button onClick={()=>{if(!settingsEditName){setSettingsOwnerFirst(ownerProfile?.first_name||"");setSettingsOwnerLast(ownerProfile?.last_name||"");}setSettingsEditName(p=>!p);}} style={{padding:"5px 10px",background:"none",border:"1px solid "+O.border,borderRadius:6,fontFamily:O.mono,fontSize:9,color:O.textF,cursor:"pointer"}}>{settingsEditName?"Cancel":"✏️ Edit"}</button>
             </div>
+            {settingsEditName&&(
+              <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                <div style={{flex:1}}>
+                  <label style={label}>First Name</label>
+                  <input value={settingsOwnerFirst} onChange={e=>setSettingsOwnerFirst(e.target.value)} placeholder="First" style={input}/>
+                </div>
+                <div style={{flex:1}}>
+                  <label style={label}>Last Name</label>
+                  <input value={settingsOwnerLast} onChange={e=>setSettingsOwnerLast(e.target.value)} placeholder="Last" style={input}/>
+                </div>
+                <button disabled={settingsNameBusy} onClick={async()=>{
+                  if(!settingsOwnerFirst.trim()) return;
+                  setSettingsNameBusy(true);
+                  try{
+                    const sb=await getSB();
+                    const {data:{session:ss}}=await sb.auth.getSession();
+                    if(!ss?.user?.id) throw new Error("No session");
+                    const {error}=await sb.from("users").update({first_name:settingsOwnerFirst.trim(),last_name:settingsOwnerLast.trim()}).eq("id",ss.user.id);
+                    if(error) throw error;
+                    setOwnerProfile(p=>({...p,first_name:settingsOwnerFirst.trim(),last_name:settingsOwnerLast.trim()}));
+                    setSettingsEditName(false);
+                    toast("Name updated!","success");
+                  }catch(e){toast("Failed: "+(e.message||"Try again"),"error");}
+                  setSettingsNameBusy(false);
+                }} style={{padding:"9px 16px",background:settingsNameBusy?"#ccc":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:7,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:settingsNameBusy?"not-allowed":"pointer",whiteSpace:"nowrap",marginBottom:1}}>
+                  {settingsNameBusy?"…":"Save"}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Change password */}
@@ -5170,6 +5207,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [settingsAddingDept,setSettingsAddingDept] = useState(false);
   const [settingsSaveBusy,setSettingsSaveBusy] = useState(false);
   const [settingsShowPwChange,setSettingsShowPwChange] = useState(false);
+  const [settingsEditName,setSettingsEditName] = useState(false);
+  const [settingsOwnerFirst,setSettingsOwnerFirst] = useState(ownerProfile?.first_name||"");
+  const [settingsOwnerLast,setSettingsOwnerLast] = useState(ownerProfile?.last_name||"");
+  const [settingsNameBusy,setSettingsNameBusy] = useState(false);
   const [settingsPw1,setSettingsPw1] = useState("");
   const [settingsPw2,setSettingsPw2] = useState("");
   const [settingsPwMsg,setSettingsPwMsg] = useState("");
@@ -7642,6 +7683,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             setSettingsSaveBusy={setSettingsSaveBusy}
             settingsShowPwChange={settingsShowPwChange}
             setSettingsShowPwChange={setSettingsShowPwChange}
+            settingsEditName={settingsEditName}
+            setSettingsEditName={setSettingsEditName}
+            settingsOwnerFirst={settingsOwnerFirst}
+            setSettingsOwnerFirst={setSettingsOwnerFirst}
+            settingsOwnerLast={settingsOwnerLast}
+            setSettingsOwnerLast={setSettingsOwnerLast}
+            settingsNameBusy={settingsNameBusy}
+            setSettingsNameBusy={setSettingsNameBusy}
+            setOwnerProfile={setOwnerProfile}
             settingsPw1={settingsPw1}
             setSettingsPw1={setSettingsPw1}
             settingsPw2={settingsPw2}
