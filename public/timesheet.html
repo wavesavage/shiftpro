@@ -198,17 +198,107 @@ select.form-input option{background:var(--navy3)}
 .hc-info .n{font-family:'DM Mono',monospace;font-size:22px;color:var(--text)}
 .hc-info .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
 
-@media(max-width:700px){
-  .main{padding:20px 16px 60px}
-  .sidebar{width:200px}
-  .stat-grid{grid-template-columns:1fr 1fr}
+/* ── MOBILE SIDEBAR TOGGLE ── */
+.sb-toggle{display:none;background:transparent;border:none;cursor:pointer;padding:6px;color:var(--text);font-size:20px;line-height:1}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49}
+.sb-overlay.show{display:block}
+
+/* ── TABLE COLUMN MIN-WIDTHS ── */
+/* Force name cols to never compress below readable width */
+.entry-table td:nth-child(2),
+.entry-table th:nth-child(2){min-width:90px}
+.entry-table td:nth-child(3),
+.entry-table th:nth-child(3){min-width:90px}
+/* Numeric cols keep a minimum too */
+.entry-table td:nth-child(4),.entry-table th:nth-child(4),
+.entry-table td:nth-child(5),.entry-table th:nth-child(5),
+.entry-table td:nth-child(6),.entry-table th:nth-child(6),
+.entry-table td:nth-child(7),.entry-table th:nth-child(7),
+.entry-table td:nth-child(8),.entry-table th:nth-child(8){min-width:64px}
+.entry-table td:nth-child(9),.entry-table th:nth-child(9){min-width:72px}  /* rate */
+.entry-table td:nth-child(10),.entry-table th:nth-child(10){min-width:80px} /* wage */
+/* Total col always readable */
+.entry-table td.total-cell{min-width:90px;white-space:nowrap}
+/* Name inputs never shrink */
+.entry-table td input[type=text]{min-width:80px}
+/* Number inputs never shrink */
+.entry-table td input[type=number]{min-width:54px}
+/* Code select fixed */
+select.code-sel{min-width:54px;width:54px}
+/* Header tab buttons wrappable on small screens */
+.tab-row{flex-wrap:wrap}
+.tab-btn{white-space:nowrap}
+
+/* ── TABLET (≤900px) ── */
+@media(max-width:900px){
+  :root{--sidebar:190px}
+  .main{padding:24px 20px 60px}
+  .hdr-nav .hdr-btn{font-size:12px;padding:5px 10px}
 }
+
+/* ── MOBILE (≤640px) ── */
+@media(max-width:640px){
+  :root{--sidebar:240px}
+  .sb-toggle{display:flex;align-items:center;justify-content:center}
+  /* Sidebar slides in over content */
+  .sidebar{
+    position:fixed;top:0;left:0;height:100vh;z-index:50;
+    transform:translateX(-100%);transition:transform .25s ease;
+    border-right:1px solid var(--border2);box-shadow:4px 0 24px rgba(0,0,0,.4)
+  }
+  .sidebar.open{transform:translateX(0)}
+  /* Main takes full width */
+  .shell{display:block}
+  .main{padding:16px 14px 80px;min-height:calc(100vh - 56px)}
+  /* Header compact */
+  .hdr{padding:10px 14px;gap:10px}
+  .logo-text{font-size:17px}
+  .hdr-nav{margin-left:8px;gap:2px}
+  .hdr-btn{font-size:11px;padding:5px 8px}
+  /* Hide long nav labels, show short */
+  .hdr-btn[data-full]{display:none}
+  /* Stats */
+  .stat-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .stat-val{font-size:18px}
+  .headcount-row{gap:8px}
+  .hc-card{padding:10px 14px}
+  /* Entry header stack */
+  .entry-header{flex-direction:column;align-items:flex-start;gap:8px}
+  .entry-title{font-size:22px}
+  .entry-actions{width:100%}
+  .entry-actions .btn{flex:1;justify-content:center}
+  /* Tab buttons scroll */
+  .tab-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;gap:3px;scrollbar-width:none}
+  .tab-row::-webkit-scrollbar{display:none}
+  .tab-btn{font-size:10px;padding:7px 12px;white-space:nowrap;flex-shrink:0}
+  /* Sec header stack */
+  .sec-header{flex-direction:column;align-items:flex-start}
+  .tips-pool{width:100%}
+  /* Summary strip scroll */
+  .summary-strip{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .summary-strip::-webkit-scrollbar{display:none}
+  .sum-item{min-width:140px;flex-shrink:0}
+  /* Modal full-width */
+  .modal{padding:20px 16px;border-radius:12px}
+  .modal > div[style*="grid"]{grid-template-columns:1fr!important}
+  /* Pool fields stack */
+  .pool-field{flex:1;min-width:140px}
+  /* Notes */
+  textarea.notes-input{min-height:60px}
+  /* Employee grid single col */
+  .emp-grid{grid-template-columns:1fr}
+}
+
 </style>
 </head>
 <body>
 
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sb-overlay" id="sb-overlay" onclick="toggleSidebar()"></div>
+
 <!-- HEADER -->
 <header class="hdr">
+  <button class="sb-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">☰</button>
   <a class="logo" href="#">
     <div class="logo-icon">S</div>
     <div class="logo-text">Shift<span>Hub</span></div>
@@ -562,6 +652,22 @@ function codeOpts(val) {
   return `<select class="code-sel" onchange="markDirty()">${opts.map(([v,l])=>`<option value="${v}"${v===val?' selected':''}>${l}</option>`).join('')}</select>`;
 }
 
+// ─── SIDEBAR MOBILE TOGGLE ────────────────────────────────
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sb-overlay');
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('show', open);
+}
+
+// Auto-close sidebar on period select (mobile)
+function closeSidebarMobile() {
+  if (window.innerWidth <= 640) {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sb-overlay').classList.remove('show');
+  }
+}
+
 // ─── VIEW SWITCHING ───────────────────────────────────────
 function switchView(v, btn) {
   S.view = v;
@@ -641,6 +747,7 @@ async function selectPeriod(id) {
   S.period = S.periods.find(p=>p.id===id);
   S.readonly = S.period?.status === 'locked';
   renderSidebar();
+  closeSidebarMobile();
   switchView('entry', $$('.hdr-btn')[1]);
   await loadPeriodData(id);
 }
