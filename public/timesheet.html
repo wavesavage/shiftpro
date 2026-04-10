@@ -6,205 +6,166 @@
 <title>ShiftPro · Payroll</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root {
-  --navy:#0c1220;--navy2:#121b2e;--navy3:#1a2640;--navy4:#243352;
-  --gold:#e8b84b;--goldd:#c49a35;--goldp:rgba(232,184,75,.12);--goldp2:rgba(232,184,75,.06);
-  --teal:#2dd4bf;--teald:rgba(45,212,191,.15);
-  --red:#f87171;--redd:rgba(248,113,113,.15);
-  --amber:#fb923c;--amberd:rgba(251,146,60,.15);
-  --green:#4ade80;--greend:rgba(74,222,128,.12);
-  --purple:#a78bfa;--purpled:rgba(167,139,250,.15);
-  --muted:rgba(255,255,255,.35);--border:rgba(255,255,255,.08);--border2:rgba(232,184,75,.25);
-  --text:#e8eaf0;--texts:rgba(232,234,240,.65);
+:root{
+  --bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--bg4:#28334a;
+  --sage:#6ab5a0;--sagep:rgba(106,181,160,.13);--sageb:rgba(106,181,160,.28);--saged:#4d9a86;
+  --indigo:#7b93d4;--indigop:rgba(123,147,212,.13);
+  --amber:#e8b84b;--amberp:rgba(232,184,75,.13);--amberb:rgba(232,184,75,.28);
+  --warn:#f0c060;--warnp:rgba(240,192,96,.13);
+  --red:#e87b7b;--redp:rgba(232,123,123,.13);
+  --green:#7bc99a;--greenp:rgba(123,201,154,.13);
+  --purp:#a98fe8;--purpp:rgba(169,143,232,.13);
+  --stone:#a8b0c0;--muted:rgba(226,230,240,.32);
+  --bdr:rgba(255,255,255,.07);--bdr2:rgba(255,255,255,.13);--bdrsage:rgba(106,181,160,.28);
+  --text:#e2e6f0;--texts:rgba(226,230,240,.60);
   --sidebar:220px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Instrument Sans',sans-serif;background:var(--navy);color:var(--text);min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 10% -10%,rgba(232,184,75,.06) 0%,transparent 60%),radial-gradient(ellipse 60% 50% at 90% 110%,rgba(45,212,191,.04) 0%,transparent 55%);pointer-events:none;z-index:0}
+body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
 input[type=number]{-moz-appearance:textfield}
+select option{background:var(--bg3)}
 
-/* HEADER */
-.hdr{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:16px;padding:14px 24px;background:rgba(12,18,32,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+/* ── HEADER ── */
+.hdr{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:14px;padding:12px 22px;background:rgba(15,17,23,.96);backdrop-filter:blur(14px);border-bottom:1px solid var(--bdr)}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none;user-select:none}
-.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--gold) 0%,#c49a35 100%);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(232,184,75,.35)}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,#e8b84b,#c49a35);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .logo-icon svg{display:block}
-.logo-text{font-family:'DM Serif Display',serif;font-size:20px;color:var(--text);letter-spacing:-.01em}
-.logo-text span{color:var(--gold)}
-.hdr-nav{display:flex;gap:4px;margin-left:24px}
-.hdr-btn{background:transparent;border:1px solid transparent;border-radius:7px;color:var(--texts);font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:13px;padding:6px 14px;cursor:pointer;transition:all .18s}
-.hdr-btn:hover{color:var(--text);background:var(--navy3)}
-.hdr-btn.active{color:var(--gold);border-color:var(--border2);background:var(--goldp)}
-.hdr-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-.save-indicator{font-family:'DM Mono',monospace;font-size:11px;color:var(--green);opacity:0;transition:opacity .3s}
-.save-indicator.show{opacity:1}
-.badge{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;padding:3px 10px;border-radius:20px;text-transform:uppercase}
-.badge-draft{background:var(--amberd);color:var(--amber);border:1px solid rgba(251,146,60,.3)}
-.badge-submitted{background:var(--greend);color:var(--green);border:1px solid rgba(74,222,128,.3)}
-.badge-locked{background:var(--navy3);color:var(--muted);border:1px solid var(--border)}
+.logo-text{font-family:'DM Serif Display',serif;font-size:19px;color:var(--text);letter-spacing:-.01em}
+.logo-text span{color:#e8b84b}
+.hdr-nav{display:flex;gap:3px;margin-left:20px}
+.hdr-btn{background:transparent;border:1px solid transparent;border-radius:7px;color:var(--texts);font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:13px;padding:5px 13px;cursor:pointer;transition:all .16s}
+.hdr-btn:hover{color:var(--text);background:var(--bg3)}
+.hdr-btn.active{color:var(--sage);border-color:var(--bdrsage);background:var(--sagep)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.save-ind{font-family:'DM Mono',monospace;font-size:11px;color:var(--green);opacity:0;transition:opacity .3s}
+.save-ind.show{opacity:1}
+.badge{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;padding:3px 9px;border-radius:20px;text-transform:uppercase;border:1px solid}
+.badge-draft{background:var(--warnp);color:var(--warn);border-color:rgba(240,192,96,.3)}
+.badge-submitted{background:var(--greenp);color:var(--green);border-color:rgba(123,201,154,.3)}
+.badge-locked{background:var(--bg3);color:var(--muted);border-color:var(--bdr2)}
 
-/* SHELL */
+/* ── SETTINGS GEAR ── */
+.gear-btn{width:32px;height:32px;border-radius:8px;background:transparent;border:1px solid var(--bdr2);color:var(--stone);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .16s;flex-shrink:0}
+.gear-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--bdrsage)}
+.gear-btn.active{background:var(--sagep);color:var(--sage);border-color:var(--bdrsage)}
+
+/* ── SETTINGS DRAWER ── */
+.settings-drawer{position:fixed;top:0;right:0;height:100vh;width:320px;background:var(--bg2);border-left:1px solid var(--bdrsage);z-index:300;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.4)}
+.settings-drawer.open{transform:translateX(0)}
+.settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:299;backdrop-filter:blur(2px)}
+.settings-overlay.show{display:block}
+.sd-header{padding:20px 22px 16px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between}
+.sd-title{font-family:'DM Serif Display',serif;font-size:20px;color:var(--text)}
+.sd-close{background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:4px;line-height:1;transition:color .15s}
+.sd-close:hover{color:var(--text)}
+.sd-body{flex:1;overflow-y:auto;padding:22px}
+.sd-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--bdr)}
+.sd-group{margin-bottom:22px}
+.sd-field{margin-bottom:14px}
+.sd-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--stone);display:block;margin-bottom:5px}
+.sd-input{width:100%;background:var(--bg3);border:1px solid var(--bdr2);border-radius:8px;color:var(--text);font-family:'Instrument Sans',sans-serif;font-size:13px;padding:8px 11px;outline:none;transition:border-color .18s}
+.sd-input:focus{border-color:var(--bdrsage)}
+.sd-hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+.sd-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sd-save{width:100%;background:var(--sage);color:#0a1a16;font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:13px;padding:10px;border-radius:8px;border:none;cursor:pointer;transition:opacity .16s;margin-top:4px}
+.sd-save:hover{opacity:.88}
+.sd-divider{height:1px;background:var(--bdr);margin:18px 0}
+.sd-plan{background:var(--bg3);border:1px solid var(--bdrsage);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.sd-plan-name{font-size:13px;font-weight:700;color:var(--sage);margin-bottom:2px}
+.sd-plan-sub{font-size:11px;color:var(--texts)}
+.sd-badge-info{display:inline-block;background:var(--sagep);color:var(--sage);border:1px solid var(--bdrsage);border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 9px;margin-left:6px}
+.org-id-display{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;padding:6px 10px;word-break:break-all;line-height:1.5;margin-top:4px}
+
+/* ── SHELL ── */
 .shell{position:relative;z-index:1;display:flex;flex:1;min-height:0}
-
-/* SIDEBAR */
-.sidebar{width:var(--sidebar);flex-shrink:0;background:var(--navy2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;min-height:calc(100vh - 61px)}
-.sb-section{padding:16px 12px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
-.year-row{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;cursor:pointer;border-radius:6px;margin:0 4px;transition:background .15s}
-.year-row:hover{background:var(--navy3)}
-.year-label{font-family:'DM Serif Display',serif;font-size:18px;color:var(--text)}
-.year-label.active{color:var(--gold)}
-.year-toggle{font-size:10px;color:var(--muted)}
-.period-list{overflow:hidden;transition:max-height .3s}
-.period-item{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 20px;cursor:pointer;border-radius:6px;margin:1px 4px;transition:background .15s;border-left:2px solid transparent}
-.period-item:hover{background:var(--navy3)}
-.period-item.active{background:var(--goldp);border-left-color:var(--gold)}
-.period-label{font-size:12px;font-weight:600;color:var(--texts);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.period-item.active .period-label{color:var(--gold)}
-.period-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.dot-draft{background:var(--amber)}
-.dot-submitted{background:var(--green)}
-.dot-locked{background:var(--muted)}
-.sb-new{margin:8px 8px 16px;display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed rgba(255,255,255,.15);border-radius:8px;cursor:pointer;color:var(--texts);font-size:12px;font-weight:600;background:transparent;width:calc(100% - 16px);transition:all .18s}
-.sb-new:hover{border-color:var(--gold);color:var(--gold)}
-.sb-divider{height:1px;background:var(--border);margin:8px 12px}
-.sb-emp-btn{display:flex;align-items:center;gap:8px;padding:8px 12px;margin:2px 4px;border-radius:6px;cursor:pointer;color:var(--texts);font-size:12px;font-weight:600;background:transparent;border:none;width:calc(100% - 8px);text-align:left;transition:background .15s}
-.sb-emp-btn:hover{background:var(--navy3);color:var(--text)}
-
-/* MAIN */
-.main{flex:1;overflow-y:auto;padding:32px 36px 80px}
-
-/* CARDS */
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:28px}
-.stat-card{background:var(--navy2);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
-.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;margin-bottom:6px}
-.stat-val{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;color:var(--text)}
-.stat-val.gold{color:var(--gold)}
-.stat-val.teal{color:var(--teal)}
-.stat-sub{font-size:11px;color:var(--texts);margin-top:3px}
-
-/* SVG CHART */
-.chart-card{background:var(--navy2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:28px}
-.chart-title{font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:16px;color:var(--text)}
-.chart-legend{display:flex;gap:16px;margin-bottom:12px}
-.leg-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--texts)}
-.leg-dot{width:10px;height:10px;border-radius:3px}
-
-/* PERIOD TABLE */
-.period-table-card{background:var(--navy2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:28px}
-.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.card-title{font-family:'DM Serif Display',serif;font-size:18px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--navy3)}
-th.r{text-align:right}
-td{padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
-td.r{text-align:right;font-family:'DM Mono',monospace;font-size:13px}
-td.bold{font-weight:700;color:var(--gold)}
-tbody tr:hover{background:rgba(255,255,255,.02)}
-tbody tr:last-child td{border-bottom:none}
-tfoot td{background:var(--navy3);font-family:'DM Mono',monospace;font-size:13px;font-weight:700;text-align:right;border-top:1px solid var(--border2)}
-tfoot td:first-child{font-family:'Instrument Sans',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left}
-tfoot td.grand{color:var(--gold);font-size:15px}
-
-/* ENTRY FORM */
-.entry-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px}
-.entry-title{font-family:'DM Serif Display',serif;font-size:28px}
-.entry-actions{display:flex;gap:8px;flex-wrap:wrap}
-.tab-row{display:flex;gap:4px;margin-bottom:0}
-.tab-btn{font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:12px;letter-spacing:.05em;padding:9px 22px;border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none;cursor:pointer;background:var(--navy3);color:var(--texts);transition:all .18s;text-transform:uppercase}
-.tab-btn.active{background:var(--navy2);color:var(--gold);border-color:var(--border2)}
-.tab-btn:hover:not(.active){color:var(--text);background:var(--navy4)}
-.sec-card{background:var(--navy2);border:1px solid var(--border);border-radius:0 12px 12px 12px;overflow:hidden;display:none;margin-bottom:16px}
-.sec-card.active{display:block}
-.sec-header{padding:16px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-.sec-badge{font-family:'DM Serif Display',serif;font-size:18px;color:var(--gold);background:var(--goldp);border:1px solid var(--border2);border-radius:5px;padding:2px 10px}
-.tips-pool{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.pool-field{display:flex;align-items:center;gap:8px;background:var(--navy4);border:1px solid var(--border2);border-radius:8px;padding:5px 12px}
-.pool-field label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--goldd);font-weight:700;white-space:nowrap}
-.pool-field input{background:transparent;border:none;outline:none;color:var(--gold);font-family:'DM Mono',monospace;font-size:13px;width:85px;text-align:right}
-.table-wrap{overflow-x:auto}
-.entry-table td input[type=text],.entry-table td input[type=number]{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:4px 6px;outline:none;width:100%;transition:border-color .15s,background .15s;text-align:right}
-.entry-table td input[type=text]{text-align:left;font-family:'Instrument Sans',sans-serif;font-size:12px}
-.entry-table td input:focus{border-color:var(--goldd);background:rgba(232,184,75,.05)}
-.entry-table td.computed{font-family:'DM Mono',monospace;font-size:13px;text-align:right;color:var(--texts);white-space:nowrap}
-.entry-table td.total-cell{font-family:'DM Mono',monospace;font-size:13px;font-weight:600;text-align:right;color:var(--gold)}
-.entry-table td.salary-amt{font-family:'DM Mono',monospace;font-size:13px;text-align:center;color:var(--teal)}
-code-select{background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--texts);font-family:'DM Mono',monospace;font-size:11px;padding:3px 4px;outline:none;width:54px;cursor:pointer}
-select.code-sel{background:var(--navy3);border:1px solid var(--border);border-radius:4px;color:var(--texts);font-family:'DM Mono',monospace;font-size:11px;padding:3px 4px;outline:none;width:54px;cursor:pointer}
-select.code-sel option{background:var(--navy3)}
-.table-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-top:1px solid var(--border)}
-.summary-strip{display:flex;border-top:1px solid var(--border);flex-wrap:wrap}
-.sum-item{flex:1;min-width:120px;padding:12px 16px;border-right:1px solid var(--border)}
-.sum-item:last-child{border-right:none}
-.sum-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;margin-bottom:3px}
-.sum-val{font-family:'DM Mono',monospace;font-size:17px;font-weight:500;color:var(--text)}
-.sum-val.gold{color:var(--gold)}
-.sum-val.teal{color:var(--teal)}
-
-/* READONLY OVERLAY */
-.readonly-banner{background:var(--navy3);border:1px solid var(--border);border-radius:10px;padding:12px 20px;margin-bottom:20px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--texts)}
-.readonly-banner::before{content:'🔒';font-size:16px}
-
-/* NOTES */
-.notes-card{background:var(--navy2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px}
-.notes-hdr{padding:12px 18px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px}
-.notes-hdr::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--gold)}
-textarea.notes-input{width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:'Instrument Sans',sans-serif;font-size:14px;padding:14px 18px;resize:vertical;min-height:80px;line-height:1.6}
-textarea.notes-input::placeholder{color:var(--muted)}
-
-/* EMPLOYEES VIEW */
-.emp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:24px}
-.emp-card{background:var(--navy2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;cursor:pointer;transition:border-color .18s}
-.emp-card:hover{border-color:var(--border2)}
-.emp-name{font-weight:700;font-size:14px;margin-bottom:4px}
-.emp-meta{font-size:12px;color:var(--texts);display:flex;gap:10px;flex-wrap:wrap}
-.emp-rate{font-family:'DM Mono',monospace;color:var(--gold)}
-.emp-inactive{opacity:.5}
-
-/* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal-overlay.hidden{display:none}
-.modal{background:var(--navy2);border:1px solid var(--border2);border-radius:14px;padding:28px;width:100%;max-width:460px}
-.modal-title{font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:20px}
-.form-row{margin-bottom:14px}
-.form-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;display:block;margin-bottom:5px}
-.form-input{width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Instrument Sans',sans-serif;font-size:14px;padding:9px 12px;outline:none;transition:border-color .2s}
-.form-input:focus{border-color:var(--goldd)}
-select.form-input{cursor:pointer}
-select.form-input option{background:var(--navy3)}
-.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
-
-/* BTNS */
-.btn{display:inline-flex;align-items:center;gap:6px;border-radius:8px;font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:13px;padding:8px 16px;cursor:pointer;border:none;transition:all .18s;text-decoration:none}
-.btn-ghost{background:transparent;color:var(--texts);border:1px solid var(--border)}
-.btn-ghost:hover{border-color:rgba(255,255,255,.2);color:var(--text)}
-.btn-gold{background:var(--gold);color:var(--navy);font-weight:700}
-.btn-gold:hover{background:#f0c55c}
-.btn-teal{background:var(--teal);color:var(--navy);font-weight:700}
-.btn-teal:hover{opacity:.9}
-.btn-danger{background:transparent;color:var(--red);border:1px solid transparent;padding:4px 8px;font-size:11px}
-.btn-danger:hover{border-color:var(--red);background:var(--redd)}
-.btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
-
-/* TOAST */
-.toast{position:fixed;bottom:28px;right:28px;background:var(--navy3);border:1px solid var(--border2);border-radius:10px;padding:12px 18px;font-size:14px;color:var(--gold);font-weight:600;z-index:999;display:flex;align-items:center;gap:8px;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none}
-.toast.show{opacity:1;transform:translateY(0)}
-
-/* LOADER */
-.loader{display:flex;align-items:center;justify-content:center;height:200px;font-size:14px;color:var(--muted)}
-
-/* HEADCOUNT */
-.headcount-row{display:flex;gap:12px;margin-bottom:28px;flex-wrap:wrap}
-.hc-card{background:var(--navy2);border:1px solid var(--border);border-radius:10px;padding:14px 20px;flex:1;min-width:130px;display:flex;align-items:center;gap:12px}
-.hc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.hc-info .n{font-family:'DM Mono',monospace;font-size:22px;color:var(--text)}
-.hc-info .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
-
-/* ── MOBILE SIDEBAR TOGGLE ── */
-.sb-toggle{display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;color:var(--text);font-size:22px;line-height:1;flex-shrink:0}
-.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:49;backdrop-filter:blur(2px)}
+.sb-toggle{display:none;background:transparent;border:none;cursor:pointer;padding:5px 7px;color:var(--text);font-size:22px;line-height:1;flex-shrink:0}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49;backdrop-filter:blur(2px)}
 .sb-overlay.show{display:block}
 
-/* ── TABLE COLUMN MIN-WIDTHS (entry tables) ── */
+/* ── SIDEBAR ── */
+.sidebar{width:var(--sidebar);flex-shrink:0;background:var(--bg2);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow-y:auto;min-height:calc(100vh - 57px)}
+.sb-sec{padding:14px 12px 7px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
+.year-row{display:flex;align-items:center;justify-content:space-between;padding:5px 12px;cursor:pointer;border-radius:6px;margin:0 4px;transition:background .14s}
+.year-row:hover{background:var(--bg3)}
+.year-label{font-family:'DM Serif Display',serif;font-size:17px;color:var(--text)}
+.year-label.active{color:var(--sage)}
+.year-toggle{font-size:10px;color:var(--muted)}
+.period-list{overflow:hidden;transition:max-height .3s}
+.period-item{display:flex;align-items:center;gap:7px;padding:6px 11px 6px 18px;cursor:pointer;border-radius:0 6px 6px 0;margin:1px 4px 1px 0;transition:background .14s;border-left:2px solid transparent}
+.period-item:hover{background:var(--bg3)}
+.period-item.active{background:var(--sagep);border-left-color:var(--sage)}
+.period-label{font-size:12px;font-weight:600;color:var(--texts);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.period-item.active .period-label{color:var(--sage)}
+.period-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.dot-draft{background:var(--warn)}
+.dot-submitted{background:var(--green)}
+.dot-locked{background:var(--muted)}
+.sb-new{margin:7px 7px 14px;display:flex;align-items:center;gap:5px;padding:7px 11px;border:1px dashed rgba(255,255,255,.13);border-radius:7px;cursor:pointer;color:var(--texts);font-size:12px;font-weight:600;background:transparent;width:calc(100% - 14px);transition:all .16s}
+.sb-new:hover{border-color:var(--sage);color:var(--sage)}
+.sb-divider{height:1px;background:var(--bdr);margin:7px 12px}
+.sb-emp-btn{display:flex;align-items:center;gap:7px;padding:7px 11px;margin:2px 4px;border-radius:6px;cursor:pointer;color:var(--texts);font-size:12px;font-weight:600;background:transparent;border:none;width:calc(100% - 8px);text-align:left;transition:background .14s}
+.sb-emp-btn:hover{background:var(--bg3);color:var(--text)}
+
+/* ── MAIN ── */
+.main{flex:1;overflow-y:auto;padding:30px 34px 80px}
+
+/* ── STAT CARDS ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:22px}
+.stat-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:11px;padding:16px 18px}
+.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;margin-bottom:5px}
+.stat-val{font-family:'DM Mono',monospace;font-size:21px;font-weight:500;color:var(--text)}
+.stat-val.sage{color:var(--sage)}
+.stat-val.ind{color:var(--indigo)}
+.stat-sub{font-size:11px;color:var(--texts);margin-top:2px}
+
+/* ── CHART ── */
+.chart-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:11px;padding:18px 22px;margin-bottom:22px}
+.chart-title{font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:14px;color:var(--text)}
+.chart-legend{display:flex;gap:14px;margin-bottom:10px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--texts)}
+.leg-dot{width:9px;height:9px;border-radius:2px}
+
+/* ── PERIOD TABLE ── */
+.period-table-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:11px;overflow:hidden;margin-bottom:22px}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-family:'DM Serif Display',serif;font-size:17px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:9px 13px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);border-bottom:1px solid var(--bdr);background:var(--bg3)}
+th.r{text-align:right}
+td{padding:8px 13px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle}
+td.r{text-align:right;font-family:'DM Mono',monospace;font-size:12px}
+td.bold{font-weight:700;color:var(--sage)}
+tbody tr:hover{background:rgba(255,255,255,.02)}
+tbody tr:last-child td{border-bottom:none}
+tfoot td{background:var(--bg3);font-family:'DM Mono',monospace;font-size:12px;font-weight:700;text-align:right;border-top:1px solid var(--bdr2)}
+tfoot td:first-child{font-family:'Instrument Sans',sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left;font-weight:700}
+tfoot td.grand{color:var(--sage);font-size:14px}
+
+/* ── HEADCOUNT ── */
+.headcount-row{display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap}
+.hc-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:13px 18px;flex:1;min-width:120px;display:flex;align-items:center;gap:10px}
+.hc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.hc-info .n{font-family:'DM Mono',monospace;font-size:21px;color:var(--text)}
+.hc-info .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+
+/* ── ENTRY FORM ── */
+.entry-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:22px}
+.entry-title{font-family:'DM Serif Display',serif;font-size:27px}
+.entry-actions{display:flex;gap:7px;flex-wrap:wrap}
+.tab-row{display:flex;gap:3px;margin-bottom:0;flex-wrap:wrap}
+.tab-btn{font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:11px;letter-spacing:.05em;padding:8px 18px;border-radius:7px 7px 0 0;border:1px solid var(--bdr);border-bottom:none;cursor:pointer;background:var(--bg3);color:var(--texts);transition:all .16s;text-transform:uppercase;white-space:nowrap}
+.tab-btn.active{background:var(--bg2);color:var(--sage);border-color:var(--bdrsage)}
+.tab-btn:hover:not(.active){color:var(--text);background:var(--bg4)}
+.sec-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:0 11px 11px 11px;overflow:hidden;display:none;margin-bottom:14px}
+.sec-card.active{display:block}
+.sec-header{padding:14px 18px 12px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.sec-badge{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--sage);background:var(--sagep);border:1px solid var(--bdrsage);border-radius:5px;padding:2px 9px}
+.tips-pool{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pool-field{display:flex;align-items:center;gap:7px;background:var(--bg4);border:1px solid var(--bdr2);border-radius:7px;padding:4px 11px}
+.pool-field label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--stone);font-weight:700;white-space:nowrap}
+.pool-field input{background:transparent;border:none;outline:none;color:var(--sage);font-family:'DM Mono',monospace;font-size:13px;width:82px;text-align:right}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .entry-table th,.entry-table td{white-space:nowrap}
 .entry-table th:nth-child(2),.entry-table td:nth-child(2){min-width:90px;white-space:normal}
 .entry-table th:nth-child(3),.entry-table td:nth-child(3){min-width:90px;white-space:normal}
@@ -212,146 +173,230 @@ select.form-input option{background:var(--navy3)}
 .entry-table th:nth-child(5),.entry-table td:nth-child(5),
 .entry-table th:nth-child(6),.entry-table td:nth-child(6),
 .entry-table th:nth-child(7),.entry-table td:nth-child(7),
-.entry-table th:nth-child(8),.entry-table td:nth-child(8){min-width:66px}
-.entry-table th:nth-child(9),.entry-table td:nth-child(9){min-width:76px}
-.entry-table th:nth-child(10),.entry-table td:nth-child(10){min-width:82px}
-.entry-table td.total-cell{min-width:94px;white-space:nowrap}
-.entry-table td input[type=text]{min-width:82px}
-.entry-table td input[type=number]{min-width:56px}
-select.code-sel{min-width:54px;width:54px}
+.entry-table th:nth-child(8),.entry-table td:nth-child(8){min-width:64px}
+.entry-table th:nth-child(9),.entry-table td:nth-child(9){min-width:74px}
+.entry-table th:nth-child(10),.entry-table td:nth-child(10){min-width:80px}
+.entry-table td.total-cell{min-width:92px;white-space:nowrap}
+.entry-table td input[type=text]{min-width:80px}
+.entry-table td input[type=number]{min-width:54px}
+.entry-table td input[type=text],.entry-table td input[type=number]{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:3px 5px;outline:none;width:100%;transition:border-color .14s,background .14s;text-align:right}
+.entry-table td input[type=text]{text-align:left;font-family:'Instrument Sans',sans-serif;font-size:12px}
+.entry-table td input:focus{border-color:var(--bdrsage);background:var(--sagep)}
+.entry-table td.computed{font-family:'DM Mono',monospace;font-size:12px;text-align:right;color:var(--texts);white-space:nowrap}
+.entry-table td.total-cell{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;color:var(--sage)}
+.entry-table td.salary-amt{font-family:'DM Mono',monospace;font-size:12px;text-align:center;color:var(--indigo)}
+select.code-sel{min-width:50px;width:50px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:4px;color:var(--texts);font-family:'DM Mono',monospace;font-size:11px;padding:3px 3px;outline:none;cursor:pointer}
+.table-footer{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid var(--bdr)}
+.summary-strip{display:flex;border-top:1px solid var(--bdr);flex-wrap:wrap}
+.sum-item{flex:1;min-width:120px;padding:11px 15px;border-right:1px solid var(--bdr)}
+.sum-item:last-child{border-right:none}
+.sum-label{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;margin-bottom:3px}
+.sum-val{font-family:'DM Mono',monospace;font-size:16px;font-weight:500;color:var(--text)}
+.sum-val.sage{color:var(--sage)}
+.sum-val.ind{color:var(--indigo)}
 
-/* Dashboard period summary table min-widths */
+/* ── READONLY ── */
+.readonly-banner{background:var(--bg3);border:1px solid var(--bdr2);border-radius:9px;padding:10px 18px;margin-bottom:18px;display:flex;align-items:center;gap:9px;font-size:13px;color:var(--texts)}
+.readonly-banner::before{content:'🔒';font-size:14px}
+
+/* ── NOTES ── */
+.notes-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:11px;overflow:hidden;margin-bottom:18px}
+.notes-hdr{padding:10px 16px;border-bottom:1px solid var(--bdr);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:7px}
+.notes-hdr::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--sage);display:inline-block}
+textarea.notes-input{width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:'Instrument Sans',sans-serif;font-size:13px;padding:12px 16px;resize:vertical;min-height:72px;line-height:1.6}
+textarea.notes-input::placeholder{color:var(--muted)}
+
+/* ── EMPLOYEES ── */
+.emp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:22px}
+.emp-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:14px 16px;cursor:pointer;transition:border-color .16s}
+.emp-card:hover{border-color:var(--bdrsage)}
+.emp-name{font-weight:700;font-size:13px;margin-bottom:3px}
+.emp-meta{font-size:12px;color:var(--texts);display:flex;gap:8px;flex-wrap:wrap}
+.emp-rate{font-family:'DM Mono',monospace;color:var(--sage)}
+.emp-inactive{opacity:.45}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--bg2);border:1px solid var(--bdrsage);border-radius:13px;padding:26px;width:100%;max-width:450px;max-height:90vh;overflow-y:auto}
+.modal-title{font-family:'DM Serif Display',serif;font-size:21px;margin-bottom:18px}
+.form-row{margin-bottom:12px}
+.form-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;display:block;margin-bottom:5px}
+.form-input{width:100%;background:var(--bg3);border:1px solid var(--bdr2);border-radius:8px;color:var(--text);font-family:'Instrument Sans',sans-serif;font-size:13px;padding:8px 11px;outline:none;transition:border-color .18s}
+.form-input:focus{border-color:var(--bdrsage)}
+select.form-input{cursor:pointer}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:5px;border-radius:7px;font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:12px;padding:7px 14px;cursor:pointer;border:none;transition:all .16s;text-decoration:none;white-space:nowrap}
+.btn-ghost{background:transparent;color:var(--texts);border:1px solid var(--bdr2)}
+.btn-ghost:hover{border-color:var(--bdr2);color:var(--text);background:var(--bg3)}
+.btn-sage{background:var(--sage);color:#0a1a16;font-weight:700}
+.btn-sage:hover{opacity:.88}
+.btn-indigo{background:var(--indigo);color:#0d1428;font-weight:700}
+.btn-indigo:hover{opacity:.88}
+.btn-danger{background:transparent;color:var(--red);border:1px solid transparent;padding:3px 7px;font-size:11px}
+.btn-danger:hover{border-color:var(--red);background:var(--redp)}
+.btn-sm{padding:5px 10px;font-size:11px;border-radius:6px}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:26px;right:26px;background:var(--bg3);border:1px solid var(--bdrsage);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--sage);font-weight:600;z-index:999;display:flex;align-items:center;gap:7px;opacity:0;transform:translateY(8px);transition:all .28s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* ── LOADER ── */
+.loader{display:flex;align-items:center;justify-content:center;height:180px;font-size:14px;color:var(--muted)}
+
+/* ── RESPONSIVE ── */
+.dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px}
+.period-table-card .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.period-table-card table{min-width:400px}
 .period-table-card table th:nth-child(1),
-.period-table-card table td:nth-child(1){min-width:130px}
-.period-table-card table th:nth-child(3),
+.period-table-card table td:nth-child(1){min-width:120px}
 .period-table-card table td:nth-child(3),
-.period-table-card table th:nth-child(4),
 .period-table-card table td:nth-child(4),
-.period-table-card table th:nth-child(5),
 .period-table-card table td:nth-child(5),
-.period-table-card table th:nth-child(6),
-.period-table-card table td:nth-child(6){min-width:88px;white-space:nowrap}
+.period-table-card table td:nth-child(6){white-space:nowrap}
 
-/* Tab buttons never break weirdly */
-.tab-row{flex-wrap:wrap}
-.tab-btn{white-space:nowrap}
-
-/* Dashboard header row wrap gracefully */
-.dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-
-/* ── TABLET (≤960px) ── */
 @media(max-width:960px){
   :root{--sidebar:200px}
-  .main{padding:24px 20px 60px}
-  .hdr-nav .hdr-btn{font-size:12px;padding:5px 10px}
-  .stat-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-  .sum-val{font-size:15px}
+  .main{padding:22px 18px 60px}
+  .stat-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}
 }
-
-/* ── MOBILE (≤640px) ── */
 @media(max-width:640px){
   :root{--sidebar:250px}
-
-  /* Hamburger visible */
   .sb-toggle{display:flex;align-items:center;justify-content:center}
-
-  /* Sidebar slides in over content */
-  .sidebar{
-    position:fixed;top:0;left:0;height:100vh;z-index:50;
-    transform:translateX(-100%);transition:transform .25s ease;
-    border-right:1px solid var(--border2);
-    box-shadow:6px 0 32px rgba(0,0,0,.5)
-  }
+  .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:50;transform:translateX(-100%);transition:transform .24s ease;border-right:1px solid var(--bdrsage);box-shadow:6px 0 30px rgba(0,0,0,.5)}
   .sidebar.open{transform:translateX(0)}
-
-  /* Shell becomes single column */
   .shell{display:block}
-  .main{padding:16px 14px 80px}
-
-  /* Header compact */
-  .hdr{padding:10px 12px;gap:8px}
-  .logo-text{font-size:16px}
+  .main{padding:14px 13px 72px}
+  .hdr{padding:9px 11px;gap:7px}
+  .logo-text{font-size:15px}
   .hdr-nav{margin-left:4px;gap:2px}
-  .hdr-btn{font-size:11px;padding:5px 8px}
-
-  /* Dashboard header */
-  .dash-header{flex-direction:column;align-items:flex-start;gap:10px}
-  .dash-header h1{font-size:26px}
-
-  /* Stat grid 2-col */
-  .stat-grid{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
-  .stat-card{padding:14px 14px}
-  .stat-val{font-size:17px}
-  .stat-sub{font-size:10px}
-
-  /* Headcount row wraps */
-  .headcount-row{gap:8px;margin-bottom:16px}
+  .hdr-btn{font-size:11px;padding:4px 8px}
+  .dash-header{flex-direction:column;align-items:flex-start}
+  .dash-header h1{font-size:24px}
+  .stat-grid{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .stat-card{padding:12px 13px}
+  .stat-val{font-size:18px}
+  .headcount-row{gap:7px;margin-bottom:14px}
   .hc-card{padding:10px 12px;min-width:calc(50% - 4px)}
-  .hc-info .n{font-size:18px}
-
-  /* Chart card */
-  .chart-card{padding:14px 14px;margin-bottom:16px}
-  .chart-legend{flex-wrap:wrap;gap:8px}
-
-  /* Period table scrollable */
-  .period-table-card .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .period-table-card table{min-width:420px}
-
-  /* Entry header */
-  .entry-header{flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:16px}
-  .entry-title{font-size:22px}
-  .entry-actions{width:100%;display:flex;flex-wrap:wrap;gap:6px}
-  .entry-actions .btn{flex:1;min-width:120px;justify-content:center;font-size:12px;padding:7px 10px}
-
-  /* Tab row scrolls */
-  .tab-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;gap:3px;scrollbar-width:none}
+  .chart-card{padding:13px 13px;margin-bottom:14px}
+  .entry-header{flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:14px}
+  .entry-title{font-size:20px}
+  .entry-actions{width:100%;display:flex;flex-wrap:wrap;gap:5px}
+  .entry-actions .btn{flex:1;min-width:110px;justify-content:center}
+  .tab-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:2px}
   .tab-row::-webkit-scrollbar{display:none}
-  .tab-btn{font-size:10px;padding:7px 12px;white-space:nowrap;flex-shrink:0}
-
-  /* Section header stacks */
-  .sec-header{flex-direction:column;align-items:flex-start;gap:10px}
+  .tab-btn{font-size:10px;padding:6px 11px;flex-shrink:0}
+  .sec-header{flex-direction:column;align-items:flex-start;gap:8px}
   .tips-pool{width:100%;flex-wrap:wrap}
-  .pool-field{flex:1;min-width:130px}
-  .pool-field input{width:70px}
-
-  /* Summary strip scrolls */
-  .summary-strip{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .pool-field{flex:1;min-width:120px}
+  .pool-field input{width:66px}
+  .summary-strip{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .summary-strip::-webkit-scrollbar{display:none}
-  .sum-item{min-width:140px;flex-shrink:0;padding:10px 14px}
-  .sum-val{font-size:15px}
-  .sum-label{font-size:9px}
-
-  /* readonly banner compact */
-  .readonly-banner{font-size:12px;padding:10px 14px}
-
-  /* Employee grid single col */
+  .sum-item{min-width:130px;flex-shrink:0;padding:9px 12px}
+  .sum-val{font-size:14px}
+  .readonly-banner{font-size:12px;padding:8px 13px}
   .emp-grid{grid-template-columns:1fr;gap:8px}
-  .emp-card{padding:12px 14px}
-
-  /* Employee header */
-  #view-employees > div:first-child{flex-direction:column;align-items:flex-start;gap:10px}
-  #view-employees > div:first-child > div:last-child{width:100%;display:flex;gap:8px}
-  #view-employees > div:first-child > div:last-child select,
-  #view-employees > div:first-child > div:last-child .btn{flex:1}
-
-  /* Modal */
-  .modal{padding:20px 16px;border-radius:12px;max-height:90vh;overflow-y:auto}
+  #view-employees > div:first-child{flex-direction:column;align-items:flex-start;gap:8px}
+  #view-employees > div:first-child > div:last-child{width:100%;display:flex;gap:7px}
+  .modal{padding:18px 14px}
   .modal > div[style*="grid"]{display:flex!important;flex-direction:column!important}
-
-  /* Notes */
-  textarea.notes-input{min-height:60px}
-
-  /* Buttons in modal */
   .modal-actions{flex-wrap:wrap}
   .modal-actions .btn{flex:1;justify-content:center}
-
-  /* Toast */
-  .toast{bottom:16px;right:12px;left:12px;justify-content:center}
+  .toast{bottom:14px;right:10px;left:10px;justify-content:center}
+  .settings-drawer{width:290px}
 }
-
 </style>
 </head>
 <body>
+
+<!-- SETTINGS OVERLAY -->
+<div class="settings-overlay" id="settings-overlay" onclick="closeSettings()"></div>
+
+<!-- SETTINGS DRAWER -->
+<div class="settings-drawer" id="settings-drawer">
+  <div class="sd-header">
+    <div class="sd-title">Settings</div>
+    <button class="sd-close" onclick="closeSettings()">✕</button>
+  </div>
+  <div class="sd-body">
+
+    <div class="sd-group">
+      <div class="sd-plan">
+        <div class="sd-plan-name">ShiftPro Payroll <span class="sd-badge-info">Standalone</span></div>
+        <div class="sd-plan-sub">Internal use · Upgrade to full ShiftPro suite anytime</div>
+      </div>
+    </div>
+
+    <div class="sd-section">Company Information</div>
+    <div class="sd-group">
+      <div class="sd-field">
+        <label class="sd-label">Company / Organization Name</label>
+        <input type="text" class="sd-input" id="set-company-name" placeholder="e.g. Bayscapes Management Enterprises">
+        <div class="sd-hint">Displayed in the dashboard header and on exports.</div>
+      </div>
+      <div class="sd-field">
+        <label class="sd-label">Admin Contact Email</label>
+        <input type="email" class="sd-input" id="set-admin-email" placeholder="payroll@yourcompany.com">
+      </div>
+      <div class="sd-field">
+        <label class="sd-label">Phone / Contact</label>
+        <input type="text" class="sd-input" id="set-phone" placeholder="Optional">
+      </div>
+    </div>
+
+    <div class="sd-section">Division Labels</div>
+    <div class="sd-group">
+      <div class="sd-hint" style="margin-bottom:12px">These are the full names shown on tabs and exports for each company code.</div>
+      <div class="sd-field">
+        <label class="sd-label">STC — Full Name</label>
+        <input type="text" class="sd-input" id="set-stc-name" placeholder="Surf Town Coffee">
+      </div>
+      <div class="sd-field">
+        <label class="sd-label">BSC — Full Name</label>
+        <input type="text" class="sd-input" id="set-bsc-name" placeholder="Bayscapes Coffee &amp; Sea Lion Bar">
+      </div>
+      <div class="sd-field">
+        <label class="sd-label">APG — Full Name</label>
+        <input type="text" class="sd-input" id="set-apg-name" placeholder="Marine Discovery Tours &amp; Admin">
+      </div>
+    </div>
+
+    <div class="sd-section">Payroll Defaults</div>
+    <div class="sd-group">
+      <div class="sd-row">
+        <div class="sd-field">
+          <label class="sd-label">Default Mile Rate $</label>
+          <input type="number" class="sd-input" id="set-mile-rate" placeholder="0.70" step="0.01">
+        </div>
+        <div class="sd-field">
+          <label class="sd-label">OT Multiplier</label>
+          <input type="number" class="sd-input" id="set-ot-mult" placeholder="1.5" step="0.05">
+        </div>
+      </div>
+      <div class="sd-field">
+        <label class="sd-label">Fiscal Year Start Month</label>
+        <select class="sd-input" id="set-fy-month">
+          <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+          <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+          <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+          <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sd-divider"></div>
+    <div class="sd-section">System</div>
+    <div class="sd-group">
+      <div class="sd-label" style="margin-bottom:5px">Organization ID</div>
+      <div class="org-id-display" id="set-org-display">—</div>
+      <div class="sd-hint" style="margin-top:6px">This is your Supabase org ID. Contact ShiftPro support to change it.</div>
+    </div>
+
+    <button class="sd-save" onclick="saveSettings()">Save Settings</button>
+  </div>
+</div>
 
 <!-- SIDEBAR OVERLAY (mobile) -->
 <div class="sb-overlay" id="sb-overlay" onclick="toggleSidebar()"></div>
@@ -361,10 +406,10 @@ select.code-sel{min-width:54px;width:54px}
   <button class="sb-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">☰</button>
   <a class="logo" href="#">
     <div class="logo-icon">
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M3 13.5L7.5 6.5L10 10.5L12.5 7.5L17 13.5" stroke="#0c1220" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="17" cy="13.5" r="1.5" fill="#0c1220"/>
-        <circle cx="3" cy="13.5" r="1.5" fill="#0c1220"/>
+        <circle cx="17" cy="13.5" r="1.4" fill="#0c1220"/>
+        <circle cx="3" cy="13.5" r="1.4" fill="#0c1220"/>
       </svg>
     </div>
     <div class="logo-text">Shift<span>Pro</span></div>
@@ -375,8 +420,13 @@ select.code-sel{min-width:54px;width:54px}
     <button class="hdr-btn" onclick="switchView('employees',this)">Employees</button>
   </nav>
   <div class="hdr-right">
-    <span class="save-indicator" id="save-ind">✓ Saved</span>
+    <span class="save-ind" id="save-ind">✓ Saved</span>
     <span id="period-badge"></span>
+    <button class="gear-btn" id="gear-btn" onclick="toggleSettings()" title="Settings" aria-label="Open settings">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
   </div>
 </header>
 
@@ -384,12 +434,10 @@ select.code-sel{min-width:54px;width:54px}
 
 <!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
-  <div class="sb-section">Pay Periods</div>
-  <div id="sidebar-periods">
-    <div class="loader" style="height:80px;font-size:12px">Loading…</div>
-  </div>
+  <div class="sb-sec">Pay Periods</div>
+  <div id="sidebar-periods"><div class="loader" style="height:70px;font-size:12px">Loading…</div></div>
   <div class="sb-divider"></div>
-  <button class="sb-emp-btn" onclick="switchView('employees', document.querySelectorAll('.hdr-btn')[2])">
+  <button class="sb-emp-btn" onclick="switchView('employees',document.querySelectorAll('.hdr-btn')[2])">
     <span>👥</span> Employee Manager
   </button>
 </aside>
@@ -402,46 +450,43 @@ select.code-sel{min-width:54px;width:54px}
   <div id="view-dashboard" style="display:none">
     <div class="dash-header">
       <div>
-        <h1 style="font-family:'DM Serif Display',serif;font-size:32px;line-height:1">Payroll Dashboard</h1>
-        <p style="color:var(--texts);font-size:14px;margin-top:4px">Bayscapes Management Enterprises</p>
+        <h1 style="font-family:'DM Serif Display',serif;font-size:30px;line-height:1">Payroll Dashboard</h1>
+        <p style="color:var(--texts);font-size:13px;margin-top:3px" id="dash-company-name">Bayscapes Management Enterprises</p>
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Year</span>
-        <select id="year-select" onchange="changeYear(this.value)" style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;padding:7px 12px;outline:none;cursor:pointer">
+      <div style="display:flex;align-items:center;gap:9px">
+        <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Year</span>
+        <select id="year-select" onchange="changeYear(this.value)" style="background:var(--bg3);border:1px solid var(--bdr2);border-radius:7px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:6px 11px;outline:none;cursor:pointer">
           <option value="2025">2025</option>
           <option value="2026" selected>2026</option>
           <option value="2027">2027</option>
         </select>
       </div>
     </div>
-
     <div class="stat-grid" id="dash-stats"></div>
     <div class="headcount-row" id="dash-headcount"></div>
     <div class="chart-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
         <div class="chart-title">Payroll by Period</div>
         <div class="chart-legend">
-          <div class="leg-item"><div class="leg-dot" style="background:var(--gold)"></div>STC</div>
-          <div class="leg-item"><div class="leg-dot" style="background:var(--teal)"></div>BSC</div>
-          <div class="leg-item"><div class="leg-dot" style="background:var(--purple)"></div>APG</div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--sage)"></div><span id="leg-stc">STC</span></div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--indigo)"></div><span id="leg-bsc">BSC</span></div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--purp)"></div><span id="leg-apg">APG</span></div>
         </div>
       </div>
       <div id="dash-chart"></div>
     </div>
-
     <div class="period-table-card">
-      <div class="card-header">
-        <div class="card-title">Period Summary</div>
-      </div>
+      <div class="card-header"><div class="card-title">Period Summary</div></div>
       <div class="table-wrap">
         <table>
           <thead><tr>
             <th>Period</th><th>Status</th>
-            <th class="r">STC</th><th class="r">BSC</th><th class="r">APG</th><th class="r">Total</th>
+            <th class="r" id="th-stc">STC</th><th class="r" id="th-bsc">BSC</th><th class="r" id="th-apg">APG</th><th class="r">Total</th>
           </tr></thead>
           <tbody id="dash-table"></tbody>
           <tfoot><tr id="dash-tfoot">
-            <td>YTD Total</td><td></td><td id="dft-stc"></td><td id="dft-bsc"></td><td id="dft-apg"></td><td class="grand" id="dft-total"></td>
+            <td>YTD Total</td><td></td>
+            <td id="dft-stc"></td><td id="dft-bsc"></td><td id="dft-apg"></td><td class="grand" id="dft-total"></td>
           </tr></tfoot>
         </table>
       </div>
@@ -450,30 +495,27 @@ select.code-sel{min-width:54px;width:54px}
 
   <!-- ENTRY FORM -->
   <div id="view-entry" style="display:none">
-    <div id="readonly-banner" class="readonly-banner" style="display:none">
-      This period is locked — viewing in read-only mode.
-    </div>
-
+    <div id="readonly-banner" class="readonly-banner" style="display:none">This period is locked — viewing in read-only mode.</div>
     <div class="entry-header">
       <div>
         <h1 class="entry-title" id="entry-title">Pay Period Entry</h1>
-        <p style="color:var(--texts);font-size:13px;margin-top:3px" id="entry-dates"></p>
+        <p style="color:var(--texts);font-size:12px;margin-top:2px" id="entry-dates"></p>
       </div>
       <div class="entry-actions" id="entry-actions"></div>
     </div>
 
-    <!-- STC -->
     <div class="tab-row">
-      <button class="tab-btn active" onclick="showTab('stc',this)">STC · Surf Town Coffee</button>
-      <button class="tab-btn" onclick="showTab('bsc',this)">BSC · Bayscapes + Sea Lion</button>
-      <button class="tab-btn" onclick="showTab('apg',this)">APG · Marine Discovery</button>
+      <button class="tab-btn active" id="tab-stc-btn" onclick="showTab('stc',this)">STC · <span class="tab-co-name" data-co="stc">Surf Town Coffee</span></button>
+      <button class="tab-btn" id="tab-bsc-btn" onclick="showTab('bsc',this)">BSC · <span class="tab-co-name" data-co="bsc">Bayscapes + Sea Lion</span></button>
+      <button class="tab-btn" id="tab-apg-btn" onclick="showTab('apg',this)">APG · <span class="tab-co-name" data-co="apg">Marine Discovery</span></button>
     </div>
 
+    <!-- STC TAB -->
     <div id="tab-stc" class="sec-card active">
       <div class="sec-header">
-        <div style="display:flex;align-items:center;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px">
           <span class="sec-badge">STC</span>
-          <span style="color:var(--texts);font-size:14px;font-weight:600">Surf Town Coffee</span>
+          <span style="color:var(--texts);font-size:13px;font-weight:600" id="sec-stc-name">Surf Town Coffee</span>
         </div>
         <div class="tips-pool">
           <div class="pool-field"><label>Tips Received $</label><input type="number" id="stc-tips" placeholder="0.00" step="0.01" oninput="calcSTC()"></div>
@@ -486,7 +528,7 @@ select.code-sel{min-width:54px;width:54px}
             <th>Code</th><th style="text-align:left">First</th><th style="text-align:left">Last</th>
             <th class="r">Hrs Tips</th><th class="r">OT Tips</th><th class="r">Hrs NoTip</th><th class="r">OT NoTip</th>
             <th class="r">Miles</th><th class="r">Rate</th><th class="r">Wage</th><th class="r">Tips</th>
-            <th class="r">Mile Reimb</th><th class="r">Draw</th><th class="r">Deductions</th><th class="r">Total</th><th></th>
+            <th class="r">Mile $</th><th class="r">Draw</th><th class="r">Deductions</th><th class="r">Total</th><th></th>
           </tr></thead>
           <tbody id="stc-body"></tbody>
           <tfoot><tr>
@@ -503,18 +545,19 @@ select.code-sel{min-width:54px;width:54px}
       </div>
       <div class="summary-strip">
         <div class="sum-item"><div class="sum-label">Tippable Hrs</div><div class="sum-val" id="stc-s-hrs">0.00</div></div>
-        <div class="sum-item"><div class="sum-label">Tips Received</div><div class="sum-val gold" id="stc-s-tips">$0.00</div></div>
-        <div class="sum-item"><div class="sum-label">Tips / Hour</div><div class="sum-val teal" id="stc-s-tph">$0.00</div></div>
+        <div class="sum-item"><div class="sum-label">Tips Received</div><div class="sum-val sage" id="stc-s-tips">$0.00</div></div>
+        <div class="sum-item"><div class="sum-label">Tips / Hour</div><div class="sum-val ind" id="stc-s-tph">$0.00</div></div>
         <div class="sum-item"><div class="sum-label">Total Wages</div><div class="sum-val" id="stc-s-wage">$0.00</div></div>
-        <div class="sum-item"><div class="sum-label">Grand Total</div><div class="sum-val gold" id="stc-s-grand">$0.00</div></div>
+        <div class="sum-item"><div class="sum-label">Grand Total</div><div class="sum-val sage" id="stc-s-grand">$0.00</div></div>
       </div>
     </div>
 
+    <!-- BSC TAB -->
     <div id="tab-bsc" class="sec-card">
       <div class="sec-header">
-        <div style="display:flex;align-items:center;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px">
           <span class="sec-badge">BSC</span>
-          <span style="color:var(--texts);font-size:14px;font-weight:600">Bayscapes Coffee &amp; Sea Lion Bar</span>
+          <span style="color:var(--texts);font-size:13px;font-weight:600" id="sec-bsc-name">Bayscapes Coffee &amp; Sea Lion Bar</span>
         </div>
         <div class="tips-pool">
           <div class="pool-field"><label>BSC Tips $</label><input type="number" id="bsc-tips-bsc" placeholder="0.00" step="0.01" oninput="calcBSC()"></div>
@@ -529,7 +572,7 @@ select.code-sel{min-width:54px;width:54px}
             <th class="r">Hrs Tips</th><th class="r">OT Tips</th><th class="r">Hrs NoTip</th><th class="r">OT NoTip</th>
             <th class="r">Miles</th><th class="r">Rate</th><th class="r">Wage</th>
             <th class="r">BSC Tips</th><th class="r">SLB Tips</th>
-            <th class="r">Mile Reimb</th><th class="r">Draw</th><th class="r">Deductions</th><th class="r">Total</th><th></th>
+            <th class="r">Mile $</th><th class="r">Draw</th><th class="r">Deductions</th><th class="r">Total</th><th></th>
           </tr></thead>
           <tbody id="bsc-body"></tbody>
           <tfoot><tr>
@@ -545,18 +588,19 @@ select.code-sel{min-width:54px;width:54px}
       </div>
       <div class="summary-strip">
         <div class="sum-item"><div class="sum-label">Tippable Hrs</div><div class="sum-val" id="bsc-s-hrs">0.00</div></div>
-        <div class="sum-item"><div class="sum-label">BSC Tips</div><div class="sum-val gold" id="bsc-s-bsc">$0.00</div></div>
-        <div class="sum-item"><div class="sum-label">SLB Tips</div><div class="sum-val gold" id="bsc-s-slb">$0.00</div></div>
-        <div class="sum-item"><div class="sum-label">Tips / Hour</div><div class="sum-val teal" id="bsc-s-tph">$0.00</div></div>
-        <div class="sum-item"><div class="sum-label">Grand Total</div><div class="sum-val gold" id="bsc-s-grand">$0.00</div></div>
+        <div class="sum-item"><div class="sum-label">BSC Tips</div><div class="sum-val sage" id="bsc-s-bsc">$0.00</div></div>
+        <div class="sum-item"><div class="sum-label">SLB Tips</div><div class="sum-val sage" id="bsc-s-slb">$0.00</div></div>
+        <div class="sum-item"><div class="sum-label">Tips / Hour</div><div class="sum-val ind" id="bsc-s-tph">$0.00</div></div>
+        <div class="sum-item"><div class="sum-label">Grand Total</div><div class="sum-val sage" id="bsc-s-grand">$0.00</div></div>
       </div>
     </div>
 
+    <!-- APG TAB -->
     <div id="tab-apg" class="sec-card">
       <div class="sec-header">
-        <div style="display:flex;align-items:center;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px">
           <span class="sec-badge">APG</span>
-          <span style="color:var(--texts);font-size:14px;font-weight:600">Marine Discovery Tours &amp; Admin</span>
+          <span style="color:var(--texts);font-size:13px;font-weight:600" id="sec-apg-name">Marine Discovery Tours &amp; Admin</span>
         </div>
         <div class="tips-pool">
           <div class="pool-field"><label>Mile Rate $</label><input type="number" id="apg-mile" value="0.70" step="0.01" oninput="calcAPG()"></div>
@@ -567,7 +611,7 @@ select.code-sel{min-width:54px;width:54px}
           <thead><tr>
             <th>Code</th><th style="text-align:left">First</th><th style="text-align:left">Last</th>
             <th class="r">Hrs / Salary</th><th class="r">OT Hrs</th><th class="r">Miles</th>
-            <th class="r">Rate</th><th class="r">Wage</th><th class="r">Mile Reimb</th>
+            <th class="r">Rate</th><th class="r">Wage</th><th class="r">Mile $</th>
             <th class="r">Draw</th><th class="r">Deductions</th><th class="r">Total</th><th></th>
           </tr></thead>
           <tbody id="apg-body"></tbody>
@@ -580,7 +624,7 @@ select.code-sel{min-width:54px;width:54px}
         </table>
       </div>
       <div class="table-footer">
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:7px">
           <button class="btn btn-ghost btn-sm" id="apg-add-btn" onclick="addRow('apg')">+ Add Hourly</button>
           <button class="btn btn-ghost btn-sm" id="apg-sal-btn" onclick="addSalaryRow('apg')">+ Add Salary</button>
         </div>
@@ -589,7 +633,7 @@ select.code-sel{min-width:54px;width:54px}
         <div class="sum-item"><div class="sum-label">Total Hours</div><div class="sum-val" id="apg-s-hrs">0.00</div></div>
         <div class="sum-item"><div class="sum-label">Total Wages</div><div class="sum-val" id="apg-s-wage">$0.00</div></div>
         <div class="sum-item"><div class="sum-label">Mile Reimb</div><div class="sum-val" id="apg-s-mile">$0.00</div></div>
-        <div class="sum-item"><div class="sum-label">Grand Total</div><div class="sum-val gold" id="apg-s-grand">$0.00</div></div>
+        <div class="sum-item"><div class="sum-label">Grand Total</div><div class="sum-val sage" id="apg-s-grand">$0.00</div></div>
       </div>
     </div>
 
@@ -601,17 +645,17 @@ select.code-sel{min-width:54px;width:54px}
 
   <!-- EMPLOYEES VIEW -->
   <div id="view-employees" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px">
       <div>
-        <h1 style="font-family:'DM Serif Display',serif;font-size:32px">Employee Manager</h1>
-        <p style="color:var(--texts);font-size:14px;margin-top:4px">All companies · <span id="emp-count">—</span> employees</p>
+        <h1 style="font-family:'DM Serif Display',serif;font-size:30px">Employee Manager</h1>
+        <p style="color:var(--texts);font-size:13px;margin-top:3px">All companies · <span id="emp-count">—</span> employees</p>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select id="emp-filter" onchange="renderEmployees()" style="background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 12px;outline:none;cursor:pointer">
+      <div style="display:flex;gap:7px;align-items:center">
+        <select id="emp-filter" onchange="renderEmployees()" style="background:var(--bg3);border:1px solid var(--bdr2);border-radius:7px;color:var(--text);font-size:12px;padding:6px 11px;outline:none;cursor:pointer">
           <option value="">All Companies</option>
           <option value="stc">STC</option><option value="bsc">BSC</option><option value="apg">APG</option>
         </select>
-        <button class="btn btn-gold" onclick="openEmpModal()">+ Add Employee</button>
+        <button class="btn btn-sage" onclick="openEmpModal()">+ Add Employee</button>
       </div>
     </div>
     <div class="emp-grid" id="emp-grid"></div>
@@ -620,7 +664,7 @@ select.code-sel{min-width:54px;width:54px}
 </main>
 </div>
 
-<!-- MODALS -->
+<!-- PERIOD MODAL -->
 <div class="modal-overlay hidden" id="modal-period">
   <div class="modal">
     <div class="modal-title">New Pay Period</div>
@@ -629,23 +673,26 @@ select.code-sel{min-width:54px;width:54px}
     <div class="form-row"><label class="form-label">Label (optional)</label><input type="text" class="form-input" id="np-label" placeholder="e.g. Apr 11 – May 10"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closePeriodModal()">Cancel</button>
-      <button class="btn btn-gold" onclick="createPeriod()">Create Period</button>
+      <button class="btn btn-sage" onclick="createPeriod()">Create Period</button>
     </div>
   </div>
 </div>
 
+<!-- EMPLOYEE MODAL -->
 <div class="modal-overlay hidden" id="modal-emp">
   <div class="modal">
     <div class="modal-title" id="emp-modal-title">Add Employee</div>
     <input type="hidden" id="emp-id">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
       <div class="form-row"><label class="form-label">First Name</label><input type="text" class="form-input" id="emp-fn" placeholder="First"></div>
       <div class="form-row"><label class="form-label">Last Name</label><input type="text" class="form-input" id="emp-ln" placeholder="Last"></div>
     </div>
     <div class="form-row"><label class="form-label">Primary Company</label>
-      <select class="form-input" id="emp-co"><option value="stc">STC</option><option value="bsc">BSC</option><option value="apg">APG</option></select>
+      <select class="form-input" id="emp-co">
+        <option value="stc">STC</option><option value="bsc">BSC</option><option value="apg">APG</option>
+      </select>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
       <div class="form-row"><label class="form-label">Employee Type</label>
         <select class="form-input" id="emp-type" onchange="toggleSalary()">
           <option value="hourly">Hourly</option><option value="salary">Salary</option>
@@ -656,8 +703,8 @@ select.code-sel{min-width:54px;width:54px}
     <div class="form-row"><label class="form-label">Notes</label><input type="text" class="form-input" id="emp-notes" placeholder="Optional notes"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeEmpModal()">Cancel</button>
-      <button class="btn btn-ghost btn-sm" id="emp-deactivate-btn" onclick="deactivateEmployee()" style="color:var(--red);display:none">Deactivate</button>
-      <button class="btn btn-gold" onclick="saveEmployee()">Save</button>
+      <button class="btn btn-danger btn-sm" id="emp-deactivate-btn" onclick="deactivateEmployee()" style="display:none">Deactivate</button>
+      <button class="btn btn-sage" onclick="saveEmployee()">Save Employee</button>
     </div>
   </div>
 </div>
@@ -668,25 +715,107 @@ select.code-sel{min-width:54px;width:54px}
 // ─── CONFIG ───────────────────────────────────────────────
 const ORG = '7c26b9de-509c-4294-980b-10361d9eae47';
 
+// ─── SETTINGS (localStorage) ──────────────────────────────
+const SETTINGS_KEY = 'shiftpro_payroll_settings';
+let CFG = {
+  companyName: 'Bayscapes Management Enterprises',
+  adminEmail: '',
+  phone: '',
+  stcName: 'Surf Town Coffee',
+  bscName: 'Bayscapes Coffee & Sea Lion Bar',
+  apgName: 'Marine Discovery Tours & Admin',
+  mileRate: 0.70,
+  otMult: 1.5,
+  fyMonth: 1,
+};
+
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem(SETTINGS_KEY);
+    if (saved) CFG = { ...CFG, ...JSON.parse(saved) };
+  } catch(e) {}
+  applySettings();
+}
+
+function applySettings() {
+  const el = id => document.getElementById(id);
+  if (el('dash-company-name')) el('dash-company-name').textContent = CFG.companyName;
+  if (el('sec-stc-name')) el('sec-stc-name').textContent = CFG.stcName;
+  if (el('sec-bsc-name')) el('sec-bsc-name').textContent = CFG.bscName;
+  if (el('sec-apg-name')) el('sec-apg-name').textContent = CFG.apgName;
+  document.querySelectorAll('.tab-co-name').forEach(el => {
+    const co = el.dataset.co;
+    if (co === 'stc') el.textContent = CFG.stcName.split(' ').slice(0,3).join(' ');
+    if (co === 'bsc') el.textContent = CFG.bscName.split(' ').slice(0,3).join(' ');
+    if (co === 'apg') el.textContent = CFG.apgName.split(' ').slice(0,2).join(' ');
+  });
+  if (el('leg-stc')) el('leg-stc').textContent = 'STC';
+  if (el('th-stc')) el('th-stc').textContent = 'STC';
+  if (el('th-bsc')) el('th-bsc').textContent = 'BSC';
+  if (el('th-apg')) el('th-apg').textContent = 'APG';
+  const mr = parseFloat(CFG.mileRate) || 0.70;
+  ['stc-mile','bsc-mile','apg-mile'].forEach(id => { const e = el(id); if(e && !e._touched) e.value = mr; });
+}
+
+function openSettings() {
+  const el = id => document.getElementById(id);
+  el('set-company-name').value = CFG.companyName;
+  el('set-admin-email').value = CFG.adminEmail;
+  el('set-phone').value = CFG.phone;
+  el('set-stc-name').value = CFG.stcName;
+  el('set-bsc-name').value = CFG.bscName;
+  el('set-apg-name').value = CFG.apgName;
+  el('set-mile-rate').value = CFG.mileRate;
+  el('set-ot-mult').value = CFG.otMult;
+  el('set-fy-month').value = CFG.fyMonth;
+  el('set-org-display').textContent = ORG;
+  el('settings-drawer').classList.add('open');
+  el('settings-overlay').classList.add('show');
+  el('gear-btn').classList.add('active');
+}
+
+function closeSettings() {
+  document.getElementById('settings-drawer').classList.remove('open');
+  document.getElementById('settings-overlay').classList.remove('show');
+  document.getElementById('gear-btn').classList.remove('active');
+}
+
+function toggleSettings() {
+  const open = document.getElementById('settings-drawer').classList.contains('open');
+  open ? closeSettings() : openSettings();
+}
+
+function saveSettings() {
+  const el = id => document.getElementById(id);
+  CFG = {
+    companyName: el('set-company-name').value.trim() || CFG.companyName,
+    adminEmail:  el('set-admin-email').value.trim(),
+    phone:       el('set-phone').value.trim(),
+    stcName:     el('set-stc-name').value.trim() || CFG.stcName,
+    bscName:     el('set-bsc-name').value.trim() || CFG.bscName,
+    apgName:     el('set-apg-name').value.trim() || CFG.apgName,
+    mileRate:    parseFloat(el('set-mile-rate').value) || 0.70,
+    otMult:      parseFloat(el('set-ot-mult').value) || 1.5,
+    fyMonth:     parseInt(el('set-fy-month').value) || 1,
+  };
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(CFG)); } catch(e) {}
+  applySettings();
+  closeSettings();
+  toast('✓ Settings saved');
+}
+
 // ─── STATE ────────────────────────────────────────────────
 const S = {
-  view: 'dashboard',
-  year: 2026,
-  periodId: null,
-  period: null,
-  periods: [],
-  employees: [],
-  dirty: false,
-  readonly: false,
-  autoSaveTimer: null,
-  dash: null,
+  view:'dashboard',year:2026,periodId:null,period:null,
+  periods:[],employees:[],dirty:false,readonly:false,
+  autoSaveTimer:null,dash:null,
 };
 
 // ─── HELPERS ──────────────────────────────────────────────
 const $ = id => document.getElementById(id);
-const $$ = (sel, ctx) => [...(ctx||document).querySelectorAll(sel)];
+const $$ = (sel,ctx) => [...(ctx||document).querySelectorAll(sel)];
 const n = v => isNaN(parseFloat(v)) ? 0 : parseFloat(v);
-const fD = x => '$' + Number(x).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+const fD = x => '$' + Number(x).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 const fN = (x,d=2) => Number(x).toFixed(d);
 
 async function api(path, opts={}) {
@@ -696,331 +825,264 @@ async function api(path, opts={}) {
 }
 
 function toast(msg, dur=3000) {
-  const t = $('toast'); t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), dur);
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), dur);
 }
-
 function showSaved() {
-  const el = $('save-ind'); el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2000);
+  const el=$('save-ind'); el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 2000);
 }
-
 function markDirty() {
-  if (S.readonly) return;
-  S.dirty = true;
+  if(S.readonly) return;
+  S.dirty=true;
   clearTimeout(S.autoSaveTimer);
-  S.autoSaveTimer = setTimeout(autoSave, 30000);
+  S.autoSaveTimer=setTimeout(autoSave, 30000);
 }
-
 function codeOpts(val) {
-  val = (val||'').toUpperCase();
-  const opts = [['','—'],['N','N'],['X','X'],['?','?'],['N/X','N/X'],['O','O']];
-  return `<select class="code-sel" onchange="markDirty()">${opts.map(([v,l])=>`<option value="${v}"${v===val?' selected':''}>${l}</option>`).join('')}</select>`;
+  val=(val||'').toUpperCase();
+  const opts=[['','—'],['N','N'],['X','X'],['?','?'],['N/X','N/X'],['O','O']];
+  return '<select class="code-sel" onchange="markDirty()">'+opts.map(([v,l])=>'<option value="'+v+'"'+(v===val?' selected':'')+'>'+l+'</option>').join('')+'</select>';
 }
 
-// ─── SIDEBAR MOBILE TOGGLE ────────────────────────────────
+// ─── MOBILE SIDEBAR ───────────────────────────────────────
 function toggleSidebar() {
-  const sb = document.getElementById('sidebar');
-  const ov = document.getElementById('sb-overlay');
-  const open = sb.classList.toggle('open');
-  ov.classList.toggle('show', open);
+  const sb=$('sidebar'),ov=$('sb-overlay');
+  const open=sb.classList.toggle('open');
+  ov.classList.toggle('show',open);
 }
-
-// Auto-close sidebar on period select (mobile)
 function closeSidebarMobile() {
-  if (window.innerWidth <= 640) {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sb-overlay').classList.remove('show');
+  if(window.innerWidth<=640) {
+    $('sidebar').classList.remove('open');
+    $('sb-overlay').classList.remove('show');
   }
 }
 
 // ─── VIEW SWITCHING ───────────────────────────────────────
 function switchView(v, btn) {
-  S.view = v;
-  $$('.hdr-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  ['dashboard','entry','employees'].forEach(id => {
-    $('view-'+id).style.display = id===v ? 'block' : 'none';
+  S.view=v;
+  $$('.hdr-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  ['dashboard','entry','employees'].forEach(id=>{
+    $('view-'+id).style.display=id===v?'block':'none';
   });
-  if (v === 'dashboard') loadDashboard();
-  if (v === 'employees') renderEmployees();
+  if(v==='dashboard') loadDashboard();
+  if(v==='employees') renderEmployees();
 }
 
 function showTab(sec, btn) {
-  $$('.tab-btn').forEach(b => b.classList.remove('active'));
+  $$('.tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  $$('.sec-card').forEach(c => c.classList.remove('active'));
+  $$('.sec-card').forEach(c=>c.classList.remove('active'));
   $('tab-'+sec).classList.add('active');
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────
 async function loadPeriods() {
   try {
-    const { periods } = await api('/api/payroll/periods?orgId='+ORG+'&year='+S.year);
-    S.periods = periods || [];
+    const {periods}=await api('/api/payroll/periods?orgId='+ORG+'&year='+S.year);
+    S.periods=periods||[];
     renderSidebar();
   } catch(e) { toast('Failed to load periods'); }
 }
 
 function renderSidebar() {
-  const years = [...new Set(S.periods.map(p=>p.year))].sort((a,b)=>b-a);
-  if (!years.includes(S.year)) years.unshift(S.year);
-
-  const html = years.map(yr => {
-    const yp = S.periods.filter(p=>p.year===yr).sort((a,b)=>new Date(b.period_end)-new Date(a.period_end));
-    return `
-      <div class="year-row" onclick="toggleYear(${yr})">
-        <span class="year-label ${yr===S.year?'active':''}">${yr}</span>
-        <span class="year-toggle" id="ytog-${yr}">▼</span>
-      </div>
-      <div class="period-list" id="ylist-${yr}" style="${yr===S.year?'':'max-height:0'}">
-        ${yp.map(p=>`
-          <div class="period-item ${p.id===S.periodId?'active':''}" onclick="selectPeriod('${p.id}')">
-            <div class="period-dot dot-${p.status}"></div>
-            <span class="period-label">${p.label||formatDate(p.period_end)}</span>
-          </div>
-        `).join('')}
-        <button class="sb-new" onclick="openPeriodModal(${yr})">+ New Period</button>
-      </div>
-    `;
+  const years=[...new Set(S.periods.map(p=>p.year))].sort((a,b)=>b-a);
+  if(!years.includes(S.year)) years.unshift(S.year);
+  const html=years.map(yr=>{
+    const yp=S.periods.filter(p=>p.year===yr).sort((a,b)=>new Date(b.period_end)-new Date(a.period_end));
+    return '<div class="year-row" onclick="toggleYear('+yr+')"><span class="year-label '+(yr===S.year?'active':'')+'">'+yr+'</span><span class="year-toggle" id="ytog-'+yr+'">▼</span></div>'
+      +'<div class="period-list" id="ylist-'+yr+'" style="'+(yr===S.year?'':'max-height:0')+'">'
+      +yp.map(p=>'<div class="period-item '+(p.id===S.periodId?'active':'')+'" onclick="selectPeriod(\''+p.id+'\')">'
+        +'<div class="period-dot dot-'+p.status+'"></div>'
+        +'<span class="period-label">'+(p.label||formatDate(p.period_end))+'</span></div>').join('')
+      +'<button class="sb-new" onclick="openPeriodModal('+yr+')">+ New Period</button></div>';
   }).join('');
-
-  $('sidebar-periods').innerHTML = html;
+  $('sidebar-periods').innerHTML=html;
 }
 
 function toggleYear(yr) {
-  const el = $('ylist-'+yr);
-  const tog = $('ytog-'+yr);
-  const open = el.style.maxHeight !== '0px' && el.style.maxHeight !== '0';
-  el.style.maxHeight = open ? '0' : '2000px';
-  tog.textContent = open ? '▶' : '▼';
+  const el=$('ylist-'+yr),tog=$('ytog-'+yr);
+  const open=el.style.maxHeight!=='0px'&&el.style.maxHeight!=='0';
+  el.style.maxHeight=open?'0':'2000px';
+  tog.textContent=open?'▶':'▼';
 }
-
 function formatDate(d) {
   return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
-
 async function changeYear(yr) {
-  S.year = parseInt(yr);
+  S.year=parseInt(yr);
   await loadPeriods();
   loadDashboard();
 }
 
 // ─── PERIOD SELECTION ─────────────────────────────────────
 async function selectPeriod(id) {
-  if (S.dirty) await autoSave();
-  S.periodId = id;
-  S.period = S.periods.find(p=>p.id===id);
-  S.readonly = S.period?.status === 'locked';
+  if(S.dirty) await autoSave();
+  S.periodId=id;
+  S.period=S.periods.find(p=>p.id===id);
+  S.readonly=S.period?.status==='locked';
   renderSidebar();
   closeSidebarMobile();
-  switchView('entry', $$('.hdr-btn')[1]);
+  switchView('entry',$$('.hdr-btn')[1]);
   await loadPeriodData(id);
 }
 
 async function loadPeriodData(id) {
-  $('main-loader').style.display = 'flex';
-  $('view-entry').style.display = 'none';
+  $('main-loader').style.display='flex';
+  $('view-entry').style.display='none';
   try {
-    const { entries, tips } = await api('/api/payroll/entries?periodId='+id);
-    populateEntryForm(entries||[], tips||[]);
-    $('main-loader').style.display = 'none';
-    $('view-entry').style.display = 'block';
+    const {entries,tips}=await api('/api/payroll/entries?periodId='+id);
+    populateEntryForm(entries||[],tips||[]);
+    $('main-loader').style.display='none';
+    $('view-entry').style.display='block';
   } catch(e) {
-    $('main-loader').style.display = 'none';
-    $('view-entry').style.display = 'block';
+    $('main-loader').style.display='none';
+    $('view-entry').style.display='block';
     toast('Error loading period data');
   }
 }
 
 function populateEntryForm(entries, tips) {
-  const p = S.period;
-  $('entry-title').textContent = p?.label || 'Pay Period';
-  $('entry-dates').textContent = p ? formatDate(p.period_start)+' – '+formatDate(p.period_end) : '';
+  const p=S.period;
+  $('entry-title').textContent=p?.label||'Pay Period';
+  $('entry-dates').textContent=p?formatDate(p.period_start)+' – '+formatDate(p.period_end):'';
+  const badge=p?.status==='draft'?'<span class="badge badge-draft">Draft</span>'
+    :p?.status==='submitted'?'<span class="badge badge-submitted">Submitted</span>'
+    :'<span class="badge badge-locked">Locked</span>';
+  $('period-badge').innerHTML=badge;
+  $('readonly-banner').style.display=S.readonly?'flex':'none';
 
-  const badge = p?.status==='draft' ? '<span class="badge badge-draft">Draft</span>'
-    : p?.status==='submitted' ? '<span class="badge badge-submitted">Submitted</span>'
-    : '<span class="badge badge-locked">Locked</span>';
-  $('period-badge').innerHTML = badge;
+  const actions=S.readonly
+    ?'<button class="btn btn-ghost" onclick="exportCSV()">⬇ Export CSV</button><button class="btn btn-ghost" onclick="window.print()">⎙ Print</button>'
+    :'<button class="btn btn-ghost" onclick="exportCSV()">⬇ Export</button><button class="btn btn-ghost" onclick="saveDraft()">💾 Save Draft</button>'
+      +(p?.status==='draft'?'<button class="btn btn-indigo" onclick="submitPeriod()">✓ Submit Period</button>':'');
+  $('entry-actions').innerHTML=actions;
 
-  $('readonly-banner').style.display = S.readonly ? 'flex' : 'none';
-
-  // Entry actions
-  const actions = S.readonly ? `
-    <button class="btn btn-ghost" onclick="exportCSV()">⬇ Export CSV</button>
-    <button class="btn btn-ghost" onclick="window.print()">⎙ Print</button>
-  ` : `
-    <button class="btn btn-ghost" onclick="exportCSV()">⬇ Export</button>
-    <button class="btn btn-ghost" onclick="saveDraft()">💾 Save Draft</button>
-    ${p?.status==='draft'?`<button class="btn btn-teal" onclick="submitPeriod()">✓ Submit Period</button>`:''}
-  `;
-  $('entry-actions').innerHTML = actions;
-
-  // Disable add buttons if readonly
   ['stc-add-btn','bsc-add-btn','apg-add-btn','apg-sal-btn'].forEach(id=>{
-    const el = $(id); if(el) el.style.display = S.readonly?'none':'inline-flex';
+    const el=$(id); if(el) el.style.display=S.readonly?'none':'inline-flex';
   });
 
-  // Tips pools
-  const stcTips = tips.find(t=>t.company==='stc');
-  const bscTips = tips.find(t=>t.company==='bsc');
-  const apgTips = tips.find(t=>t.company==='apg');
-  $('stc-tips').value = stcTips?.stc_tips || '';
-  $('stc-mile').value = stcTips?.mile_rate || 0.70;
-  $('bsc-tips-bsc').value = bscTips?.bsc_tips || '';
-  $('bsc-tips-slb').value = bscTips?.slb_tips || '';
-  $('bsc-mile').value = bscTips?.mile_rate || 0.70;
-  $('apg-mile').value = apgTips?.mile_rate || 0.70;
+  const stcT=tips.find(t=>t.company==='stc');
+  const bscT=tips.find(t=>t.company==='bsc');
+  const apgT=tips.find(t=>t.company==='apg');
+  const mr=parseFloat(CFG.mileRate)||0.70;
+  $('stc-tips').value=stcT?.stc_tips||'';
+  $('stc-mile').value=stcT?.mile_rate||mr;
+  $('bsc-tips-bsc').value=bscT?.bsc_tips||'';
+  $('bsc-tips-slb').value=bscT?.slb_tips||'';
+  $('bsc-mile').value=bscT?.mile_rate||mr;
+  $('apg-mile').value=apgT?.mile_rate||mr;
+  $('period-notes').value=p?.notes||'';
+  $('period-notes').disabled=S.readonly;
 
-  // Notes
-  $('period-notes').value = p?.notes || '';
-  $('period-notes').disabled = S.readonly;
-
-  // Clear bodies
-  ['stc-body','bsc-body','apg-body'].forEach(id => $(id).innerHTML = '');
-
-  // Populate entries
-  entries.filter(e=>e.company==='stc').forEach(e => addRow('stc', entryToData(e)));
-  entries.filter(e=>e.company==='bsc').forEach(e => addRow('bsc', entryToData(e)));
-  entries.filter(e=>e.company==='apg').forEach(e => {
-    if (e.salary_amount > 0 || e.employee?.employee_type==='salary') addSalaryRow('apg', entryToData(e));
-    else addRow('apg', entryToData(e));
+  ['stc-body','bsc-body','apg-body'].forEach(id=>$(id).innerHTML='');
+  entries.filter(e=>e.company==='stc').forEach(e=>addRow('stc',eData(e)));
+  entries.filter(e=>e.company==='bsc').forEach(e=>addRow('bsc',eData(e)));
+  entries.filter(e=>e.company==='apg').forEach(e=>{
+    if(e.salary_amount>0||e.employee?.employee_type==='salary') addSalaryRow('apg',eData(e));
+    else addRow('apg',eData(e));
   });
-
-  if (!entries.filter(e=>e.company==='stc').length && !S.readonly) addRow('stc');
-  if (!entries.filter(e=>e.company==='bsc').length && !S.readonly) addRow('bsc');
-  if (!entries.filter(e=>e.company==='apg').length && !S.readonly) addRow('apg');
-
+  if(!entries.filter(e=>e.company==='stc').length&&!S.readonly) addRow('stc');
+  if(!entries.filter(e=>e.company==='bsc').length&&!S.readonly) addRow('bsc');
+  if(!entries.filter(e=>e.company==='apg').length&&!S.readonly) addRow('apg');
   calcSTC(); calcBSC(); calcAPG();
-  S.dirty = false;
+  S.dirty=false;
 }
 
-function entryToData(e) {
+function eData(e) {
   return {
-    id: e.id,
-    employeeId: e.employee_id,
-    code: e.status_code,
-    fn: e.employee?.first_name || '',
-    ln: e.employee?.last_name || '',
-    hrsTip: e.hrs_tips, otTip: e.ot_tips,
-    hrsNoTip: e.hrs_no_tips, otNoTip: e.ot_no_tips,
-    miles: e.mileage,
-    rate: e.pay_rate_override || e.employee?.pay_rate || 0,
-    draw: e.draw, ded: e.deductions,
-    salary: e.salary_amount,
+    id:e.id, employeeId:e.employee_id, code:e.status_code,
+    fn:e.employee?.first_name||'', ln:e.employee?.last_name||'',
+    hrsTip:e.hrs_tips, otTip:e.ot_tips, hrsNoTip:e.hrs_no_tips, otNoTip:e.ot_no_tips,
+    miles:e.mileage, rate:e.pay_rate_override||e.employee?.pay_rate||0,
+    draw:e.draw, ded:e.deductions, salary:e.salary_amount,
   };
 }
 
 // ─── ROW BUILDERS ─────────────────────────────────────────
-function ro(v) { return S.readonly ? 'disabled' : ''; }
+const ro=()=>S.readonly?'disabled':'';
 
-function addRow(sec, d={}) {
-  const body = $(sec+'-body');
-  const row = document.createElement('tr');
-  row.dataset.sec = sec;
-  row.dataset.eid = d.employeeId || '';
-  row.dataset.entryId = d.id || '';
-  if (sec === 'apg') row.innerHTML = apgRowHTML(d, false);
-  else row.innerHTML = tipRowHTML(sec, d);
+function addRow(sec,d={}) {
+  const body=$(sec+'-body'),row=document.createElement('tr');
+  row.dataset.sec=sec; row.dataset.eid=d.employeeId||''; row.dataset.entryId=d.id||'';
+  row.innerHTML=sec==='apg'?apgRowHTML(d,false):tipRowHTML(sec,d);
   body.appendChild(row);
-  if (sec==='stc') calcSTC(); else if(sec==='bsc') calcBSC(); else calcAPG();
+  if(sec==='stc') calcSTC(); else if(sec==='bsc') calcBSC(); else calcAPG();
 }
 
-function addSalaryRow(sec, d={}) {
-  const body = $(sec+'-body');
-  const row = document.createElement('tr');
-  row.dataset.sec = sec; row.dataset.eid = d.employeeId||''; row.dataset.entryId = d.id||''; row.dataset.salary = '1';
-  row.innerHTML = apgRowHTML(d, true);
+function addSalaryRow(sec,d={}) {
+  const body=$(sec+'-body'),row=document.createElement('tr');
+  row.dataset.sec=sec; row.dataset.eid=d.employeeId||''; row.dataset.entryId=d.id||''; row.dataset.salary='1';
+  row.innerHTML=apgRowHTML(d,true);
   body.appendChild(row);
   calcAPG();
 }
 
-function tipRowHTML(sec, d={}) {
-  const bsc = sec==='bsc';
-  const tipCol = bsc
-    ? `<td class="computed" data-bsct></td><td class="computed" data-slbt></td>`
-    : `<td class="computed" data-tips></td>`;
-  return `
-    <td>${codeOpts(d.code)}</td>
-    <td><input type="text" placeholder="First" value="${d.fn||''}" ${ro()} oninput="markDirty()"></td>
-    <td><input type="text" placeholder="Last"  value="${d.ln||''}" ${ro()} oninput="markDirty()"></td>
-    <td><input type="number" data-hrstip placeholder="0" step="0.01" value="${d.hrsTip||''}" ${ro()} oninput="calc('${sec}');markDirty()"></td>
-    <td><input type="number" data-ottip  placeholder="0" step="0.01" value="${d.otTip||''}"  ${ro()} oninput="calc('${sec}');markDirty()"></td>
-    <td><input type="number" data-hrsnt  placeholder="0" step="0.01" value="${d.hrsNoTip||''}" ${ro()} oninput="calc('${sec}');markDirty()"></td>
-    <td><input type="number" data-otnt   placeholder="0" step="0.01" value="${d.otNoTip||''}"  ${ro()} oninput="calc('${sec}');markDirty()"></td>
-    <td><input type="number" data-miles  placeholder="0" step="0.01" value="${d.miles||''}"   ${ro()} oninput="calc('${sec}');markDirty()"></td>
-    <td><input type="number" data-rate   placeholder="0" step="0.00001" value="${d.rate||''}" ${ro()} oninput="calc('${sec}');markDirty()"></td>
-    <td class="computed" data-wage></td>
-    ${tipCol}
-    <td class="computed" data-mr></td>
-    <td><input type="number" data-draw placeholder="0" step="0.01" value="${d.draw||''}" ${ro()} oninput="calc('${sec}');markDirty()"></td>
-    <td><input type="number" data-ded  placeholder="0" step="0.01" value="${d.ded||''}"  ${ro()} oninput="calc('${sec}');markDirty()"></td>
-    <td class="total-cell" data-total></td>
-    <td>${S.readonly?'':'<button class="btn btn-danger" onclick="removeRow(this)">✕</button>'}</td>
-  `;
+function tipRowHTML(sec,d={}) {
+  const bsc=sec==='bsc';
+  const tc=bsc?'<td class="computed" data-bsct></td><td class="computed" data-slbt></td>':'<td class="computed" data-tips></td>';
+  return '<td>'+codeOpts(d.code)+'</td>'
+    +'<td><input type="text" placeholder="First" value="'+(d.fn||'')+'" '+ro()+' oninput="markDirty()"></td>'
+    +'<td><input type="text" placeholder="Last"  value="'+(d.ln||'')+'" '+ro()+' oninput="markDirty()"></td>'
+    +'<td><input type="number" data-hrstip placeholder="0" step="0.01" value="'+(d.hrsTip||'')+'" '+ro()+' oninput="calc(\''+sec+'\');markDirty()"></td>'
+    +'<td><input type="number" data-ottip  placeholder="0" step="0.01" value="'+(d.otTip||'')+'"  '+ro()+' oninput="calc(\''+sec+'\');markDirty()"></td>'
+    +'<td><input type="number" data-hrsnt  placeholder="0" step="0.01" value="'+(d.hrsNoTip||'')+'" '+ro()+' oninput="calc(\''+sec+'\');markDirty()"></td>'
+    +'<td><input type="number" data-otnt   placeholder="0" step="0.01" value="'+(d.otNoTip||'')+'"  '+ro()+' oninput="calc(\''+sec+'\');markDirty()"></td>'
+    +'<td><input type="number" data-miles  placeholder="0" step="0.01" value="'+(d.miles||'')+'"   '+ro()+' oninput="calc(\''+sec+'\');markDirty()"></td>'
+    +'<td><input type="number" data-rate   placeholder="0" step="0.00001" value="'+(d.rate||'')+'" '+ro()+' oninput="calc(\''+sec+'\');markDirty()"></td>'
+    +'<td class="computed" data-wage></td>'+tc
+    +'<td class="computed" data-mr></td>'
+    +'<td><input type="number" data-draw placeholder="0" step="0.01" value="'+(d.draw||'')+'" '+ro()+' oninput="calc(\''+sec+'\');markDirty()"></td>'
+    +'<td><input type="number" data-ded  placeholder="0" step="0.01" value="'+(d.ded||'')+'"  '+ro()+' oninput="calc(\''+sec+'\');markDirty()"></td>'
+    +'<td class="total-cell" data-total></td>'
+    +'<td>'+(S.readonly?'':'<button class="btn btn-danger" onclick="removeRow(this)">✕</button>')+'</td>';
 }
 
-function apgRowHTML(d={}, salary) {
-  if (salary) return `
-    <td>${codeOpts(d.code)}</td>
-    <td><input type="text" placeholder="First" value="${d.fn||''}" ${ro()} oninput="markDirty()"></td>
-    <td><input type="text" placeholder="Last"  value="${d.ln||''}" ${ro()} oninput="markDirty()"></td>
-    <td colspan="3" class="salary-amt">SALARY</td>
-    <td></td><td class="computed" data-wage></td>
-    <td class="computed" data-mr>—</td>
-    <td><input type="number" data-draw placeholder="0" step="0.01" value="${d.draw||''}" ${ro()} oninput="calcAPG();markDirty()"></td>
-    <td><input type="number" data-ded  placeholder="0" step="0.01" value="${d.ded||''}"  ${ro()} oninput="calcAPG();markDirty()"></td>
-    <td class="total-cell" data-total></td>
-    <td>
-      <input type="number" data-salamt placeholder="$ Amount" step="0.01" value="${d.salary||''}" ${ro()}
-        style="width:90px;background:var(--teald);border:1px solid var(--teal);border-radius:4px;color:var(--teal);font-family:'DM Mono',monospace;font-size:12px;padding:3px 6px;text-align:right;outline:none"
-        oninput="calcAPG();markDirty()">
-      ${S.readonly?'':'<button class="btn btn-danger" onclick="removeRow(this)">✕</button>'}
-    </td>
-  `;
-  return `
-    <td>${codeOpts(d.code)}</td>
-    <td><input type="text" placeholder="First" value="${d.fn||''}" ${ro()} oninput="markDirty()"></td>
-    <td><input type="text" placeholder="Last"  value="${d.ln||''}" ${ro()} oninput="markDirty()"></td>
-    <td><input type="number" data-hrs  placeholder="0" step="0.01" value="${d.hrsTip||''}" ${ro()} oninput="calcAPG();markDirty()"></td>
-    <td><input type="number" data-othr placeholder="0" step="0.01" value="${d.otTip||''}"  ${ro()} oninput="calcAPG();markDirty()"></td>
-    <td><input type="number" data-miles placeholder="0" step="0.01" value="${d.miles||''}" ${ro()} oninput="calcAPG();markDirty()"></td>
-    <td><input type="number" data-rate  placeholder="0" step="0.00001" value="${d.rate||''}" ${ro()} oninput="calcAPG();markDirty()"></td>
-    <td class="computed" data-wage></td>
-    <td class="computed" data-mr></td>
-    <td><input type="number" data-draw placeholder="0" step="0.01" value="${d.draw||''}" ${ro()} oninput="calcAPG();markDirty()"></td>
-    <td><input type="number" data-ded  placeholder="0" step="0.01" value="${d.ded||''}"  ${ro()} oninput="calcAPG();markDirty()"></td>
-    <td class="total-cell" data-total></td>
-    <td>${S.readonly?'':'<button class="btn btn-danger" onclick="removeRow(this)">✕</button>'}</td>
-  `;
+function apgRowHTML(d={},salary) {
+  const salStyle='width:84px;background:var(--indigop);border:1px solid var(--indigo);border-radius:4px;color:var(--indigo);font-family:"DM Mono",monospace;font-size:12px;padding:3px 5px;text-align:right;outline:none';
+  if(salary) return '<td>'+codeOpts(d.code)+'</td>'
+    +'<td><input type="text" placeholder="First" value="'+(d.fn||'')+'" '+ro()+' oninput="markDirty()"></td>'
+    +'<td><input type="text" placeholder="Last"  value="'+(d.ln||'')+'" '+ro()+' oninput="markDirty()"></td>'
+    +'<td colspan="3" class="salary-amt">SALARY</td><td></td>'
+    +'<td class="computed" data-wage></td><td class="computed" data-mr>—</td>'
+    +'<td><input type="number" data-draw placeholder="0" step="0.01" value="'+(d.draw||'')+'" '+ro()+' oninput="calcAPG();markDirty()"></td>'
+    +'<td><input type="number" data-ded  placeholder="0" step="0.01" value="'+(d.ded||'')+'"  '+ro()+' oninput="calcAPG();markDirty()"></td>'
+    +'<td class="total-cell" data-total></td>'
+    +'<td><input type="number" data-salamt placeholder="$ Amt" step="0.01" value="'+(d.salary||'')+'" '+ro()+' style="'+salStyle+'" oninput="calcAPG();markDirty()">'
+    +(S.readonly?'':'<button class="btn btn-danger" onclick="removeRow(this)">✕</button>')+'</td>';
+  return '<td>'+codeOpts(d.code)+'</td>'
+    +'<td><input type="text" placeholder="First" value="'+(d.fn||'')+'" '+ro()+' oninput="markDirty()"></td>'
+    +'<td><input type="text" placeholder="Last"  value="'+(d.ln||'')+'" '+ro()+' oninput="markDirty()"></td>'
+    +'<td><input type="number" data-hrs  placeholder="0" step="0.01" value="'+(d.hrsTip||'')+'" '+ro()+' oninput="calcAPG();markDirty()"></td>'
+    +'<td><input type="number" data-othr placeholder="0" step="0.01" value="'+(d.otTip||'')+'"  '+ro()+' oninput="calcAPG();markDirty()"></td>'
+    +'<td><input type="number" data-miles placeholder="0" step="0.01" value="'+(d.miles||'')+'" '+ro()+' oninput="calcAPG();markDirty()"></td>'
+    +'<td><input type="number" data-rate  placeholder="0" step="0.00001" value="'+(d.rate||'')+'" '+ro()+' oninput="calcAPG();markDirty()"></td>'
+    +'<td class="computed" data-wage></td><td class="computed" data-mr></td>'
+    +'<td><input type="number" data-draw placeholder="0" step="0.01" value="'+(d.draw||'')+'" '+ro()+' oninput="calcAPG();markDirty()"></td>'
+    +'<td><input type="number" data-ded  placeholder="0" step="0.01" value="'+(d.ded||'')+'"  '+ro()+' oninput="calcAPG();markDirty()"></td>'
+    +'<td class="total-cell" data-total></td>'
+    +'<td>'+(S.readonly?'':'<button class="btn btn-danger" onclick="removeRow(this)">✕</button>')+'</td>';
 }
 
 function removeRow(btn) {
-  const row = btn.closest('tr');
-  const sec = row.dataset.sec;
-  row.remove();
-  calc(sec);
-  markDirty();
+  const row=btn.closest('tr'),sec=row.dataset.sec;
+  row.remove(); calc(sec); markDirty();
 }
-
 function calc(sec) { if(sec==='stc') calcSTC(); else if(sec==='bsc') calcBSC(); else calcAPG(); }
-
-function inp(row, sel) { const el = row.querySelector(sel); return el ? n(el.value) : 0; }
-function setCell(row, sel, val) { const el = row.querySelector(sel); if(el) el.textContent = val; }
-function setEl(id, val) { const el = $(id); if(el) el.textContent = val; }
+function inp(row,sel) { const el=row.querySelector(sel); return el?n(el.value):0; }
+function setCell(row,sel,val) { const el=row.querySelector(sel); if(el) el.textContent=val; }
+function setEl(id,val) { const el=$(id); if(el) el.textContent=val; }
 
 // ─── CALCULATIONS ─────────────────────────────────────────
 function calcSTC() {
-  const rows = $$('#stc-body tr');
-  const mr = n($('stc-mile').value)||0.70;
-  const pool = n($('stc-tips').value);
-  let totTip=0; rows.forEach(r=>{ totTip+=inp(r,'[data-hrstip]')+inp(r,'[data-ottip]'); });
-  const tph = totTip>0 ? pool/totTip : 0;
+  const rows=$$('#stc-body tr'),mr=n($('stc-mile').value)||0.70,pool=n($('stc-tips').value);
+  let totTip=0; rows.forEach(r=>{totTip+=inp(r,'[data-hrstip]')+inp(r,'[data-ottip]');});
+  const tph=totTip>0?pool/totTip:0;
   let T={ht:0,ot:0,hn:0,on:0,mi:0,wg:0,tp:0,mr:0,dr:0,de:0,tt:0};
   rows.forEach(r=>{
     const ht=inp(r,'[data-hrstip]'),ot=inp(r,'[data-ottip]'),hn=inp(r,'[data-hrsnt]'),on=inp(r,'[data-otnt]'),mi=inp(r,'[data-miles]'),rt=inp(r,'[data-rate]'),dr=inp(r,'[data-draw]'),de=inp(r,'[data-ded]');
-    const wg=(ht+hn)*rt+(ot+on)*rt*1.5, tips=(ht+ot)*tph, mileR=mi*mr, tot=wg+tips+mileR-dr-de;
-    setCell(r,'[data-wage]',fD(wg)); setCell(r,'[data-tips]',fD(tips)); setCell(r,'[data-mr]',mileR>0?fD(mileR):'—'); setCell(r,'[data-total]',fD(tot));
+    const wg=(ht+hn)*rt+(ot+on)*rt*(parseFloat(CFG.otMult)||1.5),tips=(ht+ot)*tph,mileR=mi*mr,tot=wg+tips+mileR-dr-de;
+    setCell(r,'[data-wage]',fD(wg));setCell(r,'[data-tips]',fD(tips));setCell(r,'[data-mr]',mileR>0?fD(mileR):'—');setCell(r,'[data-total]',fD(tot));
     T.ht+=ht;T.ot+=ot;T.hn+=hn;T.on+=on;T.mi+=mi;T.wg+=wg;T.tp+=tips;T.mr+=mileR;T.dr+=dr;T.de+=de;T.tt+=tot;
   });
   setEl('st-ht',fN(T.ht));setEl('st-ot',fN(T.ot));setEl('st-hn',fN(T.hn));setEl('st-on',fN(T.on));
@@ -1030,14 +1092,13 @@ function calcSTC() {
 }
 
 function calcBSC() {
-  const rows = $$('#bsc-body tr');
-  const mr=n($('bsc-mile').value)||0.70, bscP=n($('bsc-tips-bsc').value), slbP=n($('bsc-tips-slb').value);
-  let totTip=0; rows.forEach(r=>{ totTip+=inp(r,'[data-hrstip]')+inp(r,'[data-ottip]'); });
-  const bph=totTip>0?bscP/totTip:0, sph=totTip>0?slbP/totTip:0;
+  const rows=$$('#bsc-body tr'),mr=n($('bsc-mile').value)||0.70,bscP=n($('bsc-tips-bsc').value),slbP=n($('bsc-tips-slb').value);
+  let totTip=0; rows.forEach(r=>{totTip+=inp(r,'[data-hrstip]')+inp(r,'[data-ottip]');});
+  const bph=totTip>0?bscP/totTip:0,sph=totTip>0?slbP/totTip:0;
   let T={ht:0,ot:0,hn:0,on:0,mi:0,wg:0,bt:0,st:0,mr:0,dr:0,de:0,tt:0};
   rows.forEach(r=>{
     const ht=inp(r,'[data-hrstip]'),ot=inp(r,'[data-ottip]'),hn=inp(r,'[data-hrsnt]'),on=inp(r,'[data-otnt]'),mi=inp(r,'[data-miles]'),rt=inp(r,'[data-rate]'),dr=inp(r,'[data-draw]'),de=inp(r,'[data-ded]');
-    const wg=(ht+hn)*rt+(ot+on)*rt*1.5, bt=(ht+ot)*bph, st=(ht+ot)*sph, mileR=mi*mr, tot=wg+bt+st+mileR-dr-de;
+    const wg=(ht+hn)*rt+(ot+on)*rt*(parseFloat(CFG.otMult)||1.5),bt=(ht+ot)*bph,st=(ht+ot)*sph,mileR=mi*mr,tot=wg+bt+st+mileR-dr-de;
     setCell(r,'[data-wage]',fD(wg));setCell(r,'[data-bsct]',fD(bt));setCell(r,'[data-slbt]',fD(st));setCell(r,'[data-mr]',mileR>0?fD(mileR):'—');setCell(r,'[data-total]',fD(tot));
     T.ht+=ht;T.ot+=ot;T.hn+=hn;T.on+=on;T.mi+=mi;T.wg+=wg;T.bt+=bt;T.st+=st;T.mr+=mileR;T.dr+=dr;T.de+=de;T.tt+=tot;
   });
@@ -1048,8 +1109,7 @@ function calcBSC() {
 }
 
 function calcAPG() {
-  const rows = $$('#apg-body tr');
-  const mr=n($('apg-mile').value)||0.70;
+  const rows=$$('#apg-body tr'),mr=n($('apg-mile').value)||0.70;
   let T={hr:0,ot:0,mi:0,wg:0,mr:0,dr:0,de:0,tt:0};
   rows.forEach(r=>{
     const salEl=r.querySelector('[data-salamt]'),dr=inp(r,'[data-draw]'),de=inp(r,'[data-ded]');
@@ -1059,7 +1119,7 @@ function calcAPG() {
       T.wg+=sal;T.tt+=sal;T.dr+=dr;T.de+=de;
     } else {
       const hr=inp(r,'[data-hrs]'),ot=inp(r,'[data-othr]'),mi=inp(r,'[data-miles]'),rt=inp(r,'[data-rate]');
-      const wg=hr*rt+ot*rt*1.5, mileR=mi*mr, tot=wg+mileR-dr-de;
+      const wg=hr*rt+ot*rt*(parseFloat(CFG.otMult)||1.5),mileR=mi*mr,tot=wg+mileR-dr-de;
       setCell(r,'[data-wage]',fD(wg));setCell(r,'[data-mr]',mileR>0?fD(mileR):'—');setCell(r,'[data-total]',fD(tot));
       T.hr+=hr;T.ot+=ot;T.mi+=mi;T.wg+=wg;T.mr+=mileR;T.dr+=dr;T.de+=de;T.tt+=tot;
     }
@@ -1069,222 +1129,185 @@ function calcAPG() {
   setEl('apg-s-hrs',fN(T.hr+T.ot));setEl('apg-s-wage',fD(T.wg));setEl('apg-s-mile',fD(T.mr));setEl('apg-s-grand',fD(T.tt));
 }
 
-// ─── COLLECT FORM DATA ────────────────────────────────────
+// ─── COLLECT DATA ─────────────────────────────────────────
 function collectEntries(sec) {
-  const rows = $$('#'+sec+'-body tr');
-  const periodId = S.periodId;
-  const orgId = ORG;
-  return rows.map(row => {
-    const salEl = row.querySelector('[data-salamt]');
-    const base = {
-      period_id: periodId, company: sec, org_id: orgId,
-      employee_id: row.dataset.eid || null,
-      status_code: (row.querySelector('.code-sel')?.value||'').toUpperCase(),
-    };
-    if (row.dataset.entryId) base.id = row.dataset.entryId;
-    if (salEl) {
-      return { ...base, salary_amount: n(salEl.value), draw: inp(row,'[data-draw]'), deductions: inp(row,'[data-ded]'), total_calc: n(salEl.value) };
-    }
-    const ht=inp(row,'[data-hrstip]'),ot=inp(row,'[data-ottip]'),hn=inp(row,'[data-hrsnt]'),on=inp(row,'[data-otnt]');
-    const mi=inp(row,'[data-miles]'),rt=inp(row,'[data-rate]')||inp(row,'[data-hrs]')||0; // note: APG uses [data-hrs] for regular hours
-    const hrs=inp(row,'[data-hrs]'),othr=inp(row,'[data-othr]');
-    return { ...base, hrs_tips:ht||hrs, ot_tips:ot||othr, hrs_no_tips:hn, ot_no_tips:on, mileage:mi,
-      pay_rate_override: inp(row,'[data-rate]')||undefined,
-      draw: inp(row,'[data-draw]'), deductions: inp(row,'[data-ded]') };
+  return $$('#'+sec+'-body tr').map(row=>{
+    const salEl=row.querySelector('[data-salamt]');
+    const base={period_id:S.periodId,company:sec,org_id:ORG,
+      employee_id:row.dataset.eid||null,
+      status_code:(row.querySelector('.code-sel')?.value||'').toUpperCase()};
+    if(row.dataset.entryId) base.id=row.dataset.entryId;
+    if(salEl) return {...base,salary_amount:n(salEl.value),draw:inp(row,'[data-draw]'),deductions:inp(row,'[data-ded]'),total_calc:n(salEl.value)};
+    return {...base,
+      hrs_tips:inp(row,'[data-hrstip]')||inp(row,'[data-hrs]'),
+      ot_tips:inp(row,'[data-ottip]')||inp(row,'[data-othr]'),
+      hrs_no_tips:inp(row,'[data-hrsnt]'),ot_no_tips:inp(row,'[data-otnt]'),
+      mileage:inp(row,'[data-miles]'),pay_rate_override:inp(row,'[data-rate]')||undefined,
+      draw:inp(row,'[data-draw]'),deductions:inp(row,'[data-ded]')};
   });
 }
 
 function collectTips() {
+  const mr=n($('stc-mile').value)||0.70;
   return [
-    { period_id:S.periodId, org_id:ORG, company:'stc', stc_tips:n($('stc-tips').value), mile_rate:n($('stc-mile').value)||0.70 },
-    { period_id:S.periodId, org_id:ORG, company:'bsc', bsc_tips:n($('bsc-tips-bsc').value), slb_tips:n($('bsc-tips-slb').value), mile_rate:n($('bsc-mile').value)||0.70 },
-    { period_id:S.periodId, org_id:ORG, company:'apg', mile_rate:n($('apg-mile').value)||0.70 },
+    {period_id:S.periodId,org_id:ORG,company:'stc',stc_tips:n($('stc-tips').value),mile_rate:n($('stc-mile').value)||mr},
+    {period_id:S.periodId,org_id:ORG,company:'bsc',bsc_tips:n($('bsc-tips-bsc').value),slb_tips:n($('bsc-tips-slb').value),mile_rate:n($('bsc-mile').value)||mr},
+    {period_id:S.periodId,org_id:ORG,company:'apg',mile_rate:n($('apg-mile').value)||mr},
   ];
 }
 
 // ─── SAVE / SUBMIT ────────────────────────────────────────
 async function saveDraft() {
-  if (!S.periodId || S.readonly) return;
+  if(!S.periodId||S.readonly) return;
   try {
-    const entries = [...collectEntries('stc'),...collectEntries('bsc'),...collectEntries('apg')];
-    const tips = collectTips();
-    const notes = $('period-notes').value;
+    const entries=[...collectEntries('stc'),...collectEntries('bsc'),...collectEntries('apg')];
+    const tips=collectTips(),notes=$('period-notes').value;
     await Promise.all([
       api('/api/payroll/entries',{method:'POST',body:JSON.stringify({periodId:S.periodId,entries,tips})}),
       api('/api/payroll/periods',{method:'PATCH',body:JSON.stringify({id:S.periodId,notes})}),
     ]);
-    S.dirty = false;
-    showSaved();
-    toast('✓ Draft saved');
+    S.dirty=false; showSaved(); toast('✓ Draft saved');
   } catch(e) { toast('Save failed: '+e.message); }
 }
 
-async function autoSave() { if(S.dirty && !S.readonly) await saveDraft(); }
+async function autoSave() { if(S.dirty&&!S.readonly) await saveDraft(); }
 
 async function submitPeriod() {
-  if (!confirm('Submit this pay period? You can still edit it after submitting.')) return;
+  if(!confirm('Submit this pay period?')) return;
   await saveDraft();
   try {
     await api('/api/payroll/periods',{method:'PATCH',body:JSON.stringify({id:S.periodId,status:'submitted'})});
     S.period.status='submitted';
-    S.periods = S.periods.map(p=>p.id===S.periodId?{...p,status:'submitted'}:p);
-    renderSidebar();
-    populateEntryForm([], []);
-    await loadPeriodData(S.periodId);
-    toast('✓ Period submitted');
+    S.periods=S.periods.map(p=>p.id===S.periodId?{...p,status:'submitted'}:p);
+    renderSidebar(); await loadPeriodData(S.periodId); toast('✓ Period submitted');
   } catch(e) { toast('Submit failed'); }
 }
 
 // ─── PERIOD MODAL ─────────────────────────────────────────
 function openPeriodModal(yr) {
-  const last = S.periods.filter(p=>p.year===yr).sort((a,b)=>new Date(b.period_end)-new Date(a.period_end))[0];
-  if (last) {
-    const nextStart = new Date(last.period_end); nextStart.setDate(nextStart.getDate()+1);
-    const nextEnd = new Date(nextStart); nextEnd.setDate(nextEnd.getDate()+30);
-    $('np-start').value = nextStart.toISOString().split('T')[0];
-    $('np-end').value = nextEnd.toISOString().split('T')[0];
+  const last=S.periods.filter(p=>p.year===yr).sort((a,b)=>new Date(b.period_end)-new Date(a.period_end))[0];
+  if(last){
+    const ns=new Date(last.period_end); ns.setDate(ns.getDate()+1);
+    const ne=new Date(ns); ne.setDate(ne.getDate()+30);
+    $('np-start').value=ns.toISOString().split('T')[0];
+    $('np-end').value=ne.toISOString().split('T')[0];
   }
   $('modal-period').classList.remove('hidden');
 }
-
 function closePeriodModal() { $('modal-period').classList.add('hidden'); }
 
 async function createPeriod() {
-  const start=$('np-start').value, end=$('np-end').value;
+  const start=$('np-start').value,end=$('np-end').value;
   if(!start||!end){toast('Please fill in both dates');return;}
-  const yr = parseInt(end.split('-')[0]);
-  const label = $('np-label').value || (formatDate(start)+' – '+formatDate(end));
+  const yr=parseInt(end.split('-')[0]);
+  const label=$('np-label').value||(formatDate(start)+' – '+formatDate(end));
   try {
-    const {period} = await api('/api/payroll/periods',{method:'POST',body:JSON.stringify({org_id:ORG,period_start:start,period_end:end,year:yr,label})});
-    S.periods.push(period);
-    renderSidebar();
-    closePeriodModal();
-    selectPeriod(period.id);
-    toast('✓ New period created');
+    const {period}=await api('/api/payroll/periods',{method:'POST',body:JSON.stringify({org_id:ORG,period_start:start,period_end:end,year:yr,label})});
+    S.periods.push(period); renderSidebar(); closePeriodModal(); selectPeriod(period.id); toast('✓ New period created');
   } catch(e){toast('Error: '+e.message);}
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────
 async function loadDashboard() {
-  if (S.view !== 'dashboard') return;
+  if(S.view!=='dashboard') return;
   try {
-    const data = await api('/api/payroll/dashboard?orgId='+ORG+'&year='+S.year);
-    S.dash = data;
-    renderDashboard(data);
+    const data=await api('/api/payroll/dashboard?orgId='+ORG+'&year='+S.year);
+    S.dash=data; renderDashboard(data);
   } catch(e) { }
 }
 
 function renderDashboard(d) {
-  if (!d) return;
-  const {ytd, byPeriod, headcount, highPeriod, lowPeriod} = d;
+  if(!d) return;
+  const {ytd,byPeriod,headcount,highPeriod,lowPeriod}=d;
+  $('dash-stats').innerHTML=
+    '<div class="stat-card"><div class="stat-label">Total YTD Payroll</div><div class="stat-val sage">'+fD(ytd.total)+'</div><div class="stat-sub">All companies '+S.year+'</div></div>'
+    +'<div class="stat-card"><div class="stat-label">STC Total</div><div class="stat-val">'+fD(ytd.stc)+'</div><div class="stat-sub">'+CFG.stcName+'</div></div>'
+    +'<div class="stat-card"><div class="stat-label">BSC Total</div><div class="stat-val">'+fD(ytd.bsc)+'</div><div class="stat-sub">'+CFG.bscName+'</div></div>'
+    +'<div class="stat-card"><div class="stat-label">APG Total</div><div class="stat-val">'+fD(ytd.apg)+'</div><div class="stat-sub">'+CFG.apgName+'</div></div>'
+    +'<div class="stat-card"><div class="stat-label">Tips Distributed</div><div class="stat-val ind">'+fD(ytd.tips)+'</div><div class="stat-sub">YTD</div></div>'
+    +'<div class="stat-card"><div class="stat-label">Mile Reimbursements</div><div class="stat-val">'+fD(ytd.miles)+'</div><div class="stat-sub">YTD</div></div>'
+    +'<div class="stat-card"><div class="stat-label">Highest Period</div><div class="stat-val sage" style="font-size:16px">'+fD(highPeriod?.total||0)+'</div><div class="stat-sub">'+(highPeriod?.label||'—')+'</div></div>'
+    +'<div class="stat-card"><div class="stat-label">Lowest Period</div><div class="stat-val" style="font-size:16px">'+fD(lowPeriod?.total||0)+'</div><div class="stat-sub">'+(lowPeriod?.label||'—')+'</div></div>';
 
-  $('dash-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total YTD Payroll</div><div class="stat-val gold">${fD(ytd.total)}</div><div class="stat-sub">All companies ${S.year}</div></div>
-    <div class="stat-card"><div class="stat-label">STC Total</div><div class="stat-val">${fD(ytd.stc)}</div><div class="stat-sub">Surf Town Coffee</div></div>
-    <div class="stat-card"><div class="stat-label">BSC Total</div><div class="stat-val">${fD(ytd.bsc)}</div><div class="stat-sub">Bayscapes + Sea Lion</div></div>
-    <div class="stat-card"><div class="stat-label">APG Total</div><div class="stat-val">${fD(ytd.apg)}</div><div class="stat-sub">Marine Discovery</div></div>
-    <div class="stat-card"><div class="stat-label">Tips Distributed</div><div class="stat-val teal">${fD(ytd.tips)}</div><div class="stat-sub">YTD</div></div>
-    <div class="stat-card"><div class="stat-label">Mile Reimbursements</div><div class="stat-val">${fD(ytd.miles)}</div><div class="stat-sub">YTD</div></div>
-    <div class="stat-card"><div class="stat-label">Highest Period</div><div class="stat-val gold" style="font-size:16px">${fD(highPeriod?.total||0)}</div><div class="stat-sub">${highPeriod?.label||'—'}</div></div>
-    <div class="stat-card"><div class="stat-label">Lowest Period</div><div class="stat-val" style="font-size:16px">${fD(lowPeriod?.total||0)}</div><div class="stat-sub">${lowPeriod?.label||'—'}</div></div>
-  `;
-
-  $('dash-headcount').innerHTML = `
-    <div class="hc-card"><div class="hc-dot" style="background:var(--gold)"></div><div class="hc-info"><div class="n">${headcount.stc}</div><div class="l">STC Active</div></div></div>
-    <div class="hc-card"><div class="hc-dot" style="background:var(--teal)"></div><div class="hc-info"><div class="n">${headcount.bsc}</div><div class="l">BSC Active</div></div></div>
-    <div class="hc-card"><div class="hc-dot" style="background:var(--purple)"></div><div class="hc-info"><div class="n">${headcount.apg}</div><div class="l">APG Active</div></div></div>
-    <div class="hc-card"><div class="hc-dot" style="background:var(--muted)"></div><div class="hc-info"><div class="n">${headcount.total}</div><div class="l">Total Staff</div></div></div>
-  `;
+  $('dash-headcount').innerHTML=
+    '<div class="hc-card"><div class="hc-dot" style="background:var(--sage)"></div><div class="hc-info"><div class="n">'+headcount.stc+'</div><div class="l">STC Active</div></div></div>'
+    +'<div class="hc-card"><div class="hc-dot" style="background:var(--indigo)"></div><div class="hc-info"><div class="n">'+headcount.bsc+'</div><div class="l">BSC Active</div></div></div>'
+    +'<div class="hc-card"><div class="hc-dot" style="background:var(--purp)"></div><div class="hc-info"><div class="n">'+headcount.apg+'</div><div class="l">APG Active</div></div></div>'
+    +'<div class="hc-card"><div class="hc-dot" style="background:var(--muted)"></div><div class="hc-info"><div class="n">'+headcount.total+'</div><div class="l">Total Staff</div></div></div>';
 
   renderBarChart(byPeriod);
 
-  const rows = byPeriod.map(p=>`
-    <tr onclick="selectPeriod('${p.id}')" style="cursor:pointer">
-      <td>${p.label||formatDate(p.period_end)}</td>
-      <td><span class="badge badge-${p.status}">${p.status}</span></td>
-      <td class="r">${fD(p.stc)}</td><td class="r">${fD(p.bsc)}</td><td class="r">${fD(p.apg)}</td>
-      <td class="r bold">${fD(p.total)}</td>
-    </tr>
-  `).join('');
-  $('dash-table').innerHTML = rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No periods found for '+S.year+'</td></tr>';
+  $('dash-table').innerHTML=byPeriod.map(p=>
+    '<tr onclick="selectPeriod(\''+p.id+'\')" style="cursor:pointer">'
+    +'<td>'+(p.label||formatDate(p.period_end))+'</td>'
+    +'<td><span class="badge badge-'+p.status+'">'+p.status+'</span></td>'
+    +'<td class="r">'+fD(p.stc)+'</td><td class="r">'+fD(p.bsc)+'</td><td class="r">'+fD(p.apg)+'</td>'
+    +'<td class="r bold">'+fD(p.total)+'</td></tr>'
+  ).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No periods found for '+S.year+'</td></tr>';
 
-  const tot = byPeriod.reduce((a,p)=>({stc:a.stc+p.stc,bsc:a.bsc+p.bsc,apg:a.apg+p.apg,total:a.total+p.total}),{stc:0,bsc:0,apg:0,total:0});
+  const tot=byPeriod.reduce((a,p)=>({stc:a.stc+p.stc,bsc:a.bsc+p.bsc,apg:a.apg+p.apg,total:a.total+p.total}),{stc:0,bsc:0,apg:0,total:0});
   setEl('dft-stc',fD(tot.stc));setEl('dft-bsc',fD(tot.bsc));setEl('dft-apg',fD(tot.apg));setEl('dft-total',fD(tot.total));
 }
 
 function renderBarChart(periods) {
-  if (!periods?.length) { $('dash-chart').innerHTML = '<p style="color:var(--muted);text-align:center;padding:40px">No data for this year</p>'; return; }
-  const W=700,H=200,PL=60,PB=30,PT=10;
-  const maxVal = Math.max(...periods.map(p=>p.total),1);
-  const barW = Math.min(40, (W-PL-20)/periods.length/3);
-  const gap = (W-PL-20)/periods.length;
-  const yScale = v => H-PB - (v/maxVal)*(H-PB-PT);
-  const yTicks = [0,.25,.5,.75,1].map(r=>({ v:maxVal*r, y:yScale(maxVal*r) }));
-
-  const bars = periods.map((p,i)=>{
-    const x = PL + i*gap + gap/2 - barW*1.5;
-    const colors = ['var(--gold)','var(--teal)','var(--purple)'];
-    const vals = [p.stc,p.bsc,p.apg];
-    const rects = vals.map((v,j)=>{
-      const bh = Math.max((v/maxVal)*(H-PB-PT),0);
-      return `<rect x="${x+j*(barW+2)}" y="${H-PB-bh}" width="${barW}" height="${bh}" fill="${colors[j]}" rx="2" opacity="0.85">
-        <title>${['STC','BSC','APG'][j]}: ${fD(v)}</title></rect>`;
-    }).join('');
-    const lbl = (p.label||formatDate(p.period_end)).split('–')[0].trim().substring(0,6);
-    return rects+`<text x="${x+barW*1.5}" y="${H-PB+14}" text-anchor="middle" fill="rgba(255,255,255,.45)" font-size="9" font-family="Instrument Sans">${lbl}</text>`;
+  if(!periods?.length){$('dash-chart').innerHTML='<p style="color:var(--muted);text-align:center;padding:36px">No data for this year</p>';return;}
+  const W=700,H=200,PL=56,PB=28,PT=10;
+  const maxVal=Math.max(...periods.map(p=>p.total),1);
+  const gap=(W-PL-20)/periods.length;
+  const barW=Math.min(16,(gap-10)/3);
+  const yScale=v=>H-PB-(v/maxVal)*(H-PB-PT);
+  const ticks=[0,.25,.5,.75,1].map(r=>({v:maxVal*r,y:yScale(maxVal*r)}));
+  const bars=periods.map((p,i)=>{
+    const x=PL+i*gap+gap/2-barW*1.5;
+    const cols=['#6ab5a0','#7b93d4','#a98fe8'],vals=[p.stc,p.bsc,p.apg];
+    const rects=vals.map((v,j)=>{const bh=Math.max((v/maxVal)*(H-PB-PT),0);return '<rect x="'+(x+j*(barW+2))+'" y="'+(H-PB-bh)+'" width="'+barW+'" height="'+bh+'" fill="'+cols[j]+'" rx="2" opacity="0.82"><title>'+['STC','BSC','APG'][j]+': '+fD(v)+'</title></rect>';}).join('');
+    const lbl=(p.label||formatDate(p.period_end)).split('–')[0].trim().substring(0,7);
+    return rects+'<text x="'+(x+barW*1.5)+'" y="'+(H-PB+13)+'" text-anchor="middle" fill="rgba(226,230,240,.38)" font-size="9" font-family="Instrument Sans">'+lbl+'</text>';
   }).join('');
-
-  const grid = yTicks.map(t=>`
-    <line x1="${PL}" y1="${t.y}" x2="${W}" y2="${t.y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
-    <text x="${PL-6}" y="${t.y+4}" text-anchor="end" fill="rgba(255,255,255,.35)" font-size="9" font-family="DM Mono">${t.v>=1000?(t.v/1000).toFixed(0)+'k':t.v.toFixed(0)}</text>
-  `).join('');
-
-  $('dash-chart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;overflow:visible">${grid}${bars}</svg>`;
+  const grid=ticks.map(t=>'<line x1="'+PL+'" y1="'+t.y+'" x2="'+W+'" y2="'+t.y+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/><text x="'+(PL-5)+'" y="'+(t.y+4)+'" text-anchor="end" fill="rgba(226,230,240,.32)" font-size="9" font-family="DM Mono">'+(t.v>=1000?(t.v/1000).toFixed(0)+'k':t.v.toFixed(0))+'</text>').join('');
+  $('dash-chart').innerHTML='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;overflow:visible">'+grid+bars+'</svg>';
 }
 
 // ─── EMPLOYEES ────────────────────────────────────────────
 async function loadEmployees() {
   try {
-    const {employees} = await api('/api/payroll/employees?orgId='+ORG+'&all=1');
-    S.employees = employees||[];
-  } catch(e) {}
+    const {employees}=await api('/api/payroll/employees?orgId='+ORG+'&all=1');
+    S.employees=employees||[];
+  } catch(e){}
 }
 
 function renderEmployees() {
-  const filter = $('emp-filter')?.value || '';
-  const emps = filter ? S.employees.filter(e=>e.default_company===filter) : S.employees;
-  $('emp-count').textContent = emps.length;
-  const byCompany = {stc:'STC',bsc:'BSC',apg:'APG'};
-  $('emp-grid').innerHTML = emps.map(e=>`
-    <div class="emp-card ${!e.active?'emp-inactive':''}" onclick="openEmpModal(${JSON.stringify(e).replace(/"/g,'&quot;')})">
-      <div class="emp-name">${e.first_name} ${e.last_name} ${!e.active?'<span style="color:var(--red);font-size:11px">(inactive)</span>':''}</div>
-      <div class="emp-meta">
-        <span>${byCompany[e.default_company]||e.default_company}</span>
-        <span class="emp-rate">${e.employee_type==='salary'?'Salary':'$'+Number(e.pay_rate).toFixed(2)+'/hr'}</span>
-        <span>${e.employee_type}</span>
-      </div>
-      ${e.notes?`<div style="font-size:11px;color:var(--muted);margin-top:4px">${e.notes}</div>`:''}
-    </div>
-  `).join('') || '<p style="color:var(--muted);font-size:14px">No employees found.</p>';
+  const filter=$('emp-filter')?.value||'';
+  const emps=filter?S.employees.filter(e=>e.default_company===filter):S.employees;
+  $('emp-count').textContent=emps.length;
+  const byC={stc:'STC',bsc:'BSC',apg:'APG'};
+  $('emp-grid').innerHTML=emps.map(e=>
+    '<div class="emp-card '+(e.active?'':'emp-inactive')+'" onclick=\'openEmpModal('+JSON.stringify(e).replace(/'/g,"\\'")+')\'>'
+    +'<div class="emp-name">'+e.first_name+' '+e.last_name+(e.active?'':' <span style="color:var(--red);font-size:11px">(inactive)</span>')+'</div>'
+    +'<div class="emp-meta"><span>'+(byC[e.default_company]||e.default_company)+'</span>'
+    +'<span class="emp-rate">'+(e.employee_type==='salary'?'Salary':'$'+Number(e.pay_rate).toFixed(2)+'/hr')+'</span>'
+    +'<span>'+e.employee_type+'</span></div>'
+    +(e.notes?'<div style="font-size:11px;color:var(--muted);margin-top:3px">'+e.notes+'</div>':'')
+    +'</div>'
+  ).join('')||'<p style="color:var(--muted);font-size:13px">No employees found.</p>';
 }
 
 function openEmpModal(data) {
-  $('emp-id').value = typeof data==='object' ? (data.id||'') : '';
-  $('emp-fn').value = typeof data==='object' ? data.first_name||'' : '';
-  $('emp-ln').value = typeof data==='object' ? data.last_name||'' : '';
-  $('emp-co').value = typeof data==='object' ? data.default_company||'stc' : 'stc';
-  $('emp-type').value = typeof data==='object' ? data.employee_type||'hourly' : 'hourly';
-  $('emp-rate').value = typeof data==='object' ? (data.pay_rate||'') : '';
-  $('emp-notes').value = typeof data==='object' ? data.notes||'' : '';
-  $('emp-modal-title').textContent = typeof data==='object' && data.id ? 'Edit Employee' : 'Add Employee';
-  $('emp-deactivate-btn').style.display = (typeof data==='object' && data.id && data.active) ? 'inline-flex' : 'none';
+  $('emp-id').value=typeof data==='object'?(data.id||''):'';
+  $('emp-fn').value=typeof data==='object'?data.first_name||'':'';
+  $('emp-ln').value=typeof data==='object'?data.last_name||'':'';
+  $('emp-co').value=typeof data==='object'?data.default_company||'stc':'stc';
+  $('emp-type').value=typeof data==='object'?data.employee_type||'hourly':'hourly';
+  $('emp-rate').value=typeof data==='object'?(data.pay_rate||''):'';
+  $('emp-notes').value=typeof data==='object'?data.notes||'':'';
+  $('emp-modal-title').textContent=typeof data==='object'&&data.id?'Edit Employee':'Add Employee';
+  $('emp-deactivate-btn').style.display=(typeof data==='object'&&data.id&&data.active)?'inline-flex':'none';
   $('modal-emp').classList.remove('hidden');
 }
-
 function closeEmpModal() { $('modal-emp').classList.add('hidden'); }
 
 async function saveEmployee() {
-  const id=$('emp-id').value, fn=$('emp-fn').value.trim(), ln=$('emp-ln').value.trim();
+  const id=$('emp-id').value,fn=$('emp-fn').value.trim(),ln=$('emp-ln').value.trim();
   if(!fn||!ln){toast('Name required');return;}
   const payload={first_name:fn,last_name:ln,default_company:$('emp-co').value,employee_type:$('emp-type').value,pay_rate:n($('emp-rate').value)||0,notes:$('emp-notes').value,org_id:ORG};
   try {
@@ -1301,22 +1324,21 @@ async function saveEmployee() {
 
 async function deactivateEmployee() {
   const id=$('emp-id').value;
-  if(!id||!confirm('Deactivate this employee?'))return;
+  if(!id||!confirm('Deactivate this employee?')) return;
   try {
     await api('/api/payroll/employees',{method:'PATCH',body:JSON.stringify({id,active:false})});
     S.employees=S.employees.map(e=>e.id===id?{...e,active:false}:e);
     closeEmpModal(); renderEmployees(); toast('Employee deactivated');
   } catch(e){toast('Error');}
 }
-
 function toggleSalary() { $('emp-rate').disabled=$('emp-type').value==='salary'; }
 
 // ─── EXPORT ───────────────────────────────────────────────
 function exportCSV() {
-  const p = S.period;
-  let csv = `ShiftPro Payroll Export\nPeriod,${p?.label||''}\nStatus,${p?.status||''}\n\n`;
+  const p=S.period;
+  let csv='ShiftPro Payroll Export\nCompany,'+CFG.companyName+'\nPeriod,'+(p?.label||'')+'\nStatus,'+(p?.status||'')+'\n\n';
   ['stc','bsc','apg'].forEach(sec=>{
-    csv+=sec.toUpperCase()+'\n';
+    csv+=sec.toUpperCase()+' — '+(sec==='stc'?CFG.stcName:sec==='bsc'?CFG.bscName:CFG.apgName)+'\n';
     $$('#'+sec+'-body tr').forEach(row=>{
       const vals=[...[...row.querySelectorAll('input,select')].map(i=>i.value),...[...row.querySelectorAll('[data-wage],[data-tips],[data-bsct],[data-slbt],[data-mr],[data-total]')].map(c=>c.textContent)];
       csv+=vals.join(',')+'\n';
@@ -1325,16 +1347,17 @@ function exportCSV() {
   });
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download='payroll-'+(p?.period_end||'export')+'.csv'; a.click();
+  a.download='shiftpro-payroll-'+(p?.period_end||'export')+'.csv'; a.click();
 }
 
 // ─── INIT ─────────────────────────────────────────────────
 async function init() {
+  loadSettings();
   $('main-loader').style.display='flex';
   await Promise.all([loadEmployees(), loadPeriods()]);
   await loadDashboard();
   $('main-loader').style.display='none';
-  switchView('dashboard', $$('.hdr-btn')[0]);
+  switchView('dashboard',$$('.hdr-btn')[0]);
 }
 
 init();
