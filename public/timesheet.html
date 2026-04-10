@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ShiftHub · Payroll</title>
+<title>ShiftPro · Payroll</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -26,9 +26,10 @@ input[type=number]{-moz-appearance:textfield}
 
 /* HEADER */
 .hdr{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:16px;padding:14px 24px;background:rgba(12,18,32,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
-.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
-.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--gold) 0%,#d4a520 100%);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:16px;color:var(--navy);font-weight:bold}
-.logo-text{font-family:'DM Serif Display',serif;font-size:20px;color:var(--text)}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;user-select:none}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--gold) 0%,#c49a35 100%);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(232,184,75,.35)}
+.logo-icon svg{display:block}
+.logo-text{font-family:'DM Serif Display',serif;font-size:20px;color:var(--text);letter-spacing:-.01em}
 .logo-text span{color:var(--gold)}
 .hdr-nav{display:flex;gap:4px;margin-left:24px}
 .hdr-btn{background:transparent;border:1px solid transparent;border-radius:7px;color:var(--texts);font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:13px;padding:6px 14px;cursor:pointer;transition:all .18s}
@@ -199,94 +200,153 @@ select.form-input option{background:var(--navy3)}
 .hc-info .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
 
 /* ── MOBILE SIDEBAR TOGGLE ── */
-.sb-toggle{display:none;background:transparent;border:none;cursor:pointer;padding:6px;color:var(--text);font-size:20px;line-height:1}
-.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49}
+.sb-toggle{display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;color:var(--text);font-size:22px;line-height:1;flex-shrink:0}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:49;backdrop-filter:blur(2px)}
 .sb-overlay.show{display:block}
 
-/* ── TABLE COLUMN MIN-WIDTHS ── */
-/* Force name cols to never compress below readable width */
-.entry-table td:nth-child(2),
-.entry-table th:nth-child(2){min-width:90px}
-.entry-table td:nth-child(3),
-.entry-table th:nth-child(3){min-width:90px}
-/* Numeric cols keep a minimum too */
-.entry-table td:nth-child(4),.entry-table th:nth-child(4),
-.entry-table td:nth-child(5),.entry-table th:nth-child(5),
-.entry-table td:nth-child(6),.entry-table th:nth-child(6),
-.entry-table td:nth-child(7),.entry-table th:nth-child(7),
-.entry-table td:nth-child(8),.entry-table th:nth-child(8){min-width:64px}
-.entry-table td:nth-child(9),.entry-table th:nth-child(9){min-width:72px}  /* rate */
-.entry-table td:nth-child(10),.entry-table th:nth-child(10){min-width:80px} /* wage */
-/* Total col always readable */
-.entry-table td.total-cell{min-width:90px;white-space:nowrap}
-/* Name inputs never shrink */
-.entry-table td input[type=text]{min-width:80px}
-/* Number inputs never shrink */
-.entry-table td input[type=number]{min-width:54px}
-/* Code select fixed */
+/* ── TABLE COLUMN MIN-WIDTHS (entry tables) ── */
+.entry-table th,.entry-table td{white-space:nowrap}
+.entry-table th:nth-child(2),.entry-table td:nth-child(2){min-width:90px;white-space:normal}
+.entry-table th:nth-child(3),.entry-table td:nth-child(3){min-width:90px;white-space:normal}
+.entry-table th:nth-child(4),.entry-table td:nth-child(4),
+.entry-table th:nth-child(5),.entry-table td:nth-child(5),
+.entry-table th:nth-child(6),.entry-table td:nth-child(6),
+.entry-table th:nth-child(7),.entry-table td:nth-child(7),
+.entry-table th:nth-child(8),.entry-table td:nth-child(8){min-width:66px}
+.entry-table th:nth-child(9),.entry-table td:nth-child(9){min-width:76px}
+.entry-table th:nth-child(10),.entry-table td:nth-child(10){min-width:82px}
+.entry-table td.total-cell{min-width:94px;white-space:nowrap}
+.entry-table td input[type=text]{min-width:82px}
+.entry-table td input[type=number]{min-width:56px}
 select.code-sel{min-width:54px;width:54px}
-/* Header tab buttons wrappable on small screens */
+
+/* Dashboard period summary table min-widths */
+.period-table-card table th:nth-child(1),
+.period-table-card table td:nth-child(1){min-width:130px}
+.period-table-card table th:nth-child(3),
+.period-table-card table td:nth-child(3),
+.period-table-card table th:nth-child(4),
+.period-table-card table td:nth-child(4),
+.period-table-card table th:nth-child(5),
+.period-table-card table td:nth-child(5),
+.period-table-card table th:nth-child(6),
+.period-table-card table td:nth-child(6){min-width:88px;white-space:nowrap}
+
+/* Tab buttons never break weirdly */
 .tab-row{flex-wrap:wrap}
 .tab-btn{white-space:nowrap}
 
-/* ── TABLET (≤900px) ── */
-@media(max-width:900px){
-  :root{--sidebar:190px}
+/* Dashboard header row wrap gracefully */
+.dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+
+/* ── TABLET (≤960px) ── */
+@media(max-width:960px){
+  :root{--sidebar:200px}
   .main{padding:24px 20px 60px}
   .hdr-nav .hdr-btn{font-size:12px;padding:5px 10px}
+  .stat-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .sum-val{font-size:15px}
 }
 
 /* ── MOBILE (≤640px) ── */
 @media(max-width:640px){
-  :root{--sidebar:240px}
+  :root{--sidebar:250px}
+
+  /* Hamburger visible */
   .sb-toggle{display:flex;align-items:center;justify-content:center}
+
   /* Sidebar slides in over content */
   .sidebar{
     position:fixed;top:0;left:0;height:100vh;z-index:50;
     transform:translateX(-100%);transition:transform .25s ease;
-    border-right:1px solid var(--border2);box-shadow:4px 0 24px rgba(0,0,0,.4)
+    border-right:1px solid var(--border2);
+    box-shadow:6px 0 32px rgba(0,0,0,.5)
   }
   .sidebar.open{transform:translateX(0)}
-  /* Main takes full width */
+
+  /* Shell becomes single column */
   .shell{display:block}
-  .main{padding:16px 14px 80px;min-height:calc(100vh - 56px)}
+  .main{padding:16px 14px 80px}
+
   /* Header compact */
-  .hdr{padding:10px 14px;gap:10px}
-  .logo-text{font-size:17px}
-  .hdr-nav{margin-left:8px;gap:2px}
+  .hdr{padding:10px 12px;gap:8px}
+  .logo-text{font-size:16px}
+  .hdr-nav{margin-left:4px;gap:2px}
   .hdr-btn{font-size:11px;padding:5px 8px}
-  /* Hide long nav labels, show short */
-  .hdr-btn[data-full]{display:none}
-  /* Stats */
-  .stat-grid{grid-template-columns:1fr 1fr;gap:8px}
-  .stat-val{font-size:18px}
-  .headcount-row{gap:8px}
-  .hc-card{padding:10px 14px}
-  /* Entry header stack */
-  .entry-header{flex-direction:column;align-items:flex-start;gap:8px}
+
+  /* Dashboard header */
+  .dash-header{flex-direction:column;align-items:flex-start;gap:10px}
+  .dash-header h1{font-size:26px}
+
+  /* Stat grid 2-col */
+  .stat-grid{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+  .stat-card{padding:14px 14px}
+  .stat-val{font-size:17px}
+  .stat-sub{font-size:10px}
+
+  /* Headcount row wraps */
+  .headcount-row{gap:8px;margin-bottom:16px}
+  .hc-card{padding:10px 12px;min-width:calc(50% - 4px)}
+  .hc-info .n{font-size:18px}
+
+  /* Chart card */
+  .chart-card{padding:14px 14px;margin-bottom:16px}
+  .chart-legend{flex-wrap:wrap;gap:8px}
+
+  /* Period table scrollable */
+  .period-table-card .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .period-table-card table{min-width:420px}
+
+  /* Entry header */
+  .entry-header{flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:16px}
   .entry-title{font-size:22px}
-  .entry-actions{width:100%}
-  .entry-actions .btn{flex:1;justify-content:center}
-  /* Tab buttons scroll */
+  .entry-actions{width:100%;display:flex;flex-wrap:wrap;gap:6px}
+  .entry-actions .btn{flex:1;min-width:120px;justify-content:center;font-size:12px;padding:7px 10px}
+
+  /* Tab row scrolls */
   .tab-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;gap:3px;scrollbar-width:none}
   .tab-row::-webkit-scrollbar{display:none}
   .tab-btn{font-size:10px;padding:7px 12px;white-space:nowrap;flex-shrink:0}
-  /* Sec header stack */
-  .sec-header{flex-direction:column;align-items:flex-start}
-  .tips-pool{width:100%}
-  /* Summary strip scroll */
-  .summary-strip{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* Section header stacks */
+  .sec-header{flex-direction:column;align-items:flex-start;gap:10px}
+  .tips-pool{width:100%;flex-wrap:wrap}
+  .pool-field{flex:1;min-width:130px}
+  .pool-field input{width:70px}
+
+  /* Summary strip scrolls */
+  .summary-strip{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .summary-strip::-webkit-scrollbar{display:none}
-  .sum-item{min-width:140px;flex-shrink:0}
-  /* Modal full-width */
-  .modal{padding:20px 16px;border-radius:12px}
-  .modal > div[style*="grid"]{grid-template-columns:1fr!important}
-  /* Pool fields stack */
-  .pool-field{flex:1;min-width:140px}
+  .sum-item{min-width:140px;flex-shrink:0;padding:10px 14px}
+  .sum-val{font-size:15px}
+  .sum-label{font-size:9px}
+
+  /* readonly banner compact */
+  .readonly-banner{font-size:12px;padding:10px 14px}
+
+  /* Employee grid single col */
+  .emp-grid{grid-template-columns:1fr;gap:8px}
+  .emp-card{padding:12px 14px}
+
+  /* Employee header */
+  #view-employees > div:first-child{flex-direction:column;align-items:flex-start;gap:10px}
+  #view-employees > div:first-child > div:last-child{width:100%;display:flex;gap:8px}
+  #view-employees > div:first-child > div:last-child select,
+  #view-employees > div:first-child > div:last-child .btn{flex:1}
+
+  /* Modal */
+  .modal{padding:20px 16px;border-radius:12px;max-height:90vh;overflow-y:auto}
+  .modal > div[style*="grid"]{display:flex!important;flex-direction:column!important}
+
   /* Notes */
   textarea.notes-input{min-height:60px}
-  /* Employee grid single col */
-  .emp-grid{grid-template-columns:1fr}
+
+  /* Buttons in modal */
+  .modal-actions{flex-wrap:wrap}
+  .modal-actions .btn{flex:1;justify-content:center}
+
+  /* Toast */
+  .toast{bottom:16px;right:12px;left:12px;justify-content:center}
 }
 
 </style>
@@ -300,8 +360,14 @@ select.code-sel{min-width:54px;width:54px}
 <header class="hdr">
   <button class="sb-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">☰</button>
   <a class="logo" href="#">
-    <div class="logo-icon">S</div>
-    <div class="logo-text">Shift<span>Hub</span></div>
+    <div class="logo-icon">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 13.5L7.5 6.5L10 10.5L12.5 7.5L17 13.5" stroke="#0c1220" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="17" cy="13.5" r="1.5" fill="#0c1220"/>
+        <circle cx="3" cy="13.5" r="1.5" fill="#0c1220"/>
+      </svg>
+    </div>
+    <div class="logo-text">Shift<span>Pro</span></div>
   </a>
   <nav class="hdr-nav">
     <button class="hdr-btn active" onclick="switchView('dashboard',this)">Dashboard</button>
@@ -334,7 +400,7 @@ select.code-sel{min-width:54px;width:54px}
 
   <!-- DASHBOARD -->
   <div id="view-dashboard" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <div class="dash-header">
       <div>
         <h1 style="font-family:'DM Serif Display',serif;font-size:32px;line-height:1">Payroll Dashboard</h1>
         <p style="color:var(--texts);font-size:14px;margin-top:4px">Bayscapes Management Enterprises</p>
@@ -1248,7 +1314,7 @@ function toggleSalary() { $('emp-rate').disabled=$('emp-type').value==='salary';
 // ─── EXPORT ───────────────────────────────────────────────
 function exportCSV() {
   const p = S.period;
-  let csv = `ShiftHub Payroll Export\nPeriod,${p?.label||''}\nStatus,${p?.status||''}\n\n`;
+  let csv = `ShiftPro Payroll Export\nPeriod,${p?.label||''}\nStatus,${p?.status||''}\n\n`;
   ['stc','bsc','apg'].forEach(sec=>{
     csv+=sec.toUpperCase()+'\n';
     $$('#'+sec+'-body tr').forEach(row=>{
