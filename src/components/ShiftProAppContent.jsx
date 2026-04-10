@@ -1193,6 +1193,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
   const [realMoHrs,setRealMoHrs] = useState(0);
   const [empDocs,setEmpDocs] = useState(null);
   const [empLocationName,setEmpLocationName] = useState("");
+  const [empLocationData,setEmpLocationData] = useState(null);
   const [empThreads,setEmpThreads] = useState(null);
   // Profile edit state
   const [profileEdit,setProfileEdit] = useState(false);
@@ -1278,6 +1279,30 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
       localStorage.removeItem(CLOCK_KEY+"_at");
     }catch(e){}
   };
+
+  // Geofence check — returns true if within range or geofence not configured
+  const checkGeofence = () => new Promise((resolve) => {
+    // Location must have lat/lng and geofence_radius_m set
+    const loc = empLocationData || null;
+    const lat = loc?.latitude || loc?.lat;
+    const lng = loc?.longitude || loc?.lng;
+    const radius = loc?.geofence_radius_m || 0;
+    if(!lat || !lng || !radius) { resolve({ok:true}); return; }
+    if(!navigator.geolocation){ resolve({ok:false, msg:"Location services not available on this device."}); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const R = 6371000; // earth radius meters
+        const dLat = (pos.coords.latitude - lat) * Math.PI / 180;
+        const dLng = (pos.coords.longitude - lng) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(dLng/2)**2;
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        if(dist <= radius){ resolve({ok:true, dist:Math.round(dist)}); }
+        else { resolve({ok:false, msg:"You're "+Math.round(dist)+"m away. Must be within "+radius+"m of your workplace to clock in.", dist:Math.round(dist)}); }
+      },
+      (err) => { resolve({ok:false, msg:"Please enable location services to clock in. ("+err.message+")"}); },
+      {enableHighAccuracy:true, timeout:10000, maximumAge:30000}
+    );
+  });
   const saveBreakStart = (at) => {
     try{
       localStorage.setItem(BREAK_KEY+"_active","true");
@@ -1293,6 +1318,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
   // Schedule sub-tab state (must be here, not inside render IIFE)
   const [schedSubTab,setSchedSubTab] = useState("shifts");
   const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
+  const [availTimes,setAvailTimes] = useState({Mon:{from:9,to:17},Tue:{from:9,to:17},Wed:{from:9,to:17},Thu:{from:9,to:17},Fri:{from:9,to:17},Sat:{from:9,to:17},Sun:{from:9,to:17}});
   const [availRecurring,setAvailRecurring] = useState(true);
   const [availSaved,setAvailSaved] = useState(false);
   const [availBusy,setAvailBusy] = useState(false);
@@ -1361,8 +1387,9 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
         if(empSafe.locId){
           try{
             const sb=await getSB();
-            const {data:loc}=await sb.from("locations").select("name").eq("id",empSafe.locId).single();
+            const {data:loc}=await sb.from("locations").select("*").eq("id",empSafe.locId).single();
             if(loc?.name) setEmpLocationName(loc.name);
+            if(loc) setEmpLocationData(loc);
           }catch(e){}
         }
 
@@ -1373,8 +1400,16 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
             const d=await r.json();
             if(d.availability?.length>0){
               const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
-              d.availability.forEach((a)=>{ if(map.hasOwnProperty(a.day_of_week)) map[a.day_of_week]=a.status; });
+              const times={Mon:{from:9,to:17},Tue:{from:9,to:17},Wed:{from:9,to:17},Thu:{from:9,to:17},Fri:{from:9,to:17},Sat:{from:9,to:17},Sun:{from:9,to:17}};
+              d.availability.forEach((a)=>{
+                if(map.hasOwnProperty(a.day_of_week)){
+                  map[a.day_of_week]=a.status;
+                  if(a.avail_from!=null) times[a.day_of_week].from = a.avail_from;
+                  if(a.avail_to!=null) times[a.day_of_week].to = a.avail_to;
+                }
+              });
               setAvail(map);
+              setAvailTimes(times);
               if(d.availability[0]?.recurring!==undefined) setAvailRecurring(!!d.availability[0].recurring);
             }
           }
@@ -1555,8 +1590,10 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
               <div style={{display:"flex",gap:10}}>
                 {!clocked?(
                   <button onClick={async()=>{
+                    // Geofence check
+                    const geo = await checkGeofence();
+                    if(!geo.ok){ setSyncMsg("📍 "+geo.msg); setTimeout(()=>setSyncMsg(""),6000); return; }
                     const now=new Date();
-                    // Save to localStorage IMMEDIATELY — survives page refresh
                     saveClockedIn(now);
                     setClocked(true); setClockedAt(now);
                     try{
@@ -1653,7 +1690,11 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
             try{
               const sb2=await getSB();
               const {data:{session:ss}}=await sb2.auth.getSession();
-              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({day_of_week:day,status,recurring:availRecurring}));
+              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({
+                day_of_week:day, status, recurring:availRecurring,
+                avail_from:status==="available"?(availTimes[day]?.from||9):null,
+                avail_to:status==="available"?(availTimes[day]?.to||17):null,
+              }));
               const res=await fetch("/api/availability",{
                 method:"POST",
                 headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
@@ -1717,22 +1758,33 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
                 <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20,lineHeight:1.6}}>
                   Tap a day to set your availability. Your manager sees this when building the schedule.
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:20}}>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
                   {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>{
                     const s=avail[day];
                     const isAvail=s==="available"; const isUnavail=s==="unavailable";
+                    const fmtH=h=>h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM";
                     return(
-                      <button key={day} onClick={()=>cycleAvail(day)} style={{
-                        padding:"12px 4px",borderRadius:12,cursor:"pointer",transition:"all 0.18s",textAlign:"center",
-                        border:"2px solid "+(isAvail?E.green:isUnavail?"#ef4444":E.border),
-                        background:isAvail?"rgba(16,185,129,0.12)":isUnavail?"rgba(239,68,68,0.09)":"#fff",
-                      }}>
-                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:12,color:isAvail?E.green:isUnavail?"#ef4444":E.textD,marginBottom:4}}>{day}</div>
-                        <div style={{fontSize:16}}>{isAvail?"✅":isUnavail?"🚫":"—"}</div>
-                        <div style={{fontFamily:E.mono,fontSize:8,color:isAvail?E.green:isUnavail?"#ef4444":E.textF,marginTop:3,letterSpacing:0.5}}>
-                          {isAvail?"AVAIL":isUnavail?"OFF":"TAP"}
+                      <div key={day} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:isAvail?"rgba(16,185,129,0.06)":isUnavail?"rgba(239,68,68,0.04)":"#fff",border:"1.5px solid "+(isAvail?E.green+"40":isUnavail?"rgba(239,68,68,0.2)":E.border),borderRadius:12}}>
+                        <button onClick={()=>cycleAvail(day)} style={{width:56,padding:"8px 4px",borderRadius:8,cursor:"pointer",textAlign:"center",border:"none",background:isAvail?E.green:isUnavail?"#ef4444":"#e5e7eb",color:"#fff",fontFamily:E.sans,fontWeight:700,fontSize:12,flexShrink:0}}>
+                          {day}
+                        </button>
+                        <div style={{fontFamily:E.sans,fontSize:12,fontWeight:600,color:isAvail?E.green:isUnavail?"#ef4444":E.textF,minWidth:70}}>
+                          {isAvail?"Available":isUnavail?"Off":"Not set"}
                         </div>
-                      </button>
+                        {isAvail&&(
+                          <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:"auto"}}>
+                            <select value={availTimes[day]?.from||9} onChange={e=>setAvailTimes(p=>({...p,[day]:{...p[day],from:parseInt(e.target.value)}}))}
+                              style={{padding:"5px 8px",background:E.bg3,border:"1px solid "+E.border,borderRadius:6,fontFamily:E.mono||E.sans,fontSize:10,color:E.text,outline:"none",cursor:"pointer"}}>
+                              {[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22].map(h=><option key={h} value={h}>{fmtH(h)}</option>)}
+                            </select>
+                            <span style={{fontFamily:E.mono||E.sans,fontSize:10,color:E.textF}}>to</span>
+                            <select value={availTimes[day]?.to||17} onChange={e=>setAvailTimes(p=>({...p,[day]:{...p[day],to:parseInt(e.target.value)}}))}
+                              style={{padding:"5px 8px",background:E.bg3,border:"1px solid "+E.border,borderRadius:6,fontFamily:E.mono||E.sans,fontSize:10,color:E.text,outline:"none",cursor:"pointer"}}>
+                              {[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23].filter(h=>h>(availTimes[day]?.from||9)).map(h=><option key={h} value={h}>{fmtH(h)}</option>)}
+                            </select>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -4233,6 +4285,113 @@ const DEPT_COLORS = [
   "#0f766e","#9333ea","#b45309","#0284c7",
 ];
 
+// ══════════════════════════════════════════════════
+//  BLACKOUT CALENDAR
+// ══════════════════════════════════════════════════
+function BlackoutCalendar({ orgId, toast }) {
+  const [blackouts, setBlackouts] = React.useState([]);
+  const [loaded, setLoaded] = React.useState(false);
+  const [viewMonth, setViewMonth] = React.useState(new Date().getMonth());
+  const [viewYear, setViewYear] = React.useState(new Date().getFullYear());
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(()=>{
+    if(!orgId) return;
+    (async()=>{
+      try{
+        const sb = await getSB();
+        const {data} = await sb.from("blackout_dates").select("*").eq("org_id",orgId).order("date");
+        setBlackouts((data||[]).map(d=>d.date));
+      }catch(e){}
+      setLoaded(true);
+    })();
+  },[orgId]);
+
+  const toggleDate = async(dateStr) => {
+    if(!orgId) return;
+    setBusy(true);
+    const isBlacked = blackouts.includes(dateStr);
+    try{
+      const sb = await getSB();
+      if(isBlacked){
+        await sb.from("blackout_dates").delete().eq("org_id",orgId).eq("date",dateStr);
+        setBlackouts(prev=>prev.filter(d=>d!==dateStr));
+      } else {
+        await sb.from("blackout_dates").insert({org_id:orgId, date:dateStr});
+        setBlackouts(prev=>[...prev, dateStr].sort());
+      }
+    }catch(e){ if(toast) toast("Failed to update blackout date","error"); }
+    setBusy(false);
+  };
+
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const startDow = (new Date(viewYear, viewMonth, 1).getDay()+6)%7;
+  const cells = [];
+  for(let i=0;i<startDow;i++) cells.push(null);
+  for(let d=1;d<=daysInMonth;d++) cells.push(d);
+  while(cells.length%7!==0) cells.push(null);
+  const today = new Date();
+  const todayStr = today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <button onClick={()=>{if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1);}}
+          style={{background:"none",border:"1px solid "+O.border,borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:O.sans,fontSize:14,color:O.textD}}>◀</button>
+        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{monthNames[viewMonth]} {viewYear}</div>
+        <button onClick={()=>{if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1);}}
+          style={{background:"none",border:"1px solid "+O.border,borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:O.sans,fontSize:14,color:O.textD}}>▶</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:6}}>
+        {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>(
+          <div key={d} style={{fontFamily:O.mono,fontSize:9,color:O.textF,textAlign:"center",padding:"4px 0",fontWeight:600}}>{d}</div>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+        {cells.map((day,i)=>{
+          if(!day) return <div key={i}/>;
+          const dateStr = viewYear+"-"+String(viewMonth+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+          const isBlacked = blackouts.includes(dateStr);
+          const isPast = dateStr < todayStr;
+          const isToday = dateStr === todayStr;
+          return(
+            <button key={i} onClick={()=>!isPast&&!busy&&toggleDate(dateStr)} disabled={isPast||busy}
+              style={{
+                padding:"8px 4px",borderRadius:8,border:"none",cursor:isPast?"default":"pointer",
+                textAlign:"center",fontFamily:O.sans,fontSize:12,fontWeight:isToday?800:500,
+                transition:"all 0.15s",
+                background:isBlacked?"rgba(217,64,64,0.15)":isToday?"rgba(224,123,0,0.1)":"transparent",
+                color:isBlacked?O.red:isPast?O.textF:isToday?O.amber:O.text,
+                outline:isBlacked?"2px solid "+O.red+"40":"none",
+                opacity:isPast?0.4:1,
+              }}>
+              {day}
+              {isBlacked&&<div style={{width:5,height:5,borderRadius:"50%",background:O.red,margin:"2px auto 0"}}/>}
+            </button>
+          );
+        })}
+      </div>
+      {!loaded&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:8}}>Loading...</div>}
+      {loaded&&blackouts.length>0&&(
+        <div style={{marginTop:12,padding:"10px 12px",background:"rgba(217,64,64,0.06)",border:"1px solid rgba(217,64,64,0.15)",borderRadius:8}}>
+          <div style={{fontFamily:O.mono,fontSize:9,color:O.red,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:6}}>Blackout Dates ({blackouts.filter(d=>d>=todayStr).length} upcoming)</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+            {blackouts.filter(d=>d>=todayStr).slice(0,20).map(d=>(
+              <span key={d} style={{fontFamily:O.mono,fontSize:10,padding:"3px 8px",background:"rgba(217,64,64,0.1)",border:"1px solid rgba(217,64,64,0.2)",borderRadius:6,color:O.red}}>
+                {new Date(d+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:8}}>
+        Click future dates to block time-off requests. Employees will see these dates marked as unavailable.
+      </div>
+    </div>
+  );
+}
+
 function SettingsTab({
   ownerProfile, activeOrg,
   liveLocations, setLiveLocations, activeLocation, selectLocation, setLocationGate,
@@ -4643,6 +4802,13 @@ function SettingsTab({
           </div>
         </div>
 
+        {/* ── BLACKOUT CALENDAR ── */}
+        <div style={card}>
+          <div style={sectionTitle}>🚫 Blackout Calendar</div>
+          <div style={sectionSub}>Set dates when employees cannot request time off. Click dates to toggle.</div>
+          <BlackoutCalendar orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
+        </div>
+
         {/* ── MY ACCOUNT ── */}
         <div style={card}>
           <div style={sectionTitle}>👤 My Account</div>
@@ -4813,6 +4979,29 @@ function AddLocationModal({
             ))}
           </select>
         </div>
+        <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,marginTop:12,textTransform:"uppercase"}}>📍 Geofencing (optional)</div>
+        <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginBottom:10}}>Require employees to be near this location to clock in. Enter coordinates and radius.</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+          <div>
+            <input value={addLocForm.latitude} onChange={e=>setAddLocForm(p=>({...p,latitude:e.target.value}))} placeholder="Latitude (e.g. 44.6365)"
+              style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.mono,fontSize:11,color:O.text,outline:"none",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <input value={addLocForm.longitude} onChange={e=>setAddLocForm(p=>({...p,longitude:e.target.value}))} placeholder="Longitude (e.g. -124.0535)"
+              style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.mono,fontSize:11,color:O.text,outline:"none",boxSizing:"border-box"}}/>
+          </div>
+        </div>
+        <div style={{marginBottom:18}}>
+          <select value={addLocForm.geofence_radius_m} onChange={e=>setAddLocForm(p=>({...p,geofence_radius_m:e.target.value}))}
+            style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+            <option value="">No geofence</option>
+            <option value="50">50m (~150 ft) — Tight</option>
+            <option value="100">100m (~330 ft) — Standard</option>
+            <option value="200">200m (~650 ft) — Relaxed</option>
+            <option value="500">500m (~1640 ft) — Wide</option>
+            <option value="1000">1km (~0.6 mi) — Campus</option>
+          </select>
+        </div>
         {addLocErr&&(
           <div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:12,padding:"7px 10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:6}}>{addLocErr}</div>
         )}
@@ -4832,7 +5021,7 @@ function AddLocationModal({
               const res=await fetch("/api/location",{
                 method:"POST",
                 headers:{"Content-Type":"application/json",...(session?.access_token?{"Authorization":"Bearer "+session.access_token}:{})},
-                body:JSON.stringify({orgId,name:addLocForm.name,address:addLocForm.address||"",timezone:addLocForm.timezone})
+                body:JSON.stringify({orgId,name:addLocForm.name,address:addLocForm.address||"",timezone:addLocForm.timezone,latitude:addLocForm.latitude?parseFloat(addLocForm.latitude):null,longitude:addLocForm.longitude?parseFloat(addLocForm.longitude):null,geofence_radius_m:addLocForm.geofence_radius_m?parseInt(addLocForm.geofence_radius_m):null})
               });
               const result=await res.json();
               if(!res.ok) throw new Error(result.error||"Failed to create location");
@@ -4849,7 +5038,7 @@ function AddLocationModal({
               });
               selectLocation(newLoc);
               setAddLocOpen(false);
-              setAddLocForm({name:"",address:"",timezone:"America/Los_Angeles"});
+              setAddLocForm({name:"",address:"",timezone:"America/Los_Angeles",latitude:"",longitude:"",geofence_radius_m:""});
               toast("✓ Location created: "+newLoc.name,"success");
               setTab("staff");
             }catch(err){
@@ -5155,7 +5344,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [addLocOpen,setAddLocOpen] = useState(false);
   const [addLocBusy,setAddLocBusy] = useState(false);
   const [addLocErr,setAddLocErr] = useState("");
-  const [addLocForm,setAddLocForm] = useState({name:"",address:"",timezone:"America/Los_Angeles"});
+  const [addLocForm,setAddLocForm] = useState({name:"",address:"",timezone:"America/Los_Angeles",latitude:"",longitude:"",geofence_radius_m:""});
   const [addOrgOpen,setAddOrgOpen] = useState(false);
   const [confirmDeleteOrgId,setConfirmDeleteOrgId] = useState(null);
   const [addOrgBusy,setAddOrgBusy] = useState(false);
