@@ -4346,6 +4346,80 @@ const DEPT_COLORS = [
 ];
 
 // ══════════════════════════════════════════════════
+//  PORTAL TOGGLES — fully self-contained
+// ══════════════════════════════════════════════════
+function PortalToggles({ orgId, toast }) {
+  const FEATURES = [
+    {key:"showEarnings", label:"Estimated Earnings", desc:"Show employees their estimated weekly & monthly earnings based on hours worked and pay rate.", icon:"💰"},
+    {key:"showGrowth", label:"My Growth Tab", desc:"Show the growth/tier progression system with performance metrics.", icon:"🌱"},
+    {key:"showAchievements", label:"Achievements Tab", desc:"Show the achievements and badges system.", icon:"🏆"},
+    {key:"showSwapShift", label:"Swap Shift", desc:"Allow employees to request shift swaps.", icon:"🔄"},
+    {key:"showTimeOff", label:"Time Off Requests", desc:"Allow employees to submit time-off requests.", icon:"📆"},
+  ];
+  const [settings, setSettings] = React.useState({showEarnings:true,showGrowth:true,showAchievements:true,showSwapShift:true,showTimeOff:true});
+  const [loaded, setLoaded] = React.useState(false);
+  const [saving, setSaving] = React.useState(null); // key being saved
+
+  // Load on mount
+  React.useEffect(()=>{
+    if(!orgId) return;
+    (async()=>{
+      try{
+        const r=await fetch("/api/portal-settings?orgId="+orgId,{cache:"no-store"});
+        if(r.ok){ const d=await r.json(); if(d.portalSettings) setSettings(prev=>({...prev,...d.portalSettings})); }
+      }catch(e){}
+      setLoaded(true);
+    })();
+  },[orgId]);
+
+  const toggle = async(key) => {
+    const newVal = !settings[key] || settings[key]===false ? true : false;
+    const updated = {...settings, [key]:newVal};
+    setSettings(updated);
+    setSaving(key);
+    try{
+      const r=await fetch("/api/portal-settings",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({orgId, portalSettings:updated}),
+      });
+      const d=await r.json();
+      if(!r.ok) throw new Error(d.error||d.hint||"Save failed");
+      if(toast) toast("✓ Employee portal updated","success");
+    }catch(e){
+      if(toast) toast("⚠ "+e.message,"error");
+      // Revert
+      setSettings(prev=>({...prev,[key]:!newVal}));
+    }
+    setSaving(null);
+  };
+
+  return(
+    <div>
+      {!loaded&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"8px 0"}}>Loading settings...</div>}
+      {FEATURES.map(f=>{
+        const isOn = settings[f.key]!==false;
+        const isSaving = saving===f.key;
+        return(
+          <div key={f.key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:isOn?"rgba(16,185,129,0.04)":"transparent",border:"1px solid "+(isOn?"rgba(16,185,129,0.15)":O.border),borderRadius:10,marginBottom:8,opacity:isSaving?0.6:1,transition:"all 0.2s"}}>
+            <span style={{fontSize:20,flexShrink:0}}>{f.icon}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{f.label}</div>
+              <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginTop:1}}>{f.desc}</div>
+            </div>
+            <button disabled={isSaving} onClick={()=>toggle(f.key)} style={{width:44,height:26,borderRadius:13,border:"none",background:isOn?O.green:O.border,cursor:isSaving?"wait":"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+              <div style={{position:"absolute",top:3,left:isOn?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+            </button>
+          </div>
+        );
+      })}
+      {orgId&&<div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:6}}>Org: {orgId.slice(0,8)}… — Changes apply when employees refresh their portal.</div>}
+      {!orgId&&<div style={{fontFamily:O.sans,fontSize:11,color:O.red,marginTop:6}}>⚠ No organization ID found — settings cannot be saved.</div>}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
 //  BLACKOUT CALENDAR
 // ══════════════════════════════════════════════════
 function BlackoutCalendar({ orgId, toast }) {
@@ -4867,27 +4941,7 @@ function SettingsTab({
         <div style={card}>
           <div style={sectionTitle}>🎛️ Employee Portal</div>
           <div style={sectionSub}>Choose which features your employees can see in their portal.</div>
-          {[
-            {key:"showEarnings", label:"Estimated Earnings", desc:"Show employees their estimated weekly & monthly earnings based on hours worked and pay rate.", icon:"💰"},
-            {key:"showGrowth", label:"My Growth Tab", desc:"Show the growth/tier progression system with performance metrics.", icon:"🌱"},
-            {key:"showAchievements", label:"Achievements Tab", desc:"Show the achievements and badges system.", icon:"🏆"},
-            {key:"showSwapShift", label:"Swap Shift", desc:"Allow employees to request shift swaps.", icon:"🔄"},
-            {key:"showTimeOff", label:"Time Off Requests", desc:"Allow employees to submit time-off requests.", icon:"📆"},
-          ].map(f=>{
-            const isOn = portalSettings[f.key] !== false; // default to ON
-            return(
-              <div key={f.key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:isOn?"rgba(16,185,129,0.04)":"transparent",border:"1px solid "+(isOn?"rgba(16,185,129,0.15)":O.border),borderRadius:10,marginBottom:8}}>
-                <span style={{fontSize:20,flexShrink:0}}>{f.icon}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{f.label}</div>
-                  <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginTop:1}}>{f.desc}</div>
-                </div>
-                <button onClick={()=>savePortalSetting(f.key,!isOn)} style={{width:44,height:26,borderRadius:13,border:"none",background:isOn?O.green:O.border,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-                  <div style={{position:"absolute",top:3,left:isOn?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
-                </button>
-              </div>
-            );
-          })}
+          <PortalToggles orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
         </div>
 
         {/* ── BLACKOUT CALENDAR ── */}
