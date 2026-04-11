@@ -508,6 +508,19 @@ function Login({onLogin}){
       };
       // Cache with user-specific key
       try{ localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
+
+      // Pre-load portal settings + messages before entering portal
+      if(emp.orgId){
+        try{
+          const [psRes, msgRes] = await Promise.all([
+            fetch("/api/portal-settings?orgId="+emp.orgId,{cache:"no-store"}),
+            fetch("/api/messages?userId="+emp.id+"&orgId="+emp.orgId+"&role=employee&_t="+Date.now(),{cache:"no-store"}),
+          ]);
+          if(psRes.ok){ const pd=await psRes.json(); if(pd.portalSettings) emp._portalSettings=pd.portalSettings; }
+          if(msgRes.ok){ const md=await msgRes.json(); if(md.threads) emp._preloadedThreads=md.threads; }
+        }catch(e){}
+      }
+
       onLogin(empRole, emp);
     }catch(e){
       setErr(e.message||"Sign in failed. Check your email and password.");
@@ -1205,8 +1218,11 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
   const [empDocs,setEmpDocs] = useState(null);
   const [empLocationName,setEmpLocationName] = useState("");
   const [empLocationData,setEmpLocationData] = useState(null);
-  const [empPortalSettings,setEmpPortalSettings] = useState({showEarnings:true,showGrowth:true,showAchievements:true,showSwapShift:true,showTimeOff:true});
-  const [empThreads,setEmpThreads] = useState(null);
+  const [empPortalSettings,setEmpPortalSettings] = useState(()=>{
+    const defaults = {showEarnings:true,showGrowth:true,showAchievements:true,showSwapShift:true,showTimeOff:true};
+    return emp?._portalSettings ? {...defaults,...emp._portalSettings} : defaults;
+  });
+  const [empThreads,setEmpThreads] = useState(()=>emp?._preloadedThreads||null);
   // Profile edit state
   const [profileEdit,setProfileEdit] = useState(false);
   const [profileForm,setProfileForm] = useState({firstName:"",lastName:"",nick:"",title:"",phone:"",emergency:""});
@@ -1343,7 +1359,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
       try{ const {data:{session:ssMr}}=await (await getSB()).auth.getSession(); await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssMr?.access_token?{"Authorization":"Bearer "+ssMr.access_token}:{})},body:JSON.stringify({_action:"mark_read",messageId:msg.id})}); }catch(e){}
     }
   };
-  const [msgsLoaded,setMsgsLoaded] = useState(false);
+  const [msgsLoaded,setMsgsLoaded] = useState(()=>!!emp?._preloadedThreads);
 
   // Reload employee messages from server
   const reloadEmpMessages = React.useCallback(async()=>{
@@ -8387,6 +8403,18 @@ export default function App(){
 
         // Step 5: Always cache latest emp data
         try{ localStorage.setItem("shiftpro_cached_emp_"+userId, JSON.stringify(emp)); }catch(e){}
+
+        // Step 6: Pre-load portal settings + messages
+        if(role==="employee" && emp.orgId){
+          try{
+            const [psRes, msgRes] = await Promise.all([
+              fetch("/api/portal-settings?orgId="+emp.orgId,{cache:"no-store"}),
+              fetch("/api/messages?userId="+userId+"&orgId="+emp.orgId+"&role=employee&_t="+Date.now(),{cache:"no-store"}),
+            ]);
+            if(psRes.ok){ const pd=await psRes.json(); if(pd.portalSettings) emp._portalSettings=pd.portalSettings; }
+            if(msgRes.ok){ const md=await msgRes.json(); if(md.threads) emp._preloadedThreads=md.threads; }
+          }catch(e){}
+        }
 
         setSession({role,emp});
       }catch(e){
