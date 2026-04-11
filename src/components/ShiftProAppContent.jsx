@@ -5018,13 +5018,6 @@ function SettingsTab({
           <PortalToggles orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
         </div>
 
-        {/* ── BLACKOUT CALENDAR ── */}
-        <div style={card}>
-          <div style={sectionTitle}>🚫 Blackout Calendar</div>
-          <div style={sectionSub}>Set dates when employees cannot request time off. Click dates to toggle.</div>
-          <BlackoutCalendar orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
-        </div>
-
         {/* ── MY ACCOUNT ── */}
         <div style={card}>
           <div style={sectionTitle}>👤 My Account</div>
@@ -7811,6 +7804,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 </div>
               );
             })()}
+
+            {/* ── Blackout Calendar ── */}
+            <div style={{marginTop:20,background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow}}>
+              <div style={{marginBottom:4}}>
+                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:16,color:O.text}}>🚫 Blackout Calendar</div>
+                <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:2}}>Block dates when employees cannot request time off. Click any future date to toggle.</div>
+              </div>
+              <BlackoutCalendar orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
+            </div>
           </div>
         )}
 
