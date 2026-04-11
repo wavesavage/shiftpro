@@ -3212,7 +3212,7 @@ function NotificationsDropdown({
                 <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{detail}</div>
               </div>
               {!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,marginTop:5}}/>}
-              <button onClick={e=>{e.stopPropagation();if(dismissNotif)dismissNotif(n.id);if(expanded===n.id)setExpanded(null);}}
+              <button onClick={e=>{e.stopPropagation();e.nativeEvent.stopImmediatePropagation();if(dismissNotif)dismissNotif(n.id);if(expanded===n.id)setExpanded(null);}}
                 style={{background:"none",border:"none",fontSize:14,color:O.textF,cursor:"pointer",padding:"0 2px",flexShrink:0,lineHeight:1,opacity:0.5,transition:"opacity 0.15s"}}
                 onMouseEnter={e=>e.currentTarget.style.opacity="1"}
                 onMouseLeave={e=>e.currentTarget.style.opacity="0.5"}
