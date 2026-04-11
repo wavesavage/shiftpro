@@ -4243,9 +4243,9 @@ function ConfettiOverlay({ onDone }) {
 // ══════════════════════════════════════════════════
 //  SHIFT ADD MODAL (outside OwnerCmd)
 // ══════════════════════════════════════════════════
-function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOffset, addShift, getMonday }) {
+function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOffset, addShift, getMonday, ownerPrefs }) {
   const HOURS_LIST = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
-  const fmtH2 = h => h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM";
+  const fmtH2 = h => ownerPrefs?.use24h?(String(Math.floor(h)).padStart(2,"0")+":"+(h%1?String(Math.round((h%1)*60)).padStart(2,"0"):"00")):(h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM");
   const modalEmps = liveEmps||[];
 
   return (
@@ -4310,9 +4310,9 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
                   for(let m=0;m<60;m+=15){
                     const val=h+m/60;
                     if(val>=s&&val<e-0.25){
-                      const hr=h%12||12; const ampm=h<12?"AM":"PM";
+                      const hr=ownerPrefs?.use24h?String(h).padStart(2,"0"):(h%12||12); const ampm=ownerPrefs?.use24h?"":h<12?" AM":" PM";
                       const mm=m===0?"00":String(m);
-                      opts.push(<option key={val} value={val}>{hr}:{mm} {ampm}</option>);
+                      opts.push(<option key={val} value={val}>{hr}:{mm}{ampm}</option>);
                     }
                   }
                 }
@@ -4995,7 +4995,7 @@ function SettingsTab({
           <div style={sectionTitle}>🎨 Display Preferences</div>
           <div style={sectionSub}>Customize how ShiftPro looks and displays information.</div>
           {[
-            {key:"use24h", label:"24-Hour Time (Military)", desc:"Show times as 14:00 instead of 2:00 PM across all schedules and clocks.", icon:"🕐", isOn:ownerPrefs?.use24h===true},
+            {key:"use24h", label:"24-Hour Military Time", desc:ownerPrefs?.use24h?"Currently showing military time (14:00). Turn off for standard time (2:00 PM).":"Currently showing standard time (2:00 PM). Turn on for military time (14:00).", icon:"🕐", isOn:ownerPrefs?.use24h===true},
             {key:"darkMode", label:"Dark Mode", desc:"Switch to a dark background for easier viewing in low-light environments.", icon:"🌙", isOn:ownerPrefs?.darkMode===true},
           ].map(f=>(
             <div key={f.key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:f.isOn?"rgba(99,102,241,0.04)":"transparent",border:"1px solid "+(f.isOn?"rgba(99,102,241,0.15)":O.border),borderRadius:10,marginBottom:8}}>
@@ -6871,7 +6871,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         {/* Right side of topbar */}
         <div style={{display:"flex",alignItems:"center",gap:mobile?8:14}}>
           {!mobile&&<div style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>
-            {now.toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit"})}
+            {now.toLocaleTimeString("en-US",{hour12:!ownerPrefs?.use24h,hour:"2-digit",minute:"2-digit"})}
           </div>}
           {/* Bell */}
           <div style={{position:"relative"}}>
@@ -6959,7 +6959,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 const isUpcoming = sh.start_hour > nowH && sh.start_hour-nowH <= 2;
                 const isLate = nowH > sh.start_hour+0.17 && !isOnShift && sh.start_hour <= nowH;
                 const status = isOnShift?"on":isLate?"late":isUpcoming?"upcoming":"later";
-                const fmtH = h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
+                const fmtH = h=>ownerPrefs?.use24h?(String(Math.floor(h)).padStart(2,"0")+":"+(h%1?String(Math.round((h%1)*60)).padStart(2,"0"):"00")):(h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p");
                 return {emp,sh,status,fmtH};
               }).filter(Boolean);
 
@@ -6981,7 +6981,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     </div>
                     <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
                       <div style={{fontFamily:O.mono,fontSize:14,color:O.text,fontWeight:600}}>
-                        {now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:true})}
+                        {now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:!ownerPrefs?.use24h})}
                       </div>
                       {liveLocations.length>1&&(
                         <button onClick={()=>setLocSwitcherOpen(true)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer"}}>Switch</button>
@@ -7554,6 +7554,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 currentWeekOffset={currentWeekOffset}
                 addShift={addShift}
                 getMonday={getMonday}
+                ownerPrefs={ownerPrefs}
               />
             )}
 
@@ -7602,7 +7603,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   <button onClick={()=>{
                     const printW=window.open("","_blank","width=900,height=600");
                     const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-                    const fmtH2=h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
+                    const fmtH2=h=>ownerPrefs?.use24h?(String(Math.floor(h)).padStart(2,"0")+":00"):(h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p");
                     const rows=(liveEmps||[]).map(emp=>{
                       const dayHtml=DAYS_FULL.map(d=>{const shifts=(liveShifts||[]).filter(s=>s.user_id===emp.id&&s.day_of_week===d);return`<td style="border:1px solid #ddd;padding:6px;font-size:11px;vertical-align:top">${shifts.map(s=>`<div>${fmtH2(s.start_hour)}-${fmtH2(s.end_hour)}</div>`).join("")||""}</td>`;}).join("");
                       return`<tr><td style="border:1px solid #ddd;padding:6px;font-weight:600">${emp.name}</td>${dayHtml}</tr>`;
@@ -7641,7 +7642,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             {liveEmps!==null&&liveEmps.length>0&&liveShifts!==null&&(()=>{
               const STAFF=liveEmps;
               const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-              const fmtH2=h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
+              const fmtH2=h=>ownerPrefs?.use24h?(String(Math.floor(h)).padStart(2,"0")+":00"):(h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p");
 
               // ── MONTH VIEW ──
               if(schedViewMode==="month"){
