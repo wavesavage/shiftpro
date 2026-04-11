@@ -3061,7 +3061,7 @@ function NotificationsDropdown({
   notifications, setNotifications, setNotifOpen,
   setTab, setStaffSubTab, setMsgConvoId,
   setSwapRequests, setTimeOffRequests,
-  orgId, loadNotifications, seenNotifIds
+  orgId, loadNotifications, seenNotifIds, persistSeenNotifs
 }) {
   const mobile = useIsMobile();
   const [expanded, setExpanded] = React.useState(null); // id of expanded notif
@@ -3144,6 +3144,7 @@ function NotificationsDropdown({
       setMsgResult("✓ Sent!");
       setReplyText("");
       seenNotifIds?.current?.add(n.id);
+      persistSeenNotifs?.();
       setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
       setTimeout(()=>{ setMsgResult(""); setExpanded(null); }, 1500);
     }catch(e){ setMsgResult("⚠ "+e.message); }
@@ -3195,7 +3196,7 @@ function NotificationsDropdown({
               onClick={()=>{
                 setExpanded(isOpen?null:n.id);
                 setReplyText(""); setMsgResult("");
-                if(!n.read){ seenNotifIds?.current?.add(n.id); setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x)); }
+                if(!n.read){ seenNotifIds?.current?.add(n.id); persistSeenNotifs?.(); setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x)); }
               }}
               style={{
                 padding:"11px 14px",
@@ -3305,6 +3306,7 @@ function NotificationsDropdown({
           </button>
           <button onClick={()=>{
             notifications.forEach(n=>seenNotifIds?.current?.add(n.id));
+            persistSeenNotifs?.();
             setNotifications(prev=>prev.map(n=>({...n,read:true})));
           }}
             style={{padding:"8px 12px",background:"none",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
@@ -5427,7 +5429,14 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [notifOpen,setNotifOpen] = useState(false);
   const [notifications,setNotifications] = useState([]);
   const [notifLoaded,setNotifLoaded] = useState(false);
-  const seenNotifIds = React.useRef(new Set());
+  const seenNotifIds = React.useRef(()=>{
+    try{ const raw=localStorage.getItem("shiftpro_seen_notifs"); return raw?new Set(JSON.parse(raw)):new Set(); }catch(e){ return new Set(); }
+  });
+  // Initialize on first access
+  if(typeof seenNotifIds.current === "function") seenNotifIds.current = seenNotifIds.current();
+  const persistSeenNotifs = () => {
+    try{ localStorage.setItem("shiftpro_seen_notifs", JSON.stringify([...seenNotifIds.current].slice(-200))); }catch(e){}
+  };
   // ── Poll every 60 seconds for new staff messages and requests ──
   useEffect(()=>{
     if(!ownerProfile?.orgId) return;
@@ -6194,6 +6203,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           orgId={activeOrg?.id || ownerProfile?.org_id || null}
           loadNotifications={loadNotifications}
           seenNotifIds={seenNotifIds}
+          persistSeenNotifs={persistSeenNotifs}
         />
       )}
 
@@ -6576,6 +6586,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 setNotifOpen(o=>{
                   if(!o){ // opening — mark all as seen
                     notifications.forEach(n=>seenNotifIds.current.add(n.id));
+                    persistSeenNotifs();
                     setNotifications(prev=>prev.map(n=>({...n,read:true})));
                   }
                   return !o;
