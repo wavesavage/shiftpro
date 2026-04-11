@@ -1430,9 +1430,14 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
         // Load portal settings from org
         if(empSafe.orgId){
           try{
-            const sb=await getSB();
-            const {data:org}=await sb.from("organizations").select("portal_settings").eq("id",empSafe.orgId).single();
-            if(org?.portal_settings) setEmpPortalSettings(prev=>({...prev,...org.portal_settings}));
+            const r2=await fetch("/api/portal-settings?orgId="+empSafe.orgId,{headers,cache:"no-store"});
+            if(r2.ok){ const d2=await r2.json(); if(d2.portalSettings) setEmpPortalSettings(prev=>({...prev,...d2.portalSettings})); }
+            else {
+              // Fallback: direct query
+              const sb=await getSB();
+              const {data:org}=await sb.from("organizations").select("portal_settings").eq("id",empSafe.orgId).single();
+              if(org?.portal_settings) setEmpPortalSettings(prev=>({...prev,...org.portal_settings}));
+            }
           }catch(e){}
         }
 
@@ -5421,12 +5426,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     const updated={...portalSettings,[key]:val};
     setPortalSettings(updated);
     try{ localStorage.setItem("shiftpro_portal_settings",JSON.stringify(updated)); }catch(e){}
-    // Persist to DB
+    const orgId=activeOrg?.id||ownerProfile?.org_id;
+    if(!orgId) return;
     try{
       const sb=await getSB();
-      const orgId=activeOrg?.id||ownerProfile?.org_id;
-      if(orgId) await sb.from("organizations").update({portal_settings:updated}).eq("id",orgId);
-    }catch(e){}
+      const {data:{session:ss}}=await sb.auth.getSession();
+      const r=await fetch("/api/portal-settings",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+        body:JSON.stringify({orgId,portalSettings:updated}),
+      });
+      if(!r.ok) throw new Error("API failed");
+    }catch(e){ console.error("[portal settings]",e.message); }
   };
   const [liveEmps,setLiveEmps] = useState(null);
   const [liveLocations,setLiveLocations] = useState([]);
