@@ -2635,9 +2635,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
                       <button onClick={()=>handleDownload(doc)} style={{padding:"7px 12px",background:E.indigoD,border:"1px solid "+E.indigo+"30",borderRadius:7,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>
                         ⬇ View
                       </button>
-                      <button onClick={()=>handleDelete(doc.id)} style={{padding:"7px 10px",background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:7,fontFamily:E.sans,fontSize:12,color:E.red,cursor:"pointer"}}>
-                        🗑
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -3477,6 +3474,8 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
       fd.append("name",ownerDocName.trim());
       fd.append("category",ownerDocCat);
       fd.append("notes",ownerDocNotes||"Uploaded by manager");
+      fd.append("uploadedBy",ownerProfile?.id||ownerProfile?.user_id||"manager");
+      fd.append("uploadedByName",((ownerProfile?.first_name||"")+" "+(ownerProfile?.last_name||"")).trim()||"Manager");
       const r=await fetch("/api/documents",{
         method:"POST",
         headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
