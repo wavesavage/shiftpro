@@ -58,15 +58,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // ── POST SHIFT FOR SWAP ──
+    // Employee posts their shift as available for coworkers to claim
     if (body._action === "swap_request") {
       const { error } = await client.from("shift_swap_requests").insert({
-        user_id: body.userId, org_id: body.orgId || null,
+        user_id: body.userId,
+        org_id: body.orgId || null,
         reason: body.reason,
         shift_date: body.shiftDate || null,
         shift_id: body.shiftId || null,
-        status: "pending", created_at: new Date().toISOString(),
+        poster_name: body.posterName || null,
+        start_hour: body.startHour ?? null,
+        end_hour: body.endHour ?? null,
+        day_of_week: body.dayOfWeek || null,
+        status: "open",  // "open" = waiting for a coworker to claim
+        created_at: new Date().toISOString(),
       });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error("[employee] swap_request error:", error.message);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── CLAIM A SWAP ──
+    // Another employee claims an open swap — moves to "claimed" status for manager approval
+    if (body._action === "claim_swap") {
+      const { data: swap, error: fetchErr } = await client
+        .from("shift_swap_requests")
+        .select("*")
+        .eq("id", body.swapId)
+        .single();
+
+      if (fetchErr || !swap) {
+        return NextResponse.json({ error: "Swap request not found" }, { status: 404 });
+      }
+
+      if (swap.status !== "open") {
+        return NextResponse.json({ error: "This swap has already been claimed" }, { status: 400 });
+      }
+
+      // Can't claim your own swap
+      if (swap.user_id === body.userId) {
+        return NextResponse.json({ error: "You can't claim your own swap" }, { status: 400 });
+      }
+
+      const { error: updateErr } = await client
+        .from("shift_swap_requests")
+        .update({
+          claimed_by_id: body.userId,
+          claimed_by_name: body.userName || "Employee",
+          status: "claimed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", body.swapId);
+
+      if (updateErr) {
+        console.error("[employee] claim_swap error:", updateErr.message);
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
+
+      console.log("[employee] swap claimed:", body.swapId, "by", body.userName);
       return NextResponse.json({ ok: true });
     }
 
@@ -94,6 +146,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   } catch (e: any) {
+    console.error("[employee POST]", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -15,40 +15,69 @@ export async function GET(req: NextRequest) {
 
   const client = sb();
 
+  // ── OPEN SWAPS — for employees to see available swaps from coworkers ──
+  if (type === "open_swaps") {
+    const excludeUser = req.nextUrl.searchParams.get("excludeUser");
+    let q = client
+      .from("shift_swap_requests")
+      .select("*")
+      .eq("org_id", orgId)
+      .eq("status", "open")
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    const { data: swaps, error } = await q;
+    if (error) {
+      console.error("[requests GET open_swaps]", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Filter out the requesting user's own swaps (can't claim your own)
+    const filtered = excludeUser
+      ? (swaps || []).filter((s: any) => s.user_id !== excludeUser)
+      : (swaps || []);
+
+    return NextResponse.json({ swaps: filtered }, NO_CACHE);
+  }
+
+  // ── MANAGER VIEW — all swaps needing attention ──
   if (type === "swaps") {
-    // Simple query — no FK joins that might fail with wrong constraint name
     const { data: swaps, error: swapsErr } = await client
       .from("shift_swap_requests")
       .select("*")
       .eq("org_id", orgId)
-      .eq("status", "pending")
+      .in("status", ["open", "claimed", "pending"])  // Show all active swaps
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(30);
 
     if (swapsErr) {
       console.error("[requests GET swaps]", swapsErr.message);
       return NextResponse.json({ error: swapsErr.message }, { status: 500 });
     }
 
-    // Enrich with user names in a separate query
-    const userIds: string[] = Array.from(new Set((swaps || []).map((s: any) => s.user_id).filter(Boolean)));
+    // Enrich with user names
+    const allUserIds: string[] = Array.from(new Set(
+      (swaps || []).flatMap((s: any) => [s.user_id, s.claimed_by_id].filter(Boolean))
+    ));
     const userMap: Record<string, any> = {};
-    if (userIds.length > 0) {
+    if (allUserIds.length > 0) {
       const { data: users } = await client
         .from("users")
         .select("id, first_name, last_name, avatar_color")
-        .in("id", userIds);
+        .in("id", allUserIds);
       (users || []).forEach(u => { userMap[u.id] = u; });
     }
 
     const enriched = (swaps || []).map(s => ({
       ...s,
       users: userMap[s.user_id] || null,
+      claimer: s.claimed_by_id ? userMap[s.claimed_by_id] || null : null,
     }));
 
     return NextResponse.json({ swaps: enriched }, NO_CACHE);
   }
 
+  // ── TIME OFF REQUESTS ──
   if (type === "timeoff") {
     const { data: timeoff, error: toErr } = await client
       .from("time_off_requests")
@@ -81,7 +110,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ timeoff: enriched }, NO_CACHE);
   }
 
-  return NextResponse.json({ error: "type must be swaps or timeoff" }, { status: 400 });
+  return NextResponse.json({ error: "type must be swaps, open_swaps, or timeoff" }, { status: 400 });
 }
 
 export async function POST(req: NextRequest) {
@@ -94,13 +123,57 @@ export async function POST(req: NextRequest) {
     if (!allowed.includes(table)) {
       return NextResponse.json({ error: "Invalid table" }, { status: 400 });
     }
-    const { error } = await sb()
+
+    const client = sb();
+
+    // ── SWAP APPROVAL — reassign the shift ──
+    if (table === "shift_swap_requests" && status === "approved") {
+      // Get the swap request details
+      const { data: swap, error: fetchErr } = await client
+        .from("shift_swap_requests")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (fetchErr || !swap) {
+        return NextResponse.json({ error: "Swap not found" }, { status: 404 });
+      }
+
+      // If someone has claimed this swap, reassign the shift
+      if (swap.claimed_by_id && swap.shift_id) {
+        const { error: shiftErr } = await client
+          .from("shifts")
+          .update({ user_id: swap.claimed_by_id })
+          .eq("id", swap.shift_id);
+
+        if (shiftErr) {
+          console.error("[requests] shift reassignment failed:", shiftErr.message);
+          // Don't block approval — shift might have been deleted
+        } else {
+          console.log("[requests] shift", swap.shift_id, "reassigned from", swap.user_id, "to", swap.claimed_by_id);
+        }
+      }
+
+      // Update swap status to approved
+      const { error } = await client
+        .from("shift_swap_requests")
+        .update({ status: "approved", updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true, shiftReassigned: !!(swap.claimed_by_id && swap.shift_id) });
+    }
+
+    // ── STANDARD STATUS UPDATE (deny, etc.) ──
+    const { error } = await client
       .from(table)
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", id);
+
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
+    console.error("[requests POST]", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
