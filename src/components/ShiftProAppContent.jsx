@@ -1349,6 +1349,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   };
   // Schedule sub-tab state (must be here, not inside render IIFE)
   const [schedSubTab,setSchedSubTab] = useState("shifts");
+  const [availableSwaps,setAvailableSwaps] = useState([]);
   const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
   const [availTimes,setAvailTimes] = useState({Mon:{from:9,to:17},Tue:{from:9,to:17},Wed:{from:9,to:17},Thu:{from:9,to:17},Fri:{from:9,to:17},Sat:{from:9,to:17},Sun:{from:9,to:17}});
   const [availRecurring,setAvailRecurring] = useState(true);
@@ -1466,6 +1467,15 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
             }
           }catch(e){}
         }
+
+        // ── Load available swaps (open swaps from coworkers) ──
+        try{
+          const orgId=empSafe.orgId||(()=>{try{return localStorage.getItem("shiftpro_active_orgid")}catch(e){return null}})();
+          if(orgId){
+            const r=await fetch(`/api/requests?type=open_swaps&orgId=${orgId}&excludeUser=${empSafe.id}&_t=${Date.now()}`,{headers,cache:"no-store"});
+            if(r.ok){ const d=await r.json(); setAvailableSwaps(d.swaps||[]); }
+          }
+        }catch(e){}
 
         // ── Load availability via service role ──
         try{
@@ -1802,12 +1812,12 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
           <div style={{animation:"fadeUp 0.3s ease"}}>
             {/* Sub-tabs */}
             <div style={{display:"flex",gap:6,marginBottom:16}}>
-              {[["shifts","📅 My Shifts"],["availability","✅ Set Availability"],["open","🔓 Open Shifts"]].map(([id,label])=>(
+              {[["shifts","📅 My Shifts"],["availability","✅ Set Availability"],["open","🔓 Open Shifts"],["swaps","🔄 Swaps"+(availableSwaps.length>0?" ("+availableSwaps.length+")":"")]].map(([id,label])=>(
                 <button key={id} onClick={()=>setSchedSubTab(id)} style={{padding:"7px 14px",borderRadius:20,border:"none",fontFamily:E.sans,fontWeight:600,fontSize:12,cursor:"pointer",background:schedSubTab===id?E.indigo:E.bg3,color:schedSubTab===id?"#fff":E.textD}}>
                   {label}
                 </button>
               ))}
-              <button onClick={()=>setSwapOpen(true)} style={{marginLeft:"auto",padding:"7px 14px",background:E.indigoD,border:`1.5px solid ${E.indigo}40`,borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>Swap +</button>
+              <button onClick={()=>setSwapOpen(true)} style={{marginLeft:"auto",padding:"7px 14px",background:E.indigoD,border:"1.5px solid "+E.indigo+"40",borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>Post Swap</button>
             </div>
 
             {/* My Shifts sub-tab */}
@@ -1951,6 +1961,59 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                       </button>
                     </div>
                   ))
+                )}
+              </div>
+            )}
+
+            {/* Available Swaps sub-tab */}
+            {schedSubTab==="swaps"&&(
+              <div>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>Shifts your coworkers need covered — claim one and a manager will approve the swap.</div>
+                {availableSwaps.length===0?(
+                  <div style={{textAlign:"center",padding:"40px 20px",background:E.bg3,borderRadius:14}}>
+                    <div style={{fontSize:36,marginBottom:10}}>🔄</div>
+                    <div style={{fontFamily:E.sans,fontWeight:600,fontSize:15,color:E.text,marginBottom:6}}>No shifts available for swap</div>
+                    <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>When a coworker posts a shift for swap, it will appear here for you to claim.</div>
+                  </div>
+                ):(
+                  availableSwaps.map(swap=>{
+                    const fH=h=>h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
+                    const dateLabel=swap.shift_date?new Date(swap.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"TBD";
+                    const timeLabel=swap.start_hour!=null&&swap.end_hour!=null?fH(swap.start_hour)+"–"+fH(swap.end_hour):"";
+                    const hours=swap.start_hour!=null&&swap.end_hour!=null?(swap.end_hour-swap.start_hour)+"h":"";
+                    return(
+                      <div key={swap.id} style={{background:"#fff",border:"1.5px solid rgba(99,102,241,0.2)",borderLeft:"4px solid "+E.indigo,borderRadius:"0 14px 14px 0",padding:"16px 18px",marginBottom:10,boxShadow:E.shadow}}>
+                        <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
+                          <div style={{width:42,height:42,borderRadius:"50%",background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:E.mono,fontWeight:700,fontSize:14,color:"#fff",flexShrink:0}}>🔄</div>
+                          <div style={{flex:1}}>
+                            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text}}>{swap.poster_name||"A coworker"} needs this shift covered</div>
+                            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
+                              <span style={{fontFamily:E.mono,fontSize:10,color:"#fff",background:E.indigo,padding:"3px 10px",borderRadius:12}}>📅 {dateLabel}</span>
+                              {timeLabel&&<span style={{fontFamily:E.mono,fontSize:10,color:E.indigo,background:E.indigoD,border:"1px solid "+E.indigo+"30",padding:"3px 10px",borderRadius:12}}>🕐 {timeLabel}</span>}
+                              {hours&&<span style={{fontFamily:E.mono,fontSize:10,color:E.textF,background:E.bg3,padding:"3px 10px",borderRadius:12}}>{hours}</span>}
+                            </div>
+                            {swap.reason&&<div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:6,fontStyle:"italic"}}>"{swap.reason}"</div>}
+                            <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,marginTop:4}}>{swap.created_at?new Date(swap.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
+                          </div>
+                          <button onClick={async()=>{
+                            try{
+                              const {data:{session:ssCl}}=await (await getSB()).auth.getSession();
+                              const r=await fetch("/api/employee",{method:"POST",
+                                headers:{"Content-Type":"application/json",...(ssCl?.access_token?{"Authorization":"Bearer "+ssCl.access_token}:{})},
+                                body:JSON.stringify({_action:"claim_swap",swapId:swap.id,userId:empSafe.id,userName:empSafe.name})});
+                              const d=await r.json();
+                              if(!r.ok) throw new Error(d.error||"Failed");
+                              setAvailableSwaps(prev=>prev.filter(s=>s.id!==swap.id));
+                              setSyncMsg("✓ Shift claimed! Waiting for manager approval.");
+                              setTimeout(()=>setSyncMsg(""),4000);
+                            }catch(e){setSyncMsg("⚠ "+e.message);setTimeout(()=>setSyncMsg(""),4000);}
+                          }} style={{padding:"10px 18px",background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(99,102,241,0.3)",whiteSpace:"nowrap"}}>
+                            I'll Take It
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -2648,88 +2711,71 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
       {swapOpen&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setSwapOpen(false)}>
           <div style={{background:E.bg2,borderRadius:18,padding:"26px",width:"100%",maxWidth:420,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>🔄 Request Shift Swap</div>
-            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Select the shift you need covered and your manager will review it.</div>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>🔄 Post Shift for Swap</div>
+            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Select a shift to post — your coworkers will see it and can claim it. A manager will approve the final swap.</div>
 
             {/* My upcoming shifts quick-pick */}
-            {(empShifts||[]).length>0&&(
+            {(empShifts||[]).length>0?(
               <div style={{marginBottom:14}}>
-                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:8,textTransform:"uppercase"}}>Select a Scheduled Shift</label>
-                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto"}}>
-                  {(empShifts||[]).slice(0,6).map(s=>{
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:8,textTransform:"uppercase"}}>Which shift do you need covered?</label>
+                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
+                  {(empShifts||[]).filter(s=>s.shift_date>=new Date().toISOString().split("T")[0]).map(s=>{
                     const fH=h=>h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
-                    const label=`${s.day_of_week} ${s.shift_date} - ${fH(s.start_hour)}–${fH(s.end_hour)}`;
+                    const dateLabel=new Date(s.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+                    const label=dateLabel+" — "+fH(s.start_hour)+"–"+fH(s.end_hour)+" ("+(s.end_hour-s.start_hour)+"h)";
                     const isSelected=swapShiftPick===s.id;
                     return(
                       <button key={s.id} onClick={()=>{ setSwapShiftPick(s.id); setSwapDate(s.shift_date); }}
-                        style={{padding:"10px 12px",background:isSelected?E.indigoD:"#fff",border:`1.5px solid ${isSelected?E.indigo:E.border}`,borderRadius:9,fontFamily:E.sans,fontSize:13,color:isSelected?E.indigo:E.text,cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}>
-                        <span style={{fontWeight:isSelected?700:500}}>📅 {label}</span>
+                        style={{padding:"12px 14px",background:isSelected?"rgba(99,102,241,0.08)":"#fff",border:"1.5px solid "+(isSelected?E.indigo:E.border),borderRadius:10,fontFamily:E.sans,fontSize:13,color:isSelected?E.indigo:E.text,cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}>
+                        <div style={{fontWeight:isSelected?700:500}}>📅 {label}</div>
+                        {isSelected&&<div style={{fontFamily:E.mono,fontSize:9,color:E.indigo,marginTop:3}}>✓ This shift will be posted for your coworkers to claim</div>}
                       </button>
                     );
                   })}
                 </div>
               </div>
+            ):(
+              <div style={{padding:"20px",background:E.bg3,borderRadius:12,textAlign:"center",marginBottom:14}}>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>No upcoming shifts to swap.</div>
+              </div>
             )}
 
-            {/* Manual date if no shifts or different date needed */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-              <div>
-                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Shift Date</label>
-                <input type="date" value={swapDate||""} onChange={e=>{setSwapDate(e.target.value);setSwapShiftPick("");}}
-                  min={new Date().toISOString().split("T")[0]}
-                  style={{width:"100%",padding:"9px 10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
-              </div>
-              <div>
-                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Time Needed Off</label>
-                <select value={swapReason.includes("AM")||swapReason.includes("PM")?swapReason:""} onChange={e=>{ if(e.target.value) setSwapReason(e.target.value); }}
-                  style={{width:"100%",padding:"9px 10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:12,color:E.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-                  <option value="">— Full shift —</option>
-                  <option value="Entire shift">Entire shift</option>
-                  <option value="Morning (AM)">Morning (AM)</option>
-                  <option value="Afternoon (PM)">Afternoon (PM)</option>
-                  <option value="First half">First half</option>
-                  <option value="Second half">Second half</option>
-                </select>
-              </div>
-            </div>
-
             <div style={{marginBottom:16}}>
-              <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Reason for Swap *</label>
+              <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Why do you need this shift covered? *</label>
               <textarea value={swapReason||""} onChange={e=>{setSwapReason(e.target.value);setSwapDone("");}}
-                placeholder="e.g. Doctor appointment, family obligation, car trouble..."
-                rows={3}
-                style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${swapDone&&swapDone.startsWith("⚠")?"#ef4444":E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box",transition:"border-color 0.2s"}}/>
+                placeholder="e.g. Doctor appointment, family obligation..."
+                rows={2}
+                style={{width:"100%",padding:"10px 12px",background:E.bg3,border:"1.5px solid "+(swapDone&&swapDone.startsWith("⚠")?"#ef4444":E.border),borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box"}}/>
             </div>
 
             {swapDone&&(
-              <div style={{
-                fontFamily:E.sans,fontSize:13,
-                color:swapDone.startsWith("⚠")?E.red:E.green,
-                marginBottom:10,padding:"9px 12px",
-                background:swapDone.startsWith("⚠")?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
-                border:`1px solid ${swapDone.startsWith("⚠")?"rgba(239,68,68,0.25)":"rgba(16,185,129,0.25)"}`,
-                borderRadius:8,
-              }}>{swapDone}</div>
+              <div style={{fontFamily:E.sans,fontSize:13,color:swapDone.startsWith("⚠")?E.red:E.green,marginBottom:10,padding:"9px 12px",background:swapDone.startsWith("⚠")?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",border:"1px solid "+(swapDone.startsWith("⚠")?"rgba(239,68,68,0.25)":"rgba(16,185,129,0.25)"),borderRadius:8}}>{swapDone}</div>
             )}
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>{setSwapOpen(false);setSwapReason("");setSwapDate("");setSwapShiftPick("");setSwapDone("");}}
-                style={{flex:1,padding:"11px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
-              <button onClick={async()=>{
-                if(!swapReason?.trim()){setSwapDone("⚠ Please enter a reason for the swap request");return;}
-                if(!swapDate){setSwapDone("⚠ Please select the shift date");return;}
+                style={{flex:1,padding:"11px",background:E.bg3,border:"1px solid "+E.border,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
+              <button disabled={!swapShiftPick} onClick={async()=>{
+                if(!swapReason?.trim()){setSwapDone("⚠ Please enter a reason");return;}
+                if(!swapShiftPick){setSwapDone("⚠ Please select a shift");return;}
+                const selectedShift=(empShifts||[]).find(s=>s.id===swapShiftPick);
                 try{
                   const {data:{session:ssSw}}=await (await getSB()).auth.getSession();
                   const r=await fetch("/api/employee",{method:"POST",
                     headers:{"Content-Type":"application/json",...(ssSw?.access_token?{"Authorization":"Bearer "+ssSw.access_token}:{})},
                     body:JSON.stringify({_action:"swap_request",userId:empSafe.id,orgId:empSafe.orgId||null,
-                      reason:swapReason.trim(),shiftDate:swapDate,shiftId:swapShiftPick||null})});
+                      reason:swapReason.trim(),shiftDate:swapDate,shiftId:swapShiftPick||null,
+                      posterName:empSafe.name,
+                      startHour:selectedShift?.start_hour||null,
+                      endHour:selectedShift?.end_hour||null,
+                      dayOfWeek:selectedShift?.day_of_week||null,
+                    })});
                   const d=await r.json();
                   if(!r.ok) throw new Error(d.error);
-                  setSwapDone("✓ Swap request sent to your manager!");
+                  setSwapDone("✓ Shift posted! Your coworkers can now see it and claim it.");
                   setSwapReason(""); setSwapDate(""); setSwapShiftPick("");
-                  setTimeout(()=>{setSwapOpen(false);setSwapDone("");},2000);
+                  setTimeout(()=>{setSwapOpen(false);setSwapDone("");},2500);
                 }catch(e){setSwapDone("⚠ Could not submit: "+(e.message||"Please try again"));}
-              }} style={{flex:1,padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>Submit Request</button>
+              }} style={{flex:1,padding:"11px",background:swapShiftPick?"linear-gradient(135deg,"+E.indigo+","+E.violet+")":E.bg3,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:swapShiftPick?"#fff":E.textF,cursor:swapShiftPick?"pointer":"not-allowed",boxShadow:swapShiftPick?"0 4px 14px rgba(99,102,241,0.3)":"none"}}>Post for Swap</button>
             </div>
           </div>
         </div>
@@ -7439,16 +7485,29 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     </div>
                   )}
                   {swapRequests.map(req=>{
-                    const empName=((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
+                    const empName=req.poster_name||((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
                     const av=(()=>{const parts=(((req.users?.first_name||'')+' '+(req.users?.last_name||'')).trim()).split(' ').filter(Boolean);return parts.length>=2?(parts[0][0]+parts[1][0]).toUpperCase():parts[0]?parts[0].slice(0,2).toUpperCase():'??';})();
                     const shiftLabel=req.shift_date?new Date(req.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"Upcoming shift";
+                    const fH=h=>h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
+                    const timeLabel=req.start_hour!=null&&req.end_hour!=null?" "+fH(req.start_hour)+"–"+fH(req.end_hour):"";
+                    const hasClaimer=!!req.claimed_by_name;
+                    const statusColor=hasClaimer?O.green:O.amber;
                     return(
-                      <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
+                      <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+statusColor,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
                         <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
                           <div style={{width:36,height:36,borderRadius:"50%",background:req.users?.avatar_color||"#f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{av}</div>
                           <div style={{flex:1}}>
-                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
-                            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,marginBottom:4}}>SWAP REQUEST - {shiftLabel}</div>
+                            {hasClaimer?(
+                              <div>
+                                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{req.claimed_by_name} wants to take {empName}'s shift</div>
+                                <div style={{fontFamily:O.mono,fontSize:9,color:O.green,marginBottom:4}}>READY TO APPROVE — {shiftLabel}{timeLabel}</div>
+                              </div>
+                            ):(
+                              <div>
+                                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
+                                <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,marginBottom:4}}>WAITING FOR VOLUNTEER — {shiftLabel}{timeLabel}</div>
+                              </div>
+                            )}
                             {req.reason&&<div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>{req.reason}</div>}
                             <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:3}}>{req.created_at?new Date(req.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
                           </div>
