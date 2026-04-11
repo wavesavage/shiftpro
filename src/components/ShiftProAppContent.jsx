@@ -7574,13 +7574,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Schedule Builder</div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.indigo,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase",fontWeight:700}}>Schedule Builder</div>
                 <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>{schedViewMode==="week"?"Weekly":"Monthly"} Schedule</div>
               </div>
-              {/* View toggle — always same position */}
+              {/* View toggle — fixed right side */}
               <div style={{display:"flex",background:O.bg3,borderRadius:8,border:"1px solid "+O.border,overflow:"hidden",flexShrink:0}}>
                 {["week","month"].map(v=>(
-                  <button key={v} onClick={()=>setSchedViewMode(v)} style={{padding:"8px 18px",background:schedViewMode===v?"#fff":"transparent",border:"none",fontFamily:O.sans,fontWeight:700,fontSize:13,color:schedViewMode===v?O.indigo:O.textF,cursor:"pointer",transition:"all 0.15s"}}>
+                  <button key={v} onClick={()=>setSchedViewMode(v)} style={{padding:"8px 20px",background:schedViewMode===v?"#fff":"transparent",border:"none",fontFamily:O.sans,fontWeight:700,fontSize:13,color:schedViewMode===v?O.indigo:O.textF,cursor:"pointer",transition:"all 0.15s",boxShadow:schedViewMode===v?O.shadow:"none"}}>
                     {v==="week"?"Week":"Month"}
                   </button>
                 ))}
@@ -7696,8 +7696,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           onMouseEnter={e=>{if(!isPast)e.currentTarget.style.boxShadow="0 2px 8px rgba(99,102,241,0.15)";}}
                           onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";}}>
                             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                              <div style={{fontFamily:O.mono,fontSize:10,fontWeight:isToday?800:500,color:isToday?O.indigo:O.textD}}>{day}</div>
-                              {!isPast&&<div style={{fontFamily:O.sans,fontSize:12,color:O.amber,fontWeight:700,opacity:0.5}}>+</div>}
+                              <div style={{fontFamily:O.mono,fontSize:11,fontWeight:isToday?800:600,color:isToday?"#fff":O.text,background:isToday?O.indigo:"transparent",borderRadius:isToday?12:0,padding:isToday?"1px 7px":"0",lineHeight:"18px"}}>{day}</div>
+                              {!isPast&&dayShifts.length===0&&<div style={{fontFamily:O.sans,fontSize:8,color:O.textF,opacity:0.6}}>+ add</div>}
                             </div>
                             {dayShifts.slice(0,3).map(sh=>{
                               const emp=STAFF.find(e=>e.id===sh.user_id);
