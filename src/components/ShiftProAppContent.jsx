@@ -1124,7 +1124,7 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded, reloadMessages })
   );
 }
 
-function EmpPortal({emp,onLogout,onProfileUpdate}){
+function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
     first:emp?.first&&emp.first!=="there"?emp.first:emp?.email?.split("@")[0]||"there",
@@ -1149,6 +1149,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
     ghost:parseFloat(emp?.ghost)||0,
   };
   const [tab,setTab] = useState(()=>{
+    if(freshLogin) return "home"; // Fresh login always starts at home
     try{ return localStorage.getItem("shiftpro_emp_tab_"+(emp?.id||""))||"home"; }catch(e){ return "home"; }
   });
 
@@ -8408,7 +8409,10 @@ export default function App(){
   const [pwBusy,setPwBusy]         = useState(false);
   const [pwDone,setPwDone]         = useState(false);
 
+  const freshLoginRef = React.useRef(false);
+
   const login = (role,emp) => {
+    freshLoginRef.current = true;
     setSession({role,emp});
     // Cache for session restoration on reload
     try{ if(emp?.id) localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
@@ -8642,6 +8646,7 @@ export default function App(){
       {session?.role==="employee" && <EmpPortal
         key={session.emp?.id}
         emp={session.emp}
+        freshLogin={freshLoginRef.current}
         onLogout={logout}
         onProfileUpdate={updatedFields => {
           setSession(s => {
