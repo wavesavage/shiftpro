@@ -3145,8 +3145,7 @@ function NotificationsDropdown({
       setReplyText("");
       seenNotifIds?.current?.add(n.id);
       persistSeenNotifs?.();
-      setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
-      setTimeout(()=>{ setMsgResult(""); setExpanded(null); }, 1500);
+      setTimeout(()=>{ setMsgResult(""); setExpanded(null); setNotifications(prev=>prev.filter(x=>x.id!==n.id)); }, 1200);
     }catch(e){ setMsgResult("⚠ "+e.message); }
     setReplyBusy(false);
   };
@@ -3214,6 +3213,11 @@ function NotificationsDropdown({
                 <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{detail}</div>
               </div>
               {!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,marginTop:5}}/>}
+              <button onClick={e=>{e.stopPropagation();seenNotifIds?.current?.add(n.id);persistSeenNotifs?.();setNotifications(prev=>prev.filter(x=>x.id!==n.id));if(expanded===n.id)setExpanded(null);}}
+                style={{background:"none",border:"none",fontSize:14,color:O.textF,cursor:"pointer",padding:"0 2px",flexShrink:0,lineHeight:1,opacity:0.5,transition:"opacity 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.opacity="1"}
+                onMouseLeave={e=>e.currentTarget.style.opacity="0.5"}
+                title="Dismiss">×</button>
               <span style={{fontFamily:O.mono,fontSize:10,color:O.textF,flexShrink:0}}>{isOpen?"▲":"▼"}</span>
             </div>
 
