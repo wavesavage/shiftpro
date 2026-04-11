@@ -83,6 +83,52 @@ function useToast() {
   return { toasts, toast, removeToast };
 }
 
+// ── PUSH NOTIFICATIONS ──
+function usePushNotifications(userId, role) {
+  const [pushSupported, setPushSupported] = React.useState(false);
+  const [pushPermission, setPushPermission] = React.useState("default");
+  const [pushSubscribed, setPushSubscribed] = React.useState(false);
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const supported = "serviceWorker" in navigator && "PushManager" in window;
+    setPushSupported(supported);
+    if (supported) setPushPermission(Notification.permission);
+  }, []);
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(e => {});
+  }, []);
+  React.useEffect(() => {
+    if (!userId || pushPermission !== "granted") return;
+    subscribePush(userId, role);
+  }, [userId, pushPermission]);
+  const subscribePush = async (uid, r) => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const vapidRes = await fetch("/api/push?action=vapid");
+      const { publicKey } = await vapidRes.json();
+      if (!publicKey) return;
+      const padding = "=".repeat((4 - publicKey.length % 4) % 4);
+      const base64 = (publicKey + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const raw = atob(base64);
+      const arr = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+      const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr });
+      await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "subscribe", userId: uid, subscription: subscription.toJSON(), role: r || "employee" }) });
+      setPushSubscribed(true);
+    } catch (e) {}
+  };
+  const requestPermission = async () => {
+    if (!pushSupported) return false;
+    const result = await Notification.requestPermission();
+    setPushPermission(result);
+    if (result === "granted") { await subscribePush(userId, role); return true; }
+    return false;
+  };
+  return { pushSupported, pushPermission, pushSubscribed, requestPermission };
+}
+
 // ── SKELETON LOADER ──────────────────────────────────
 function SkeletonLoader({ rows=3 }) {
   return (
@@ -1189,6 +1235,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   });
   const [syncMsg,setSyncMsg] = useState("");
   const [now,setNow] = useState(new Date());
+  const { pushSupported:empPushSupported, pushPermission:empPushPerm, pushSubscribed:empPushSub, requestPermission:reqEmpPush } = usePushNotifications(empSafe.id, "employee");
   const [empShifts,setEmpShifts] = useState(null);
   const [swapOpen,setSwapOpen] = useState(false);
   const [swapReason,setSwapReason] = useState("");
@@ -1662,6 +1709,19 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                 <div style={{marginTop:12,paddingTop:12,borderTop:"rgba(255,255,255,0.2) 1px solid",fontFamily:E.sans,fontSize:13,opacity:0.7}}>📅 No upcoming shifts scheduled yet</div>
               )}
             </div>
+
+            {/* Push notification opt-in */}
+            {empPushSupported && empPushPerm !== "granted" && empPushPerm !== "denied" && (
+              <div style={{background:"linear-gradient(135deg,rgba(99,102,241,0.08),rgba(124,58,237,0.08))",border:"1.5px solid rgba(99,102,241,0.2)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:22}}>🔔</span>
+                <div style={{flex:1}}>
+                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:13,color:E.text}}>Get shift alerts on your phone</div>
+                  <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginTop:1}}>Know instantly when schedules change, shifts need coverage, or your manager messages you.</div>
+                </div>
+                <button onClick={reqEmpPush} style={{padding:"8px 16px",background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 2px 8px rgba(99,102,241,0.3)"}}>Enable</button>
+              </div>
+            )}
+
             <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:20,padding:"22px 24px",marginBottom:14,boxShadow:E.shadow}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -5572,6 +5632,7 @@ function BroadcastModal({
 // ══════════════════════════════════════════════════
 function OwnerCmd({onLogout, ownerInitialProfile}){
   const { toasts, toast, removeToast } = useToast();
+  const { pushSupported, pushPermission, pushSubscribed, requestPermission } = usePushNotifications(ownerInitialProfile?.id, "owner");
   const mobile = useIsMobile();
 
   const [showConfetti, setShowConfetti] = React.useState(false);
