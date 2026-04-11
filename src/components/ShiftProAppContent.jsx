@@ -1205,6 +1205,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
   const [empDocs,setEmpDocs] = useState(null);
   const [empLocationName,setEmpLocationName] = useState("");
   const [empLocationData,setEmpLocationData] = useState(null);
+  const [empPortalSettings,setEmpPortalSettings] = useState({showEarnings:true,showGrowth:true,showAchievements:true,showSwapShift:true,showTimeOff:true});
   const [empThreads,setEmpThreads] = useState(null);
   // Profile edit state
   const [profileEdit,setProfileEdit] = useState(false);
@@ -1426,6 +1427,14 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
             if(loc) setEmpLocationData(loc);
           }catch(e){}
         }
+        // Load portal settings from org
+        if(empSafe.orgId){
+          try{
+            const sb=await getSB();
+            const {data:org}=await sb.from("organizations").select("portal_settings").eq("id",empSafe.orgId).single();
+            if(org?.portal_settings) setEmpPortalSettings(prev=>({...prev,...org.portal_settings}));
+          }catch(e){}
+        }
 
         // ── Load availability via service role ──
         try{
@@ -1529,9 +1538,9 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
   const TABS = [
     {id:"home",label:"🏠 Home"},
     {id:"schedule",label:"📅 Schedule"},
-    {id:"earnings",label:"🌱 My Growth"},
+    ...(empPortalSettings.showGrowth!==false?[{id:"earnings",label:"🌱 My Growth"}]:[]),
     {id:"team",label:unread>0?"💬 Messages ("+unread+")":"💬 Messages"},
-    {id:"recognition",label:"🏆 Achievements"},
+    ...(empPortalSettings.showAchievements!==false?[{id:"recognition",label:"🏆 Achievements"}]:[]),
     {id:"documents",label:"📄 My Documents"},
   ];
 
@@ -1677,6 +1686,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
               </div>
             </div>
             {/* Earnings tracker card */}
+            {empPortalSettings.showEarnings!==false&&(
             <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:16,padding:"18px 20px",marginBottom:14,boxShadow:E.shadow}}>
               <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>💰 Estimated Earnings</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
@@ -1705,9 +1715,14 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
                 })()}
               </div>
             </div>
+            )}
 
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-              {[{icon:"🔄",label:"Swap Shift",go:()=>setSwapOpen(true)},{icon:"📆",label:"Time Off",go:()=>setToOpen(true)},{icon:"💬",label:"Messages",go:()=>setTab("team")}].map(a=>(
+              {[
+                ...(empPortalSettings.showSwapShift!==false?[{icon:"🔄",label:"Swap Shift",go:()=>setSwapOpen(true)}]:[]),
+                ...(empPortalSettings.showTimeOff!==false?[{icon:"📆",label:"Time Off",go:()=>setToOpen(true)}]:[]),
+                {icon:"💬",label:"Messages",go:()=>setTab("team")}
+              ].map(a=>(
                 <button key={a.label} onClick={a.go} style={{padding:"15px 10px",background:E.bg2,border:"1.5px solid "+E.border,borderRadius:14,cursor:"pointer",textAlign:"center",boxShadow:E.shadow}}>
                   <div style={{fontSize:22,marginBottom:6}}>{a.icon}</div>
                   <div style={{fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.text}}>{a.label}</div>
@@ -4451,6 +4466,7 @@ function SettingsTab({
   settingsPw2, setSettingsPw2,
   settingsPwMsg, setSettingsPwMsg,
   settingsPwBusy, setSettingsPwBusy,
+  portalSettings, savePortalSetting,
   toast, onLogout,
 }) {
   const mobile = useIsMobile();
@@ -4840,6 +4856,33 @@ function SettingsTab({
               <span style={{marginLeft:8,fontFamily:O.mono,fontSize:9,color:O.purple,background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:4,padding:"2px 6px"}}>BILLING COMING SOON</span>
             </div>
           </div>
+        </div>
+
+        {/* ── EMPLOYEE PORTAL CUSTOMIZATION ── */}
+        <div style={card}>
+          <div style={sectionTitle}>🎛️ Employee Portal</div>
+          <div style={sectionSub}>Choose which features your employees can see in their portal.</div>
+          {[
+            {key:"showEarnings", label:"Estimated Earnings", desc:"Show employees their estimated weekly & monthly earnings based on hours worked and pay rate.", icon:"💰"},
+            {key:"showGrowth", label:"My Growth Tab", desc:"Show the growth/tier progression system with performance metrics.", icon:"🌱"},
+            {key:"showAchievements", label:"Achievements Tab", desc:"Show the achievements and badges system.", icon:"🏆"},
+            {key:"showSwapShift", label:"Swap Shift", desc:"Allow employees to request shift swaps.", icon:"🔄"},
+            {key:"showTimeOff", label:"Time Off Requests", desc:"Allow employees to submit time-off requests.", icon:"📆"},
+          ].map(f=>{
+            const isOn = portalSettings[f.key] !== false; // default to ON
+            return(
+              <div key={f.key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:isOn?"rgba(16,185,129,0.04)":"transparent",border:"1px solid "+(isOn?"rgba(16,185,129,0.15)":O.border),borderRadius:10,marginBottom:8}}>
+                <span style={{fontSize:20,flexShrink:0}}>{f.icon}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{f.label}</div>
+                  <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginTop:1}}>{f.desc}</div>
+                </div>
+                <button onClick={()=>savePortalSetting(f.key,!isOn)} style={{width:44,height:26,borderRadius:13,border:"none",background:isOn?O.green:O.border,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,left:isOn?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         {/* ── BLACKOUT CALENDAR ── */}
@@ -5371,6 +5414,20 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [ownerOrg,setOwnerOrg] = useState(null);
   const [ownerOrgs,setOwnerOrgs] = useState([]);
   const [activeOrg,setActiveOrg] = useState(null);
+  const [portalSettings,setPortalSettings] = useState(()=>{
+    try{ const raw=localStorage.getItem("shiftpro_portal_settings"); return raw?JSON.parse(raw):{showEarnings:true}; }catch(e){ return {showEarnings:true}; }
+  });
+  const savePortalSetting = async(key,val)=>{
+    const updated={...portalSettings,[key]:val};
+    setPortalSettings(updated);
+    try{ localStorage.setItem("shiftpro_portal_settings",JSON.stringify(updated)); }catch(e){}
+    // Persist to DB
+    try{
+      const sb=await getSB();
+      const orgId=activeOrg?.id||ownerProfile?.org_id;
+      if(orgId) await sb.from("organizations").update({portal_settings:updated}).eq("id",orgId);
+    }catch(e){}
+  };
   const [liveEmps,setLiveEmps] = useState(null);
   const [liveLocations,setLiveLocations] = useState([]);
   const [activeLocation,setActiveLocation] = useState(null);
@@ -5700,6 +5757,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         if(defaultOrg){
           setActiveOrg(defaultOrg);
           setOwnerOrg(defaultOrg);
+          // Load portal settings from org
+          if(defaultOrg.portal_settings){
+            setPortalSettings(prev=>({...prev,...defaultOrg.portal_settings}));
+            try{ localStorage.setItem("shiftpro_portal_settings",JSON.stringify({...portalSettings,...defaultOrg.portal_settings})); }catch(e){}
+          }
           const profileData = {
             name: localStorage.getItem("shiftpro_org_name_"+defaultOrg.id) || localStorage.getItem("shiftpro_org_name") || defaultOrg.name || "",
             type: defaultOrg.industry||"Restaurant",
@@ -7954,6 +8016,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             settingsPwBusy={settingsPwBusy}
             setSettingsPwBusy={setSettingsPwBusy}
             toast={toast}
+            portalSettings={portalSettings}
+            savePortalSetting={savePortalSetting}
             onLogout={onLogout}
           />
         )}
