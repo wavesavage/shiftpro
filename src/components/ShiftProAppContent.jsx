@@ -3714,6 +3714,11 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
               {emp.email&&(
                 <a href={"mailto:"+emp.email} style={{fontFamily:O.mono,fontSize:10,color:O.cyan,textDecoration:"none",display:"block",marginTop:4}}>{emp.email}</a>
               )}
+              {emp.id&&(
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:4,background:"rgba(0,0,0,0.03)",padding:"3px 7px",borderRadius:4,display:"inline-block",cursor:"pointer",userSelect:"all"}} title="Click to select UUID" onClick={()=>{navigator.clipboard?.writeText(emp.id);if(toast)toast("UUID copied!","success")}}>
+                  ID: {emp.id}
+                </div>
+              )}
             </div>
           </div>
 
