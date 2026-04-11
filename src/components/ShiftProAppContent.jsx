@@ -5436,8 +5436,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({orgId,portalSettings:updated}),
       });
-      if(!r.ok) throw new Error("API failed");
-    }catch(e){ console.error("[portal settings]",e.message); }
+      const d=await r.json();
+      if(!r.ok) throw new Error(d.error||"Failed");
+      toast("✓ Employee portal updated","success");
+    }catch(e){
+      console.error("[portal settings save]",e.message);
+      toast("⚠ Could not save to database: "+e.message,"error");
+    }
   };
   const [liveEmps,setLiveEmps] = useState(null);
   const [liveLocations,setLiveLocations] = useState([]);
