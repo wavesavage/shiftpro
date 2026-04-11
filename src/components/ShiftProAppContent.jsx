@@ -5607,6 +5607,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [schedPublished,setSchedPublished] = useState(false);
   const [currentWeekOffset,setCurrentWeekOffset] = useState(0);
   const [schedViewMode,setSchedViewMode] = useState("week"); // "week" or "month"
+  const [monthOffset,setMonthOffset] = useState(0);
   const [dragShift,setDragShift] = useState(null); // {shift, sourceDay, sourceEmpId}
 
   // ── Staff state ──
@@ -7639,40 +7640,70 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
               // ── MONTH VIEW ──
               if(schedViewMode==="month"){
-                const now=new Date();
-                const year=now.getFullYear(); const month=now.getMonth();
+                const baseDate=new Date();
+                baseDate.setMonth(baseDate.getMonth()+monthOffset);
+                const year=baseDate.getFullYear();
+                const month=baseDate.getMonth();
+                const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
                 const firstDay=new Date(year,month,1);
                 const daysInMonth=new Date(year,month+1,0).getDate();
-                const startDow=(firstDay.getDay()+6)%7; // 0=Mon
+                const startDow=(firstDay.getDay()+6)%7;
+                const today=new Date();
+                const todayStr=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
                 const cells=[];
                 for(let i=0;i<startDow;i++) cells.push(null);
                 for(let d=1;d<=daysInMonth;d++) cells.push(d);
                 while(cells.length%7!==0) cells.push(null);
+                const STAFF=(liveEmps||[]);
+
                 return(
                   <div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+                    {/* Month navigation */}
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                      <button onClick={()=>setMonthOffset(m=>m-1)} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,cursor:"pointer"}}>◀ Prev</button>
+                      <div>
+                        <div style={{fontFamily:O.sans,fontWeight:800,fontSize:18,color:O.text,textAlign:"center"}}>{monthNames[month]} {year}</div>
+                        {monthOffset!==0&&<button onClick={()=>setMonthOffset(0)} style={{display:"block",margin:"4px auto 0",padding:"3px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,fontFamily:O.sans,fontSize:10,fontWeight:600,color:O.amber,cursor:"pointer"}}>Today</button>}
+                      </div>
+                      <button onClick={()=>setMonthOffset(m=>m+1)} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,cursor:"pointer"}}>Next ▶</button>
+                    </div>
+
+                    {/* Day headers */}
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
                       {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>(
-                        <div key={d} style={{fontFamily:O.mono,fontSize:9,color:O.textD,textAlign:"center",padding:"6px 0",fontWeight:600}}>{d}</div>
+                        <div key={d} style={{fontFamily:O.mono,fontSize:10,color:O.textD,textAlign:"center",padding:"8px 0",fontWeight:700,letterSpacing:1}}>{d}</div>
                       ))}
                     </div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+
+                    {/* Calendar grid */}
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
                       {cells.map((day,i)=>{
-                        if(!day) return <div key={"e"+i} style={{minHeight:80,background:O.bg3,borderRadius:6,opacity:0.3}}/>;
-                        const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                        if(!day) return <div key={"e"+i} style={{minHeight:100,background:O.bg3,borderRadius:8,opacity:0.3}}/>;
+                        const dateStr=year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+                        const dayOfWeek=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(year,month,day).getDay()];
                         const dayShifts=(liveShifts||[]).filter(s=>s.shift_date===dateStr);
-                        const isToday=day===now.getDate()&&month===now.getMonth()&&year===now.getFullYear();
+                        const isToday=dateStr===todayStr;
+                        const isPast=dateStr<todayStr;
                         return(
-                          <div key={day} style={{minHeight:80,background:"#fff",borderRadius:6,padding:"4px",border:"1px solid "+(isToday?O.indigo:O.border),position:"relative"}}>
-                            <div style={{fontFamily:O.mono,fontSize:9,fontWeight:isToday?700:400,color:isToday?O.indigo:O.textD,marginBottom:3}}>{day}</div>
+                          <div key={day} style={{minHeight:100,background:isToday?"rgba(99,102,241,0.04)":"#fff",borderRadius:8,padding:"6px",border:isToday?"2px solid "+O.indigo:"1px solid "+O.border,position:"relative",opacity:isPast?0.6:1}}>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                              <div style={{fontFamily:O.mono,fontSize:10,fontWeight:isToday?800:500,color:isToday?O.indigo:O.textD}}>{day}</div>
+                              {!isPast&&(
+                                <button onClick={()=>{
+                                  const defaultEmp=STAFF[0];
+                                  if(defaultEmp) setSelectedCell({day:dayOfWeek,empId:defaultEmp.id,emp:defaultEmp,start:9,end:17,roleLabel:"",shiftDate:dateStr});
+                                }} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid "+O.amber,background:O.amberD,color:O.amber,fontFamily:O.sans,fontSize:14,fontWeight:700,lineHeight:"16px",textAlign:"center",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                              )}
+                            </div>
                             {dayShifts.slice(0,3).map(sh=>{
                               const emp=STAFF.find(e=>e.id===sh.user_id);
                               return(
-                                <div key={sh.id} style={{background:(emp?.color||"#6366f1")+"20",border:"1px solid "+(emp?.color||"#6366f1")+"40",borderRadius:3,padding:"2px 4px",marginBottom:2,fontSize:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                  {emp?.first||"?"} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}
+                                <div key={sh.id} onClick={()=>{if(!isPast)setSelectedCell({day:dayOfWeek,empId:sh.user_id,emp:emp||{id:sh.user_id,name:"?"},start:sh.start_hour,end:sh.end_hour,roleLabel:sh.role_label||"",shiftDate:dateStr,editShiftId:sh.id});}} style={{background:(emp?.color||"#6366f1")+"18",border:"1px solid "+(emp?.color||"#6366f1")+"35",borderRadius:4,padding:"2px 5px",marginBottom:2,fontSize:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:isPast?"default":"pointer"}}>
+                                  {emp?.first||emp?.name?.split(" ")[0]||"?"} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}
                                 </div>
                               );
                             })}
-                            {dayShifts.length>3&&<div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>+{dayShifts.length-3} more</div>}
+                            {dayShifts.length>3&&<div style={{fontFamily:O.mono,fontSize:8,color:O.textF,textAlign:"center"}}>+{dayShifts.length-3} more</div>}
                           </div>
                         );
                       })}
@@ -7805,13 +7836,18 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               );
             })()}
 
-            {/* ── Blackout Calendar ── */}
-            <div style={{marginTop:20,background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow}}>
-              <div style={{marginBottom:4}}>
-                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:16,color:O.text}}>🚫 Blackout Calendar</div>
-                <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:2}}>Block dates when employees cannot request time off. Click any future date to toggle.</div>
-              </div>
-              <BlackoutCalendar orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
+            {/* ── Blackout Calendar (compact) ── */}
+            <div style={{marginTop:20,background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"16px 20px",boxShadow:O.shadow}}>
+              <details>
+                <summary style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,cursor:"pointer",listStyle:"none",display:"flex",alignItems:"center",gap:8}}>
+                  <span>🚫 Blackout Calendar</span>
+                  <span style={{fontFamily:O.mono,fontSize:9,color:O.textF,fontWeight:400}}>— Block dates for time-off requests</span>
+                  <span style={{marginLeft:"auto",fontFamily:O.mono,fontSize:10,color:O.textF}}>▼</span>
+                </summary>
+                <div style={{marginTop:12}}>
+                  <BlackoutCalendar orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
+                </div>
+              </details>
             </div>
           </div>
         )}
