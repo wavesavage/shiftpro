@@ -4598,6 +4598,7 @@ function SettingsTab({
   settingsPwMsg, setSettingsPwMsg,
   settingsPwBusy, setSettingsPwBusy,
   portalSettings, savePortalSetting,
+  ownerPrefs, updatePref,
   toast, onLogout,
 }) {
   const mobile = useIsMobile();
@@ -4987,6 +4988,27 @@ function SettingsTab({
               <span style={{marginLeft:8,fontFamily:O.mono,fontSize:9,color:O.purple,background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:4,padding:"2px 6px"}}>BILLING COMING SOON</span>
             </div>
           </div>
+        </div>
+
+        {/* ── DISPLAY PREFERENCES ── */}
+        <div style={card}>
+          <div style={sectionTitle}>🎨 Display Preferences</div>
+          <div style={sectionSub}>Customize how ShiftPro looks and displays information.</div>
+          {[
+            {key:"use24h", label:"24-Hour Time (Military)", desc:"Show times as 14:00 instead of 2:00 PM across all schedules and clocks.", icon:"🕐", isOn:ownerPrefs?.use24h===true},
+            {key:"darkMode", label:"Dark Mode", desc:"Switch to a dark background for easier viewing in low-light environments.", icon:"🌙", isOn:ownerPrefs?.darkMode===true},
+          ].map(f=>(
+            <div key={f.key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:f.isOn?"rgba(99,102,241,0.04)":"transparent",border:"1px solid "+(f.isOn?"rgba(99,102,241,0.15)":O.border),borderRadius:10,marginBottom:8}}>
+              <span style={{fontSize:20,flexShrink:0}}>{f.icon}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{f.label}</div>
+                <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginTop:1}}>{f.desc}</div>
+              </div>
+              <button onClick={()=>{updatePref(f.key,!f.isOn);if(f.key==="darkMode")toast(!f.isOn?"🌙 Dark mode enabled":"☀️ Light mode enabled","success");}} style={{width:44,height:26,borderRadius:13,border:"none",background:f.isOn?O.indigo:O.border,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                <div style={{position:"absolute",top:3,left:f.isOn?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+              </button>
+            </div>
+          ))}
         </div>
 
         {/* ── EMPLOYEE PORTAL CUSTOMIZATION ── */}
@@ -5528,6 +5550,14 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [portalSettings,setPortalSettings] = useState(()=>{
     try{ const raw=localStorage.getItem("shiftpro_portal_settings"); return raw?JSON.parse(raw):{showEarnings:true}; }catch(e){ return {showEarnings:true}; }
   });
+  const [ownerPrefs,setOwnerPrefs] = useState(()=>{
+    try{ const raw=localStorage.getItem("shiftpro_owner_prefs"); return raw?JSON.parse(raw):{use24h:false,darkMode:false}; }catch(e){ return {use24h:false,darkMode:false}; }
+  });
+  const updatePref = (key,val) => {
+    const updated={...ownerPrefs,[key]:val};
+    setOwnerPrefs(updated);
+    try{ localStorage.setItem("shiftpro_owner_prefs",JSON.stringify(updated)); }catch(e){}
+  };
   const savePortalSetting = async(key,val)=>{
     const updated={...portalSettings,[key]:val};
     setPortalSettings(updated);
@@ -6419,8 +6449,17 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     );
   }
 
+  // ── Time format helper ──
+  const fmtHour = (h) => {
+    if(ownerPrefs?.use24h) return String(Math.floor(h)).padStart(2,"0")+":"+(h%1?String(Math.round((h%1)*60)).padStart(2,"0"):"00");
+    const hr = Math.floor(h); const mn = Math.round((h%1)*60);
+    const ampm = hr>=12?"pm":"am"; const h12 = hr===0?12:hr>12?hr-12:hr;
+    return mn>0?h12+":"+String(mn).padStart(2,"0")+ampm:h12+ampm;
+  };
+
   return (
-    <div style={{minHeight:"100vh",background:O.bg,fontFamily:O.sans,color:O.text}}>
+    <div style={{minHeight:"100vh",background:ownerPrefs?.darkMode?"#1a1a2e":O.bg,fontFamily:O.sans,color:ownerPrefs?.darkMode?"#e2e8f0":O.text,filter:ownerPrefs?.darkMode?"invert(0.88) hue-rotate(180deg)":"none"}}>
+      {ownerPrefs?.darkMode&&<style dangerouslySetInnerHTML={{__html:"img,video,svg,.no-invert{filter:invert(1) hue-rotate(180deg)}"}}/>}
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast}/>
 
@@ -8158,6 +8197,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             toast={toast}
             portalSettings={portalSettings}
             savePortalSetting={savePortalSetting}
+            ownerPrefs={ownerPrefs}
+            updatePref={updatePref}
             onLogout={onLogout}
           />
         )}
