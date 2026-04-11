@@ -7572,28 +7572,31 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               );
             })()}
 
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div>
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Schedule Builder</div>
-                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Weekly Schedule</div>
+                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>{schedViewMode==="week"?"Weekly":"Monthly"} Schedule</div>
               </div>
-              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                {/* View toggle */}
-                <div style={{display:"flex",background:O.bg3,borderRadius:8,border:"1px solid "+O.border,overflow:"hidden"}}>
-                  {["week","month"].map(v=>(
-                    <button key={v} onClick={()=>setSchedViewMode(v)} style={{padding:"7px 14px",background:schedViewMode===v?"#fff":"none",border:"none",fontFamily:O.sans,fontWeight:600,fontSize:12,color:schedViewMode===v?O.text:O.textD,cursor:"pointer",borderRight:v==="week"?"1px solid "+O.border:"none"}}>
-                      {v==="week"?"Week":"Month"}
-                    </button>
-                  ))}
+              {/* View toggle — always same position */}
+              <div style={{display:"flex",background:O.bg3,borderRadius:8,border:"1px solid "+O.border,overflow:"hidden",flexShrink:0}}>
+                {["week","month"].map(v=>(
+                  <button key={v} onClick={()=>setSchedViewMode(v)} style={{padding:"8px 18px",background:schedViewMode===v?"#fff":"transparent",border:"none",fontFamily:O.sans,fontWeight:700,fontSize:13,color:schedViewMode===v?O.indigo:O.textF,cursor:"pointer",transition:"all 0.15s"}}>
+                    {v==="week"?"Week":"Month"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Week controls row — only shows in week mode */}
+            {schedViewMode==="week"&&(
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+                <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>◀ Prev</button>
+                <div style={{fontFamily:O.mono,fontSize:11,color:O.text,padding:"0 8px",fontWeight:600}}>
+                  {(()=>{const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);const mon=new Date(y,m-1,d);const sun=new Date(y,m-1,d+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
                 </div>
-                {schedViewMode==="week"&&<>
-                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}> back  Prev</button>
-                  <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,padding:"0 8px"}}>
-                    {(()=>{const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);const mon=new Date(y,m-1,d);const sun=new Date(y,m-1,d+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
-                  </div>
-                  <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next  to </button>
-                </>}
-                {!mobile&&schedViewMode==="week"&&(
+                <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next ▶</button>
+                <div style={{flex:1}}/>
+                {!mobile&&(
                   <button onClick={()=>{
                     const printW=window.open("","_blank","width=900,height=600");
                     const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -7606,15 +7609,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     printW.document.close();setTimeout(()=>printW.print(),300);
                   }} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,cursor:"pointer",color:O.textD}}>🖨️ Print</button>
                 )}
-                {!mobile&&schedViewMode==="week"&&(
+                {!mobile&&(
                   <button onClick={copyLastWeek} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.textD,cursor:"pointer"}}>📋 Copy Last Week</button>
                 )}
-                {liveShifts!==null&&liveShifts.length>0&&!schedPublished&&schedViewMode==="week"&&(
+                {liveShifts!==null&&liveShifts.length>0&&!schedPublished&&(
                   <button onClick={()=>publishSchedule(getMonday(currentWeekOffset))} style={{padding:"9px 18px",background:"linear-gradient(135deg,#1a9e6e,#15855c)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(26,158,110,0.3)"}}>📣 Publish</button>
                 )}
-                {schedPublished&&schedViewMode==="week"&&<div style={{padding:"9px 18px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:9,fontFamily:O.mono,fontSize:11,color:O.green,letterSpacing:1}}>✅ PUBLISHED</div>}
+                {schedPublished&&<div style={{padding:"9px 18px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:9,fontFamily:O.mono,fontSize:11,color:O.green,letterSpacing:1}}>✅ PUBLISHED</div>}
               </div>
-            </div>
+            )}
 
             {liveEmps!==null&&liveEmps.length===0&&(
               <div style={{textAlign:"center",padding:"80px 20px"}}>
@@ -7685,20 +7688,21 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         const isToday=dateStr===todayStr;
                         const isPast=dateStr<todayStr;
                         return(
-                          <div key={day} style={{minHeight:100,background:isToday?"rgba(99,102,241,0.04)":"#fff",borderRadius:8,padding:"6px",border:isToday?"2px solid "+O.indigo:"1px solid "+O.border,position:"relative",opacity:isPast?0.6:1}}>
+                          <div key={day} onClick={()=>{
+                            if(isPast) return;
+                            const defaultEmp=STAFF[0];
+                            if(defaultEmp) setSelectedCell({day:dayOfWeek,empId:defaultEmp.id,emp:defaultEmp,start:9,end:17,roleLabel:"",shiftDate:dateStr});
+                          }} style={{minHeight:100,background:isToday?"rgba(99,102,241,0.04)":"#fff",borderRadius:8,padding:"6px",border:isToday?"2px solid "+O.indigo:"1px solid "+O.border,position:"relative",opacity:isPast?0.6:1,cursor:isPast?"default":"pointer",transition:"box-shadow 0.15s"}}
+                          onMouseEnter={e=>{if(!isPast)e.currentTarget.style.boxShadow="0 2px 8px rgba(99,102,241,0.15)";}}
+                          onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";}}>
                             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                               <div style={{fontFamily:O.mono,fontSize:10,fontWeight:isToday?800:500,color:isToday?O.indigo:O.textD}}>{day}</div>
-                              {!isPast&&(
-                                <button onClick={()=>{
-                                  const defaultEmp=STAFF[0];
-                                  if(defaultEmp) setSelectedCell({day:dayOfWeek,empId:defaultEmp.id,emp:defaultEmp,start:9,end:17,roleLabel:"",shiftDate:dateStr});
-                                }} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid "+O.amber,background:O.amberD,color:O.amber,fontFamily:O.sans,fontSize:14,fontWeight:700,lineHeight:"16px",textAlign:"center",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
-                              )}
+                              {!isPast&&<div style={{fontFamily:O.sans,fontSize:12,color:O.amber,fontWeight:700,opacity:0.5}}>+</div>}
                             </div>
                             {dayShifts.slice(0,3).map(sh=>{
                               const emp=STAFF.find(e=>e.id===sh.user_id);
                               return(
-                                <div key={sh.id} onClick={()=>{if(!isPast)setSelectedCell({day:dayOfWeek,empId:sh.user_id,emp:emp||{id:sh.user_id,name:"?"},start:sh.start_hour,end:sh.end_hour,roleLabel:sh.role_label||"",shiftDate:dateStr,editShiftId:sh.id});}} style={{background:(emp?.color||"#6366f1")+"18",border:"1px solid "+(emp?.color||"#6366f1")+"35",borderRadius:4,padding:"2px 5px",marginBottom:2,fontSize:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:isPast?"default":"pointer"}}>
+                                <div key={sh.id} onClick={(e)=>{e.stopPropagation();if(!isPast)setSelectedCell({day:dayOfWeek,empId:sh.user_id,emp:emp||{id:sh.user_id,name:"?"},start:sh.start_hour,end:sh.end_hour,roleLabel:sh.role_label||"",shiftDate:dateStr,editShiftId:sh.id});}} style={{background:(emp?.color||"#6366f1")+"18",border:"1px solid "+(emp?.color||"#6366f1")+"35",borderRadius:4,padding:"2px 5px",marginBottom:2,fontSize:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:isPast?"default":"pointer"}}>
                                   {emp?.first||emp?.name?.split(" ")[0]||"?"} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}
                                 </div>
                               );
