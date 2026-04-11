@@ -4358,25 +4358,29 @@ function PortalToggles({ orgId, toast }) {
   ];
   const [settings, setSettings] = React.useState({showEarnings:true,showGrowth:true,showAchievements:true,showSwapShift:true,showTimeOff:true});
   const [loaded, setLoaded] = React.useState(false);
-  const [saving, setSaving] = React.useState(null); // key being saved
+  const [saving, setSaving] = React.useState(null);
+  const [statusMsg, setStatusMsg] = React.useState("");
 
-  // Load on mount
   React.useEffect(()=>{
-    if(!orgId) return;
+    if(!orgId) { setStatusMsg("⚠ No org ID"); return; }
     (async()=>{
       try{
         const r=await fetch("/api/portal-settings?orgId="+orgId,{cache:"no-store"});
-        if(r.ok){ const d=await r.json(); if(d.portalSettings) setSettings(prev=>({...prev,...d.portalSettings})); }
-      }catch(e){}
+        const d=await r.json();
+        if(d.portalSettings) setSettings(prev=>({...prev,...d.portalSettings}));
+        if(d.portalSettings?.showEarnings===false) setStatusMsg("✓ Loaded from database");
+        else setStatusMsg("✓ Connected");
+      }catch(e){ setStatusMsg("⚠ Load failed: "+e.message); }
       setLoaded(true);
     })();
   },[orgId]);
 
   const toggle = async(key) => {
-    const newVal = !settings[key] || settings[key]===false ? true : false;
+    const newVal = settings[key]===false ? true : false;
     const updated = {...settings, [key]:newVal};
     setSettings(updated);
     setSaving(key);
+    setStatusMsg("Saving...");
     try{
       const r=await fetch("/api/portal-settings",{
         method:"POST",
@@ -4384,11 +4388,17 @@ function PortalToggles({ orgId, toast }) {
         body:JSON.stringify({orgId, portalSettings:updated}),
       });
       const d=await r.json();
-      if(!r.ok) throw new Error(d.error||d.hint||"Save failed");
-      if(toast) toast("✓ Employee portal updated","success");
+      if(!r.ok){
+        const errMsg = d.error||"Save failed";
+        setStatusMsg("⚠ "+errMsg);
+        if(d.sqlNeeded) setStatusMsg("⚠ Run SQL: ALTER TABLE organizations ADD COLUMN IF NOT EXISTS portal_settings jsonb;");
+        setSettings(prev=>({...prev,[key]:!newVal}));
+      } else {
+        setStatusMsg("✓ Saved! Employees will see changes on refresh.");
+        if(toast) toast("✓ Employee portal updated","success");
+      }
     }catch(e){
-      if(toast) toast("⚠ "+e.message,"error");
-      // Revert
+      setStatusMsg("⚠ Network error: "+e.message);
       setSettings(prev=>({...prev,[key]:!newVal}));
     }
     setSaving(null);
@@ -4396,7 +4406,7 @@ function PortalToggles({ orgId, toast }) {
 
   return(
     <div>
-      {!loaded&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"8px 0"}}>Loading settings...</div>}
+      {!loaded&&!statusMsg&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"8px 0"}}>Loading...</div>}
       {FEATURES.map(f=>{
         const isOn = settings[f.key]!==false;
         const isSaving = saving===f.key;
@@ -4413,8 +4423,9 @@ function PortalToggles({ orgId, toast }) {
           </div>
         );
       })}
-      {orgId&&<div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:6}}>Org: {orgId.slice(0,8)}… — Changes apply when employees refresh their portal.</div>}
-      {!orgId&&<div style={{fontFamily:O.sans,fontSize:11,color:O.red,marginTop:6}}>⚠ No organization ID found — settings cannot be saved.</div>}
+      <div style={{fontFamily:O.mono,fontSize:9,color:statusMsg.startsWith("✓")?O.green:statusMsg.startsWith("⚠")?O.red:O.textF,marginTop:8,padding:"6px 8px",background:statusMsg.startsWith("⚠")?"rgba(217,64,64,0.06)":"transparent",borderRadius:6}}>
+        {statusMsg||"Ready"} {orgId&&<span style={{color:O.textF}}>• Org: {orgId.slice(0,8)}…</span>}
+      </div>
     </div>
   );
 }
