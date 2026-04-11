@@ -5630,6 +5630,24 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     return ()=>clearInterval(iv);
   },[tab, ownerProfile?.org_id, activeOrg?.id]);
 
+  // Sync portal settings to DB when settings tab opens
+  useEffect(()=>{
+    if(tab!=="settings") return;
+    const orgId = ownerProfile?.org_id||activeOrg?.id;
+    if(!orgId) return;
+    (async()=>{
+      try{
+        const sb=await getSB();
+        const {data:{session:ss}}=await sb.auth.getSession();
+        await fetch("/api/portal-settings",{
+          method:"POST",
+          headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+          body:JSON.stringify({orgId,portalSettings:portalSettings}),
+        });
+      }catch(e){}
+    })();
+  },[tab]);
+
   // Load payroll when tab switches to roi
   useEffect(()=>{
     if(tab==="roi" && livePayroll===null && ownerProfile?.org_id){
