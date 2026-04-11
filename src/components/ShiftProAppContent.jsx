@@ -3061,7 +3061,7 @@ function NotificationsDropdown({
   notifications, setNotifications, setNotifOpen,
   setTab, setStaffSubTab, setMsgConvoId,
   setSwapRequests, setTimeOffRequests,
-  orgId, loadNotifications, seenNotifIds, persistSeenNotifs
+  orgId, loadNotifications, seenNotifIds, persistSeenNotifs, dismissNotif
 }) {
   const mobile = useIsMobile();
   const [expanded, setExpanded] = React.useState(null); // id of expanded notif
@@ -3115,7 +3115,8 @@ function NotificationsDropdown({
       const d = await r.json();
       if(!r.ok) throw new Error(d.error||"Failed");
       // Remove from bell + requests list
-      setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+      if(dismissNotif) dismissNotif(n.id);
+      else setNotifications(prev=>prev.filter(x=>x.id!==n.id));
       if(n.type==="swap"      && setSwapRequests)     setSwapRequests(prev=>(prev||[]).filter(r=>r.id!==n.raw.id));
       if(n.type==="timeoff"   && setTimeOffRequests)  setTimeOffRequests(prev=>(prev||[]).filter(r=>r.id!==n.raw.id));
       setExpanded(null);
@@ -3143,9 +3144,7 @@ function NotificationsDropdown({
       if(!r.ok) throw new Error(d.error||"Failed");
       setMsgResult("✓ Sent!");
       setReplyText("");
-      seenNotifIds?.current?.add(n.id);
-      persistSeenNotifs?.();
-      setTimeout(()=>{ setMsgResult(""); setExpanded(null); setNotifications(prev=>prev.filter(x=>x.id!==n.id)); }, 1200);
+      setTimeout(()=>{ setMsgResult(""); setExpanded(null); if(dismissNotif)dismissNotif(n.id); }, 1200);
     }catch(e){ setMsgResult("⚠ "+e.message); }
     setReplyBusy(false);
   };
@@ -3213,7 +3212,7 @@ function NotificationsDropdown({
                 <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{detail}</div>
               </div>
               {!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,marginTop:5}}/>}
-              <button onClick={e=>{e.stopPropagation();seenNotifIds?.current?.add(n.id);persistSeenNotifs?.();setNotifications(prev=>prev.filter(x=>x.id!==n.id));if(expanded===n.id)setExpanded(null);}}
+              <button onClick={e=>{e.stopPropagation();if(dismissNotif)dismissNotif(n.id);if(expanded===n.id)setExpanded(null);}}
                 style={{background:"none",border:"none",fontSize:14,color:O.textF,cursor:"pointer",padding:"0 2px",flexShrink:0,lineHeight:1,opacity:0.5,transition:"opacity 0.15s"}}
                 onMouseEnter={e=>e.currentTarget.style.opacity="1"}
                 onMouseLeave={e=>e.currentTarget.style.opacity="0.5"}
@@ -5441,6 +5440,20 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const persistSeenNotifs = () => {
     try{ localStorage.setItem("shiftpro_seen_notifs", JSON.stringify([...seenNotifIds.current].slice(-200))); }catch(e){}
   };
+  const dismissedNotifIds = React.useRef(()=>{
+    try{ const raw=localStorage.getItem("shiftpro_dismissed_notifs"); return raw?new Set(JSON.parse(raw)):new Set(); }catch(e){ return new Set(); }
+  });
+  if(typeof dismissedNotifIds.current === "function") dismissedNotifIds.current = dismissedNotifIds.current();
+  const persistDismissed = () => {
+    try{ localStorage.setItem("shiftpro_dismissed_notifs", JSON.stringify([...dismissedNotifIds.current].slice(-500))); }catch(e){}
+  };
+  const dismissNotif = (id) => {
+    dismissedNotifIds.current.add(id);
+    seenNotifIds.current.add(id);
+    persistDismissed();
+    persistSeenNotifs();
+    setNotifications(prev=>prev.filter(x=>x.id!==id));
+  };
   // ── Poll every 60 seconds for new staff messages and requests ──
   useEffect(()=>{
     if(!ownerProfile?.orgId) return;
@@ -5915,7 +5928,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       setRequestsLoaded(true);
     }catch(e){ console.error("[notif] outer:", e.message); }
     // Preserve read state for previously-seen notifications
-    setNotifications(items.map(n=>seenNotifIds.current.has(n.id)?{...n,read:true}:n));
+    setNotifications(items.filter(n=>!dismissedNotifIds.current.has(n.id)).map(n=>seenNotifIds.current.has(n.id)?{...n,read:true}:n));
   };
 
   const loadPayroll = async(orgId, locId, periodDays=14) => {
@@ -6208,6 +6221,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           loadNotifications={loadNotifications}
           seenNotifIds={seenNotifIds}
           persistSeenNotifs={persistSeenNotifs}
+          dismissNotif={dismissNotif}
         />
       )}
 
