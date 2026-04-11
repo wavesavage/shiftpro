@@ -970,7 +970,7 @@ function MessageThread({ thread, empSafe, fmtTs, sendReply, E, isOwner=false }) 
 // ══════════════════════════════════════════════════
 //  EMPLOYEE MESSAGE CENTER — Messenger-style chat with management
 // ══════════════════════════════════════════════════
-function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
+function EmployeeMessageCenter({ threads, empSafe, msgsLoaded, reloadMessages }) {
   const [replyText, setReplyText] = React.useState("");
   const [localSent, setLocalSent] = React.useState([]);
   const scrollRef = React.useRef(null);
@@ -988,13 +988,24 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
     allMsgs.push(t);
     if(t.replies) t.replies.forEach(r=>allMsgs.push(r));
   });
-  // Add optimistic
+  // Add optimistic — dedup by matching body text against real messages
   localSent.forEach(s=>{
-    if(!allMsgs.some(m=>m.id===s.id)) allMsgs.push(s);
+    const isDup = allMsgs.some(m=>m.body===s.body && m.from_id===s.from_id && Math.abs(new Date(m.created_at)-new Date(s.created_at))<60000);
+    if(!isDup) allMsgs.push(s);
   });
   allMsgs.sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||""));
-  // Remove empty messages
   const filteredMsgs = allMsgs.filter(m=>(m.body||m.text||m.content||m.message||m.subject||"").trim());
+
+  // Clean up localSent when real messages arrive
+  React.useEffect(()=>{
+    if(!threads||threads.length===0) return;
+    const realBodies = new Set();
+    (threads||[]).forEach(t=>{
+      if(t.body) realBodies.add(t.body);
+      if(t.replies) t.replies.forEach(r=>{ if(r.body) realBodies.add(r.body); });
+    });
+    setLocalSent(prev=>prev.filter(s=>!realBodies.has(s.body)));
+  },[threads]);
 
   // Auto-scroll
   React.useEffect(()=>{
@@ -1026,9 +1037,9 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded }) {
       });
       const d = await r.json();
       if(!r.ok) throw new Error(d.error||"Failed");
-      // Remove optimistic after a bit (next data load will have real msg)
-      setTimeout(()=>setLocalSent(prev=>prev.filter(x=>x.id!==optId)), 2000);
-    }catch(e){ /* silently fail, optimistic msg stays */ }
+      // Reload messages from server after short delay — will dedup optimistic
+      if(reloadMessages) setTimeout(()=>reloadMessages(), 1000);
+    }catch(e){ /* optimistic msg stays visible */ }
   };
 
   const empId = empSafe.id;
@@ -1332,6 +1343,29 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
     }
   };
   const [msgsLoaded,setMsgsLoaded] = useState(false);
+
+  // Reload employee messages from server
+  const reloadEmpMessages = React.useCallback(async()=>{
+    if(!empSafe?.id) return;
+    try{
+      const sb=await getSB();
+      const {data:{session:ss}}=await sb.auth.getSession();
+      const headers=ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{};
+      const r=await fetch("/api/messages?userId="+empSafe.id+"&orgId="+(empSafe.orgId||"")+"&role=employee&_t="+Date.now(),{headers,cache:"no-store"});
+      if(r.ok){
+        const d=await r.json();
+        setEmpThreads(d.threads||[]);
+      }
+    }catch(e){}
+  },[empSafe?.id, empSafe?.orgId]);
+
+  // Auto-poll messages every 30s when on messages tab
+  React.useEffect(()=>{
+    if(tab!=="team" || !empSafe?.id) return;
+    const iv=setInterval(()=>reloadEmpMessages(), 30000);
+    return ()=>clearInterval(iv);
+  },[tab, empSafe?.id, reloadEmpMessages]);
+
   const [onboardingDone,setOnboardingDone] = useState(()=>{
     // Synchronous check — must happen before first render so gate works immediately
     if(!emp?.id) return true;
@@ -2032,6 +2066,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
               threads={threads}
               empSafe={{...empSafe, _theme:E}}
               msgsLoaded={msgsLoaded}
+              reloadMessages={reloadEmpMessages}
             />
           </div>
           );
