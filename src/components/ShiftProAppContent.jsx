@@ -1208,6 +1208,24 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
   const [empPortalSettings,setEmpPortalSettings] = useState({showEarnings:true,showGrowth:true,showAchievements:true,showSwapShift:true,showTimeOff:true});
   const [empThreads,setEmpThreads] = useState(null);
   const [empDataReady,setEmpDataReady] = useState(false);
+
+  // ── Standalone portal settings loader — runs independently, finds orgId from every source ──
+  useEffect(()=>{
+    (async()=>{
+      // Try every possible source for orgId
+      const orgId = emp?.orgId || emp?.org_id || null;
+      const lsOrgId = (()=>{ try{ return localStorage.getItem("shiftpro_active_orgid"); }catch(e){ return null; } })();
+      const finalOrgId = orgId || lsOrgId;
+      if(!finalOrgId) return;
+      try{
+        const r=await fetch("/api/portal-settings?orgId="+finalOrgId,{cache:"no-store"});
+        if(r.ok){
+          const d=await r.json();
+          if(d.portalSettings) setEmpPortalSettings(d.portalSettings);
+        }
+      }catch(e){}
+    })();
+  },[emp?.orgId, emp?.org_id]);
   // Profile edit state
   const [profileEdit,setProfileEdit] = useState(false);
   const [profileForm,setProfileForm] = useState({firstName:"",lastName:"",nick:"",title:"",phone:"",emergency:""});
@@ -1367,6 +1385,12 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
     const iv=setInterval(()=>reloadEmpMessages(), 30000);
     return ()=>clearInterval(iv);
   },[tab, empSafe?.id, reloadEmpMessages]);
+
+  // Load messages immediately on mount (independent of main useEffect)
+  React.useEffect(()=>{
+    if(!empSafe?.id) return;
+    reloadEmpMessages().then(()=>setMsgsLoaded(true));
+  },[empSafe?.id]);
 
   const [onboardingDone,setOnboardingDone] = useState(()=>{
     // Synchronous check — must happen before first render so gate works immediately
