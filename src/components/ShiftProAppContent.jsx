@@ -83,6 +83,50 @@ function useToast() {
   return { toasts, toast, removeToast };
 }
 
+// ── OFFLINE DETECTION BANNER ──
+function OfflineBanner() {
+  const [offline, setOffline] = React.useState(false);
+  const [showReconnect, setShowReconnect] = React.useState(false);
+  React.useEffect(() => {
+    const goOffline = () => { setOffline(true); setShowReconnect(false); };
+    const goOnline = () => { setOffline(false); setShowReconnect(true); setTimeout(() => setShowReconnect(false), 3000); };
+    if (typeof window !== "undefined" && !navigator.onLine) setOffline(true);
+    window.addEventListener("offline", goOffline);
+    window.addEventListener("online", goOnline);
+    return () => { window.removeEventListener("offline", goOffline); window.removeEventListener("online", goOnline); };
+  }, []);
+  if (!offline && !showReconnect) return null;
+  return (
+    <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,padding:"10px 20px",textAlign:"center",fontFamily:"'Segoe UI',system-ui,sans-serif",fontSize:13,fontWeight:600,transition:"all 0.3s",background:offline?"#dc2626":"#10b981",color:"#fff",boxShadow:"0 2px 12px rgba(0,0,0,0.2)"}}>
+      {offline ? "📡 You're offline — changes won't save until you reconnect" : "✅ Back online!"}
+    </div>
+  );
+}
+
+// ── SESSION GUARD — checks auth validity every 5 min ──
+function SessionGuard({ session, onExpired }) {
+  React.useEffect(() => {
+    if (!session) return;
+    const check = async () => {
+      try {
+        const { createClient } = await import("@supabase/supabase-js");
+        const sb = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+        );
+        const { data: { session: s } } = await sb.auth.getSession();
+        if (!s) {
+          console.log("[session-guard] Session expired, logging out");
+          onExpired();
+        }
+      } catch (e) {}
+    };
+    const iv = setInterval(check, 5 * 60 * 1000); // every 5 minutes
+    return () => clearInterval(iv);
+  }, [session, onExpired]);
+  return null;
+}
+
 // ── PUSH NOTIFICATIONS ──
 function usePushNotifications(userId, role) {
   const [pushSupported, setPushSupported] = React.useState(false);
@@ -8855,6 +8899,8 @@ export default function App(){
   return (
     <>
       <style>{FONTS}{GCSS}</style>
+      <OfflineBanner/>
+      <SessionGuard session={session} onExpired={logout}/>
       {!session && <Login onLogin={login}/>}
       {session?.role==="employee" && <EmpPortal
         key={session.emp?.id}
@@ -8864,7 +8910,6 @@ export default function App(){
         onProfileUpdate={updatedFields => {
           setSession(s => {
             const merged = { ...s.emp, ...updatedFields };
-            // Update localStorage so next refresh picks up the changes
             try { localStorage.setItem("shiftpro_cached_emp_" + merged.id, JSON.stringify(merged)); } catch(e) {}
             return { ...s, emp: merged };
           });
