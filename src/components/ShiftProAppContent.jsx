@@ -2087,14 +2087,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                   ))}
                 </div>
 
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,padding:"12px 14px",background:E.bg3,borderRadius:10}}>
-                  <span style={{fontFamily:E.sans,fontSize:13,color:E.text}}>Repeat every week</span>
-                  <button onClick={()=>setAvailRecurring(r=>!r)} style={{width:44,height:26,borderRadius:13,border:"none",background:availRecurring?E.indigo:E.border,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-                    <div style={{position:"absolute",top:3,left:availRecurring?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
-                  </button>
-                  <span style={{fontFamily:E.mono,fontSize:10,color:availRecurring?E.indigo:E.textF}}>{availRecurring?"Recurring weekly":"One-time only"}</span>
-                </div>
-
                 {availSaved&&(
                   <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:9,marginBottom:14}}>
                     <span style={{fontSize:16}}>✅</span>
