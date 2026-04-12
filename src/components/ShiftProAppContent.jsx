@@ -1803,6 +1803,18 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
               )}
             </div>
 
+            {/* Profile completion nudge — show when name is just email prefix */}
+            {empSafe.displayName===_ePfx&&_ePfx&&(
+              <div style={{background:"linear-gradient(135deg,rgba(232,184,75,0.08),rgba(224,123,0,0.08))",border:"1.5px solid rgba(232,184,75,0.25)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:22}}>👋</span>
+                <div style={{flex:1}}>
+                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:13,color:E.text}}>Set your display name</div>
+                  <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginTop:1}}>Your name shows as your email right now. Add your name so your team recognizes you!</div>
+                </div>
+                <button onClick={()=>{setTab("documents");setProfileEdit(true);setProfileForm(p=>({...p,firstName:"",lastName:"",nick:""}));}} style={{padding:"8px 16px",background:"linear-gradient(135deg,#e8b84b,#e07b00)",border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",flexShrink:0}}>Set Name</button>
+              </div>
+            )}
+
             {/* Push notification opt-in */}
             {empPushSupported && empPushPerm !== "granted" && empPushPerm !== "denied" && (
               <div style={{background:"linear-gradient(135deg,rgba(99,102,241,0.08),rgba(124,58,237,0.08))",border:"1.5px solid rgba(99,102,241,0.2)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
