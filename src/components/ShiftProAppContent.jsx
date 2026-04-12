@@ -1491,7 +1491,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   const [schedSubTab,setSchedSubTab] = useState("shifts");
   const [availableSwaps,setAvailableSwaps] = useState([]);
   const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
-  const [availTimes,setAvailTimes] = useState({Mon:{from:9,to:17},Tue:{from:9,to:17},Wed:{from:9,to:17},Thu:{from:9,to:17},Fri:{from:9,to:17},Sat:{from:9,to:17},Sun:{from:9,to:17}});
+  const [availTimes,setAvailTimes] = useState({Mon:{from:9,to:23},Tue:{from:9,to:23},Wed:{from:9,to:23},Thu:{from:9,to:23},Fri:{from:9,to:23},Sat:{from:9,to:23},Sun:{from:9,to:23}});
   const [availRecurring,setAvailRecurring] = useState(true);
   const [availSaved,setAvailSaved] = useState(false);
   const [availBusy,setAvailBusy] = useState(false);
@@ -1624,7 +1624,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
             const d=await r.json();
             if(d.availability?.length>0){
               const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
-              const times={Mon:{from:9,to:17},Tue:{from:9,to:17},Wed:{from:9,to:17},Thu:{from:9,to:17},Fri:{from:9,to:17},Sat:{from:9,to:17},Sun:{from:9,to:17}};
+              const times={Mon:{from:9,to:23},Tue:{from:9,to:23},Wed:{from:9,to:23},Thu:{from:9,to:23},Fri:{from:9,to:23},Sat:{from:9,to:23},Sun:{from:9,to:23}};
               d.availability.forEach((a)=>{
                 if(map.hasOwnProperty(a.day_of_week)){
                   map[a.day_of_week]=a.status;
