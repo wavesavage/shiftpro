@@ -29,7 +29,9 @@ function useIsMobile(breakpoint=768){
 
 const GCSS = `
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #f9f8f6; }
+body { background: #f9f8f6; -webkit-text-size-adjust: 100%; }
+html { -webkit-tap-highlight-color: transparent; }
+input, select, textarea, button { font-size: 16px; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:none } }
@@ -40,6 +42,10 @@ body { background: #f9f8f6; }
 @keyframes slideInRight { from { transform:translateX(120%); opacity:0 } to { transform:translateX(0); opacity:1 } }
 @keyframes slideOutRight { from { transform:translateX(0); opacity:1 } to { transform:translateX(120%); opacity:0 } }
 .skeleton { background: linear-gradient(90deg,#e8e6e1 25%,#f0ede8 50%,#e8e6e1 75%); background-size: 400px 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
+@media (max-width: 640px) {
+  .hide-mobile { display: none !important; }
+  .full-mobile { width: 100% !important; max-width: 100% !important; }
+}
 `;
 
 // ── TOAST SYSTEM ─────────────────────────────────────
@@ -1759,7 +1765,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
           <button onClick={onLogout} style={{padding:"5px 14px",background:"none",border:`1.5px solid ${E.border}`,borderRadius:20,fontFamily:E.sans,fontSize:12,color:E.textD,cursor:"pointer",marginLeft:4}}>Sign out</button>
         </div>
       </div>
-      <div style={{background:E.bg2,borderBottom:`1px solid ${E.border}`,padding:"0 20px",display:"flex",gap:2,overflowX:"auto"}}>
+      <div style={{background:E.bg2,borderBottom:`1px solid ${E.border}`,padding:"0 12px",display:"flex",gap:2,overflowX:"auto",WebkitOverflowScrolling:"touch",msOverflowStyle:"none",scrollbarWidth:"none"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>persistTab(t.id)} style={{fontFamily:E.sans,fontWeight:600,fontSize:13,padding:"11px 14px",background:"none",border:"none",cursor:"pointer",color:tab===t.id?E.indigo:E.textD,borderBottom:tab===t.id?`2.5px solid ${E.indigo}`:"2.5px solid transparent",transition:"all 0.15s",whiteSpace:"nowrap",marginBottom:-1}}>{t.label}</button>
         ))}
@@ -1955,13 +1961,13 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
           return(
           <div style={{animation:"fadeUp 0.3s ease"}}>
             {/* Sub-tabs */}
-            <div style={{display:"flex",gap:6,marginBottom:16}}>
-              {[["shifts","📅 My Shifts"],["availability","✅ Set Availability"],["open","🔓 Open Shifts"],["swaps","🔄 Swaps"+(availableSwaps.length>0?" ("+availableSwaps.length+")":"")]].map(([id,label])=>(
-                <button key={id} onClick={()=>setSchedSubTab(id)} style={{padding:"7px 14px",borderRadius:20,border:"none",fontFamily:E.sans,fontWeight:600,fontSize:12,cursor:"pointer",background:schedSubTab===id?E.indigo:E.bg3,color:schedSubTab===id?"#fff":E.textD}}>
+            <div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:2}}>
+              {[["shifts","📅 My Shifts"],["availability","✅ Availability"],["open","🔓 Open Shifts"],["swaps","🔄 Swaps"+(availableSwaps.length>0?" ("+availableSwaps.length+")":"")]].map(([id,label])=>(
+                <button key={id} onClick={()=>setSchedSubTab(id)} style={{padding:"7px 14px",borderRadius:20,border:"none",fontFamily:E.sans,fontWeight:600,fontSize:12,cursor:"pointer",background:schedSubTab===id?E.indigo:E.bg3,color:schedSubTab===id?"#fff":E.textD,whiteSpace:"nowrap",flexShrink:0}}>
                   {label}
                 </button>
               ))}
-              <button onClick={()=>setSwapOpen(true)} style={{marginLeft:"auto",padding:"7px 14px",background:E.indigoD,border:"1.5px solid "+E.indigo+"40",borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>Post Swap</button>
+              <button onClick={()=>setSwapOpen(true)} style={{marginLeft:"auto",padding:"7px 14px",background:E.indigoD,border:"1.5px solid "+E.indigo+"40",borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Post Swap</button>
             </div>
 
             {/* My Shifts sub-tab */}
@@ -7886,16 +7892,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     </div>
 
                     {/* Day headers */}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:mobile?1:3,marginBottom:4}}>
                       {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>(
-                        <div key={d} style={{fontFamily:O.mono,fontSize:10,color:O.textD,textAlign:"center",padding:"8px 0",fontWeight:700,letterSpacing:1}}>{d}</div>
+                        <div key={d} style={{fontFamily:O.mono,fontSize:mobile?8:10,color:O.textD,textAlign:"center",padding:mobile?"4px 0":"8px 0",fontWeight:700,letterSpacing:1}}>{mobile?d[0]:d}</div>
                       ))}
                     </div>
 
                     {/* Calendar grid */}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:mobile?1:3}}>
                       {cells.map((day,i)=>{
-                        if(!day) return <div key={"e"+i} style={{minHeight:100,background:O.bg3,borderRadius:8,opacity:0.3}}/>;
+                        if(!day) return <div key={"e"+i} style={{minHeight:mobile?60:100,background:O.bg3,borderRadius:mobile?4:8,opacity:0.3}}/>;
                         const dateStr=year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
                         const dayOfWeek=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(year,month,day).getDay()];
                         const dayShifts=(liveShifts||[]).filter(s=>s.shift_date===dateStr);
@@ -7906,22 +7912,22 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                             if(isPast) return;
                             const defaultEmp=STAFF[0];
                             if(defaultEmp) setSelectedCell({day:dayOfWeek,empId:defaultEmp.id,emp:defaultEmp,start:9,end:17,roleLabel:"",shiftDate:dateStr});
-                          }} style={{minHeight:100,background:isToday?"rgba(99,102,241,0.04)":"#fff",borderRadius:8,padding:"6px",border:isToday?"2px solid "+O.indigo:"1px solid "+O.border,position:"relative",opacity:isPast?0.6:1,cursor:isPast?"default":"pointer",transition:"box-shadow 0.15s"}}
-                          onMouseEnter={e=>{if(!isPast)e.currentTarget.style.boxShadow="0 2px 8px rgba(99,102,241,0.15)";}}
+                          }} style={{minHeight:mobile?60:100,background:isToday?"rgba(99,102,241,0.04)":"#fff",borderRadius:mobile?4:8,padding:mobile?"3px":"6px",border:isToday?"2px solid "+O.indigo:"1px solid "+O.border,position:"relative",opacity:isPast?0.6:1,cursor:isPast?"default":"pointer",transition:"box-shadow 0.15s"}}
+                          onMouseEnter={e=>{if(!isPast&&!mobile)e.currentTarget.style.boxShadow="0 2px 8px rgba(99,102,241,0.15)";}}
                           onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";}}>
-                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                              <div style={{fontFamily:O.mono,fontSize:11,fontWeight:isToday?800:600,color:isToday?"#fff":O.text,background:isToday?O.indigo:"transparent",borderRadius:isToday?12:0,padding:isToday?"1px 7px":"0",lineHeight:"18px"}}>{day}</div>
-                              {!isPast&&dayShifts.length===0&&<div style={{fontFamily:O.sans,fontSize:8,color:O.textF,opacity:0.6}}>+ add</div>}
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:mobile?2:4}}>
+                              <div style={{fontFamily:O.mono,fontSize:mobile?9:11,fontWeight:isToday?800:600,color:isToday?"#fff":O.text,background:isToday?O.indigo:"transparent",borderRadius:isToday?12:0,padding:isToday?"1px 5px":"0",lineHeight:"16px"}}>{day}</div>
+                              {!isPast&&dayShifts.length===0&&!mobile&&<div style={{fontFamily:O.sans,fontSize:8,color:O.textF,opacity:0.6}}>+ add</div>}
                             </div>
-                            {dayShifts.slice(0,3).map(sh=>{
+                            {dayShifts.slice(0,mobile?1:3).map(sh=>{
                               const emp=STAFF.find(e=>e.id===sh.user_id);
                               return(
-                                <div key={sh.id} onClick={(e)=>{e.stopPropagation();if(!isPast)setSelectedCell({day:dayOfWeek,empId:sh.user_id,emp:emp||{id:sh.user_id,name:"?"},start:sh.start_hour,end:sh.end_hour,roleLabel:sh.role_label||"",shiftDate:dateStr,editShiftId:sh.id});}} style={{background:(emp?.color||"#6366f1")+"18",border:"1px solid "+(emp?.color||"#6366f1")+"35",borderRadius:4,padding:"2px 5px",marginBottom:2,fontSize:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:isPast?"default":"pointer"}}>
-                                  {emp?.first||emp?.name?.split(" ")[0]||"?"} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}
+                                <div key={sh.id} onClick={(e)=>{e.stopPropagation();if(!isPast)setSelectedCell({day:dayOfWeek,empId:sh.user_id,emp:emp||{id:sh.user_id,name:"?"},start:sh.start_hour,end:sh.end_hour,roleLabel:sh.role_label||"",shiftDate:dateStr,editShiftId:sh.id});}} style={{background:(emp?.color||"#6366f1")+"18",border:"1px solid "+(emp?.color||"#6366f1")+"35",borderRadius:3,padding:mobile?"1px 3px":"2px 5px",marginBottom:1,fontSize:mobile?7:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:isPast?"default":"pointer"}}>
+                                  {mobile?(emp?.first?.slice(0,3)||"?"):(emp?.first||emp?.name?.split(" ")[0]||"?")} {mobile?"":fmtH2(sh.start_hour)+"-"+fmtH2(sh.end_hour)}
                                 </div>
                               );
                             })}
-                            {dayShifts.length>3&&<div style={{fontFamily:O.mono,fontSize:8,color:O.textF,textAlign:"center"}}>+{dayShifts.length-3} more</div>}
+                            {dayShifts.length>(mobile?1:3)&&<div style={{fontFamily:O.mono,fontSize:mobile?6:8,color:O.textF,textAlign:"center"}}>+{dayShifts.length-(mobile?1:3)}</div>}
                           </div>
                         );
                       })}
