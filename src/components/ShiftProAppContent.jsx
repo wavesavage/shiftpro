@@ -8539,10 +8539,57 @@ export default function App(){
   };
   const logout = async() => {
     try{const sb=await getSB();await sb.auth.signOut();}catch(e){}
-    // Clear active tab so next login always lands on Command
     try{ localStorage.removeItem("shiftpro_active_tab"); }catch(e){}
+    try{ localStorage.removeItem("shiftpro_last_activity"); }catch(e){}
     setSession(null);
   };
+
+  // ── SESSION TIMEOUT — auto-logout after 8 hours of inactivity ──
+  useEffect(()=>{
+    if(!session) return;
+    const TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
+    const ACTIVITY_KEY = "shiftpro_last_activity";
+
+    // Set initial activity timestamp
+    const setActivity = () => {
+      try{ localStorage.setItem(ACTIVITY_KEY, String(Date.now())); }catch(e){}
+    };
+    setActivity();
+
+    // Throttled activity tracker — updates at most every 60 seconds
+    let lastUpdate = Date.now();
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastUpdate > 60000) { lastUpdate = now; setActivity(); }
+    };
+
+    // Listen for user activity
+    window.addEventListener("mousemove", onActivity);
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("touchstart", onActivity);
+    window.addEventListener("click", onActivity);
+    window.addEventListener("scroll", onActivity);
+
+    // Check every 5 minutes if session expired
+    const checker = setInterval(() => {
+      try{
+        const last = parseInt(localStorage.getItem(ACTIVITY_KEY) || "0");
+        if (last > 0 && Date.now() - last > TIMEOUT_MS) {
+          console.log("[session] Auto-logout: 8 hours of inactivity");
+          logout();
+        }
+      }catch(e){}
+    }, 5 * 60 * 1000);
+
+    return () => {
+      window.removeEventListener("mousemove", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("touchstart", onActivity);
+      window.removeEventListener("click", onActivity);
+      window.removeEventListener("scroll", onActivity);
+      clearInterval(checker);
+    };
+  },[session]);
 
   useEffect(()=>{
     const init = async() => {
