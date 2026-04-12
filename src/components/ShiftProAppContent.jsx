@@ -1631,7 +1631,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                   if(a.avail_from!=null&&a.avail_to!=null){
                     times[a.day_of_week].from = a.avail_from;
                     times[a.day_of_week].to = a.avail_to;
-                    times[a.day_of_week].allDay = !!a.all_day;
+                    times[a.day_of_week].allDay = false;
                   } else {
                     times[a.day_of_week].allDay = true;
                   }
@@ -1966,9 +1966,8 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                 const isAllDay=availTimes[day]?.allDay!==false;
                 return {
                   day_of_week:day, status, recurring:availRecurring,
-                  avail_from:status==="available"?(isAllDay?null:(availTimes[day]?.from||9)):null,
-                  avail_to:status==="available"?(isAllDay?null:(availTimes[day]?.to||23)):null,
-                  all_day:status==="available"?isAllDay:null,
+                  avail_from:status==="available"&&!isAllDay?(availTimes[day]?.from||9):null,
+                  avail_to:status==="available"&&!isAllDay?(availTimes[day]?.to||23):null,
                 };
               });
               const res=await fetch("/api/availability",{
