@@ -27,8 +27,22 @@ function getClientIp(req: NextRequest): string {
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
-  // Only rate-limit API routes
+  // Only process API routes
   if (!path.startsWith("/api/")) return NextResponse.next();
+
+  // ── XSS PROTECTION — block dangerous query params ──
+  const url = req.nextUrl.toString();
+  const xssPatterns = [
+    /<script/i, /javascript\s*:/i, /on\w+\s*=/i, /<iframe/i, /<object/i,
+    /<embed/i, /document\.(cookie|write)/i, /eval\s*\(/i, /alert\s*\(/i,
+  ];
+  const queryString = req.nextUrl.search || "";
+  if (xssPatterns.some(p => p.test(queryString) || p.test(decodeURIComponent(queryString)))) {
+    console.warn(`[xss] BLOCKED suspicious query: ${getClientIp(req)} on ${path}`);
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  // ── RATE LIMITING ──
 
   // Skip rate limiting if no Redis configured
   if (!KV_URL || !KV_TOKEN) return NextResponse.next();
@@ -77,11 +91,14 @@ export async function middleware(req: NextRequest) {
       );
     }
 
-    // Add rate limit headers to successful responses
+    // Add rate limit + security headers to successful responses
     const response = NextResponse.next();
     response.headers.set("X-RateLimit-Limit", String(maxReq));
     response.headers.set("X-RateLimit-Remaining", String(remaining));
     response.headers.set("X-RateLimit-Reset", String(resetIn));
+    response.headers.set("X-Content-Type-Options", "nosniff");
+    response.headers.set("X-Frame-Options", "DENY");
+    response.headers.set("X-XSS-Protection", "1; mode=block");
     return response;
   } catch (e) {
     // Redis failure — don't block the request
