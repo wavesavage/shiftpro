@@ -509,7 +509,9 @@ function SignupForm({ plan, onBack }) {
           {busy ? "Creating account…" : "Create Account & Start Free"}
         </button>
         <div style={{ fontFamily: C.mono, fontSize: 9, color: C.textF, textAlign: "center", marginTop: 12, lineHeight: 1.6 }}>
-          By creating an account you agree to our Terms of Service and Privacy Policy.
+          By creating an account you agree to our{" "}
+          <a href="/terms" style={{ color: C.amber, textDecoration: "none" }}>Terms of Service</a> and{" "}
+          <a href="/privacy" style={{ color: C.amber, textDecoration: "none" }}>Privacy Policy</a>.
         </div>
       </div>
       <div style={{ textAlign: "center", marginTop: 20 }}>
