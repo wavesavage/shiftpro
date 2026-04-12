@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
         day_of_week: r.day_of_week,
         status: r.status,
         recurring: r.recurring ?? true,
+        avail_from: r.avail_from ?? null,
+        avail_to: r.avail_to ?? null,
       }));
       const { error } = await client.from("availability").insert(toInsert);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
