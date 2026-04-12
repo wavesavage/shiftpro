@@ -1,17 +1,13 @@
 export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { pushToUser, pushToManagers } from "@/lib/push-util";
 
 const sb = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 const NO_CACHE = { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } };
-
-// messages table columns:
-//   id, org_id, to_id, from_id, subject, body, read, created_at  (original)
-//   from_name, parent_id, type                                    (added via ALTER TABLE)
-// type CHECK constraint was dropped — all values allowed
 
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
@@ -81,7 +77,6 @@ export async function POST(req: NextRequest) {
     const isBroadcast  = toId === "all"      || type === "broadcast";
     const isToManagers = toId === "managers" || type === "employee_to_manager";
 
-    // employee_to_manager is the correct type — constraint was dropped via SQL
     const msgType = isBroadcast  ? "broadcast"
                   : isToManagers ? "employee_to_manager"
                   : parentId     ? "reply"
@@ -113,6 +108,24 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error("[messages POST]", error.message, { orgId, fromId, msgType });
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // 🔔 PUSH NOTIFICATIONS
+    const preview = text.trim().length > 60 ? text.trim().slice(0, 57) + "..." : text.trim();
+    const senderName = fromName || "Someone";
+
+    if (isToManagers) {
+      // Employee → Manager: push to all managers in org
+      pushToManagers(orgId, "💬 " + senderName,
+        preview, "/", "msg-" + (msg?.id || Date.now())
+      ).catch(() => {});
+    } else if (isBroadcast) {
+      // Broadcast — don't push (these are announcements, shown in-app)
+    } else if (toId && toId !== "all" && toId !== "managers") {
+      // Direct message or reply: push to the recipient
+      pushToUser(toId, "💬 " + senderName,
+        preview, "/", "msg-" + (msg?.id || Date.now())
+      ).catch(() => {});
     }
 
     return NextResponse.json({ ok: true, message: msg });
