@@ -1491,7 +1491,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   const [schedSubTab,setSchedSubTab] = useState("shifts");
   const [availableSwaps,setAvailableSwaps] = useState([]);
   const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
-  const [availTimes,setAvailTimes] = useState({Mon:{from:9,to:23},Tue:{from:9,to:23},Wed:{from:9,to:23},Thu:{from:9,to:23},Fri:{from:9,to:23},Sat:{from:9,to:23},Sun:{from:9,to:23}});
+  const [availTimes,setAvailTimes] = useState({Mon:{from:9,to:23,allDay:true},Tue:{from:9,to:23,allDay:true},Wed:{from:9,to:23,allDay:true},Thu:{from:9,to:23,allDay:true},Fri:{from:9,to:23,allDay:true},Sat:{from:9,to:23,allDay:true},Sun:{from:9,to:23,allDay:true}});
   const [availRecurring,setAvailRecurring] = useState(true);
   const [availSaved,setAvailSaved] = useState(false);
   const [availBusy,setAvailBusy] = useState(false);
@@ -1624,12 +1624,17 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
             const d=await r.json();
             if(d.availability?.length>0){
               const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
-              const times={Mon:{from:9,to:23},Tue:{from:9,to:23},Wed:{from:9,to:23},Thu:{from:9,to:23},Fri:{from:9,to:23},Sat:{from:9,to:23},Sun:{from:9,to:23}};
+              const times={Mon:{from:9,to:23,allDay:true},Tue:{from:9,to:23,allDay:true},Wed:{from:9,to:23,allDay:true},Thu:{from:9,to:23,allDay:true},Fri:{from:9,to:23,allDay:true},Sat:{from:9,to:23,allDay:true},Sun:{from:9,to:23,allDay:true}};
               d.availability.forEach((a)=>{
                 if(map.hasOwnProperty(a.day_of_week)){
                   map[a.day_of_week]=a.status;
-                  if(a.avail_from!=null) times[a.day_of_week].from = a.avail_from;
-                  if(a.avail_to!=null) times[a.day_of_week].to = a.avail_to;
+                  if(a.avail_from!=null&&a.avail_to!=null){
+                    times[a.day_of_week].from = a.avail_from;
+                    times[a.day_of_week].to = a.avail_to;
+                    times[a.day_of_week].allDay = !!a.all_day;
+                  } else {
+                    times[a.day_of_week].allDay = true;
+                  }
                 }
               });
               setAvail(map);
@@ -1957,11 +1962,15 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
             try{
               const sb2=await getSB();
               const {data:{session:ss}}=await sb2.auth.getSession();
-              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({
-                day_of_week:day, status, recurring:availRecurring,
-                avail_from:status==="available"?(availTimes[day]?.from||9):null,
-                avail_to:status==="available"?(availTimes[day]?.to||17):null,
-              }));
+              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>{
+                const isAllDay=availTimes[day]?.allDay!==false;
+                return {
+                  day_of_week:day, status, recurring:availRecurring,
+                  avail_from:status==="available"?(isAllDay?null:(availTimes[day]?.from||9)):null,
+                  avail_to:status==="available"?(isAllDay?null:(availTimes[day]?.to||23)):null,
+                  all_day:status==="available"?isAllDay:null,
+                };
+              });
               const res=await fetch("/api/availability",{
                 method:"POST",
                 headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
@@ -2029,25 +2038,37 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                   {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>{
                     const s=avail[day];
                     const isAvail=s==="available"; const isUnavail=s==="unavailable";
+                    const isAllDay=availTimes[day]?.allDay!==false;
                     const fmtH=h=>h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM";
                     return(
-                      <div key={day} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:isAvail?"rgba(16,185,129,0.06)":isUnavail?"rgba(239,68,68,0.04)":"#fff",border:"1.5px solid "+(isAvail?E.green+"40":isUnavail?"rgba(239,68,68,0.2)":E.border),borderRadius:12}}>
-                        <button onClick={()=>cycleAvail(day)} style={{width:56,padding:"8px 4px",borderRadius:8,cursor:"pointer",textAlign:"center",border:"none",background:isAvail?E.green:isUnavail?"#ef4444":"#e5e7eb",color:"#fff",fontFamily:E.sans,fontWeight:700,fontSize:12,flexShrink:0}}>
-                          {day}
-                        </button>
-                        <div style={{fontFamily:E.sans,fontSize:12,fontWeight:600,color:isAvail?E.green:isUnavail?"#ef4444":E.textF,minWidth:70}}>
-                          {isAvail?"Available":isUnavail?"Off":"Not set"}
+                      <div key={day} style={{background:isAvail?"rgba(16,185,129,0.06)":isUnavail?"rgba(239,68,68,0.04)":"#fff",border:"1.5px solid "+(isAvail?E.green+"40":isUnavail?"rgba(239,68,68,0.2)":E.border),borderRadius:12,padding:"10px 14px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <button onClick={()=>cycleAvail(day)} style={{width:56,padding:"8px 4px",borderRadius:8,cursor:"pointer",textAlign:"center",border:"none",background:isAvail?E.green:isUnavail?"#ef4444":"#e5e7eb",color:"#fff",fontFamily:E.sans,fontWeight:700,fontSize:12,flexShrink:0}}>
+                            {day}
+                          </button>
+                          <div style={{fontFamily:E.sans,fontSize:12,fontWeight:600,color:isAvail?E.green:isUnavail?"#ef4444":E.textF,minWidth:70}}>
+                            {isAvail?(isAllDay?"All Day":"Custom Hours"):isUnavail?"Off":"Not set"}
+                          </div>
+                          {isAvail&&(
+                            <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:"auto"}}>
+                              <button onClick={()=>setAvailTimes(p=>({...p,[day]:{...p[day],allDay:!isAllDay}}))}
+                                style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid "+(isAllDay?E.indigo+"40":E.border),background:isAllDay?"rgba(99,102,241,0.08)":"#fff",fontFamily:E.sans,fontWeight:700,fontSize:11,color:isAllDay?E.indigo:E.textD,cursor:"pointer"}}>
+                                {isAllDay?"All Day ✓":"Set Hours"}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        {isAvail&&(
-                          <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:"auto"}}>
+                        {isAvail&&!isAllDay&&(
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,paddingTop:10,borderTop:"1px solid "+E.border}}>
+                            <span style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>From</span>
                             <select value={availTimes[day]?.from||9} onChange={e=>setAvailTimes(p=>({...p,[day]:{...p[day],from:parseInt(e.target.value)}}))}
-                              style={{padding:"5px 8px",background:E.bg3,border:"1px solid "+E.border,borderRadius:6,fontFamily:E.mono||E.sans,fontSize:10,color:E.text,outline:"none",cursor:"pointer"}}>
+                              style={{padding:"6px 10px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.mono||E.sans,fontSize:11,color:E.text,outline:"none",cursor:"pointer",flex:1}}>
                               {[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22].map(h=><option key={h} value={h}>{fmtH(h)}</option>)}
                             </select>
-                            <span style={{fontFamily:E.mono||E.sans,fontSize:10,color:E.textF}}>to</span>
-                            <select value={availTimes[day]?.to||17} onChange={e=>setAvailTimes(p=>({...p,[day]:{...p[day],to:parseInt(e.target.value)}}))}
-                              style={{padding:"5px 8px",background:E.bg3,border:"1px solid "+E.border,borderRadius:6,fontFamily:E.mono||E.sans,fontSize:10,color:E.text,outline:"none",cursor:"pointer"}}>
-                              {[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23].filter(h=>h>(availTimes[day]?.from||9)).map(h=><option key={h} value={h}>{fmtH(h)}</option>)}
+                            <span style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>to</span>
+                            <select value={availTimes[day]?.to||23} onChange={e=>setAvailTimes(p=>({...p,[day]:{...p[day],to:parseInt(e.target.value)}}))}
+                              style={{padding:"6px 10px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.mono||E.sans,fontSize:11,color:E.text,outline:"none",cursor:"pointer",flex:1}}>
+                              {[7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23].filter(h=>h>(availTimes[day]?.from||9)).map(h=><option key={h} value={h}>{fmtH(h)}</option>)}
                             </select>
                           </div>
                         )}
