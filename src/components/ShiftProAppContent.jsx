@@ -1261,10 +1261,13 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded, reloadMessages })
 }
 
 function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
+  const _ePfx = (emp?.email||"").split("@")[0]||"";
+  const _hasRealFirst = emp?.first && emp.first!=="there" && emp.first!==_ePfx;
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
-    first:emp?.first&&emp.first!=="there"?emp.first:emp?.email?.split("@")[0]||"there",
+    first:_hasRealFirst?emp.first:(_ePfx||"there"),
     nick:emp?.nick||emp?.preferred_name||"",
+    displayName: emp?.nick || emp?.preferred_name || (_hasRealFirst?emp.first:"") || (emp?.name&&emp.name.trim()&&!emp.name.includes("@")&&emp.name!=="Employee"?emp.name.split(" ")[0]:"") || _ePfx || "there",
     role:emp?.role&&emp.role!=="Employee"?emp.role:"", dept:emp?.dept||"",
     rate:parseFloat(emp?.rate)||15,
     avatar:(()=>{
@@ -1759,7 +1762,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <Av emp={empSafe} size={32}/>
           <div>
-            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {empSafe.first==="there"||!empSafe.first?empSafe.email?.split("@")[0]||"there":empSafe.first}!</div>
+            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {empSafe.displayName}!</div>
             <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>{empSafe.role&&empSafe.role!=="Employee"?empSafe.role:"Employee"}</div>
           </div>
           <button onClick={onLogout} style={{padding:"5px 14px",background:"none",border:`1.5px solid ${E.border}`,borderRadius:20,fontFamily:E.sans,fontSize:12,color:E.textD,cursor:"pointer",marginLeft:4}}>Sign out</button>
@@ -1775,7 +1778,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
           <div style={{animation:"fadeUp 0.3s ease"}}>
             {/* Greeting banner */}
             <div style={{background:`linear-gradient(135deg,${E.indigo},${E.violet})`,borderRadius:18,padding:"22px 24px",marginBottom:14,color:"#fff",position:"relative",overflow:"hidden",boxShadow:E.shadowB}}>
-              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>{greet}, {empSafe.nick||empSafe.first||"there"}! ✨</div>
+              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>{greet}, {empSafe.displayName}! ✨</div>
               <div style={{fontFamily:E.sans,fontSize:13,opacity:0.8}}>{now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div>
               {/* Next shift inline in banner */}
               {(()=>{
