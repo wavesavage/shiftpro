@@ -130,7 +130,47 @@ function usePushNotifications(userId, role) {
 }
 
 // ── SKELETON LOADER ──────────────────────────────────
-function SkeletonLoader({ rows=3 }) {
+function SkeletonLoader({ rows=3, type="text" }) {
+  if(type==="cards") return (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+      {[0,1,2,3].map(i=>(
+        <div key={i} className="skeleton" style={{height:90,borderRadius:14}}/>
+      ))}
+    </div>
+  );
+  if(type==="schedule") return (
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      <div className="skeleton" style={{height:40,borderRadius:8,marginBottom:8}}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+        {Array.from({length:21}).map((_,i)=>(
+          <div key={i} className="skeleton" style={{height:60,borderRadius:6}}/>
+        ))}
+      </div>
+    </div>
+  );
+  if(type==="timeline") return (
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <div className="skeleton" style={{height:24,width:"60%",borderRadius:6}}/>
+      <div className="skeleton" style={{height:80,borderRadius:12}}/>
+      <div className="skeleton" style={{height:120,borderRadius:12}}/>
+    </div>
+  );
+  if(type==="chat") return (
+    <div style={{display:"flex",flexDirection:"column",gap:12,padding:"16px 0"}}>
+      {[0,1,2].map(i=>(
+        <div key={i} style={{display:"flex",alignItems:i%2===0?"flex-start":"flex-end"}}>
+          <div className="skeleton" style={{height:48,width:i%2===0?"65%":"55%",borderRadius:14}}/>
+        </div>
+      ))}
+    </div>
+  );
+  if(type==="list") return (
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {Array.from({length:rows}).map((_,i)=>(
+        <div key={i} className="skeleton" style={{height:56,borderRadius:10}}/>
+      ))}
+    </div>
+  );
   return (
     <div style={{display:"flex",flexDirection:"column",gap:10,padding:"8px 0"}}>
       {Array.from({length:rows}).map((_,i)=>(
@@ -1103,8 +1143,8 @@ function EmployeeMessageCenter({ threads, empSafe, msgsLoaded, reloadMessages })
 
     {/* Messages area */}
     {!msgsLoaded?(
-      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
-        <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Loading messages…</div>
+      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:20}}>
+        <SkeletonLoader type="chat"/>
       </div>
     ):filteredMsgs.length===0?(
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
@@ -2633,10 +2673,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
 
             {/* What to upload guide when empty */}
             {empDocs===null&&(
-              <div style={{textAlign:"center",padding:"40px",background:"#fff",borderRadius:14,border:"1px solid "+E.border}}>
-                <div style={{fontSize:32,marginBottom:8}}>⏳</div>
-                <div style={{fontFamily:E.sans,fontSize:14,color:E.textD}}>Loading documents…</div>
-              </div>
+              <div style={{padding:"8px 0"}}><SkeletonLoader type="list" rows={3}/></div>
             )}
 
             {empDocs!==null&&filteredDocs.length===0&&(
@@ -7034,8 +7071,17 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         {tab==="command"&&(
           <div style={{animation:"fadeUp 0.3s ease"}}>
 
+            {/* Loading skeleton while data arrives */}
+            {liveShifts===null&&liveEmps===null&&(
+              <div>
+                <SkeletonLoader type="timeline"/>
+                <div style={{marginTop:16}}><SkeletonLoader type="cards"/></div>
+                <div style={{marginTop:16}}><SkeletonLoader type="list" rows={3}/></div>
+              </div>
+            )}
+
             {/* ── TODAY'S GAME PLAN ── */}
-            {(()=>{
+            {(liveShifts!==null||liveEmps!==null)&&(()=>{
               const todayName = now.toLocaleDateString("en-US",{weekday:"short"}).slice(0,3);
               const DAYS3 = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
               const todayKey = DAYS3[now.getDay()];
@@ -7339,7 +7385,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <button onClick={()=>{ setNotifLoaded(false); if(orgId) loadNotifications(orgId,true); }}
                             style={{fontFamily:O.mono,fontSize:9,color:O.textF,background:"none",border:"none",cursor:"pointer",letterSpacing:1}}>REFRESH</button>
                         </div>
-                        {!staffMsgsLoaded&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"8px 0"}}>Loading...</div>}
+                        {!staffMsgsLoaded&&<SkeletonLoader type="chat"/>}
                         {staffMsgsLoaded&&staffMessages.length===0&&(
                           <div style={{textAlign:"center",padding:"14px 0"}}>
                             <div style={{fontSize:28,marginBottom:6}}>📥</div>
@@ -7672,6 +7718,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 ownerPrefs={ownerPrefs}
               />
             )}
+
+            {/* Schedule loading skeleton */}
+            {liveShifts===null&&<div style={{marginBottom:16}}><SkeletonLoader type="schedule"/></div>}
 
             {/* Labor cost gauge */}
             {liveShifts!==null&&liveShifts.length>0&&(()=>{
@@ -8207,12 +8256,9 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             })()}
 
             {livePayroll===null&&(
-              <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:14,border:"1px solid "+O.border,boxShadow:O.shadow}}>
-                <div style={{fontSize:48,marginBottom:12}}>⏳</div>
-                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text,marginBottom:6}}>Loading payroll data…</div>
-                <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,lineHeight:1.7,maxWidth:380,margin:"0 auto"}}>
-                  Payroll data will appear here as employees clock in and out. If this takes too long, try refreshing the page.
-                </div>
+              <div style={{background:"#fff",borderRadius:14,border:"1px solid "+O.border,padding:"24px",boxShadow:O.shadow}}>
+                <SkeletonLoader type="cards"/>
+                <div style={{marginTop:12}}><SkeletonLoader type="list" rows={4}/></div>
               </div>
             )}
 
