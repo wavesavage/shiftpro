@@ -126,21 +126,23 @@ const FEATURES = [
 
 const PRICING = [
   {
-    name: "Starter",
-    price: "Free",
-    per: "forever",
-    color: "#52525b",
-    features: ["1 location", "Up to 5 employees", "Basic scheduling", "Time clock", "Messaging"],
-    cta: "Get Started Free",
+    name: "Essentials",
+    price: "$2.50",
+    per: "/user/month",
+    color: "#10b981",
+    note: "14-day free trial • No credit card required",
+    features: ["Scheduling + time clock included", "Team messaging", "Up to 1 location", "Employee availability", "Mobile app (PWA)", "Time-off requests"],
+    cta: "Start Free Trial",
     popular: false,
   },
   {
     name: "Pro",
-    price: "$39.99",
-    per: "/month",
+    price: "$4",
+    per: "/user/month",
     color: "#e07b00",
-    features: ["Unlimited locations", "Unlimited employees", "Shift swaps", "Push + email alerts", "Document management", "Geofencing", "Priority support"],
-    cta: "Start Pro Trial",
+    note: "14-day free trial • Most popular for growing teams",
+    features: ["Everything in Essentials", "Unlimited locations", "Shift swaps", "Push + email notifications", "Document management", "GPS geofencing", "Custom portal settings", "Priority support"],
+    cta: "Start Free Trial",
     popular: true,
   },
   {
@@ -148,7 +150,8 @@ const PRICING = [
     price: "Custom",
     per: "pricing",
     color: "#6366f1",
-    features: ["Everything in Pro", "QuickBooks integration", "Custom branding", "API access", "Dedicated account manager", "SLA guarantee"],
+    note: "For large teams and multi-brand operations",
+    features: ["Everything in Pro", "QuickBooks integration", "Custom branding per org", "API access + webhooks", "Dedicated account manager", "SLA guarantee", "SSO / SAML"],
     cta: "Contact Sales",
     popular: false,
   },
@@ -314,8 +317,9 @@ export default function DemoPage() {
       <section id="pricing" data-reveal style={{ padding: "80px 24px" }} className={`reveal ${visibleSections.has("pricing") ? "visible" : ""}`}>
         <div style={{ maxWidth: 1000, margin: "0 auto", textAlign: "center" }}>
           <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, letterSpacing: 4, color: "#e8b84b", marginBottom: 8, textTransform: "uppercase" }}>Pricing</div>
-          <h2 style={{ fontSize: "clamp(28px,4vw,40px)", fontWeight: 800, color: "#fff", marginBottom: 12 }}>Simple, Honest Pricing</h2>
-          <p style={{ color: "#94a3b8", fontSize: 15, marginBottom: 48 }}>Start free. Upgrade when you need more.</p>
+          <h2 style={{ fontSize: "clamp(28px,4vw,40px)", fontWeight: 800, color: "#fff", marginBottom: 12 }}>Simple Per-User Pricing</h2>
+          <p style={{ color: "#94a3b8", fontSize: 15, marginBottom: 8 }}>14-day free trial on all plans. No credit card required.</p>
+          <p style={{ color: "#64748b", fontSize: 13, marginBottom: 48 }}>Time tracking included in every plan — competitors charge extra for it.</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
             {PRICING.map(plan => (
               <div key={plan.name} className="pricing-card" style={{ padding: 32, background: plan.popular ? "rgba(224,123,0,0.06)" : "rgba(255,255,255,0.03)", border: plan.popular ? "2px solid rgba(224,123,0,0.3)" : "1px solid rgba(255,255,255,0.06)", borderRadius: 20, textAlign: "left", position: "relative", transition: "all 0.3s" }}>
@@ -323,10 +327,11 @@ export default function DemoPage() {
                   <div style={{ position: "absolute", top: -12, right: 20, padding: "4px 14px", background: "linear-gradient(135deg,#e07b00,#c96800)", borderRadius: 20, fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fontWeight: 700, color: "#fff", letterSpacing: 1 }}>MOST POPULAR</div>
                 )}
                 <div style={{ fontWeight: 700, fontSize: 18, color: plan.color, marginBottom: 4 }}>{plan.name}</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
                   <span style={{ fontSize: 40, fontWeight: 900, color: "#fff" }}>{plan.price}</span>
                   <span style={{ fontSize: 14, color: "#64748b" }}>{plan.per}</span>
                 </div>
+                {plan.note && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#64748b", marginBottom: 18 }}>{plan.note}</div>}
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
                   {plan.features.map(f => (
                     <div key={f} style={{ display: "flex", gap: 8, alignItems: "center" }}>
