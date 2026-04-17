@@ -3095,7 +3095,7 @@ function LocationGateNone({ activeOrg, ownerProfile, setLiveLocations, toast, se
 
 function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setActiveLocation, setAddLocOpen }) {
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(249,248,246,0.95)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,backdropFilter:"blur(8px)"}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(249,248,246,0.95)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}}>
       <div style={{background:"#fff",borderRadius:20,padding:"32px",width:"100%",maxWidth:520,boxShadow:"0 8px 40px rgba(0,0,0,0.12)",animation:"fadeUp 0.4s ease"}}>
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{fontSize:40,marginBottom:10}}>📍</div>
@@ -4471,7 +4471,7 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
 
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget)setSelectedCell(null);}}>
       <div style={{background:"#fff",borderRadius:16,padding:"28px",width:"100%",maxWidth:420,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -5359,7 +5359,7 @@ function AddLocationModal({
   const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setAddLocOpen(false);setAddLocErr("");}}}>
       <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":440,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -5493,7 +5493,7 @@ function InviteModal({
   const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setShowInvite(false);setInviteDone("");setInviteErr("");}}}>
       <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":460,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -5665,7 +5665,7 @@ function BroadcastModal({
   const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setBroadcastOpen(false);setBroadcastDone("");}}}>
       <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":480,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -7130,7 +7130,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       </div>
 
       {/* ── PILL TABS ── */}
-      <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:mobile?"6px 12px":"8px 20px",display:"flex",gap:4,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:mobile?"6px 12px":"8px 20px",display:"flex",gap:4,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>persistTab(t.id)}
             style={{fontFamily:O.sans,fontWeight:600,fontSize:13,padding:"7px 16px",border:"none",borderRadius:20,cursor:"pointer",color:tab===t.id?"#fff":O.textD,background:tab===t.id?"#e07b00":"none",transition:"all 0.15s",whiteSpace:"nowrap"}}
