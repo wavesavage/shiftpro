@@ -4,5 +4,10 @@
   },
   "routes": [
     { "src": "/hiring", "dest": "/hiring.html" }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  }
 }
