@@ -4628,6 +4628,9 @@ function PortalToggles({ orgId, toast }) {
     (async()=>{
       try{
         const r=await fetch("/api/portal-settings?orgId="+orgId,{cache:"no-store"});
+        if(!r.ok) throw new Error("API returned "+r.status);
+        const ct=r.headers.get("content-type")||"";
+        if(!ct.includes("json")) throw new Error("Non-JSON response from API");
         const d=await r.json();
         if(d.portalSettings) setSettings(prev=>({...prev,...d.portalSettings}));
         if(d.portalSettings?.showEarnings===false) setStatusMsg("✓ Loaded from database");
@@ -4799,6 +4802,183 @@ function BlackoutCalendar({ orgId, toast }) {
   );
 }
 
+// ── BILLING CARD ──
+function BillingCard({ orgId: propOrgId, ownerEmail: propEmail, orgName: propOrgName, toast }) {
+  const [billing, setBilling] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [seats, setSeats] = useState(1);
+  const [selectedPlan, setSelectedPlan] = useState("pro");
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+
+  // Fallback chain for org ID and email
+  const orgId = propOrgId || (typeof window !== "undefined" ? localStorage.getItem("shiftpro_active_orgid") : null) || "";
+  const ownerEmail = propEmail || (typeof window !== "undefined" ? localStorage.getItem("shiftpro_owner_email") : null) || "";
+  const orgName = propOrgName || (typeof window !== "undefined" ? localStorage.getItem("shiftpro_org_name") : null) || "My Business";
+
+  // Cache email for future fallback
+  useEffect(() => {
+    if (propEmail) try { localStorage.setItem("shiftpro_owner_email", propEmail); } catch(e) {}
+  }, [propEmail]);
+
+  useEffect(() => {
+    if (!orgId) { setLoading(false); return; }
+    fetch("/api/stripe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "status", orgId }),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject("API error"))
+      .then(d => { setBilling(d); setLoading(false); })
+      .catch(() => { setBilling(null); setLoading(false); });
+  }, [orgId]);
+
+  const startCheckout = async () => {
+    setCheckoutBusy(true);
+    try {
+      // Get email from auth if not available
+      let email = ownerEmail;
+      if (!email) {
+        try {
+          const { createClient } = await import("@supabase/supabase-js");
+          const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "");
+          const { data: { session } } = await sb.auth.getSession();
+          email = session?.user?.email || "";
+        } catch(e) {}
+      }
+      if (!orgId) { toast("Missing organization ID. Try refreshing the page.", "error"); setCheckoutBusy(false); return; }
+      if (!email) { toast("Missing email. Try refreshing the page.", "error"); setCheckoutBusy(false); return; }
+
+      const r = await fetch("/api/stripe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "checkout", orgId, email, orgName, planId: selectedPlan, seats }),
+      });
+      const d = await r.json();
+      if (d.url) window.location.href = d.url;
+      else { toast(d.error || "Checkout failed", "error"); }
+    } catch (e) { toast("Could not start checkout", "error"); }
+    setCheckoutBusy(false);
+  };
+
+  const openPortal = async () => {
+    try {
+      const r = await fetch("/api/stripe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "portal", orgId, email: ownerEmail, orgName }),
+      });
+      const d = await r.json();
+      if (d.url) window.location.href = d.url;
+      else toast(d.error || "Could not open billing portal", "error");
+    } catch (e) { toast("Could not open billing portal", "error"); }
+  };
+
+  if (loading) return (
+    <div>
+      <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Billing & Subscription</div>
+      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Loading billing info...</div>
+    </div>
+  );
+
+  const hasSubscription = billing && billing.status && billing.status !== "none";
+  const isTrialing = billing?.status === "trialing";
+  const isActive = billing?.status === "active";
+  const isPastDue = billing?.status === "past_due";
+  const isCanceled = billing?.status === "canceled";
+
+  return (
+    <div>
+      <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Billing & Subscription</div>
+
+      {hasSubscription ? (
+        <div>
+          {/* Current plan status */}
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <div style={{padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:700,fontFamily:O.sans,
+              background:isActive?"rgba(16,185,129,0.1)":isTrialing?"rgba(99,102,241,0.1)":isPastDue?"rgba(224,123,0,0.1)":"rgba(239,68,68,0.1)",
+              color:isActive?O.green:isTrialing?O.indigo:isPastDue?O.amber:O.red,
+              border:"1px solid "+(isActive?"rgba(16,185,129,0.2)":isTrialing?"rgba(99,102,241,0.2)":isPastDue?"rgba(224,123,0,0.2)":"rgba(239,68,68,0.2)")
+            }}>
+              {isActive?"Active":isTrialing?"Free Trial":isPastDue?"Past Due":isCanceled?"Canceled":billing.status}
+            </div>
+            <div style={{fontFamily:O.sans,fontSize:13,fontWeight:600,color:O.text}}>
+              {(billing.plan||"").charAt(0).toUpperCase()+(billing.plan||"").slice(1)} Plan
+            </div>
+            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>
+              {billing.seats} {billing.seats===1?"seat":"seats"}
+            </div>
+          </div>
+
+          {isTrialing && billing.trialEndsAt && (
+            <div style={{padding:"10px 14px",background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:8,marginBottom:14,fontFamily:O.sans,fontSize:12,color:O.indigo}}>
+              Trial ends {new Date(billing.trialEndsAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}. Add a payment method to continue after trial.
+            </div>
+          )}
+
+          {isPastDue && (
+            <div style={{padding:"10px 14px",background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:8,marginBottom:14,fontFamily:O.sans,fontSize:12,color:O.red}}>
+              Your last payment failed. Please update your payment method to avoid service interruption.
+            </div>
+          )}
+
+          <button onClick={openPortal} style={{padding:"10px 18px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.amber,cursor:"pointer"}}>
+            Manage Billing →
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:16,lineHeight:1.6}}>
+            Choose a plan to unlock all features. 7-day free trial on all plans.
+          </div>
+
+          {/* Plan selector */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+            {[
+              {id:"essentials",name:"Essentials",price:"$2.50",desc:"1 location, scheduling + time clock"},
+              {id:"pro",name:"Pro",price:"$4.00",desc:"Unlimited locations, swaps, docs, geofencing"},
+            ].map(p=>(
+              <button key={p.id} onClick={()=>setSelectedPlan(p.id)} style={{
+                padding:"14px",borderRadius:10,border:selectedPlan===p.id?"2px solid "+O.amber:"1.5px solid "+O.border,
+                background:selectedPlan===p.id?O.amberD:"#fff",cursor:"pointer",textAlign:"left",transition:"all 0.15s"
+              }}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>{p.name}</span>
+                  <span style={{fontFamily:O.mono,fontSize:12,fontWeight:700,color:O.amber}}>{p.price}<span style={{fontSize:9,color:O.textD}}>/user/mo</span></span>
+                </div>
+                <div style={{fontFamily:O.sans,fontSize:11,color:O.textD}}>{p.desc}</div>
+              </button>
+            ))}
+          </div>
+
+          {/* Seat count */}
+          <div style={{marginBottom:16}}>
+            <label style={{fontFamily:O.mono,fontSize:8,letterSpacing:"1.5px",color:O.textF,display:"block",marginBottom:6,textTransform:"uppercase"}}>Number of employees</label>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <button onClick={()=>setSeats(s=>Math.max(1,s-1))} style={{width:36,height:36,borderRadius:8,border:"1px solid "+O.border,background:"#fff",fontSize:18,cursor:"pointer",color:O.text}}>−</button>
+              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:24,color:O.text,minWidth:40,textAlign:"center"}}>{seats}</div>
+              <button onClick={()=>setSeats(s=>Math.min(200,s+1))} style={{width:36,height:36,borderRadius:8,border:"1px solid "+O.border,background:"#fff",fontSize:18,cursor:"pointer",color:O.text}}>+</button>
+              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginLeft:8}}>
+                ${(seats * (selectedPlan==="pro"?4:2.5)).toFixed(2)}/month
+              </div>
+            </div>
+          </div>
+
+          {/* Checkout button */}
+          <button onClick={startCheckout} disabled={checkoutBusy} style={{
+            width:"100%",padding:"12px",borderRadius:10,border:"none",
+            background:checkoutBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",
+            color:"#fff",fontFamily:O.sans,fontWeight:700,fontSize:14,cursor:checkoutBusy?"not-allowed":"pointer",
+            boxShadow:"0 4px 16px rgba(224,123,0,0.25)"
+          }}>
+            {checkoutBusy?"Redirecting to Stripe…":"Start 7-Day Free Trial →"}
+          </button>
+          <div style={{textAlign:"center",fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:8}}>7 days free · Cancel anytime · Charges begin after trial</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsTab({
   ownerProfile, activeOrg,
   liveLocations, setLiveLocations, activeLocation, selectLocation, setLocationGate,
@@ -4937,6 +5117,11 @@ function SettingsTab({
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Settings</div>
         <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Business Settings</div>
+      </div>
+
+      {/* ── BILLING (top of settings) ── */}
+      <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow,marginBottom:16}}>
+        <BillingCard orgId={activeOrg?.id} ownerEmail={ownerProfile?.email} orgName={settingsProfile?.name} toast={toast} />
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:16}}>
@@ -6110,7 +6295,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         let orgId = null; // Start null — owner_organizations is the source of truth
 
         // Try owner_organizations FIRST — this is always the correct org
-        const {data:ooRows} = await sb.from("owner_organizations").select("*, organizations(id,name,industry,address,phone,departments)").eq("owner_id",session.user.id).order("created_at");
+        const {data:ooRows} = await sb.from("owner_organizations").select("*, organizations(id,name,industry,address,phone,departments,created_at,subscription_status,subscription_plan,subscription_seats,trial_ends_at,stripe_customer_id)").eq("owner_id",session.user.id).order("created_at");
         let orgs = [];
         if(ooRows&&ooRows.length>0){
           orgs = ooRows.map(r=>r.organizations).filter(Boolean);
@@ -6673,6 +6858,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     return mn>0?h12+":"+String(mn).padStart(2,"0")+ampm:h12+ampm;
   };
 
+  // Trial gate calculation
+  const _subStatus = activeOrg?.subscription_status || ownerOrg?.subscription_status;
+  const _hasPaidSub = _subStatus === "active" || _subStatus === "trialing";
+  const _orgCreated = activeOrg?.created_at || ownerOrg?.created_at;
+  const _trialDaysLeft = _orgCreated ? Math.max(0, 7 - Math.floor((new Date() - new Date(_orgCreated)) / (1000*60*60*24))) : 7;
+  const trialGateActive = !_hasPaidSub && _trialDaysLeft === 0;
+
   return (
     <div style={{minHeight:"100vh",background:ownerPrefs?.darkMode?"#1a1a2e":O.bg,fontFamily:O.sans,color:ownerPrefs?.darkMode?"#e2e8f0":O.text,filter:ownerPrefs?.darkMode?"invert(0.88) hue-rotate(180deg)":"none"}}>
       {ownerPrefs?.darkMode&&<style dangerouslySetInnerHTML={{__html:"img,video,svg,.no-invert{filter:invert(1) hue-rotate(180deg)}"}}/>}
@@ -7141,7 +7333,62 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         ))}
       </div>
 
+      {/* ── TRIAL BANNER & GATE ── */}
+      {(()=>{
+        // Calculate trial status
+        const subStatus = activeOrg?.subscription_status || ownerOrg?.subscription_status;
+        const hasPaid = subStatus === "active" || subStatus === "trialing"; // Stripe trial (with card)
+        if (hasPaid) return null; // Paid or Stripe trial — no banner needed
+
+        const orgCreated = activeOrg?.created_at || ownerOrg?.created_at;
+        if (!orgCreated) return null;
+        const trialStart = new Date(orgCreated);
+        const now2 = new Date();
+        const daysPassed = Math.floor((now2 - trialStart) / (1000 * 60 * 60 * 24));
+        const daysLeft = Math.max(0, 7 - daysPassed);
+        const trialExpired = daysLeft === 0;
+
+        if (trialExpired && tab !== "settings") {
+          // Trial expired — show gate overlay
+          return (
+            <div style={{padding:"60px 24px",textAlign:"center",animation:"fadeUp 0.4s ease"}}>
+              <div style={{maxWidth:480,margin:"0 auto",background:"#fff",border:"1.5px solid "+O.border,borderRadius:20,padding:"48px 32px",boxShadow:O.shadowB}}>
+                <div style={{fontSize:56,marginBottom:16}}>⏰</div>
+                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:24,color:O.text,marginBottom:8}}>Your free trial has ended</div>
+                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.6,marginBottom:28}}>
+                  You got a taste of ShiftPro — now unlock it for your whole team. Pick a plan in Settings to keep scheduling, tracking hours, and managing your crew.
+                </div>
+                <button onClick={()=>persistTab("settings")} style={{padding:"14px 32px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:"pointer",boxShadow:"0 4px 20px rgba(224,123,0,0.3)"}}>
+                  Choose a Plan →
+                </button>
+                <div style={{marginTop:16}}>
+                  <button onClick={async()=>{try{const sb=await getSB();await sb.auth.signOut();}catch(e){}onLogout();}} style={{background:"none",border:"none",fontFamily:O.sans,fontSize:12,color:O.textD,cursor:"pointer"}}>
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        if (!trialExpired) {
+          // Trial active — show countdown banner
+          return (
+            <div style={{margin:mobile?"0 0 12px":"0 20px 12px",padding:"10px 16px",background:daysLeft<=2?"rgba(239,68,68,0.06)":"rgba(99,102,241,0.06)",border:"1px solid "+(daysLeft<=2?"rgba(239,68,68,0.15)":"rgba(99,102,241,0.15)"),borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+              <div style={{fontFamily:O.sans,fontSize:12,color:daysLeft<=2?O.red:O.indigo,fontWeight:600}}>
+                {daysLeft<=2?"⚠":"✨"} Free trial: {daysLeft} day{daysLeft!==1?"s":""} remaining
+              </div>
+              <button onClick={()=>persistTab("settings")} style={{padding:"5px 14px",borderRadius:6,border:"none",background:daysLeft<=2?O.red:"linear-gradient(135deg,#e07b00,#c96800)",color:"#fff",fontFamily:O.sans,fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                Subscribe Now
+              </button>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* ── TAB CONTENT ── */}
+      {(!trialGateActive || tab==="settings") && (
       <div style={{padding:mobile?"12px":"16px 20px",maxWidth:1200,margin:"0 auto"}}>
 
         {/* ══ COMMAND TAB ══ */}
@@ -8635,6 +8882,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         )}
 
       </div>
+      )}
     </div>
   );
 }
