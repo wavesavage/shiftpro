@@ -376,7 +376,7 @@ export default function FinalPage() {
                 </label>
                 <input
                   type="text" value={biz} onChange={(e) => setBiz(e.target.value)}
-                  placeholder="e.g. Sea Lion Bar"
+                  placeholder="e.g. The Parlor"
                   style={{
                     width: "100%", padding: "13px 14px", background: C.ocean100,
                     border: "1px solid " + C.ocean200, borderRadius: 3, color: C.t1,
@@ -510,7 +510,7 @@ export default function FinalPage() {
         padding: "24px 32px", textAlign: "center",
         fontFamily: ff.mono, fontSize: 10, color: C.t4, letterSpacing: 1,
       }}>
-        SHIFTPRO.AI · BAYSCAPES MANAGEMENT ENTERPRISES · NEWPORT, OR
+        SHIFTPRO AI, INC. · HELLO@SHIFTPRO.AI
       </footer>
     </div>
   );

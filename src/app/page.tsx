@@ -318,15 +318,15 @@ const SVG = {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// LIVE FEED DATA — for hero overlay  (real Newport contexts)
+// LIVE FEED DATA — for hero overlay
 // ═══════════════════════════════════════════════════════════════
 const FEED = [
-  { icon: SVG.clockIn,     text: "Jake Mendoza clocked in",           loc: "Sea Lion · Bartender",           color: C.success,    ago: "just now" },
-  { icon: SVG.swap,        text: "Sarah posted Sat night for swap",   loc: "Surf Town · Barista",             color: C.coral500,   ago: "14s ago"   },
-  { icon: SVG.checkCircle, text: "Manager approved Sarah's swap",     loc: "Surf Town",                       color: C.success,    ago: "28s ago"   },
-  { icon: SVG.message,     text: "Priya sent manager a message",      loc: "Marine Discovery",                color: C.sky500,     ago: "1m ago"    },
-  { icon: SVG.grid,        text: "Schedule published · 12 notified",  loc: "Sea Lion",                        color: C.amber500,   ago: "2m ago"    },
-  { icon: SVG.calendar,    text: "Carlos requested June 14–18 off",   loc: "Surf Town",                       color: C.terracotta, ago: "3m ago"    },
+  { icon: SVG.clockIn,     text: "Marcus Rivera clocked in",            loc: "The Parlor · Bartender",            color: C.success,    ago: "just now" },
+  { icon: SVG.swap,        text: "Leila posted Sat night for swap",     loc: "Common Ground · Barista",            color: C.coral500,   ago: "14s ago"  },
+  { icon: SVG.checkCircle, text: "Manager approved Leila's swap",       loc: "Common Ground",                      color: C.success,    ago: "28s ago"  },
+  { icon: SVG.message,     text: "Nia sent manager a message",          loc: "Capital City Tours",                 color: C.sky500,     ago: "1m ago"   },
+  { icon: SVG.grid,        text: "Schedule published · 14 notified",    loc: "The Parlor",                         color: C.amber500,   ago: "2m ago"   },
+  { icon: SVG.calendar,    text: "Devin requested June 14–18 off",      loc: "Common Ground",                      color: C.terracotta, ago: "3m ago"   },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -613,7 +613,7 @@ export function LandingPage() {
               <div style={{ position: "relative", animation: "fadeUp 1s cubic-bezier(.22,1,.36,1) .3s both", paddingTop: 20 }}>
                 {/* Amber tape label */}
                 <div style={{ position: "absolute", top: -4, left: -18, zIndex: 4, animation: "tapeDrift 3s ease-in-out infinite" }}>
-                  <span className="tape">LIVE · NEWPORT BAYFRONT</span>
+                  <span className="tape">LIVE · AUSTIN, TX</span>
                 </div>
 
                 {/* Main dashboard card — LIGHT themed, tilted */}
@@ -635,7 +635,7 @@ export function LandingPage() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
                       <div>
                         <div style={{ fontFamily: ff.mono, fontSize: 9, color: C.t3, letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>This week</div>
-                        <div style={{ fontFamily: ff.display, fontSize: 22, fontWeight: 600, color: C.t1, letterSpacing: "-0.02em" }}>Sea Lion Bar</div>
+                        <div style={{ fontFamily: ff.display, fontSize: 22, fontWeight: 600, color: C.t1, letterSpacing: "-0.02em" }}>The Parlor</div>
                       </div>
                       <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.amber600, fontWeight: 600, letterSpacing: 1 }}>12 ON · 3 OFF</div>
                     </div>
@@ -709,14 +709,14 @@ export function LandingPage() {
       <section style={{ padding: "22px 0", background: C.ink, color: "#fff", overflow: "hidden", borderTop: "1px solid " + C.indigoDeep, borderBottom: "1px solid " + C.indigoDeep, position: "relative" }}>
         <div style={{ display: "flex", gap: 54, whiteSpace: "nowrap", animation: "marquee 52s linear infinite", width: "max-content" }}>
           {Array.from({ length: 2 }).flatMap((_, k) => [
-            { tag: "CLOCK-IN", txt: "Jake Mendoza · Sea Lion Bartender" },
-            { tag: "SWAP",     txt: "Sarah Chen posted Sat 5pm–close" },
-            { tag: "APPROVE",  txt: "Priya approved Sarah's swap" },
-            { tag: "PUBLISH",  txt: "Week of Jun 16 · Sea Lion · 12 shifts" },
-            { tag: "MESSAGE",  txt: "Carlos: 'Running 5 min late'" },
-            { tag: "CLOCK-OUT",txt: "Anya Cole · 8.25h logged" },
-            { tag: "REQUEST",  txt: "Priya requested Jun 14–18 off" },
-            { tag: "PAYROLL",  txt: "Weekly CSV exported · 412 hrs" },
+            { tag: "CLOCK-IN",  txt: "Marcus Rivera · The Parlor Bartender" },
+            { tag: "SWAP",      txt: "Leila posted Sat 5pm–close for swap" },
+            { tag: "APPROVE",   txt: "Manager approved Leila's swap" },
+            { tag: "PUBLISH",   txt: "Week of Jun 16 · The Parlor · 14 shifts" },
+            { tag: "MESSAGE",   txt: "Devin: 'Running 5 min late'" },
+            { tag: "CLOCK-OUT", txt: "Nia Cole · 8.25h logged" },
+            { tag: "REQUEST",   txt: "Devin requested Jun 14–18 off" },
+            { tag: "PAYROLL",   txt: "Weekly CSV exported · 412 hrs" },
           ].map((it, i) => (
             <span key={k + "-" + i} style={{ display: "inline-flex", alignItems: "center", gap: 14, fontFamily: ff.mono, fontSize: 11, letterSpacing: 1 }}>
               <span style={{ color: C.amber400, fontWeight: 700, letterSpacing: 2 }}>◉ {it.tag}</span>
@@ -756,8 +756,8 @@ export function LandingPage() {
             {/* Left rail — metadata + "photo" space */}
             <div data-rv="storyRail" className={"rv " + (shown("storyRail") ? "vis" : "")}>
               <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 2, marginBottom: 14, textTransform: "uppercase", fontWeight: 600 }}>
-                By <span style={{ color: C.terracotta }}>Brendan</span><br />
-                Newport, Oregon
+                By <span style={{ color: C.terracotta }}>Jordan</span><br />
+                Austin, Texas
               </div>
               {/* "Polaroid" — abstract coast representation */}
               <div style={{ transform: "rotate(-2.5deg)", background: "#fff", padding: "10px 10px 44px", boxShadow: "0 14px 28px rgba(12,18,32,0.15)", maxWidth: 240, position: "relative", margin: isMobile ? "8px 0 20px" : "0" }}>
@@ -776,7 +776,7 @@ export function LandingPage() {
                   <path d="M 0 92 L 30 78 L 60 88 L 0 88 Z" fill="#0a0d1a" opacity="0.85" />
                 </svg>
                 <div style={{ position: "absolute", bottom: 10, left: 14, fontFamily: ff.mono, fontSize: 9, color: C.t3, letterSpacing: 1, textTransform: "uppercase" }}>
-                  Newport Bayfront · 04:52 AM
+                  East 6th St · 04:52 AM
                 </div>
               </div>
               <div style={{ fontFamily: ff.mono, fontSize: 9, color: C.t4, letterSpacing: 1.5, marginTop: 12 }}>Photo: deposit run, before open</div>
@@ -785,24 +785,24 @@ export function LandingPage() {
             {/* Right rail — editorial body */}
             <div data-rv="storyBody" className={"rv rv-d2 " + (shown("storyBody") ? "vis" : "")}>
               <div className="dropcap col2" style={{ fontFamily: ff.display, fontSize: 17, lineHeight: 1.6, color: C.t1, fontWeight: 400, letterSpacing: "-0.005em" }}>
-                I own a bar in Newport, Oregon. Before that, a coffee shop. Before that, a boat. For eight years I scheduled shifts on a spreadsheet, in a Facebook group, and — god help me — on a bulletin board by the walk-in.
+                I run a bar in Austin, Texas. Before that, a coffee shop. For seven years I scheduled shifts on a spreadsheet, in a group text, and — god help me — on a corkboard by the walk-in.
                 <br /><br />
                 Every scheduling app I tried was built for someone else. They wanted our payroll data, our retention metrics, our compliance reports. What I wanted was to publish next week's schedule without losing a Saturday morning to it.
                 <br /><br />
                 So I built ShiftPro. It handles the schedule. It handles the clock. It handles the "can I swap Sunday?" texts. It doesn't try to handle HR, or benefits, or your POS. It does the one thing you actually need done.
                 <br /><br />
-                If you run a bar, a coffee shop, a boat tour, a gym, a salon — anything where the schedule runs the whole show — it was built for you. Try it for a week. If it saves you a Saturday morning, you'll never go back.
+                If you run a bar, a coffee shop, a tour company, a gym, a salon — anything where the schedule runs the whole show — it was built for you. Try it for a week. If it saves you a Saturday morning, you'll never go back.
               </div>
 
               {/* Signature */}
               <div style={{ marginTop: 40, display: "flex", alignItems: "flex-end", gap: 16 }}>
-                <svg width="170" height="54" viewBox="0 0 170 54" aria-label="Brendan signature" style={{ flexShrink: 0 }}>
+                <svg width="170" height="54" viewBox="0 0 170 54" aria-label="Founder signature" style={{ flexShrink: 0 }}>
                   <path d="M 4 36 C 6 16, 14 10, 18 18 C 20 28, 14 38, 9 34 M 18 18 C 22 28, 28 30, 32 22 C 36 14, 28 10, 26 20 L 30 34 M 32 24 Q 40 14, 46 28 L 48 34 M 46 28 Q 54 20, 58 32 M 56 20 L 60 36 M 60 26 Q 68 18, 74 28 L 76 36 M 76 28 Q 84 20, 90 30 M 90 22 L 94 36"
                     stroke={C.ink} strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M 12 44 Q 40 42, 80 44 T 140 43" stroke={C.amber500} strokeWidth="1.4" fill="none" strokeLinecap="round" opacity="0.85" />
                 </svg>
                 <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 1.8, textTransform: "uppercase", paddingBottom: 4 }}>
-                  Brendan — <span style={{ color: C.terracotta }}>Newport, OR</span>
+                  Jordan — <span style={{ color: C.terracotta }}>Austin, TX</span>
                 </div>
               </div>
             </div>
@@ -824,7 +824,7 @@ export function LandingPage() {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: isMobile ? 32 : 0, borderTop: "1px solid " + C.border, borderBottom: "1px solid " + C.border }}>
             {[
               { num: "5 min", label: "First schedule published", detail: "From signup to the first text that goes out." },
-              { num: "6 hrs", label: "Saved per week, per owner", detail: "Averaged across the first 100 Newport businesses." },
+              { num: "6 hrs", label: "Saved per week, per owner", detail: "Averaged across the first 100 businesses." },
               { num: "0",     label: "Group texts about shifts",  detail: "We replace them with swaps, pickups, and push." },
             ].map((s, i) => (
               <div key={i} data-rv={"stat-" + i} className={"rv rv-d" + (i + 1) + " " + (shown("stat-" + i) ? "vis" : "")} style={{ padding: isMobile ? "32px 0" : "48px 36px", borderLeft: !isMobile && i > 0 ? "1px solid " + C.border : "none", borderBottom: isMobile && i < 2 ? "1px solid " + C.border : "none" }}>
@@ -1074,7 +1074,7 @@ export function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <a href="mailto:brendan@shiftpro.ai?subject=Enterprise" style={{ display: "block", textAlign: "center", padding: "13px", borderRadius: 3, border: "1.5px solid " + C.ink, color: C.t1, fontFamily: ff.body, fontWeight: 700, fontSize: 14, transition: "background .15s,color .15s" }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = C.ink; (e.currentTarget as HTMLElement).style.color = "#fff"; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = C.t1; }}>Email Brendan →</a>
+              <a href="mailto:hello@shiftpro.ai?subject=Enterprise" style={{ display: "block", textAlign: "center", padding: "13px", borderRadius: 3, border: "1.5px solid " + C.ink, color: C.t1, fontFamily: ff.body, fontWeight: 700, fontSize: 14, transition: "background .15s,color .15s" }} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = C.ink; (e.currentTarget as HTMLElement).style.color = "#fff"; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = C.t1; }}>Contact Sales →</a>
             </div>
           </div>
 
@@ -1148,7 +1148,7 @@ export function LandingPage() {
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div data-rv="faq-h" className={"rv " + (shown("faq-h") ? "vis" : "")} style={{ marginBottom: isMobile ? 44 : 72 }}>
             <h2 style={{ fontFamily: ff.display, fontSize: isMobile ? 44 : "clamp(56px,6.4vw,92px)", fontWeight: 500, color: C.t1, letterSpacing: "-0.04em", lineHeight: 0.9 }}>
-              Q&amp;A <span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber500 }}>(no accordions).</span>
+              Q&amp;A
             </h2>
           </div>
 
@@ -1171,10 +1171,7 @@ export function LandingPage() {
               { q: "What if I run multiple locations?",
                 a: "Pro plan includes unlimited locations. Switch between them with one tap. Each gets its own staff, schedule, and geofence — but reporting rolls up." },
             ].map((item, i) => (
-              <div key={i} data-rv={"faq-" + i} className={"rv rv-d" + ((i % 3) + 1) + " " + (shown("faq-" + i) ? "vis" : "")} style={{ padding: isMobile ? "28px 0" : "36px 0", borderTop: "1px solid " + C.border, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "auto 1fr", gap: isMobile ? 14 : 48, alignItems: "baseline" }}>
-                <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.terracotta, fontWeight: 700, letterSpacing: 2.2, minWidth: isMobile ? "auto" : 72 }}>
-                  Q.{String(i + 1).padStart(2, "0")}
-                </div>
+              <div key={i} data-rv={"faq-" + i} className={"rv rv-d" + ((i % 3) + 1) + " " + (shown("faq-" + i) ? "vis" : "")} style={{ padding: isMobile ? "28px 0" : "36px 0", borderTop: "1px solid " + C.border }}>
                 <div>
                   <div style={{ fontFamily: ff.display, fontSize: isMobile ? 20 : 26, fontStyle: "italic", fontWeight: 400, color: C.t1, letterSpacing: "-0.02em", lineHeight: 1.25, marginBottom: 12 }}>
                     {item.q}
@@ -1227,7 +1224,7 @@ export function LandingPage() {
               Already have an account? Sign in →
             </button>
             <span className="tn" style={{ fontFamily: ff.mono, fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 1.5 }}>
-              NEWPORT BAYFRONT · {ptNow} PT
+              AUSTIN, TX · {ptNow} CT
             </span>
           </div>
         </div>
@@ -1246,15 +1243,14 @@ export function LandingPage() {
                 <SwirlMark size={38} />
                 <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
                   <span style={{ fontFamily: ff.display, fontWeight: 700, fontSize: 22, color: "#f5f0e6", letterSpacing: "-0.03em" }}>ShiftPro<span style={{ color: C.amber400, fontStyle: "italic", fontWeight: 400 }}>.ai</span></span>
-                  <span style={{ fontFamily: ff.mono, fontSize: 9, color: C.amber400, letterSpacing: 2.5, marginTop: 4, fontWeight: 500 }}>EST. 2026 · NEWPORT, OR</span>
+                  <span style={{ fontFamily: ff.mono, fontSize: 9, color: C.amber400, letterSpacing: 2.5, marginTop: 4, fontWeight: 500 }}>EST. 2026</span>
                 </div>
               </div>
               <div style={{ fontFamily: ff.display, fontSize: 18, fontStyle: "italic", fontWeight: 300, color: "rgba(255,255,255,0.85)", lineHeight: 1.4, marginBottom: 16, maxWidth: 360 }}>
                 "Built by someone who's worked a Friday close."
               </div>
               <div style={{ fontFamily: ff.mono, fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: 1.8, lineHeight: 1.8, fontWeight: 500 }}>
-                BAYSCAPES MANAGEMENT ENTERPRISES<br />
-                345 SW BAY BLVD · NEWPORT, OR 97365<br />
+                SHIFTPRO AI, INC.<br />
                 HELLO@SHIFTPRO.AI
               </div>
             </div>
@@ -1288,10 +1284,10 @@ export function LandingPage() {
 
           <div style={{ paddingTop: 22, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
             <span className="tn" style={{ fontFamily: ff.mono, fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 1.8, textTransform: "uppercase", fontWeight: 500 }}>
-              © 2026 Shift Pro Enterprises · Made on the Oregon coast
+              © 2026 ShiftPro AI, Inc. · Built for real operators
             </span>
             <span style={{ fontFamily: ff.display, fontSize: 14, fontStyle: "italic", color: "rgba(255,255,255,0.55)" }}>
-              — Brendan, <span style={{ color: C.amber400 }}>Newport OR</span>
+              — The ShiftPro Team
             </span>
           </div>
         </div>
@@ -1307,7 +1303,7 @@ function TourScheduleMock() {
   return (
     <div style={{ fontFamily: ff.body }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-        <div style={{ fontFamily: ff.display, fontSize: 16, fontWeight: 600, color: C.t1 }}>Week of Jun 16 · Sea Lion</div>
+        <div style={{ fontFamily: ff.display, fontSize: 16, fontWeight: 600, color: C.t1 }}>Week of Jun 16 · The Parlor</div>
         <div style={{ fontFamily: ff.mono, fontSize: 9, color: C.success, letterSpacing: 1.2, fontWeight: 600 }}>◉ PUBLISHED</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "60px repeat(7, 1fr)", gap: 3, marginBottom: 6 }}>
@@ -1348,10 +1344,10 @@ function TourClockMock({ ptNow }: { ptNow: string }) {
         <div className="tn" style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, fontWeight: 600, letterSpacing: 0.8 }}>{ptNow} PT</div>
       </div>
       {[
-        { n: "Jake Mendoza",  r: "Sea Lion · Bar",          since: "11:02", hrs: "4h 12m", col: C.success },
-        { n: "Sarah Chen",    r: "Surf Town · Counter",     since: "06:15", hrs: "9h 00m", col: C.amber500 },
-        { n: "Priya Patel",   r: "Marine Discovery · Deck", since: "07:30", hrs: "7h 45m", col: C.sky500 },
-        { n: "Anya Cole",     r: "Sea Lion · Host",         since: "14:00", hrs: "1h 14m", col: C.terracotta },
+        { n: "Marcus Rivera",  r: "The Parlor · Bar",           since: "11:02", hrs: "4h 12m", col: C.success },
+        { n: "Leila Santos",   r: "Common Ground · Counter",    since: "06:15", hrs: "9h 00m", col: C.amber500 },
+        { n: "Nia Okafor",     r: "Capital City Tours · Deck",  since: "07:30", hrs: "7h 45m", col: C.sky500 },
+        { n: "Devin Cole",     r: "The Parlor · Host",          since: "14:00", hrs: "1h 14m", col: C.terracotta },
       ].map((p, i) => (
         <div key={p.n} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#fff", border: "1px solid " + C.border, borderRadius: 3, marginBottom: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.col, boxShadow: "0 0 0 3px " + p.col + "25", flexShrink: 0 }} />
@@ -1375,8 +1371,8 @@ function TourSwapMock() {
       <div style={{ fontFamily: ff.display, fontSize: 16, fontWeight: 600, color: C.t1, marginBottom: 16 }}>Swap Inbox · 2 pending</div>
 
       {[
-        { from: "Sarah Chen", shift: "Sat Jun 21 · 5pm–close · Sea Lion", taker: "Jake M.", status: "pending" },
-        { from: "Priya Patel", shift: "Sun Jun 22 · 8am–2pm · Surf Town", taker: "Luis T.",  status: "approve" },
+        { from: "Leila Santos", shift: "Sat Jun 21 · 5pm–close · The Parlor",   taker: "Marcus R.", status: "pending" },
+        { from: "Nia Okafor",   shift: "Sun Jun 22 · 8am–2pm · Common Ground", taker: "Devin C.",  status: "approve" },
       ].map((s, i) => (
         <div key={i} style={{ padding: 14, background: "#fff", border: "1px solid " + C.border, borderRadius: 3, marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
@@ -1444,10 +1440,10 @@ function TourChatMock() {
         <div style={{ fontFamily: ff.mono, fontSize: 9, color: C.t3, letterSpacing: 1 }}>4 IN THREAD</div>
       </div>
       {[
-        { who: "Brendan (Mgr)", msg: "Running a bit heavy on covers tonight — Jake, can you come in 30 min early?", when: "14:02", self: true, col: C.amber500 },
+        { who: "Jordan (Mgr)", msg: "Running a bit heavy on covers tonight — Marcus, can you come in 30 min early?", when: "14:02", self: true, col: C.amber500 },
         { who: "Jake M.",       msg: "Yep, on my way.", when: "14:04", self: false, col: C.sky500 },
         { who: "Sarah C.",      msg: "I can cover the door until Jake's in if that helps.", when: "14:05", self: false, col: C.terracotta },
-        { who: "Brendan (Mgr)", msg: "Perfect, thanks team 🙏", when: "14:06", self: true, col: C.amber500 },
+        { who: "Jordan (Mgr)", msg: "Perfect, thanks team 🙏", when: "14:06", self: true, col: C.amber500 },
       ].map((m, i) => (
         <div key={i} style={{ display: "flex", flexDirection: m.self ? "row-reverse" : "row", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
           <div style={{ width: 26, height: 26, borderRadius: 3, background: m.col + "22", color: m.col, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
