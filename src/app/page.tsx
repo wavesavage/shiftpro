@@ -736,44 +736,94 @@ export function LandingPage() {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 2fr", gap: isMobile ? 40 : 80, alignItems: "start" }}>
             {/* Left rail — metadata + "photo" space */}
             <div data-rv="storyRail" className={"rv " + (shown("storyRail") ? "vis" : "")} style={{ display: "flex", justifyContent: isMobile ? "flex-start" : "center", alignItems: "flex-start", paddingTop: isMobile ? 0 : 20 }}>
-              {/* Clean award badge */}
-              <svg width="190" height="190" viewBox="0 0 190 190" fill="none" style={{ transform: "rotate(-4deg)", filter: "drop-shadow(0 6px 20px rgba(12,18,32,0.18))" }}>
-                {/* Outer ring */}
-                <circle cx="95" cy="95" r="90" fill={C.ink} />
-                {/* Amber accent ring */}
-                <circle cx="95" cy="95" r="82" fill="none" stroke={C.amber500} strokeWidth="1.2" />
-                {/* Inner ring */}
-                <circle cx="95" cy="95" r="76" fill="none" stroke={C.amber500} strokeWidth="0.5" opacity="0.4" />
+              {/* Award badge — matches reference design */}
+              <svg width="210" height="210" viewBox="0 0 210 210" fill="none" style={{ transform: "rotate(-3deg)", filter: "drop-shadow(0 8px 28px rgba(40,64,200,0.28))" }}>
+                <defs>
+                  <linearGradient id="bgGrad" x1="0.2" y1="0" x2="0.8" y2="1">
+                    <stop offset="0%" stopColor="#7AABFF"/>
+                    <stop offset="55%" stopColor="#3B6FEE"/>
+                    <stop offset="100%" stopColor="#1C3CC8"/>
+                  </linearGradient>
+                  <linearGradient id="numGrad" x1="0.3" y1="0" x2="0.7" y2="1">
+                    <stop offset="0%" stopColor="#4D80FF"/>
+                    <stop offset="100%" stopColor="#1230BB"/>
+                  </linearGradient>
+                  <linearGradient id="schedGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#5588FF"/>
+                    <stop offset="100%" stopColor="#2244DD"/>
+                  </linearGradient>
+                </defs>
 
-                {/* Laurel left */}
-                <path d="M 34 95 C 36 80, 44 68, 54 64" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
-                <path d="M 34 95 C 30 80, 32 66, 40 60" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-                <path d="M 36 102 C 30 90, 28 76, 32 66" stroke={C.amber500} strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+                {/* Scalloped outer ring */}
+                <path d="M 105.00 17.00 Q 119.66 3.05 129.79 20.56 Q 147.79 11.31 152.58 30.97 Q 172.45 27.16 171.51 47.37 Q 191.65 49.31 185.05 68.44 Q 203.83 75.98 192.10 92.48 Q 208.00 105.00 192.10 117.52 Q 203.83 134.02 185.05 141.56 Q 191.65 160.69 171.51 162.63 Q 172.45 182.84 152.58 179.03 Q 147.79 198.69 129.79 189.44 Q 119.66 206.95 105.00 193.00 Q 90.34 206.95 80.21 189.44 Q 62.21 198.69 57.42 179.03 Q 37.55 182.84 38.49 162.63 Q 18.35 160.69 24.95 141.56 Q 6.17 134.02 17.90 117.52 Q 2.00 105.00 17.90 92.48 Q 6.17 75.98 24.95 68.44 Q 18.35 49.31 38.49 47.37 Q 37.55 27.16 57.42 30.97 Q 62.21 11.31 80.21 20.56 Q 90.34 3.05 105.00 17.00 Z"
+                  fill="url(#bgGrad)" />
 
-                {/* Laurel right */}
-                <path d="M 156 95 C 154 80, 146 68, 136 64" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
-                <path d="M 156 95 C 160 80, 158 66, 150 60" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-                <path d="M 154 102 C 160 90, 162 76, 158 66" stroke={C.amber500} strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+                {/* White inner circle */}
+                <circle cx="105" cy="105" r="80" fill="white"/>
 
-                {/* Star at top */}
-                <text x="95" y="34" textAnchor="middle" fontSize="13" fill={C.amber500} opacity="0.9">★</text>
+                {/* Blue ring */}
+                <circle cx="105" cy="105" r="77" fill="none" stroke="#4466EE" strokeWidth="1.4"/>
+                <circle cx="105" cy="105" r="73.5" fill="none" stroke="#AABCFF" strokeWidth="0.6" opacity="0.6"/>
 
-                {/* RATED label */}
-                <text x="95" y="68" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontSize="9" fontWeight="700" fill={C.amber400} letterSpacing="4">RATED</text>
+                {/* ── Left laurel wreath ── */}
+                {/* outer leaves */}
+                {[
+                  {x:73,y:100,r:-30}, {x:68,y:91,r:-42}, {x:64,y:82,r:-54},
+                  {x:61,y:73,r:-64}, {x:59,y:64,r:-74}, {x:58,y:56,r:-84},
+                ].map((l,i)=>(
+                  <path key={"ll"+i} d="M 0 0 Q 5 -2 4 -9 Q 0 -7 -2 -9 Q -3 -4 0 0 Z"
+                    transform={`translate(${l.x},${l.y}) rotate(${l.r})`}
+                    fill="#8AABEE" opacity={0.75 - i*0.04}/>
+                ))}
+                {/* inner leaves */}
+                {[
+                  {x:80,y:98,r:-15}, {x:75,y:89,r:-25}, {x:71,y:80,r:-36},
+                  {x:68,y:71,r:-46}, {x:66,y:62,r:-56}, {x:65,y:54,r:-66},
+                ].map((l,i)=>(
+                  <path key={"li"+i} d="M 0 0 Q 5 -2 4 -9 Q 0 -7 -2 -9 Q -3 -4 0 0 Z"
+                    transform={`translate(${l.x},${l.y}) rotate(${l.r})`}
+                    fill="#AABCEE" opacity={0.65 - i*0.03}/>
+                ))}
+                {/* stem */}
+                <path d="M 78 102 C 72 88 66 74 61 58" stroke="#8AABEE" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.5"/>
+
+                {/* ── Right laurel wreath (mirror) ── */}
+                {[
+                  {x:137,y:100,r:30}, {x:142,y:91,r:42}, {x:146,y:82,r:54},
+                  {x:149,y:73,r:64}, {x:151,y:64,r:74}, {x:152,y:56,r:84},
+                ].map((l,i)=>(
+                  <path key={"rl"+i} d="M 0 0 Q -5 -2 -4 -9 Q 0 -7 2 -9 Q 3 -4 0 0 Z"
+                    transform={`translate(${l.x},${l.y}) rotate(${l.r})`}
+                    fill="#8AABEE" opacity={0.75 - i*0.04}/>
+                ))}
+                {[
+                  {x:130,y:98,r:15}, {x:135,y:89,r:25}, {x:139,y:80,r:36},
+                  {x:142,y:71,r:46}, {x:144,y:62,r:56}, {x:145,y:54,r:66},
+                ].map((l,i)=>(
+                  <path key={"ri"+i} d="M 0 0 Q -5 -2 -4 -9 Q 0 -7 2 -9 Q 3 -4 0 0 Z"
+                    transform={`translate(${l.x},${l.y}) rotate(${l.r})`}
+                    fill="#AABCEE" opacity={0.65 - i*0.03}/>
+                ))}
+                <path d="M 132 102 C 138 88 144 74 149 58" stroke="#8AABEE" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.5"/>
 
                 {/* #1 */}
-                <text x="95" y="120" textAnchor="middle" fontFamily="'Fraunces', serif" fontSize="58" fontWeight="700" fill="#ffffff" letterSpacing="-2">#1</text>
+                <text x="105" y="84" textAnchor="middle" fontFamily="'Inter',system-ui,sans-serif" fontSize="58" fontWeight="900" fill="url(#numGrad)">#1</text>
 
-                {/* Divider line */}
-                <line x1="58" y1="130" x2="132" y2="130" stroke={C.amber500} strokeWidth="0.8" opacity="0.5" />
+                {/* Star + flanking lines */}
+                <line x1="65" y1="96" x2="90" y2="96" stroke="#AABBEE" strokeWidth="0.9"/>
+                <text x="105" y="100" textAnchor="middle" fontSize="10" fill="#3355CC">★</text>
+                <line x1="120" y1="96" x2="145" y2="96" stroke="#AABBEE" strokeWidth="0.9"/>
 
-                {/* SCHEDULING APP */}
-                <text x="95" y="147" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontSize="8.5" fontWeight="600" fill="rgba(255,255,255,0.85)" letterSpacing="2.5">SCHEDULING APP</text>
+                {/* EMPLOYEE */}
+                <text x="105" y="120" textAnchor="middle" fontFamily="'Inter',system-ui,sans-serif" fontSize="13" fontWeight="800" fill="#12205E" letterSpacing="0.8">EMPLOYEE</text>
 
-                {/* Bottom stars */}
-                <text x="73" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
-                <text x="95" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
-                <text x="117" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
+                {/* SCHEDULING */}
+                <text x="105" y="137" textAnchor="middle" fontFamily="'Inter',system-ui,sans-serif" fontSize="13" fontWeight="800" fill="url(#schedGrad)" letterSpacing="0.8">SCHEDULING</text>
+
+                {/* — TOOL — */}
+                <line x1="63" y1="151" x2="81" y2="151" stroke="#AABBEE" strokeWidth="0.9"/>
+                <text x="105" y="155" textAnchor="middle" fontFamily="'Inter',system-ui,sans-serif" fontSize="11" fontWeight="700" fill="#12205E" letterSpacing="2">TOOL</text>
+                <line x1="129" y1="151" x2="147" y2="151" stroke="#AABBEE" strokeWidth="0.9"/>
               </svg>
             </div>
 
