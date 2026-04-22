@@ -140,7 +140,6 @@ a{text-decoration:none;color:inherit;}
 @keyframes tiltHover{0%{transform:perspective(1600px) rotateY(-2deg) rotateX(3deg) rotate(2deg)}100%{transform:perspective(1600px) rotateY(0deg) rotateX(5deg) rotate(2.4deg)}}
 @keyframes tapeDrift{0%,100%{transform:rotate(-4deg) translate(0,0)}50%{transform:rotate(-4deg) translate(1px,-1px)}}
 @keyframes inkDraw{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
-@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-10deg)}50%{transform:rotate(8deg)}75%{transform:rotate(-4deg)}}
 @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes sheen{0%{background-position:-200% 0}100%{background-position:200% 0}}
 
@@ -205,11 +204,6 @@ a{text-decoration:none;color:inherit;}
   z-index:200;
 }
 .nav-dd:hover .nav-dd-menu, .nav-dd:focus-within .nav-dd-menu{opacity:1;pointer-events:auto;transform:none;}
-
-/* --- logo easter egg --- */
-.swirl-wrap:hover .swirl-hit{animation:wiggle .7s cubic-bezier(.22,1,.36,1);}
-.swirl-tip{position:absolute;top:calc(100% + 8px);left:0;font-family:${ff.mono};font-size:9px;letter-spacing:2px;color:${C.amber600};opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap;}
-.swirl-wrap:hover .swirl-tip{opacity:1;}
 
 /* --- grain overlay helper --- */
 .grain-overlay{position:relative;}
@@ -477,13 +471,12 @@ export function LandingPage() {
         <div style={{ maxWidth: 1320, margin: "0 auto", height: isMobile ? 58 : 72, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
 
           {/* LOGO */}
-          <a href="/" className="swirl-wrap" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, position: "relative" }}>
-            <SwirlMark size={34} />
+          <a href="/" className="swirl-wrap" style={{ display: "flex", alignItems: "center", gap: 13, flexShrink: 0, position: "relative", textDecoration: "none" }}>
+            <SwirlMark size={56} />
             <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
-              <span style={{ fontFamily: ff.display, fontWeight: 700, fontSize: 19, color: C.t1, letterSpacing: "-0.03em" }}>ShiftPro<span style={{ color: C.amber500, fontStyle: "italic", fontWeight: 400 }}>.ai</span></span>
-              <span style={{ fontFamily: ff.mono, fontSize: 8, color: C.t3, letterSpacing: 2.2, marginTop: 3, fontWeight: 500 }}>EST. BEND, OR · 2026</span>
+              <span style={{ fontFamily: ff.display, fontWeight: 700, fontSize: 30, color: C.t1, letterSpacing: "-0.03em" }}>ShiftPro<span style={{ color: C.amber500, fontStyle: "italic", fontWeight: 400 }}>.ai</span></span>
+              <span style={{ fontFamily: ff.mono, fontSize: 9, color: C.t3, letterSpacing: 2.2, marginTop: 4, fontWeight: 500 }}>EST. BEND, OR · 2025</span>
             </div>
-            <span className="swirl-tip">◖ AHOY ◗</span>
           </a>
 
           {/* CENTER LINKS (desktop only) */}
@@ -729,11 +722,6 @@ export function LandingPage() {
         <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 20, background: "repeating-linear-gradient(-2deg, " + C.parchmentOn + ", " + C.parchmentOn + " 8px, transparent 8px, transparent 22px)", opacity: 0.7, pointerEvents: "none" }} />
 
         <div style={{ maxWidth: 1080, margin: "0 auto", position: "relative", zIndex: 2 }}>
-          {/* Section head */}
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: isMobile ? 40 : 64 }} className={"rv " + (shown("story") ? "vis" : "")}>
-            <Squiggle w={60} color={C.sage} strokeW={1.6} />
-            <Squiggle w={60} color={C.sage} strokeW={1.6} />
-          </div>
 
           {/* The giant pull quote */}
           <div data-rv="pq" className={"rv " + (shown("pq") ? "vis" : "")} style={{ marginBottom: isMobile ? 56 : 80 }}>
@@ -748,41 +736,44 @@ export function LandingPage() {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 2fr", gap: isMobile ? 40 : 80, alignItems: "start" }}>
             {/* Left rail — metadata + "photo" space */}
             <div data-rv="storyRail" className={"rv " + (shown("storyRail") ? "vis" : "")} style={{ display: "flex", justifyContent: isMobile ? "flex-start" : "center", alignItems: "flex-start", paddingTop: isMobile ? 0 : 20 }}>
-              {/* #1 Seal of Approval */}
-              <svg width="210" height="210" viewBox="0 0 210 210" style={{ transform: "rotate(-6deg)", filter: "drop-shadow(0 8px 24px rgba(12,18,32,0.13))" }}>
-                {/* Outer starburst ring */}
-                {Array.from({ length: 24 }).map((_, i) => {
-                  const a = (i * 360) / 24;
-                  const r1 = 98, r2 = 88;
-                  const ax = 105 + r1 * Math.cos((a * Math.PI) / 180);
-                  const ay = 105 + r1 * Math.sin((a * Math.PI) / 180);
-                  const bx = 105 + r2 * Math.cos(((a + 7.5) * Math.PI) / 180);
-                  const by = 105 + r2 * Math.sin(((a + 7.5) * Math.PI) / 180);
-                  return <line key={i} x1={ax} y1={ay} x2={bx} y2={by} stroke={C.amber500} strokeWidth="2.5" opacity="0.85" />;
-                })}
-                {/* Main circle */}
-                <circle cx="105" cy="105" r="84" fill={C.ink} />
-                <circle cx="105" cy="105" r="78" fill="none" stroke={C.amber500} strokeWidth="1.5" opacity="0.6" />
-                <circle cx="105" cy="105" r="72" fill="none" stroke={C.amber500} strokeWidth="0.8" opacity="0.35" />
-                {/* Top arc text */}
-                <path id="topArc" d="M 105,105 m -62,0 a 62,62 0 1,1 124,0" fill="none" />
-                <text fontSize="9.5" fontFamily="'JetBrains Mono', monospace" fontWeight="700" fill={C.amber400} letterSpacing="3.5">
-                  <textPath href="#topArc" startOffset="8%">RATED  #1  BY  OPERATORS</textPath>
-                </text>
-                {/* Bottom arc text */}
-                <path id="btmArc" d="M 105,105 m 62,0 a 62,62 0 1,1 -124,0" fill="none" />
-                <text fontSize="9" fontFamily="'JetBrains Mono', monospace" fontWeight="600" fill={C.amber400} letterSpacing="2.8">
-                  <textPath href="#btmArc" startOffset="10%">SMALL  ·  MEDIUM  BUSINESS</textPath>
-                </text>
-                {/* Center content */}
-                <text x="105" y="88" textAnchor="middle" fontSize="42" fontFamily="'Fraunces', serif" fontWeight="700" fill="#fff">#1</text>
-                <text x="105" y="108" textAnchor="middle" fontSize="11" fontFamily="'JetBrains Mono', monospace" fontWeight="600" fill={C.amber400} letterSpacing="2">APP FOR</text>
-                <text x="105" y="124" textAnchor="middle" fontSize="11.5" fontFamily="'Fraunces', serif" fontStyle="italic" fontWeight="300" fill="rgba(255,255,255,0.9)">Shift-Based</text>
-                <text x="105" y="140" textAnchor="middle" fontSize="11.5" fontFamily="'Fraunces', serif" fontStyle="italic" fontWeight="300" fill="rgba(255,255,255,0.9)">Operations</text>
-                {/* Stars */}
-                {[-28, -14, 0, 14, 28].map((offset, i) => (
-                  <text key={i} x={105 + offset} y="157" textAnchor="middle" fontSize="9" fill={C.amber500}>★</text>
-                ))}
+              {/* Clean award badge */}
+              <svg width="190" height="190" viewBox="0 0 190 190" fill="none" style={{ transform: "rotate(-4deg)", filter: "drop-shadow(0 6px 20px rgba(12,18,32,0.18))" }}>
+                {/* Outer ring */}
+                <circle cx="95" cy="95" r="90" fill={C.ink} />
+                {/* Amber accent ring */}
+                <circle cx="95" cy="95" r="82" fill="none" stroke={C.amber500} strokeWidth="1.2" />
+                {/* Inner ring */}
+                <circle cx="95" cy="95" r="76" fill="none" stroke={C.amber500} strokeWidth="0.5" opacity="0.4" />
+
+                {/* Laurel left */}
+                <path d="M 34 95 C 36 80, 44 68, 54 64" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
+                <path d="M 34 95 C 30 80, 32 66, 40 60" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+                <path d="M 36 102 C 30 90, 28 76, 32 66" stroke={C.amber500} strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+
+                {/* Laurel right */}
+                <path d="M 156 95 C 154 80, 146 68, 136 64" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
+                <path d="M 156 95 C 160 80, 158 66, 150 60" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+                <path d="M 154 102 C 160 90, 162 76, 158 66" stroke={C.amber500} strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+
+                {/* Star at top */}
+                <text x="95" y="34" textAnchor="middle" fontSize="13" fill={C.amber500} opacity="0.9">★</text>
+
+                {/* RATED label */}
+                <text x="95" y="68" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontSize="9" fontWeight="700" fill={C.amber400} letterSpacing="4">RATED</text>
+
+                {/* #1 */}
+                <text x="95" y="120" textAnchor="middle" fontFamily="'Fraunces', serif" fontSize="58" fontWeight="700" fill="#ffffff" letterSpacing="-2">#1</text>
+
+                {/* Divider line */}
+                <line x1="58" y1="130" x2="132" y2="130" stroke={C.amber500} strokeWidth="0.8" opacity="0.5" />
+
+                {/* SCHEDULING APP */}
+                <text x="95" y="147" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontSize="8.5" fontWeight="600" fill="rgba(255,255,255,0.85)" letterSpacing="2.5">SCHEDULING APP</text>
+
+                {/* Bottom stars */}
+                <text x="73" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
+                <text x="95" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
+                <text x="117" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
               </svg>
             </div>
 
@@ -1219,7 +1210,7 @@ export function LandingPage() {
                 <SwirlMark size={38} />
                 <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
                   <span style={{ fontFamily: ff.display, fontWeight: 700, fontSize: 22, color: "#f5f0e6", letterSpacing: "-0.03em" }}>ShiftPro<span style={{ color: C.amber400, fontStyle: "italic", fontWeight: 400 }}>.ai</span></span>
-                  <span style={{ fontFamily: ff.mono, fontSize: 9, color: C.amber400, letterSpacing: 2.5, marginTop: 4, fontWeight: 500 }}>EST. 2026</span>
+                  <span style={{ fontFamily: ff.mono, fontSize: 9, color: C.amber400, letterSpacing: 2.5, marginTop: 4, fontWeight: 500 }}>EST. 2025</span>
                 </div>
               </div>
               <div style={{ fontFamily: ff.display, fontSize: 18, fontStyle: "italic", fontWeight: 300, color: "rgba(255,255,255,0.85)", lineHeight: 1.4, marginBottom: 16, maxWidth: 360 }}>
@@ -1260,7 +1251,7 @@ export function LandingPage() {
 
           <div style={{ paddingTop: 22, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
             <span className="tn" style={{ fontFamily: ff.mono, fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 1.8, textTransform: "uppercase", fontWeight: 500 }}>
-              © 2026 ShiftPro AI, Inc. · Built for real operators
+              © 2025 ShiftPro AI, Inc. · Built for real operators
             </span>
             <span style={{ fontFamily: ff.display, fontSize: 14, fontStyle: "italic", color: "rgba(255,255,255,0.55)" }}>
               — The ShiftPro Team
