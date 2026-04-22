@@ -4592,7 +4592,7 @@ function SettingsTab({
         <div style={{...card, gridColumn: mobile?"auto":"1 / -1"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
             <div style={sectionTitle}>📍 Locations</div>
-            <button onClick={()=>setAddLocOpen(true)} style={{padding:"7px 14px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>
+            <button onClick={()=>{ if(checkLocationLimit()) setAddLocOpen(true); }} style={{padding:"7px 14px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>
               + Add Location
             </button>
           </div>
@@ -5331,6 +5331,321 @@ function BroadcastModal({
 }
 
 // ══════════════════════════════════════════════════
+//  SUBSCRIPTION BANNER — sits at top of OwnerCmd
+//  Shows trial countdown, plan info, or upgrade prompt
+// ══════════════════════════════════════════════════
+function SubscriptionBanner({ subStatus, onUpgrade, onManageBilling, locationsCount }) {
+  if(!subStatus) return null; // still loading
+
+  const planLabels = {
+    starter: "Starter",
+    pro: "Pro",
+    essentials: "Starter", // legacy alias
+    enterprise: "Enterprise",
+  };
+
+  // Calculate trial days remaining
+  const trialDaysLeft = subStatus.trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(subStatus.trialEndsAt) - Date.now()) / 86400000))
+    : null;
+
+  // ── State 1: TRIALING — show countdown with upgrade CTA ──
+  if(subStatus.status === "trialing" && trialDaysLeft !== null){
+    const urgent = trialDaysLeft <= 2;
+    return (
+      <div style={{
+        background: urgent
+          ? "linear-gradient(135deg, rgba(245,158,11,0.12), rgba(239,68,68,0.08))"
+          : "linear-gradient(135deg, rgba(20,184,166,0.08), rgba(14,165,233,0.06))",
+        border: "1px solid " + (urgent ? "rgba(245,158,11,0.35)" : "rgba(20,184,166,0.25)"),
+        borderRadius: 12,
+        padding: "12px 18px",
+        margin: "12px 16px 0",
+        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap"
+      }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontFamily: O.sans, fontWeight: 700, fontSize: 13.5, color: urgent ? "#c2410c" : "#0f766e", marginBottom: 2 }}>
+            {urgent ? "⏰ " : "✨ "}
+            {trialDaysLeft === 0 ? "Trial ends today" : trialDaysLeft === 1 ? "1 day left in your trial" : `${trialDaysLeft} days left in your free trial`}
+          </div>
+          <div style={{ fontFamily: O.sans, fontSize: 12, color: O.textD, lineHeight: 1.4 }}>
+            {subStatus.plan
+              ? `Currently on ${planLabels[subStatus.plan] || subStatus.plan}. Trial ends ${new Date(subStatus.trialEndsAt).toLocaleDateString("en-US", { month:"short", day:"numeric" })}.`
+              : "After trial, billing starts automatically. Cancel anytime."}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onUpgrade} style={{
+            padding: "9px 18px",
+            background: "linear-gradient(135deg, #e07b00, #c96800)",
+            border: "none", borderRadius: 9,
+            fontFamily: O.sans, fontWeight: 700, fontSize: 12.5, color: "#fff",
+            cursor: "pointer",
+            boxShadow: "0 4px 14px rgba(224,123,0,0.3)"
+          }}>
+            See Plans
+          </button>
+          <button onClick={onManageBilling} style={{
+            padding: "9px 14px",
+            background: "transparent", border: "1px solid " + O.border, borderRadius: 9,
+            fontFamily: O.sans, fontWeight: 600, fontSize: 12.5, color: O.textD,
+            cursor: "pointer"
+          }}>
+            Manage
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── State 2: ACTIVE — show plan badge with manage button ──
+  if(subStatus.status === "active"){
+    const planName = planLabels[subStatus.plan] || "Active";
+    return (
+      <div style={{
+        background: "rgba(16,185,129,0.06)",
+        border: "1px solid rgba(16,185,129,0.2)",
+        borderRadius: 12,
+        padding: "10px 18px",
+        margin: "12px 16px 0",
+        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap"
+      }}>
+        <div style={{ flex: 1, minWidth: 200, display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{
+            padding: "3px 10px",
+            background: "linear-gradient(135deg, #10b981, #059669)",
+            borderRadius: 20,
+            fontFamily: O.mono, fontSize: 9, fontWeight: 700, color: "#fff",
+            letterSpacing: 1.5, textTransform: "uppercase"
+          }}>
+            ● {planName}
+          </span>
+          <span style={{ fontFamily: O.sans, fontSize: 12.5, color: O.textD }}>
+            {subStatus.seats || locationsCount || 1} location{(subStatus.seats || locationsCount || 1) !== 1 ? "s" : ""} · billed monthly
+          </span>
+        </div>
+        <button onClick={onManageBilling} style={{
+          padding: "8px 14px",
+          background: "transparent", border: "1px solid " + O.border, borderRadius: 9,
+          fontFamily: O.sans, fontWeight: 600, fontSize: 12, color: O.textD,
+          cursor: "pointer"
+        }}>
+          Manage Billing
+        </button>
+      </div>
+    );
+  }
+
+  // ── State 3: PAST_DUE — payment failed, urgent action needed ──
+  if(subStatus.status === "past_due"){
+    return (
+      <div style={{
+        background: "linear-gradient(135deg, rgba(239,68,68,0.1), rgba(220,38,38,0.06))",
+        border: "1px solid rgba(239,68,68,0.35)",
+        borderRadius: 12,
+        padding: "12px 18px",
+        margin: "12px 16px 0",
+        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap"
+      }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontFamily: O.sans, fontWeight: 700, fontSize: 13.5, color: "#dc2626", marginBottom: 2 }}>
+            ⚠ Payment failed
+          </div>
+          <div style={{ fontFamily: O.sans, fontSize: 12, color: O.textD, lineHeight: 1.4 }}>
+            Update your card to keep using ShiftPro. Your team's data is safe.
+          </div>
+        </div>
+        <button onClick={onManageBilling} style={{
+          padding: "10px 18px",
+          background: "linear-gradient(135deg, #ef4444, #dc2626)",
+          border: "none", borderRadius: 9,
+          fontFamily: O.sans, fontWeight: 700, fontSize: 12.5, color: "#fff",
+          cursor: "pointer",
+          boxShadow: "0 4px 14px rgba(239,68,68,0.3)"
+        }}>
+          Update Payment
+        </button>
+      </div>
+    );
+  }
+
+  // ── State 4: CANCELED or NONE — show upgrade prompt (Free tier) ──
+  if(subStatus.status === "canceled" || subStatus.status === "none" || !subStatus.status){
+    return (
+      <div style={{
+        background: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(99,102,241,0.06))",
+        border: "1px solid rgba(245,158,11,0.25)",
+        borderRadius: 12,
+        padding: "12px 18px",
+        margin: "12px 16px 0",
+        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap"
+      }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontFamily: O.sans, fontWeight: 700, fontSize: 13.5, color: O.text, marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              padding: "2px 8px",
+              background: O.bg3,
+              border: "1px solid " + O.border,
+              borderRadius: 14,
+              fontFamily: O.mono, fontSize: 8, fontWeight: 700, color: O.textD,
+              letterSpacing: 1.2, textTransform: "uppercase"
+            }}>FREE</span>
+            <span>Limited to 5 employees · 1 location</span>
+          </div>
+          <div style={{ fontFamily: O.sans, fontSize: 12, color: O.textD, lineHeight: 1.4 }}>
+            Upgrade to unlock unlimited employees, GPS geofence, shift swap approvals, and more.
+          </div>
+        </div>
+        <button onClick={onUpgrade} style={{
+          padding: "10px 18px",
+          background: "linear-gradient(135deg, #e07b00, #c96800)",
+          border: "none", borderRadius: 9,
+          fontFamily: O.sans, fontWeight: 700, fontSize: 12.5, color: "#fff",
+          cursor: "pointer",
+          boxShadow: "0 4px 14px rgba(224,123,0,0.3)"
+        }}>
+          Upgrade Now
+        </button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ══════════════════════════════════════════════════
+//  UPGRADE MODAL — pricing tier picker that opens Stripe Checkout
+// ══════════════════════════════════════════════════
+function UpgradeModal({ open, onClose, onSelectPlan, busy, locationsCount }) {
+  const mobile = useIsMobile();
+  if(!open) return null;
+
+  const tiers = [
+    {
+      id: "starter",
+      name: "Starter",
+      desc: "Single-location small business",
+      price: 19,
+      color: "#14b8a6",
+      features: [
+        "Unlimited employees",
+        "GPS geofence on clock-in",
+        "Shift swap approval workflow",
+        "Time-off requests",
+        "Push + email notifications",
+        "Document storage",
+        "1-year history",
+      ],
+      pop: false,
+    },
+    {
+      id: "pro",
+      name: "Pro",
+      desc: "Growing multi-location",
+      price: 49,
+      color: "#e07b00",
+      features: [
+        "Everything in Starter",
+        "Unlimited locations",
+        "Multi-location swap permissions",
+        "Payroll exports (CSV, ADP, Gusto)",
+        "Department + role permissions",
+        "Hiring portal",
+        "Auto-publish recurring schedules",
+        "Labor cost forecasting",
+        "Priority support",
+      ],
+      pop: true,
+    },
+  ];
+
+  const totalLocations = Math.max(1, locationsCount || 1);
+
+  return (
+    <div onClick={(e)=>{ if(e.target===e.currentTarget) onClose(); }}
+      style={{ position:"fixed", inset:0, background:"rgba(15,12,41,0.62)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", display:"flex", alignItems:mobile?"flex-end":"center", justifyContent:"center", zIndex:10000, padding: mobile?0:24, animation:"fadeIn 0.18s ease" }}>
+      <div onClick={(e)=>e.stopPropagation()} role="dialog" aria-modal="true"
+        style={{ background:"#fff", borderRadius: mobile?"22px 22px 0 0":18, padding: mobile?"28px 22px":"36px 32px", maxWidth: 760, width:"100%", maxHeight: "92vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.35)", animation:"confirmPop 0.22s cubic-bezier(.22,1,.36,1)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24 }}>
+          <div>
+            <div style={{ fontFamily:O.mono, fontSize:9, color:"#e07b00", letterSpacing:2, fontWeight:700, marginBottom:6, textTransform:"uppercase" }}>Upgrade</div>
+            <div style={{ fontFamily:O.sans, fontWeight:800, fontSize:22, color:O.text, letterSpacing:"-0.01em", marginBottom:6 }}>Choose your plan</div>
+            <div style={{ fontFamily:O.sans, fontSize:13, color:O.textD, lineHeight:1.5 }}>
+              You have <strong style={{color:O.text}}>{totalLocations} location{totalLocations!==1?"s":""}</strong>. Pricing is per location, with unlimited employees on every paid plan.
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", fontSize:24, cursor:"pointer", color:O.textF, padding:"4px 10px", lineHeight:1 }}>×</button>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns: mobile?"1fr":"1fr 1fr", gap:16, marginBottom:20 }}>
+          {tiers.map(t => {
+            const monthly = t.price * totalLocations;
+            return (
+              <div key={t.id} style={{
+                padding: 24,
+                background: t.pop ? "linear-gradient(170deg, #fff, rgba(224,123,0,0.04))" : "#fff",
+                border: "1.5px solid " + (t.pop ? "rgba(224,123,0,0.32)" : O.border),
+                borderRadius: 14,
+                position:"relative",
+                boxShadow: t.pop ? "0 12px 32px rgba(224,123,0,0.12)" : "none",
+              }}>
+                {t.pop && (
+                  <div style={{
+                    position:"absolute", top:-11, left:"50%", transform:"translateX(-50%)",
+                    padding:"4px 12px", background:"linear-gradient(135deg, #e07b00, #c96800)",
+                    borderRadius:20, fontFamily:O.mono, fontSize:8, fontWeight:700, color:"#fff",
+                    letterSpacing:1.6, textTransform:"uppercase"
+                  }}>Most Popular</div>
+                )}
+                <div style={{ fontFamily:O.sans, fontWeight:800, fontSize:18, color:t.color, marginBottom:4, letterSpacing:"-0.01em" }}>{t.name}</div>
+                <div style={{ fontFamily:O.sans, fontSize:12, color:O.textD, marginBottom:18 }}>{t.desc}</div>
+
+                <div style={{ display:"flex", alignItems:"baseline", gap:5, marginBottom:6 }}>
+                  <span style={{ fontFamily:O.sans, fontWeight:900, fontSize:36, color:O.text, letterSpacing:"-0.03em", fontVariantNumeric:"tabular-nums", lineHeight:1 }}>${t.price}</span>
+                  <span style={{ fontFamily:O.mono, fontSize:11, color:O.textD }}>/mo · per location</span>
+                </div>
+                {totalLocations > 1 && (
+                  <div style={{ fontFamily:O.mono, fontSize:10, color:O.textF, marginBottom:18 }}>
+                    {totalLocations} locations × ${t.price} = <strong style={{color:O.text}}>${monthly}/mo</strong>
+                  </div>
+                )}
+                {totalLocations === 1 && <div style={{ marginBottom:18 }}/>}
+
+                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20, minHeight:180 }}>
+                  {t.features.map((f,fi) => (
+                    <div key={fi} style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+                      <span style={{ color:t.color, flexShrink:0, marginTop:1, fontWeight:700, fontSize:12 }}>✓</span>
+                      <span style={{ fontFamily:O.sans, fontSize:12.5, color: f.startsWith("Everything in") ? O.textD : O.text, lineHeight:1.4, fontStyle: f.startsWith("Everything in") ? "italic" : "normal", fontWeight: f.startsWith("Everything in") ? 600 : 400 }}>{f}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button disabled={busy} onClick={()=>onSelectPlan(t.id)} style={{
+                  width:"100%", padding:"12px",
+                  background: busy ? "rgba(0,0,0,0.1)" : (t.pop ? "linear-gradient(135deg, #e07b00, #c96800)" : "#fff"),
+                  border: t.pop ? "none" : "1.5px solid "+O.border,
+                  borderRadius:10,
+                  fontFamily:O.sans, fontWeight:700, fontSize:13.5,
+                  color: busy ? O.textF : (t.pop ? "#fff" : O.text),
+                  cursor: busy ? "wait" : "pointer",
+                  boxShadow: t.pop && !busy ? "0 4px 14px rgba(224,123,0,0.3)" : "none"
+                }}>
+                  {busy ? "Loading…" : "Start 7-Day Trial"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ padding:"12px 16px", background:O.bg3, borderRadius:10, fontFamily:O.sans, fontSize:11.5, color:O.textD, lineHeight:1.5, textAlign:"center" }}>
+          7-day free trial · No charge until trial ends · Cancel anytime in two clicks · Need 5+ locations? <a href="mailto:hello@shiftpro.ai?subject=Enterprise%20inquiry" style={{ color:"#e07b00", fontWeight:600 }}>Contact us about Enterprise</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
 //  OWNER COMMAND — WARM THEME v2
 // ══════════════════════════════════════════════════
 function OwnerCmd({onLogout, ownerInitialProfile}){
@@ -5356,6 +5671,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [activeLocation,setActiveLocation] = useState(null);
   const [liveShifts,setLiveShifts] = useState(null);
   const [livePayroll,setLivePayroll] = useState(null);
+
+  // ── Subscription state ──
+  // Loaded via /api/stripe?action=status on owner mount.
+  // Possible statuses: trialing | active | past_due | canceled | none
+  const [subStatus,setSubStatus] = useState(null); // null=loading, then object: { status, plan, seats, trialEndsAt }
+  const [showUpgrade,setShowUpgrade] = useState(false);
+  const [upgradeBusy,setUpgradeBusy] = useState(false);
 
   // ── Location gate state ──
   const [locationGate,setLocationGate] = useState(null); // null=loading, "none"=no locs, "pick"=pick, "ready"=ready
@@ -5470,6 +5792,119 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [staffMsgsLoaded,setStaffMsgsLoaded] = useState(false);
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
+
+  // ── Subscription status fetch ──
+  // Pings /api/stripe?action=status whenever activeOrg changes.
+  // If unsuccessful, sets a "none" status so the banner shows the upgrade CTA.
+  useEffect(()=>{
+    const orgId = activeOrg?.id || ownerProfile?.org_id;
+    if(!orgId) return;
+    let cancelled = false;
+    (async()=>{
+      try{
+        const sb = await getSB();
+        const { data: { session } } = await sb.auth.getSession();
+        const res = await fetch("/api/stripe", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json", ...(session?.access_token?{ "Authorization":"Bearer "+session.access_token }:{}) },
+          body: JSON.stringify({ action: "status", orgId }),
+        });
+        if(!res.ok){
+          if(!cancelled) setSubStatus({ status:"none", plan:null, seats:0, trialEndsAt:null });
+          return;
+        }
+        const data = await res.json();
+        if(!cancelled) setSubStatus(data);
+      }catch(e){
+        console.warn("[sub status]", e?.message);
+        if(!cancelled) setSubStatus({ status:"none", plan:null, seats:0, trialEndsAt:null });
+      }
+    })();
+    return ()=>{ cancelled = true; };
+  }, [activeOrg?.id, ownerProfile?.org_id]);
+
+  // Open Stripe Checkout for a given plan
+  const handleUpgrade = async(planId) => {
+    const orgId = activeOrg?.id || ownerProfile?.org_id;
+    if(!orgId){ toast("No company found","error"); return; }
+    setUpgradeBusy(true);
+    try{
+      const sb = await getSB();
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch("/api/stripe", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", ...(session?.access_token?{ "Authorization":"Bearer "+session.access_token }:{}) },
+        body: JSON.stringify({
+          action: "checkout",
+          orgId,
+          email: ownerProfile?.email || "",
+          orgName: activeOrg?.name || ownerOrg?.name || "",
+          planId,
+          seats: liveLocations?.length || 1,
+        }),
+      });
+      const data = await res.json();
+      if(!res.ok || !data.url) throw new Error(data.error || "Checkout failed");
+      window.location.href = data.url;
+    }catch(e){
+      console.warn("[upgrade]", e?.message);
+      toast("Upgrade failed: "+e.message,"error");
+    }finally{ setUpgradeBusy(false); }
+  };
+
+  // Open Stripe billing portal (manage subscription, update card, cancel)
+  const handleManageBilling = async() => {
+    const orgId = activeOrg?.id || ownerProfile?.org_id;
+    if(!orgId){ toast("No company found","error"); return; }
+    try{
+      const sb = await getSB();
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch("/api/stripe", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", ...(session?.access_token?{ "Authorization":"Bearer "+session.access_token }:{}) },
+        body: JSON.stringify({
+          action: "portal",
+          orgId,
+          email: ownerProfile?.email || "",
+          orgName: activeOrg?.name || ownerOrg?.name || "",
+        }),
+      });
+      const data = await res.json();
+      if(!res.ok || !data.url) throw new Error(data.error || "Portal failed");
+      window.location.href = data.url;
+    }catch(e){
+      console.warn("[manage billing]", e?.message);
+      toast("Couldn't open billing portal: "+e.message,"error");
+    }
+  };
+
+  // ── Seat-limit enforcement ──
+  // On Free tier (status: none/canceled) cap at 5 employees.
+  // Returns true if the action is allowed, false if blocked (and shows upgrade prompt).
+  const checkSeatLimit = () => {
+    const isFree = !subStatus || subStatus.status === "none" || subStatus.status === "canceled";
+    if(!isFree) return true; // Paid plans have unlimited employees
+    const empCount = (liveEmps || []).filter(e => e.status !== "inactive").length;
+    if(empCount >= 5){
+      toast("Free plan is limited to 5 employees. Upgrade to add more.","error");
+      setShowUpgrade(true);
+      return false;
+    }
+    return true;
+  };
+
+  // Free tier also limits to 1 location
+  const checkLocationLimit = () => {
+    const isFree = !subStatus || subStatus.status === "none" || subStatus.status === "canceled";
+    if(!isFree) return true;
+    const locCount = (liveLocations || []).length;
+    if(locCount >= 1){
+      toast("Free plan is limited to 1 location. Upgrade for unlimited locations.","error");
+      setShowUpgrade(true);
+      return false;
+    }
+    return true;
+  };
 
   // Safety fallback: if data still null after 8s, resolve to empty (prevents infinite skeletons)
   useEffect(()=>{
@@ -6197,6 +6632,23 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       <ToastContainer toasts={toasts} removeToast={removeToast}/>
       {ConfirmModalNode}
 
+      {/* Subscription banner — only shows when subStatus is loaded */}
+      <SubscriptionBanner
+        subStatus={subStatus}
+        onUpgrade={()=>setShowUpgrade(true)}
+        onManageBilling={handleManageBilling}
+        locationsCount={liveLocations?.length || 0}
+      />
+
+      {/* Upgrade modal */}
+      <UpgradeModal
+        open={showUpgrade}
+        onClose={()=>setShowUpgrade(false)}
+        onSelectPlan={handleUpgrade}
+        busy={upgradeBusy}
+        locationsCount={liveLocations?.length || 0}
+      />
+
       {showConfetti && <ConfettiOverlay onDone={()=>setShowConfetti(false)}/>}
 
       {activeDrawerEmp && (
@@ -6699,7 +7151,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       {liveLocations.length>1&&(
                         <button onClick={()=>setLocSwitcherOpen(true)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer"}}>Switch</button>
                       )}
-                      <button onClick={()=>setAddLocOpen(true)} style={{padding:"5px 12px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.amber,cursor:"pointer"}}>+ Add Location</button>
+                      <button onClick={()=>{ if(checkLocationLimit()) setAddLocOpen(true); }} style={{padding:"5px 12px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.amber,cursor:"pointer"}}>+ Add Location</button>
                     </div>
                   </div>
 
@@ -6916,7 +7368,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{display:"flex",flexDirection:"column",gap:8}}>
                           {[
                             {icon:"📅",label:"Build Schedule",color:O.amber,fn:()=>setTab("schedule")},
-                            {icon:"👥",label:"Invite Employee",color:O.purple,fn:()=>setShowInvite(true)},
+                            {icon:"👥",label:"Invite Employee",color:O.purple,fn:()=>{ if(checkSeatLimit()) setShowInvite(true); }},
                             {icon:"💵",label:"View Payroll",color:O.green,fn:()=>setTab("roi")},
                             {icon:"📣",label:"Message Team",color:O.red,fn:()=>setBroadcastOpen(true)},
                           ].map(a=>(
@@ -6982,7 +7434,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div style={{textAlign:"center",padding:"20px 0"}}>
                             <div style={{fontSize:32,marginBottom:8}}>👥</div>
                             <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:10}}>No employees yet</div>
-                            <button onClick={()=>setShowInvite(true)} style={{padding:"7px 16px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>Invite First Employee</button>
+                            <button onClick={()=>{ if(checkSeatLimit()) setShowInvite(true); }} style={{padding:"7px 16px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>Invite First Employee</button>
                           </div>
                         ):(
                           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -7013,7 +7465,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text,marginBottom:4}}>Start by inviting your first employee</div>
                         <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>They'll get an email to set their password and access their Work Hub on mobile or desktop.</div>
                       </div>
-                      <button onClick={()=>setShowInvite(true)} style={{padding:"10px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>Invite Employee  to </button>
+                      <button onClick={()=>{ if(checkSeatLimit()) setShowInvite(true); }} style={{padding:"10px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>Invite Employee →</button>
                     </div>
                   )}
                   {LIVE.length>0&&(liveShifts||[]).length===0&&(
@@ -7041,7 +7493,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Staff Management</div>
                 <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Your Team {liveEmps&&liveEmps.length>0&&<span style={{fontFamily:O.mono,fontSize:12,color:O.textD,fontWeight:400,marginLeft:8}}>{liveEmps.length} members</span>}</div>
               </div>
-              <button onClick={()=>setShowInvite(true)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>+ Invite Employee</button>
+              <button onClick={()=>{ if(checkSeatLimit()) setShowInvite(true); }} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>+ Invite Employee</button>
             </div>
 
             {/* Sub-tab pills */}
@@ -7071,7 +7523,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     <div style={{fontSize:56,marginBottom:16}}>👥</div>
                     <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,color:O.text,marginBottom:8}}>No employees yet</div>
                     <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.7,maxWidth:360,margin:"0 auto 24px"}}>Click Invite Employee to add your first team member. They'll get an email to set their password and access their Work Hub.</div>
-                    <button onClick={()=>setShowInvite(true)} style={{padding:"13px 28px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.25)"}}>Invite Your First Employee</button>
+                    <button onClick={()=>{ if(checkSeatLimit()) setShowInvite(true); }} style={{padding:"13px 28px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.25)"}}>Invite Your First Employee</button>
                     <button onClick={async()=>{
                       const orgId=activeOrg?.id||ownerProfile?.org_id;
                       if(!orgId) return;

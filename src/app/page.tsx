@@ -381,7 +381,7 @@ function LandingPage() {
   const feed = FEED[feedIdx];
 
   return (
-    <>
+    <div style={{ background: C.ocean100, minHeight: "100vh", color: C.t1 }}>
       <style>{GCSS}</style>
       <LoginModal open={loginOpen} role={loginRole} onClose={() => setLoginOpen(false)} />
 
@@ -1117,26 +1117,101 @@ function LandingPage() {
           PRICING — middle card elevated
           ═══════════════════════════════════════════════════════════ */}
       <section id="pricing" data-rv="pr" style={{ padding: isMobile ? "96px 20px" : (isTablet ? "120px 32px" : "144px 40px"), background: C.ocean100 }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+        <div style={{ maxWidth: 1240, margin: "0 auto" }}>
           <div data-rv="pr-h" className={"rv " + (shown("pr-h") ? "vis" : "")} style={{ textAlign: "center", marginBottom: 48 }}>
             <div style={{ fontFamily: ff.mono, fontSize: 11, letterSpacing: 2.5, color: C.amber500, marginBottom: 16, fontWeight: 600, textTransform: "uppercase" }}>Pricing</div>
             <h2 style={{ fontFamily: ff.display, fontSize: isMobile ? 34 : "clamp(44px,5.5vw,68px)", fontWeight: 700, letterSpacing: "-0.032em", color: C.t1, lineHeight: 0.98, marginBottom: 14 }}>
-              Simpler. <span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber500 }}>Cheaper.</span>
+              Pay per location. <span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber500 }}>Not per person.</span>
             </h2>
-            <p style={{ fontFamily: ff.body, fontSize: 16, color: C.t2, maxWidth: 540, margin: "0 auto 20px", lineHeight: 1.55 }}>7-day free trial on every plan. Cancel in two clicks.</p>
+            <p style={{ fontFamily: ff.body, fontSize: 16, color: C.t2, maxWidth: 580, margin: "0 auto 20px", lineHeight: 1.55 }}>Hire your tenth, fiftieth, or hundredth employee without your bill changing. 7-day free trial on every paid plan. Cancel anytime in two clicks.</p>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 18px", background: "linear-gradient(135deg, rgba(20,184,166,0.1), rgba(139,92,246,0.08))", border: "1px solid rgba(20,184,166,0.25)", borderRadius: 30 }}>
               <span style={{ color: C.teal600 }}>{SVG.check(12, C.teal600)}</span>
-              <span style={{ fontFamily: ff.mono, fontSize: 10, color: C.teal600, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>Time tracking included in every plan</span>
+              <span style={{ fontFamily: ff.mono, fontSize: 10, color: C.teal600, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>GPS time clock included in every plan</span>
             </div>
           </div>
 
-          <div data-rv="pr-cards" className={"rv " + (shown("pr-cards") ? "vis" : "")} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 20, alignItems: "start" }}>
+          <div data-rv="pr-cards" className={"rv " + (shown("pr-cards") ? "vis" : "")} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4,1fr)", gap: 16, alignItems: "start" }}>
             {[
-              { name: "Essentials", desc: "Single-location teams", price: "$2.50", per: "/user/mo", color: C.teal500, features: ["Scheduling + time clock", "Team messaging", "Availability management", "Time-off requests", "Mobile PWA", "1 location"], pop: false },
-              { name: "Pro", desc: "Growing teams", price: "$4", per: "/user/mo", color: C.amber500, features: ["Everything in Essentials", "Unlimited locations", "Shift swaps", "Push + email alerts", "Document management", "GPS geofencing", "Priority support"], pop: true },
-              { name: "Enterprise", desc: "Large operations", price: "Custom", per: "", color: C.violet500, features: ["Everything in Pro", "QuickBooks integration", "Custom branding", "API + webhooks", "Dedicated account manager", "SLA guarantee", "SSO / SAML"], pop: false },
-            ].map((p, i) => (
-              <div key={p.name} style={{ padding: isMobile ? 28 : 36, background: p.pop ? "linear-gradient(170deg, #fff 0%, rgba(224,123,0,0.04) 100%)" : "#fff", border: "1px solid " + (p.pop ? "rgba(224,123,0,0.28)" : C.ocean200), borderRadius: 22, position: "relative", marginTop: !isMobile && p.pop ? -8 : 0, boxShadow: p.pop ? "0 24px 56px rgba(224,123,0,0.14)" : "0 2px 6px rgba(12,18,32,0.04)", transition: "all 0.3s cubic-bezier(.22,1,.36,1)" }}
+              {
+                name: "Free",
+                desc: "Try the platform",
+                price: "$0",
+                per: "/forever",
+                color: C.t3,
+                features: [
+                  "1 location",
+                  "Up to 5 employees",
+                  "Schedule builder",
+                  "Mobile clock in/out",
+                  "Basic timesheets",
+                  "30-day history",
+                ],
+                cta: "Start Free",
+                pop: false,
+                accent: false,
+              },
+              {
+                name: "Starter",
+                desc: "Single-location small biz",
+                price: "$19",
+                per: "/mo · per location",
+                color: C.teal500,
+                features: [
+                  "Everything in Free, plus:",
+                  "Unlimited employees",
+                  "GPS geofence on clock-in",
+                  "Shift swap approval workflow",
+                  "Time-off requests",
+                  "Push + email alerts",
+                  "Document storage",
+                  "1-year history",
+                ],
+                cta: "Start 7-Day Trial",
+                pop: false,
+                accent: false,
+              },
+              {
+                name: "Pro",
+                desc: "Growing multi-location",
+                price: "$49",
+                per: "/mo · per location",
+                color: C.amber500,
+                features: [
+                  "Everything in Starter, plus:",
+                  "Unlimited locations",
+                  "Multi-location swap permissions",
+                  "Payroll exports (CSV, ADP, Gusto)",
+                  "Department + role permissions",
+                  "Hiring portal",
+                  "Auto-publish recurring schedules",
+                  "Labor cost forecasting",
+                  "Priority support",
+                ],
+                cta: "Start 7-Day Trial",
+                pop: true,
+                accent: true,
+              },
+              {
+                name: "Enterprise",
+                desc: "5+ locations",
+                price: "Custom",
+                per: "",
+                color: C.violet500,
+                features: [
+                  "Everything in Pro, plus:",
+                  "Dedicated account manager",
+                  "SSO / SAML",
+                  "Custom integrations",
+                  "SLA guarantees",
+                  "Volume discount",
+                  "Onboarding assistance",
+                ],
+                cta: "Contact Sales",
+                pop: false,
+                accent: false,
+              },
+            ].map((p) => (
+              <div key={p.name} style={{ padding: isMobile ? 26 : 28, background: p.pop ? "linear-gradient(170deg, #fff 0%, rgba(224,123,0,0.04) 100%)" : "#fff", border: "1px solid " + (p.pop ? "rgba(224,123,0,0.28)" : C.ocean200), borderRadius: 22, position: "relative", marginTop: !isMobile && p.pop ? -8 : 0, boxShadow: p.pop ? "0 24px 56px rgba(224,123,0,0.14)" : "0 2px 6px rgba(12,18,32,0.04)", transition: "all 0.3s cubic-bezier(.22,1,.36,1)" }}
                 onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = p.pop ? "0 32px 68px rgba(224,123,0,0.22)" : "0 16px 36px rgba(12,18,32,0.1)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = !isMobile && p.pop ? "translateY(-8px)" : "none"; e.currentTarget.style.boxShadow = p.pop ? "0 24px 56px rgba(224,123,0,0.14)" : "0 2px 6px rgba(12,18,32,0.04)"; }}>
                 {p.pop && (
@@ -1144,23 +1219,29 @@ function LandingPage() {
                 )}
                 <div style={{ fontFamily: ff.display, fontSize: 22, fontWeight: 700, color: p.color, marginBottom: 6, letterSpacing: "-0.015em" }}>{p.name}</div>
                 <div style={{ fontFamily: ff.body, fontSize: 13, color: C.t3, marginBottom: 22 }}>{p.desc}</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginBottom: 28 }}>
-                  <span style={{ fontFamily: ff.display, fontSize: 52, fontWeight: 900, color: C.t1, letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{p.price}</span>
-                  {p.per && <span style={{ fontFamily: ff.mono, fontSize: 12, color: C.t3, fontWeight: 500 }}>{p.per}</span>}
+                <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginBottom: 24, minHeight: 60 }}>
+                  <span style={{ fontFamily: ff.display, fontSize: 44, fontWeight: 900, color: C.t1, letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{p.price}</span>
+                  {p.per && <span style={{ fontFamily: ff.mono, fontSize: 11, color: C.t3, fontWeight: 500 }}>{p.per}</span>}
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 30 }}>
-                  {p.features.map(f => (
-                    <div key={f} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                      <span style={{ color: p.color, flexShrink: 0, marginTop: 2 }}>{SVG.check(14, p.color)}</span>
-                      <span style={{ fontFamily: ff.body, fontSize: 13.5, color: C.t1, lineHeight: 1.45 }}>{f}</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 26 }}>
+                  {p.features.map((f, fi) => (
+                    <div key={fi} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ color: p.color, flexShrink: 0, marginTop: 2 }}>{SVG.check(13, p.color)}</span>
+                      <span style={{ fontFamily: ff.body, fontSize: 13, color: f.startsWith("Everything in") ? C.t2 : C.t1, lineHeight: 1.45, fontWeight: f.startsWith("Everything in") ? 600 : 400, fontStyle: f.startsWith("Everything in") ? "italic" : "normal" }}>{f}</span>
                     </div>
                   ))}
                 </div>
-                <a href="/final" style={{ display: "block", textAlign: "center", padding: "14px", borderRadius: 11, background: p.pop ? "linear-gradient(135deg," + C.amber500 + "," + C.amber600 + ")" : "transparent", border: p.pop ? "none" : "1px solid " + C.ocean300, color: p.pop ? "#fff" : C.t1, fontFamily: ff.body, fontWeight: 700, fontSize: 14, boxShadow: p.pop ? "0 6px 18px rgba(224,123,0,0.3)" : "none", letterSpacing: "-0.01em", transition: "all .2s" }}>
-                  {p.name === "Enterprise" ? "Contact Sales" : "Start Free Trial"}
+                <a href={p.name === "Enterprise" ? "mailto:hello@shiftpro.ai?subject=Enterprise%20inquiry" : "/final"} style={{ display: "block", textAlign: "center", padding: "13px", borderRadius: 11, background: p.pop ? "linear-gradient(135deg," + C.amber500 + "," + C.amber600 + ")" : "transparent", border: p.pop ? "none" : "1px solid " + C.ocean300, color: p.pop ? "#fff" : C.t1, fontFamily: ff.body, fontWeight: 700, fontSize: 13.5, boxShadow: p.pop ? "0 6px 18px rgba(224,123,0,0.3)" : "none", letterSpacing: "-0.01em", transition: "all .2s", textDecoration: "none" }}>
+                  {p.cta}
                 </a>
               </div>
             ))}
+          </div>
+
+          <div style={{ marginTop: 36, textAlign: "center", padding: "18px 24px", background: "rgba(255,255,255,0.6)", border: "1px solid " + C.ocean200, borderRadius: 14, maxWidth: 720, margin: "36px auto 0" }}>
+            <span style={{ fontFamily: ff.body, fontSize: 13.5, color: C.t2, lineHeight: 1.6 }}>
+              Annual billing saves 20%. <span style={{ color: C.t3 }}>Have more than 5 employees?</span> The <strong style={{ color: C.t1 }}>Starter plan</strong> is your home for $19/mo.
+            </span>
           </div>
         </div>
       </section>
@@ -1284,6 +1365,6 @@ function LandingPage() {
           </div>
         </div>
       </footer>
-    </>
+    </div>
   );
 }
