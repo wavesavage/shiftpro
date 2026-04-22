@@ -1,6 +1,4 @@
-// ShiftPro Push Notification Service Worker
-// This file must be at /public/sw.js (served from root)
-
+// ShiftPro Service Worker - Push Notifications
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
@@ -9,62 +7,43 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(clients.claim());
 });
 
-// Handle incoming push messages
 self.addEventListener('push', (event) => {
-  const defaultData = {
-    title: 'ShiftPro',
-    body: 'You have a new notification',
-    icon: '/icon-192.png',
-    badge: '/icon-badge.png',
-    tag: 'shiftpro-' + Date.now(),
-    data: { url: '/' },
-  };
+  if (!event.data) return;
 
-  let data = defaultData;
+  let data = {};
   try {
-    if (event.data) {
-      const parsed = event.data.json();
-      data = { ...defaultData, ...parsed };
-    }
+    data = event.data.json();
   } catch (e) {
-    if (event.data) {
-      data.body = event.data.text();
-    }
+    data = { title: 'ShiftPro', body: event.data.text() };
   }
 
+  const title = data.title || 'ShiftPro Notification';
   const options = {
-    body: data.body,
-    icon: data.icon || '/icon-192.png',
-    badge: data.badge || '/icon-badge.png',
-    tag: data.tag || defaultData.tag,
-    renotify: true,
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: data.tag || 'shiftpro-notification',
+    data: data.url ? { url: data.url } : {},
     requireInteraction: data.requireInteraction || false,
-    data: data.data || { url: '/' },
     actions: data.actions || [],
-    vibrate: [100, 50, 100],
   };
 
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Handle notification click — open the app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
   const url = event.notification.data?.url || '/';
-
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // If app is already open, focus it
-      for (const client of windowClients) {
-        if (client.url.includes('shiftpro.ai') && 'focus' in client) {
-          return client.focus();
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.focus();
+          client.navigate(url);
+          return;
         }
       }
-      // Otherwise open new window
-      return clients.openWindow(url);
+      if (clients.openWindow) return clients.openWindow(url);
     })
   );
 });
