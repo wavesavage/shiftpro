@@ -29,9 +29,7 @@ function useIsMobile(breakpoint=768){
 
 const GCSS = `
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #f9f8f6; -webkit-text-size-adjust: 100%; }
-html { -webkit-tap-highlight-color: transparent; }
-input, select, textarea, button { font-size: 16px; }
+body { background: #f9f8f6; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
 @keyframes fadeUp { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:none } }
@@ -41,11 +39,8 @@ input, select, textarea, button { font-size: 16px; }
 @keyframes shimmer { 0% { background-position:-400px 0 } 100% { background-position:400px 0 } }
 @keyframes slideInRight { from { transform:translateX(120%); opacity:0 } to { transform:translateX(0); opacity:1 } }
 @keyframes slideOutRight { from { transform:translateX(0); opacity:1 } to { transform:translateX(120%); opacity:0 } }
+@keyframes confirmPop { from { opacity:0; transform:scale(0.96) translateY(8px) } to { opacity:1; transform:none } }
 .skeleton { background: linear-gradient(90deg,#e8e6e1 25%,#f0ede8 50%,#e8e6e1 75%); background-size: 400px 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
-@media (max-width: 640px) {
-  .hide-mobile { display: none !important; }
-  .full-mobile { width: 100% !important; max-width: 100% !important; }
-}
 `;
 
 // ── TOAST SYSTEM ─────────────────────────────────────
@@ -89,138 +84,181 @@ function useToast() {
   return { toasts, toast, removeToast };
 }
 
-// ── OFFLINE DETECTION BANNER ──
-function OfflineBanner() {
-  const [offline, setOffline] = React.useState(false);
-  const [showReconnect, setShowReconnect] = React.useState(false);
-  React.useEffect(() => {
-    const goOffline = () => { setOffline(true); setShowReconnect(false); };
-    const goOnline = () => { setOffline(false); setShowReconnect(true); setTimeout(() => setShowReconnect(false), 3000); };
-    if (typeof window !== "undefined" && !navigator.onLine) setOffline(true);
-    window.addEventListener("offline", goOffline);
-    window.addEventListener("online", goOnline);
-    return () => { window.removeEventListener("offline", goOffline); window.removeEventListener("online", goOnline); };
-  }, []);
-  if (!offline && !showReconnect) return null;
-  return (
-    <div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,padding:"10px 20px",textAlign:"center",fontFamily:"'Segoe UI',system-ui,sans-serif",fontSize:13,fontWeight:600,transition:"all 0.3s",background:offline?"#dc2626":"#10b981",color:"#fff",boxShadow:"0 2px 12px rgba(0,0,0,0.2)"}}>
-      {offline ? "📡 You're offline — changes won't save until you reconnect" : "✅ Back online!"}
-    </div>
-  );
-}
+// ── CONFIRM MODAL — replaces browser confirm() with polished UI ──
+// Usage:
+//   const { confirm, ConfirmModalNode } = useConfirm();
+//   const ok = await confirm({ title: "Delete shift?", body: "This cannot be undone.", danger: true });
+//   if (ok) { /* proceed */ }
+// Render {ConfirmModalNode} somewhere near the root.
+function useConfirm() {
+  const [state, setState] = useState(null); // { title, body, confirmLabel, cancelLabel, danger, resolve }
 
-// ── SESSION GUARD — checks auth validity every 5 min ──
-function SessionGuard({ session, onExpired }) {
-  React.useEffect(() => {
-    if (!session) return;
-    const check = async () => {
-      try {
-        const { createClient } = await import("@supabase/supabase-js");
-        const sb = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-        );
-        const { data: { session: s } } = await sb.auth.getSession();
-        if (!s) {
-          console.log("[session-guard] Session expired, logging out");
-          onExpired();
-        }
-      } catch (e) {}
+  const confirm = (opts = {}) => {
+    return new Promise(resolve => {
+      setState({
+        title: opts.title || "Are you sure?",
+        body: opts.body || "",
+        confirmLabel: opts.confirmLabel || "Confirm",
+        cancelLabel: opts.cancelLabel || "Cancel",
+        danger: !!opts.danger,
+        resolve,
+      });
+    });
+  };
+
+  const close = (value) => {
+    if (state?.resolve) state.resolve(value);
+    setState(null);
+  };
+
+  useEffect(() => {
+    if (!state) return;
+    const handler = (e) => {
+      if (e.key === "Escape") close(false);
+      if (e.key === "Enter") close(true);
     };
-    const iv = setInterval(check, 5 * 60 * 1000); // every 5 minutes
-    return () => clearInterval(iv);
-  }, [session, onExpired]);
-  return null;
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [state]);
+
+  const ConfirmModalNode = state ? (
+    <div
+      onClick={() => close(false)}
+      style={{position:"fixed",inset:0,background:"rgba(15,12,41,0.58)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000,padding:20,animation:"fadeIn 0.18s ease"}}>
+      <div
+        onClick={e=>e.stopPropagation()}
+        role="dialog" aria-modal="true"
+        style={{background:"#fff",borderRadius:16,padding:"28px 26px",maxWidth:420,width:"100%",boxShadow:"0 24px 80px rgba(0,0,0,0.35)",animation:"confirmPop 0.2s cubic-bezier(.22,1,.36,1)"}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
+          <div style={{width:40,height:40,borderRadius:12,background:state.danger?"rgba(239,68,68,0.12)":"rgba(245,158,11,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>
+            {state.danger ? "⚠" : "?"}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:17,color:"#1a1a2e",marginBottom:6,letterSpacing:"-0.01em"}}>{state.title}</div>
+            {state.body && (
+              <div style={{fontFamily:"'Nunito',sans-serif",fontSize:13.5,color:"#4b5563",lineHeight:1.55}}>{state.body}</div>
+            )}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
+          <button
+            onClick={() => close(false)}
+            style={{padding:"11px 20px",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:9,fontFamily:"'Nunito',sans-serif",fontWeight:600,fontSize:13.5,color:"#374151",cursor:"pointer",minWidth:88}}>
+            {state.cancelLabel}
+          </button>
+          <button
+            onClick={() => close(true)}
+            autoFocus
+            style={{padding:"11px 20px",background:state.danger?"linear-gradient(135deg,#ef4444,#dc2626)":"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",borderRadius:9,fontFamily:"'Nunito',sans-serif",fontWeight:700,fontSize:13.5,color:"#fff",cursor:"pointer",minWidth:88,boxShadow:state.danger?"0 4px 14px rgba(239,68,68,0.3)":"0 4px 14px rgba(245,158,11,0.3)"}}>
+            {state.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return { confirm, ConfirmModalNode };
 }
 
-// ── PUSH NOTIFICATIONS ──
-function usePushNotifications(userId, role) {
-  const [pushSupported, setPushSupported] = React.useState(false);
-  const [pushPermission, setPushPermission] = React.useState("default");
-  const [pushSubscribed, setPushSubscribed] = React.useState(false);
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const supported = "serviceWorker" in navigator && "PushManager" in window;
-    setPushSupported(supported);
-    if (supported) setPushPermission(Notification.permission);
-  }, []);
-  React.useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(e => {});
-  }, []);
-  React.useEffect(() => {
-    if (!userId || pushPermission !== "granted") return;
-    subscribePush(userId, role);
-  }, [userId, pushPermission]);
-  const subscribePush = async (uid, r) => {
+// ── GPS GEOFENCE HELPER ──
+// Returns {ok: bool, lat, lng, accuracy, error} — called before clock-in.
+// If location has no lat/lng configured, allows the clock-in with a warning flag.
+async function checkGeofence(locationLat, locationLng, radiusM = 150) {
+  if (!navigator.geolocation) {
+    return { ok: true, skipped: true, reason: "GPS unavailable on this device" };
+  }
+  if (locationLat == null || locationLng == null) {
+    // Location not configured for geofencing — allow but flag
+    return { ok: true, skipped: true, reason: "Location geofence not configured" };
+  }
+
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      resolve({ ok: false, error: "GPS timed out. Try again." });
+    }, 10000);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        clearTimeout(timeoutId);
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const accuracy = pos.coords.accuracy;
+        // Haversine distance in meters
+        const R = 6371000;
+        const toRad = (d) => d * Math.PI / 180;
+        const dLat = toRad(locationLat - lat);
+        const dLng = toRad(locationLng - lng);
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat))*Math.cos(toRad(locationLat))*Math.sin(dLng/2)**2;
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const within = dist <= (radiusM + accuracy); // allow GPS accuracy margin
+        resolve({
+          ok: within,
+          lat, lng, accuracy,
+          distance: Math.round(dist),
+          error: within ? null : `You're ~${Math.round(dist)}m away. Must be within ${radiusM}m to clock in.`
+        });
+      },
+      (err) => {
+        clearTimeout(timeoutId);
+        if (err.code === 1) resolve({ ok: false, error: "Location permission denied. Enable GPS to clock in." });
+        else if (err.code === 2) resolve({ ok: false, error: "GPS unavailable. Check your signal." });
+        else resolve({ ok: false, error: "GPS error: " + (err.message || "unknown") });
+      },
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 30000 }
+    );
+  });
+}
+
+// ── CLOCK EVENT RETRY QUEUE ──
+// When POSTing a clock event fails, save to this queue and flush on any subsequent
+// successful network call or on next app load. Keeps timekeeping durable across
+// flaky networks.
+const CLOCK_QUEUE_KEY = "shiftpro_clock_queue_v1";
+function loadClockQueue() {
+  try { return JSON.parse(localStorage.getItem(CLOCK_QUEUE_KEY) || "[]"); } catch(e){ return []; }
+}
+function saveClockQueue(q) {
+  try { localStorage.setItem(CLOCK_QUEUE_KEY, JSON.stringify(q)); } catch(e){ console.warn("[clock queue save]", e?.message); }
+}
+function enqueueClockEvent(evt) {
+  const q = loadClockQueue();
+  q.push({ ...evt, queued_at: Date.now(), attempts: 0 });
+  saveClockQueue(q);
+}
+async function flushClockQueue(getSBFn) {
+  const q = loadClockQueue();
+  if (q.length === 0) return { flushed: 0, remaining: 0 };
+  const sb = await getSBFn();
+  const { data: { session } } = await sb.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return { flushed: 0, remaining: q.length }; // can't flush without auth
+  const stillPending = [];
+  let flushed = 0;
+  for (const evt of q) {
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const vapidRes = await fetch("/api/push?action=vapid");
-      const { publicKey } = await vapidRes.json();
-      if (!publicKey) return;
-      const padding = "=".repeat((4 - publicKey.length % 4) % 4);
-      const base64 = (publicKey + padding).replace(/-/g, "+").replace(/_/g, "/");
-      const raw = atob(base64);
-      const arr = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-      const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr });
-      await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "subscribe", userId: uid, subscription: subscription.toJSON(), role: r || "employee" }) });
-      setPushSubscribed(true);
-    } catch (e) {}
-  };
-  const requestPermission = async () => {
-    if (!pushSupported) return false;
-    const result = await Notification.requestPermission();
-    setPushPermission(result);
-    if (result === "granted") { await subscribePush(userId, role); return true; }
-    return false;
-  };
-  return { pushSupported, pushPermission, pushSubscribed, requestPermission };
+      const res = await fetch("/api/employee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify(evt),
+      });
+      if (res.ok) { flushed++; continue; }
+      // If server rejected with 4xx, drop it (bad request, won't succeed on retry)
+      if (res.status >= 400 && res.status < 500) { flushed++; console.warn("[clock queue] drop bad event", evt, res.status); continue; }
+      // 5xx — keep for retry
+      stillPending.push({ ...evt, attempts: (evt.attempts || 0) + 1 });
+    } catch (e) {
+      stillPending.push({ ...evt, attempts: (evt.attempts || 0) + 1 });
+    }
+  }
+  // Drop events older than 7 days or attempted > 20 times
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  const filtered = stillPending.filter(e => (Date.now() - e.queued_at) < sevenDays && e.attempts < 20);
+  saveClockQueue(filtered);
+  return { flushed, remaining: filtered.length };
 }
 
 // ── SKELETON LOADER ──────────────────────────────────
-function SkeletonLoader({ rows=3, type="text" }) {
-  if(type==="cards") return (
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
-      {[0,1,2,3].map(i=>(
-        <div key={i} className="skeleton" style={{height:90,borderRadius:14}}/>
-      ))}
-    </div>
-  );
-  if(type==="schedule") return (
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      <div className="skeleton" style={{height:40,borderRadius:8,marginBottom:8}}/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
-        {Array.from({length:21}).map((_,i)=>(
-          <div key={i} className="skeleton" style={{height:60,borderRadius:6}}/>
-        ))}
-      </div>
-    </div>
-  );
-  if(type==="timeline") return (
-    <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      <div className="skeleton" style={{height:24,width:"60%",borderRadius:6}}/>
-      <div className="skeleton" style={{height:80,borderRadius:12}}/>
-      <div className="skeleton" style={{height:120,borderRadius:12}}/>
-    </div>
-  );
-  if(type==="chat") return (
-    <div style={{display:"flex",flexDirection:"column",gap:12,padding:"16px 0"}}>
-      {[0,1,2].map(i=>(
-        <div key={i} style={{display:"flex",alignItems:i%2===0?"flex-start":"flex-end"}}>
-          <div className="skeleton" style={{height:48,width:i%2===0?"65%":"55%",borderRadius:14}}/>
-        </div>
-      ))}
-    </div>
-  );
-  if(type==="list") return (
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {Array.from({length:rows}).map((_,i)=>(
-        <div key={i} className="skeleton" style={{height:56,borderRadius:10}}/>
-      ))}
-    </div>
-  );
+function SkeletonLoader({ rows=3 }) {
   return (
     <div style={{display:"flex",flexDirection:"column",gap:10,padding:"8px 0"}}>
       {Array.from({length:rows}).map((_,i)=>(
@@ -557,27 +595,41 @@ function Login({onLogin}){
       const sb = await getSB();
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
+      // Fetch profile with retry — fail closed if we can't load it
       let profile = null;
-      try{ const {data:p}=await sb.from("users").select("*").eq("id",data.user.id).single(); profile=p; }catch(e){}
+      let lastErr = null;
+      for(let attempt=0; attempt<3; attempt++){
+        if(attempt>0) await new Promise(r=>setTimeout(r,500));
+        try{
+          const {data:p, error: pErr} = await sb.from("users").select("*").eq("id",data.user.id).single();
+          if(pErr){ lastErr = pErr; continue; }
+          if(p){ profile = p; break; }
+        }catch(e){ lastErr = e; console.warn("[owner login profile fetch]", e?.message); }
+      }
+      if(!profile){
+        // Sign out so we don't leave a dangling session
+        try{ await sb.auth.signOut(); }catch(e){}
+        throw new Error("Couldn't load your account. Please try again or contact support.");
+      }
       const emp = {
         id: data.user.id,
-        name: profile?(profile.first_name+" "+profile.last_name):data.user.email.split("@")[0],
-        first: profile?.first_name||data.user.email.split("@")[0],
-        role: profile?.role||"Manager",
-        dept: profile?.department||"",
-        rate: parseFloat(profile?.hourly_rate)||0,
-        avatar: profile?.avatar_initials||data.user.email[0].toUpperCase(),
-        color: profile?.avatar_color||"#f59e0b",
+        name: (profile.first_name+" "+profile.last_name).trim() || data.user.email.split("@")[0],
+        first: profile.first_name||data.user.email.split("@")[0],
+        role: profile.role||"Manager",
+        dept: profile.department||"",
+        rate: parseFloat(profile.hourly_rate)||0,
+        avatar: profile.avatar_initials||data.user.email[0].toUpperCase(),
+        color: profile.avatar_color||"#f59e0b",
         email: data.user.email,
-        status:"active", hired:profile?.hire_date||"",
+        status:"active", hired:profile.hire_date||"",
         wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100,
         flags:0, streak:0, shifts:0, risk:"Low", ghost:0,
-        orgId: profile?.org_id||null,
-        locId: profile?.location_id||null,
-        appRole: profile?.app_role||"owner",
+        orgId: profile.org_id||null,
+        locId: profile.location_id||null,
+        appRole: profile.app_role||"owner",
       };
-      // Cache immediately so refresh works even if profile query fails next time
-      try{ localStorage.setItem("shiftpro_cached_emp_"+data.user.id, JSON.stringify(emp)); }catch(e){}
+      // Cache with stable auth-user id key (consistent with employee login)
+      try{ localStorage.setItem("shiftpro_cached_emp_"+data.user.id, JSON.stringify(emp)); }catch(e){ console.warn("[owner login cache]", e?.message); }
       onLogin("owner", emp);
     }catch(e){
       setErr(e.message||"Sign in failed. Check your email and password.");
@@ -592,40 +644,47 @@ function Login({onLogin}){
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
 
-      // Wait briefly for session to fully propagate, then try profile fetch
+      // Wait briefly for session to fully propagate, then try profile fetch.
+      // NOTE: We intentionally do NOT fall back to localStorage cache if the DB
+      // returns nothing — that would let deactivated users log in from old cached
+      // sessions. Fail closed instead.
       let profile = null;
+      let lastErr = null;
       for(let attempt=0; attempt<3; attempt++){
         if(attempt>0) await new Promise(r=>setTimeout(r,600));
-        const {data:p} = await sb.from("users").select("*").eq("id",data.user.id).single();
-        if(p){ profile=p; break; }
+        try{
+          const {data:p, error: pErr} = await sb.from("users").select("*").eq("id",data.user.id).single();
+          if(pErr){ lastErr = pErr; continue; }
+          if(p){ profile = p; break; }
+        }catch(e){ lastErr = e; console.warn("[emp login profile fetch]", e?.message); }
       }
 
-      // Fall back to localStorage cache if Supabase still returns nothing
       if(!profile){
-        try{
-          const cached=localStorage.getItem("shiftpro_cached_emp_"+data.user.id);
-          if(cached){ profile=JSON.parse(cached); profile._fromCache=true; }
-        }catch(e){}
+        // Sign out so we don't leave a dangling session
+        try{ await sb.auth.signOut(); }catch(e){ console.warn("[emp login signout]", e?.message); }
+        throw new Error("Profile not found. Please contact your manager or try again later.");
       }
 
-      if(!profile) throw new Error("Profile not found. Contact your manager.");
-
-      // Ensure employee is marked active on every login
-      if(!profile._fromCache){
-        try{
-          const {data:{session:ss}}=await sb.auth.getSession();
-          await fetch("/api/user",{
-            method:"PATCH",
-            headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-            body:JSON.stringify({userId:data.user.id,updates:{status:"active"}}),
-          });
-        }catch(e){}
+      // Block deactivated users
+      if(profile.status === "inactive" || profile.active === false){
+        try{ await sb.auth.signOut(); }catch(e){}
+        throw new Error("Your account is inactive. Contact your manager.");
       }
+
+      // Ensure employee is marked active on every successful login
+      try{
+        const {data:{session:ss}}=await sb.auth.getSession();
+        await fetch("/api/user",{
+          method:"PATCH",
+          headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+          body:JSON.stringify({userId:data.user.id,updates:{status:"active"}}),
+        });
+      }catch(e){ console.warn("[emp login status update]", e?.message); }
 
       const empRole = profile.app_role==="owner"||profile.app_role==="manager"?"owner":"employee";
       const emp = {
         id:profile.id||data.user.id,
-        name:(profile.first_name||"")+" "+(profile.last_name||""),
+        name:((profile.first_name||"")+" "+(profile.last_name||"")).trim(),
         first:profile.first_name||data.user.email.split("@")[0],
         nick:profile.preferred_name||"",
         role:profile.role&&profile.role!=="Employee"?profile.role:"",
@@ -642,8 +701,8 @@ function Login({onLogin}){
         locId:profile.location_id||null,
         appRole:profile.app_role||"employee",
       };
-      // Cache with user-specific key
-      try{ localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
+      // Cache with stable auth-user id key (consistent with owner login)
+      try{ localStorage.setItem("shiftpro_cached_emp_"+data.user.id, JSON.stringify(emp)); }catch(e){ console.warn("[emp login cache]", e?.message); }
       onLogin(empRole, emp);
     }catch(e){
       setErr(e.message||"Sign in failed. Check your email and password.");
@@ -696,16 +755,16 @@ function Login({onLogin}){
                 <div>
                   <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:16,color:"#fff",marginBottom:5}}>I'm an Employee</div>
                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(16,185,129,0.65)",letterSpacing:"1.5px"}}>MY SCHEDULE & TIME CLOCK</div>
-                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}> from  INVITED STAFF CLICK HERE</div>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}>↓ INVITED STAFF CLICK HERE</div>
                 </div>
               </button>
             </div>
             <div style={{textAlign:"center",marginTop:20}}>
               <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(255,255,255,0.2)",letterSpacing:1}}>New business?{" "}</span>
-              <a href="/signup" style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(245,158,11,0.5)",letterSpacing:1,textDecoration:"none"}}
+              <a href="/final" style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(245,158,11,0.5)",letterSpacing:1,textDecoration:"none"}}
                 onMouseEnter={e=>e.target.style.color="rgba(245,158,11,0.9)"}
                 onMouseLeave={e=>e.target.style.color="rgba(245,158,11,0.5)"}>
-                Create your account  to 
+                Create your account →
               </a>
             </div>
           </div>
@@ -713,7 +772,7 @@ function Login({onLogin}){
 
         {mode==="owner"&&(
           <div style={{background:"rgba(9,14,26,0.96)",border:"1px solid "+amberB,borderRadius:16,padding:"28px",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");setShowReset(false);setResetSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.3)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:18}}> back  BACK</button>
+            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");setShowReset(false);setResetSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.3)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:18}}>← BACK</button>
             {!showReset?(
               <div>
                 <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:22,color:"#fff",marginBottom:3}}>Owner / Manager</div>
@@ -727,7 +786,7 @@ function Login({onLogin}){
                 ))}
                 {err&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:red,marginBottom:12,padding:"8px 10px",background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>{err}</div>}
                 <button onClick={doOwnerLogin} style={{width:"100%",padding:"14px",background:busy?"rgba(245,158,11,0.5)":"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",borderRadius:10,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:15,color:"#030c14",cursor:busy?"not-allowed":"pointer",boxShadow:"0 4px 20px rgba(245,158,11,0.3)",marginBottom:12}}>
-                  {busy?"Signing in…":"Enter Command Center  to "}
+                  {busy?"Signing in…":"Enter Command Center →"}
                 </button>
                 <div style={{textAlign:"center"}}>
                   <button onClick={()=>{setShowReset(true);setErr("");}} style={{background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(245,158,11,0.5)",cursor:"pointer",textDecoration:"underline"}}>Forgot password?</button>
@@ -745,9 +804,9 @@ function Login({onLogin}){
                     </div>
                     {err&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:red,marginBottom:12}}>{err}</div>}
                     <button onClick={doReset} style={{width:"100%",padding:"13px",background:"rgba(245,158,11,0.15)",border:"1px solid "+amberB,borderRadius:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:14,color:amber,cursor:"pointer",marginBottom:10}}>
-                      {busy?"Sending…":"Send Reset Link  to "}
+                      {busy?"Sending…":"Send Reset Link →"}
                     </button>
-                    <button onClick={()=>{setShowReset(false);setErr("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(255,255,255,0.3)",cursor:"pointer"}}> back  Back to sign in</button>
+                    <button onClick={()=>{setShowReset(false);setErr("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(255,255,255,0.3)",cursor:"pointer"}}> ← Back to sign in</button>
                   </div>
                 ):(
                   <div>
@@ -764,7 +823,7 @@ function Login({onLogin}){
 
         {mode==="employee"&&(
           <div style={{background:"rgba(255,255,255,0.98)",borderRadius:16,padding:"28px",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}}>
-            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");}} style={{background:"none",border:"none",color:"#9ca3af",fontFamily:"'Nunito',sans-serif",fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}> back  Back</button>
+            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");}} style={{background:"none",border:"none",color:"#9ca3af",fontFamily:"'Nunito',sans-serif",fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}>← Back</button>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
               <div style={{width:44,height:44,borderRadius:12,flexShrink:0,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:22}}>👋</span></div>
               <div>
@@ -781,8 +840,9 @@ function Login({onLogin}){
               </div>
             ))}
             {err&&<div style={{fontFamily:"'Nunito',sans-serif",fontSize:12,color:"#ef4444",marginBottom:12,padding:"8px 10px",background:"rgba(239,68,68,0.05)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:6}}>{err}</div>}
+            {resetSent&&<div style={{fontFamily:"'Nunito',sans-serif",fontSize:12,color:"#059669",marginBottom:12,padding:"8px 10px",background:"rgba(16,185,129,0.06)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:6}}>✓ Reset email sent — check your inbox!</div>}
             <button onClick={doEmpLogin} style={{width:"100%",padding:"14px",background:busy?"#a5b4fc":"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:10,fontFamily:"'Nunito',sans-serif",fontWeight:700,fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 8px 28px rgba(99,102,241,0.18)",marginBottom:12}}>
-              {busy?"Signing in…":"Go to My Work Hub  to "}
+              {busy?"Signing in…":"Go to My Work Hub →"}
             </button>
             <div style={{textAlign:"center",marginBottom:8}}>
               <button onClick={async()=>{
@@ -791,8 +851,8 @@ function Login({onLogin}){
                 try{
                   const sb2=await getSB();
                   await sb2.auth.resetPasswordForEmail(email,{redirectTo:"https://shiftpro.ai/"});
-                  setErr("✓ Reset email sent — check your inbox!");
-                }catch(e){setErr("Could not send reset email.");}
+                  setResetSent(true);
+                }catch(e){ console.warn("[emp forgot password]", e?.message); setErr("Could not send reset email. Try again."); }
                 finally{setBusy(false);}
               }} style={{background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(99,102,241,0.5)",cursor:"pointer",textDecoration:"underline"}}>
                 Forgot password?
@@ -933,7 +993,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
             </div>
             {err&&<div style={{color:"#ef4444",fontFamily:E.sans,fontSize:12,marginBottom:8}}>{err}</div>}
             <button onClick={next} style={primaryBtn}>Continue  to </button>
-            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}> back  Back</button>
+            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}>← Back</button>
           </div>
         )}
 
@@ -951,10 +1011,10 @@ function EmpOnboarding({ empSafe, onComplete }) {
               ))}
             </div>
             <div style={{padding:"12px 14px",background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:10,marginBottom:20,fontFamily:E.sans,fontSize:12,color:"#6b7280"}}>
-              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span>  to  <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span>  to  No preference
+              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span> → <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span> → No preference
             </div>
             <button onClick={()=>{setErr("");setStep(4);}} style={primaryBtn}>Save & Continue  to </button>
-            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}> back  Back</button>
+            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}>← Back</button>
           </div>
         )}
 
@@ -990,7 +1050,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
               </div>
             </div>
             <button onClick={finish} disabled={busy} style={{...primaryBtn,opacity:busy?0.7:1,cursor:busy?"not-allowed":"pointer"}}>
-              {busy?"Setting up your account…":"Enter My Work Hub  to "}
+              {busy?"Setting up your account…":"Enter My Work Hub →"}
             </button>
           </div>
         )}
@@ -1103,171 +1163,11 @@ function MessageThread({ thread, empSafe, fmtTs, sendReply, E, isOwner=false }) 
   );
 }
 
-// ══════════════════════════════════════════════════
-//  EMPLOYEE MESSAGE CENTER — Messenger-style chat with management
-// ══════════════════════════════════════════════════
-function EmployeeMessageCenter({ threads, empSafe, msgsLoaded, reloadMessages }) {
-  const [replyText, setReplyText] = React.useState("");
-  const [localSent, setLocalSent] = React.useState([]);
-  const scrollRef = React.useRef(null);
-  const E = empSafe._theme || {
-    sans:"'Inter',sans-serif", mono:"'JetBrains Mono',monospace",
-    text:"#1a1a2e", textD:"#64748b", textF:"#94a3b8",
-    bg2:"#fff", bg3:"#f1f5f9", border:"#e2e8f0",
-    indigo:"#6366f1", violet:"#7c3aed", green:"#10b981", red:"#ef4444",
-    shadow:"0 2px 12px rgba(0,0,0,0.06)",
-  };
-
-  // Flatten all threads + replies into one chronological conversation
-  const allMsgs = [];
-  (threads||[]).forEach(t=>{
-    allMsgs.push(t);
-    if(t.replies) t.replies.forEach(r=>allMsgs.push(r));
-  });
-  // Add optimistic — dedup by matching body text against real messages
-  localSent.forEach(s=>{
-    const isDup = allMsgs.some(m=>m.body===s.body && m.from_id===s.from_id && Math.abs(new Date(m.created_at)-new Date(s.created_at))<60000);
-    if(!isDup) allMsgs.push(s);
-  });
-  allMsgs.sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||""));
-  const filteredMsgs = allMsgs.filter(m=>(m.body||m.text||m.content||m.message||m.subject||"").trim());
-
-  // Clean up localSent when real messages arrive
-  React.useEffect(()=>{
-    if(!threads||threads.length===0) return;
-    const realBodies = new Set();
-    (threads||[]).forEach(t=>{
-      if(t.body) realBodies.add(t.body);
-      if(t.replies) t.replies.forEach(r=>{ if(r.body) realBodies.add(r.body); });
-    });
-    setLocalSent(prev=>prev.filter(s=>!realBodies.has(s.body)));
-  },[threads]);
-
-  // Auto-scroll
-  React.useEffect(()=>{
-    if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  });
-
-  const hasText = replyText.trim().length > 0;
-
-  const handleSend = async() => {
-    if(!replyText.trim()) return;
-    const text = replyText.trim();
-    const optId = "opt_"+Date.now();
-    setLocalSent(prev=>[...prev, {
-      id:optId, body:text, text, from_id:empSafe.id,
-      from_name:empSafe.name, type:"employee_to_manager",
-      created_at:new Date().toISOString(), read:false,
-    }]);
-    setReplyText("");
-    try{
-      const {data:{session:ss}} = await (await getSB()).auth.getSession();
-      const r = await fetch("/api/messages", {
-        method:"POST",
-        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-        body:JSON.stringify({
-          orgId:empSafe.orgId, fromId:empSafe.id,
-          fromName:empSafe.name, toId:"managers",
-          text, type:"employee_to_manager",
-        }),
-      });
-      const d = await r.json();
-      if(!r.ok) throw new Error(d.error||"Failed");
-      // Reload messages from server after short delay — will dedup optimistic
-      if(reloadMessages) setTimeout(()=>reloadMessages(), 1000);
-    }catch(e){ /* optimistic msg stays visible */ }
-  };
-
-  const empId = empSafe.id;
-
-  return(
-  <div style={{background:"#fff",border:"1px solid "+E.border,borderRadius:16,overflow:"hidden",boxShadow:E.shadow,display:"flex",flexDirection:"column",minHeight:460,maxHeight:"calc(100vh - 220px)"}}>
-    {/* Header */}
-    <div style={{padding:"14px 20px",borderBottom:"1px solid "+E.border,display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
-      <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff"}}>👔</div>
-      <div>
-        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text}}>Management</div>
-        <div style={{fontFamily:E.mono||E.sans,fontSize:9,color:E.textF}}>Direct messages with your manager</div>
-      </div>
-    </div>
-
-    {/* Messages area */}
-    {!msgsLoaded?(
-      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:20}}>
-        <SkeletonLoader type="chat"/>
-      </div>
-    ):filteredMsgs.length===0?(
-      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:48,marginBottom:12}}>💬</div>
-          <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No messages yet</div>
-          <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,maxWidth:300,margin:"0 auto"}}>Type a message below to start a conversation with your manager.</div>
-        </div>
-      </div>
-    ):(
-      <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:8}}>
-        {filteredMsgs.map((m,i)=>{
-          const isMe = m.from_id===empId || m.type==="employee_to_manager" || m.type==="employee";
-          const ts = m.created_at?new Date(m.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
-          const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-          const prevDate = i>0&&filteredMsgs[i-1].created_at?new Date(filteredMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-          const isLast = isMe && !filteredMsgs.slice(i+1).some(x=>x.from_id===empId||x.type==="employee_to_manager"||x.type==="employee");
-          const prevIsMe = i>0 && (filteredMsgs[i-1].from_id===empId||filteredMsgs[i-1].type==="employee_to_manager"||filteredMsgs[i-1].type==="employee");
-          const showName = i===0 || isMe!==prevIsMe || dateStr!==prevDate;
-          const senderName = isMe ? "You" : (m.from_name||"Manager");
-          return(
-            <React.Fragment key={m.id||i}>
-              {dateStr!==prevDate&&(
-                <div style={{textAlign:"center",padding:"8px 0",fontFamily:E.mono||E.sans,fontSize:9,color:E.textF,letterSpacing:1}}>{dateStr}</div>
-              )}
-              <div style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start"}}>
-                <div style={{maxWidth:"75%"}}>
-                  {showName&&(
-                    <div style={{fontFamily:E.sans,fontSize:10,fontWeight:700,color:isMe?"#6366f1":"#e07b00",marginBottom:3,paddingLeft:isMe?0:4,paddingRight:isMe?4:0,textAlign:isMe?"right":"left"}}>{senderName}</div>
-                  )}
-                  <div style={{padding:"10px 14px",borderRadius:isMe?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isMe?"linear-gradient(135deg,"+E.indigo+","+E.violet+")":"#f1f5f9",border:isMe?"none":"1px solid "+E.border}}>
-                    <div style={{fontFamily:E.sans,fontSize:13,color:isMe?"#fff":E.text,lineHeight:1.5}}>{m.body||m.text||m.content||m.message||m.subject||""}</div>
-                    <div style={{fontFamily:E.mono||E.sans,fontSize:8,color:isMe?"rgba(255,255,255,0.6)":E.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
-                  </div>
-                  {isMe&&isLast&&(
-                    <div style={{fontFamily:E.mono||E.sans,fontSize:8,color:m.read?"#6366f1":E.textF,textAlign:"right",marginTop:3,paddingRight:4}}>
-                      {m.read?"✓✓ Read":"✓ Sent"}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
-    )}
-
-    {/* Reply bar — always visible */}
-    <div style={{padding:"12px 20px",borderTop:"1px solid "+E.border,display:"flex",gap:8,flexShrink:0,background:"#fafafa"}}>
-      <input
-        value={replyText}
-        onChange={e=>setReplyText(e.target.value)}
-        onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); }}}
-        placeholder="Message your manager..."
-        style={{flex:1,padding:"10px 14px",background:"#fff",border:"1px solid "+E.border,borderRadius:20,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none"}}
-      />
-      <button onClick={handleSend} disabled={!hasText}
-        style={{padding:"10px 18px",background:hasText?"#6366f1":"#ddd",border:"none",borderRadius:20,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:hasText?"pointer":"default",flexShrink:0,transition:"background 0.15s"}}>
-        Send
-      </button>
-    </div>
-  </div>
-  );
-}
-
-function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
-  const _ePfx = (emp?.email||"").split("@")[0]||"";
-  const _hasRealFirst = emp?.first && emp.first!=="there" && emp.first!==_ePfx;
+function EmpPortal({emp,onLogout,onProfileUpdate}){
   const empSafe = {
     id:emp?.id||"", name:emp?.name||(emp?.first?emp.first+" ":"")+"Employee",
-    first:_hasRealFirst?emp.first:(_ePfx||"there"),
+    first:emp?.first&&emp.first!=="there"?emp.first:emp?.email?.split("@")[0]||"there",
     nick:emp?.nick||emp?.preferred_name||"",
-    displayName: emp?.nick || emp?.preferred_name || (_hasRealFirst?emp.first:"") || (emp?.name&&emp.name.trim()&&!emp.name.includes("@")&&emp.name!=="Employee"?emp.name.split(" ")[0]:"") || _ePfx || "there",
     role:emp?.role&&emp.role!=="Employee"?emp.role:"", dept:emp?.dept||"",
     rate:parseFloat(emp?.rate)||15,
     avatar:(()=>{
@@ -1287,8 +1187,9 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
     rel:parseInt(emp?.rel)||100, prod:parseInt(emp?.prod)||80, cam:parseInt(emp?.cam)||85,
     ghost:parseFloat(emp?.ghost)||0,
   };
+  const { toasts: empToasts, toast: empToast, removeToast: empRemoveToast } = useToast();
+  const { confirm: empConfirm, ConfirmModalNode: empConfirmNode } = useConfirm();
   const [tab,setTab] = useState(()=>{
-    if(freshLogin) return "home"; // Fresh login always starts at home
     try{ return localStorage.getItem("shiftpro_emp_tab_"+(emp?.id||""))||"home"; }catch(e){ return "home"; }
   });
 
@@ -1327,8 +1228,9 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
     return 0;
   });
   const [syncMsg,setSyncMsg] = useState("");
+  const [clockBusy,setClockBusy] = useState(false);
+  const [clockLoc,setClockLoc] = useState(null); // {lat, lng, geofence_radius_m} — loaded from locations table
   const [now,setNow] = useState(new Date());
-  const { pushSupported:empPushSupported, pushPermission:empPushPerm, pushSubscribed:empPushSub, requestPermission:reqEmpPush } = usePushNotifications(empSafe.id, "employee");
   const [empShifts,setEmpShifts] = useState(null);
   const [swapOpen,setSwapOpen] = useState(false);
   const [swapReason,setSwapReason] = useState("");
@@ -1345,28 +1247,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   const [realMoHrs,setRealMoHrs] = useState(0);
   const [empDocs,setEmpDocs] = useState(null);
   const [empLocationName,setEmpLocationName] = useState("");
-  const [empLocationData,setEmpLocationData] = useState(null);
-  const [empPortalSettings,setEmpPortalSettings] = useState({showEarnings:true,showGrowth:true,showAchievements:true,showSwapShift:true,showTimeOff:true});
   const [empThreads,setEmpThreads] = useState(null);
-  const [empDataReady,setEmpDataReady] = useState(false);
-
-  // ── Standalone portal settings loader — runs independently, finds orgId from every source ──
-  useEffect(()=>{
-    (async()=>{
-      // Try every possible source for orgId
-      const orgId = emp?.orgId || emp?.org_id || null;
-      const lsOrgId = (()=>{ try{ return localStorage.getItem("shiftpro_active_orgid"); }catch(e){ return null; } })();
-      const finalOrgId = orgId || lsOrgId;
-      if(!finalOrgId) return;
-      try{
-        const r=await fetch("/api/portal-settings?orgId="+finalOrgId,{cache:"no-store"});
-        if(r.ok){
-          const d=await r.json();
-          if(d.portalSettings) setEmpPortalSettings(d.portalSettings);
-        }
-      }catch(e){}
-    })();
-  },[emp?.orgId, emp?.org_id]);
   // Profile edit state
   const [profileEdit,setProfileEdit] = useState(false);
   const [profileForm,setProfileForm] = useState({firstName:"",lastName:"",nick:"",title:"",phone:"",emergency:""});
@@ -1451,30 +1332,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
       localStorage.removeItem(CLOCK_KEY+"_at");
     }catch(e){}
   };
-
-  // Geofence check — returns true if within range or geofence not configured
-  const checkGeofence = () => new Promise((resolve) => {
-    // Location must have lat/lng and geofence_radius_m set
-    const loc = empLocationData || null;
-    const lat = loc?.latitude || loc?.lat;
-    const lng = loc?.longitude || loc?.lng;
-    const radius = loc?.geofence_radius_m || 0;
-    if(!lat || !lng || !radius) { resolve({ok:true}); return; }
-    if(!navigator.geolocation){ resolve({ok:false, msg:"Location services not available on this device."}); return; }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const R = 6371000; // earth radius meters
-        const dLat = (pos.coords.latitude - lat) * Math.PI / 180;
-        const dLng = (pos.coords.longitude - lng) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 + Math.cos(lat*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(dLng/2)**2;
-        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        if(dist <= radius){ resolve({ok:true, dist:Math.round(dist)}); }
-        else { resolve({ok:false, msg:"You're "+Math.round(dist)+"m away. Must be within "+radius+"m of your workplace to clock in.", dist:Math.round(dist)}); }
-      },
-      (err) => { resolve({ok:false, msg:"Please enable location services to clock in. ("+err.message+")"}); },
-      {enableHighAccuracy:true, timeout:10000, maximumAge:30000}
-    );
-  });
   const saveBreakStart = (at) => {
     try{
       localStorage.setItem(BREAK_KEY+"_active","true");
@@ -1489,9 +1346,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   };
   // Schedule sub-tab state (must be here, not inside render IIFE)
   const [schedSubTab,setSchedSubTab] = useState("shifts");
-  const [availableSwaps,setAvailableSwaps] = useState([]);
   const [avail,setAvail] = useState({Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"});
-  const [availTimes,setAvailTimes] = useState({Mon:{from:9,to:23,allDay:true},Tue:{from:9,to:23,allDay:true},Wed:{from:9,to:23,allDay:true},Thu:{from:9,to:23,allDay:true},Fri:{from:9,to:23,allDay:true},Sat:{from:9,to:23,allDay:true},Sun:{from:9,to:23,allDay:true}});
   const [availRecurring,setAvailRecurring] = useState(true);
   const [availSaved,setAvailSaved] = useState(false);
   const [availBusy,setAvailBusy] = useState(false);
@@ -1505,35 +1360,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
     }
   };
   const [msgsLoaded,setMsgsLoaded] = useState(false);
-
-  // Reload employee messages from server
-  const reloadEmpMessages = React.useCallback(async()=>{
-    if(!empSafe?.id) return;
-    try{
-      const sb=await getSB();
-      const {data:{session:ss}}=await sb.auth.getSession();
-      const headers=ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{};
-      const r=await fetch("/api/messages?userId="+empSafe.id+"&orgId="+(empSafe.orgId||"")+"&role=employee&_t="+Date.now(),{headers,cache:"no-store"});
-      if(r.ok){
-        const d=await r.json();
-        setEmpThreads(d.threads||[]);
-      }
-    }catch(e){}
-  },[empSafe?.id, empSafe?.orgId]);
-
-  // Auto-poll messages every 30s when on messages tab
-  React.useEffect(()=>{
-    if(tab!=="team" || !empSafe?.id) return;
-    const iv=setInterval(()=>reloadEmpMessages(), 30000);
-    return ()=>clearInterval(iv);
-  },[tab, empSafe?.id, reloadEmpMessages]);
-
-  // Load messages immediately on mount (independent of main useEffect)
-  React.useEffect(()=>{
-    if(!empSafe?.id) return;
-    reloadEmpMessages().then(()=>setMsgsLoaded(true));
-  },[empSafe?.id]);
-
   const [onboardingDone,setOnboardingDone] = useState(()=>{
     // Synchronous check — must happen before first render so gate works immediately
     if(!emp?.id) return true;
@@ -1542,6 +1368,29 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   });
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
+
+  // Load the employee's location (for GPS geofence) + flush any queued clock events on mount
+  useEffect(()=>{
+    let cancelled = false;
+    (async()=>{
+      // Flush queued clock events (this is a no-op if queue is empty)
+      try{
+        const result = await flushClockQueue(getSB);
+        if(!cancelled && result.flushed > 0) console.log("[clock queue] flushed", result.flushed, "event(s)");
+      }catch(e){ console.warn("[clock queue init]", e?.message); }
+      // Load location GPS info if we have a locId
+      if(!empSafe.locId) return;
+      try{
+        const sb = await getSB();
+        const {data:loc} = await sb.from("locations")
+          .select("lat, lng, geofence_radius_m")
+          .eq("id", empSafe.locId)
+          .single();
+        if(!cancelled && loc) setClockLoc(loc);
+      }catch(e){ console.warn("[load clockLoc]", e?.message); }
+    })();
+    return ()=>{ cancelled = true; };
+  }, [empSafe.locId]);
 
   useEffect(()=>{
     if(!clocked){setSecs(0);setBreakSecs(0);setOnBreak(false);return;}
@@ -1589,33 +1438,10 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
         if(empSafe.locId){
           try{
             const sb=await getSB();
-            const {data:loc}=await sb.from("locations").select("*").eq("id",empSafe.locId).single();
+            const {data:loc}=await sb.from("locations").select("name").eq("id",empSafe.locId).single();
             if(loc?.name) setEmpLocationName(loc.name);
-            if(loc) setEmpLocationData(loc);
           }catch(e){}
         }
-        // Load portal settings from org
-        if(empSafe.orgId){
-          try{
-            const r2=await fetch("/api/portal-settings?orgId="+empSafe.orgId,{headers,cache:"no-store"});
-            if(r2.ok){ const d2=await r2.json(); if(d2.portalSettings) setEmpPortalSettings(prev=>({...prev,...d2.portalSettings})); }
-            else {
-              // Fallback: direct query
-              const sb=await getSB();
-              const {data:org}=await sb.from("organizations").select("portal_settings").eq("id",empSafe.orgId).single();
-              if(org?.portal_settings) setEmpPortalSettings(prev=>({...prev,...org.portal_settings}));
-            }
-          }catch(e){}
-        }
-
-        // ── Load available swaps (open swaps from coworkers) ──
-        try{
-          const orgId=empSafe.orgId||(()=>{try{return localStorage.getItem("shiftpro_active_orgid")}catch(e){return null}})();
-          if(orgId){
-            const r=await fetch(`/api/requests?type=open_swaps&orgId=${orgId}&excludeUser=${empSafe.id}&_t=${Date.now()}`,{headers,cache:"no-store"});
-            if(r.ok){ const d=await r.json(); setAvailableSwaps(d.swaps||[]); }
-          }
-        }catch(e){}
 
         // ── Load availability via service role ──
         try{
@@ -1624,21 +1450,8 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
             const d=await r.json();
             if(d.availability?.length>0){
               const map={Mon:"none",Tue:"none",Wed:"none",Thu:"none",Fri:"none",Sat:"none",Sun:"none"};
-              const times={Mon:{from:9,to:23,allDay:true},Tue:{from:9,to:23,allDay:true},Wed:{from:9,to:23,allDay:true},Thu:{from:9,to:23,allDay:true},Fri:{from:9,to:23,allDay:true},Sat:{from:9,to:23,allDay:true},Sun:{from:9,to:23,allDay:true}};
-              d.availability.forEach((a)=>{
-                if(map.hasOwnProperty(a.day_of_week)){
-                  map[a.day_of_week]=a.status;
-                  if(a.avail_from!=null&&a.avail_to!=null){
-                    times[a.day_of_week].from = a.avail_from;
-                    times[a.day_of_week].to = a.avail_to;
-                    times[a.day_of_week].allDay = false;
-                  } else {
-                    times[a.day_of_week].allDay = true;
-                  }
-                }
-              });
+              d.availability.forEach((a)=>{ if(map.hasOwnProperty(a.day_of_week)) map[a.day_of_week]=a.status; });
               setAvail(map);
-              setAvailTimes(times);
               if(d.availability[0]?.recurring!==undefined) setAvailRecurring(!!d.availability[0].recurring);
             }
           }
@@ -1708,7 +1521,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
         }catch(e){}
 
       }catch(e){ setEmpShifts([]); }
-      setEmpDataReady(true);
     };
     load();
   },[empSafe.id]);
@@ -1725,9 +1537,9 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
   const TABS = [
     {id:"home",label:"🏠 Home"},
     {id:"schedule",label:"📅 Schedule"},
-    ...(empPortalSettings.showGrowth!==false?[{id:"earnings",label:"🌱 My Growth"}]:[]),
+    {id:"earnings",label:"🌱 My Growth"},
     {id:"team",label:unread>0?"💬 Messages ("+unread+")":"💬 Messages"},
-    ...(empPortalSettings.showAchievements!==false?[{id:"recognition",label:"🏆 Achievements"}]:[]),
+    {id:"recognition",label:"🏆 Achievements"},
     {id:"documents",label:"📄 My Documents"},
   ];
 
@@ -1749,31 +1561,22 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
     />
   );
 
-  if(!empDataReady) return (
-    <div style={{minHeight:"100vh",background:E.bg,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <div style={{textAlign:"center"}}>
-        <div style={{width:48,height:48,border:"4px solid "+E.border,borderTopColor:E.indigo,borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 16px"}}/>
-        <div style={{fontFamily:E.sans,fontWeight:600,fontSize:15,color:E.text}}>Loading your portal...</div>
-        <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:4}}>Getting your schedule, messages, and settings</div>
-        <style dangerouslySetInnerHTML={{__html:"@keyframes spin{to{transform:rotate(360deg)}}"}}/>
-      </div>
-    </div>
-  );
-
   return (
     <div style={{minHeight:"100vh",background:E.bg,fontFamily:E.sans,color:E.text}}>
+      <ToastContainer toasts={empToasts} removeToast={empRemoveToast}/>
+      {empConfirmNode}
       <div style={{background:E.bg2,borderBottom:`1px solid ${E.border}`,padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:E.shadow}}>
         <NavLogoLight/>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <Av emp={empSafe} size={32}/>
           <div>
-            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {empSafe.displayName}!</div>
+            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text}}>Hi, {empSafe.first==="there"||!empSafe.first?empSafe.email?.split("@")[0]||"there":empSafe.first}!</div>
             <div style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>{empSafe.role&&empSafe.role!=="Employee"?empSafe.role:"Employee"}</div>
           </div>
           <button onClick={onLogout} style={{padding:"5px 14px",background:"none",border:`1.5px solid ${E.border}`,borderRadius:20,fontFamily:E.sans,fontSize:12,color:E.textD,cursor:"pointer",marginLeft:4}}>Sign out</button>
         </div>
       </div>
-      <div style={{background:E.bg2,borderBottom:`1px solid ${E.border}`,padding:"0 12px",display:"flex",gap:2,overflowX:"auto",WebkitOverflowScrolling:"touch",msOverflowStyle:"none",scrollbarWidth:"none"}}>
+      <div style={{background:E.bg2,borderBottom:`1px solid ${E.border}`,padding:"0 20px",display:"flex",gap:2,overflowX:"auto"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>persistTab(t.id)} style={{fontFamily:E.sans,fontWeight:600,fontSize:13,padding:"11px 14px",background:"none",border:"none",cursor:"pointer",color:tab===t.id?E.indigo:E.textD,borderBottom:tab===t.id?`2.5px solid ${E.indigo}`:"2.5px solid transparent",transition:"all 0.15s",whiteSpace:"nowrap",marginBottom:-1}}>{t.label}</button>
         ))}
@@ -1783,7 +1586,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
           <div style={{animation:"fadeUp 0.3s ease"}}>
             {/* Greeting banner */}
             <div style={{background:`linear-gradient(135deg,${E.indigo},${E.violet})`,borderRadius:18,padding:"22px 24px",marginBottom:14,color:"#fff",position:"relative",overflow:"hidden",boxShadow:E.shadowB}}>
-              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>{greet}, {empSafe.displayName}! ✨</div>
+              <div style={{fontFamily:E.sans,fontWeight:800,fontSize:22,marginBottom:3}}>{greet}, {empSafe.nick||empSafe.first||"there"}! ✨</div>
               <div style={{fontFamily:E.sans,fontSize:13,opacity:0.8}}>{now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div>
               {/* Next shift inline in banner */}
               {(()=>{
@@ -1798,7 +1601,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                     <span style={{fontSize:16}}>{isToday?"⚡":"📅"}</span>
                     <span style={{fontFamily:E.sans,fontSize:13,opacity:0.9}}>
                       <strong>{isToday?"Your shift today":"Next shift:"}</strong> {dateLabel} - {fH(next.start_hour)}–{fH(next.end_hour)} - {next.end_hour-next.start_hour}h
-                      {next.lunch_hour&&<span style={{marginLeft:6,fontFamily:E.mono||E.sans,fontSize:10,color:E.textD}}> | 🍴 Lunch {(()=>{const h=Math.floor(next.lunch_hour);const m=Math.round((next.lunch_hour-h)*60);const hr=h%12||12;const mm=m?":"+String(m).padStart(2,"0"):"";return hr+mm+(h<12?"am":"pm");})()}{" "}({next.lunch_duration_min||30}min)</span>}
                     </span>
                   </div>
                 );
@@ -1807,31 +1609,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                 <div style={{marginTop:12,paddingTop:12,borderTop:"rgba(255,255,255,0.2) 1px solid",fontFamily:E.sans,fontSize:13,opacity:0.7}}>📅 No upcoming shifts scheduled yet</div>
               )}
             </div>
-
-            {/* Profile completion nudge — show when name is just email prefix */}
-            {empSafe.displayName===_ePfx&&_ePfx&&(
-              <div style={{background:"linear-gradient(135deg,rgba(232,184,75,0.08),rgba(224,123,0,0.08))",border:"1.5px solid rgba(232,184,75,0.25)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
-                <span style={{fontSize:22}}>👋</span>
-                <div style={{flex:1}}>
-                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:13,color:E.text}}>Set your display name</div>
-                  <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginTop:1}}>Your name shows as your email right now. Add your name so your team recognizes you!</div>
-                </div>
-                <button onClick={()=>{setTab("documents");setProfileEdit(true);setProfileForm(p=>({...p,firstName:"",lastName:"",nick:""}));}} style={{padding:"8px 16px",background:"linear-gradient(135deg,#e8b84b,#e07b00)",border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",flexShrink:0}}>Set Name</button>
-              </div>
-            )}
-
-            {/* Push notification opt-in */}
-            {empPushSupported && empPushPerm !== "granted" && empPushPerm !== "denied" && (
-              <div style={{background:"linear-gradient(135deg,rgba(99,102,241,0.08),rgba(124,58,237,0.08))",border:"1.5px solid rgba(99,102,241,0.2)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
-                <span style={{fontSize:22}}>🔔</span>
-                <div style={{flex:1}}>
-                  <div style={{fontFamily:E.sans,fontWeight:700,fontSize:13,color:E.text}}>Get shift alerts on your phone</div>
-                  <div style={{fontFamily:E.sans,fontSize:11,color:E.textD,marginTop:1}}>Know instantly when schedules change, shifts need coverage, or your manager messages you.</div>
-                </div>
-                <button onClick={reqEmpPush} style={{padding:"8px 16px",background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",border:"none",borderRadius:8,fontFamily:E.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 2px 8px rgba(99,102,241,0.3)"}}>Enable</button>
-              </div>
-            )}
-
             <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:20,padding:"22px 24px",marginBottom:14,boxShadow:E.shadow}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1855,53 +1632,142 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
               {syncMsg&&<div style={{fontFamily:E.mono,fontSize:10,color:syncMsg.startsWith("✓")?E.green:E.yellow,textAlign:"center",marginBottom:8}}>{syncMsg}</div>}
               <div style={{display:"flex",gap:10}}>
                 {!clocked?(
-                  <button onClick={async()=>{
-                    // Geofence check
-                    const geo = await checkGeofence();
-                    if(!geo.ok){ setSyncMsg("📍 "+geo.msg); setTimeout(()=>setSyncMsg(""),6000); return; }
-                    const now=new Date();
-                    saveClockedIn(now);
-                    setClocked(true); setClockedAt(now);
+                  <button disabled={clockBusy} onClick={async()=>{
+                    if(clockBusy) return;
+                    setClockBusy(true);
                     try{
-                      const sb=await getSB();
-                      const {data:{session:ssCi}}=await sb.auth.getSession();
-                      await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCi?.access_token?{"Authorization":"Bearer "+ssCi.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:"clock_in"})});
-                      setSyncMsg("✓ Clocked in — timer running");setTimeout(()=>setSyncMsg(""),2500);
-                    }catch(e){ setSyncMsg("⚠ Saved locally — syncing..."); setTimeout(()=>setSyncMsg(""),4000); }
-                  }} style={{flex:1,padding:"14px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:16,color:"#fff",cursor:"pointer",boxShadow:"0 4px 18px rgba(99,102,241,0.4)"}}>
-                    ✓ Clock In
+                      // 1. GPS check — location data is loaded from liveLocation if available
+                      const locInfo = clockLoc || {};
+                      const gps = await checkGeofence(locInfo.lat, locInfo.lng, locInfo.geofence_radius_m || 150);
+                      if(!gps.ok){
+                        setSyncMsg("⚠ " + (gps.error || "Location check failed"));
+                        setTimeout(()=>setSyncMsg(""),4000);
+                        return;
+                      }
+                      // 2. Save to localStorage IMMEDIATELY — survives page refresh + crashes
+                      const now=new Date();
+                      saveClockedIn(now);
+                      setClocked(true); setClockedAt(now);
+                      // 3. Build event + try to send; on any failure, queue it for retry
+                      const evt = {
+                        _action:"clock",
+                        userId:empSafe.id,
+                        orgId:empSafe.orgId||null,
+                        locId:empSafe.locId||null,
+                        eventType:"clock_in",
+                        gpsLat: gps.lat ?? null,
+                        gpsLng: gps.lng ?? null,
+                        gpsAccuracy: gps.accuracy ?? null,
+                      };
+                      try{
+                        const sb=await getSB();
+                        const {data:{session:ssCi}}=await sb.auth.getSession();
+                        const res = await fetch("/api/employee",{
+                          method:"POST",
+                          headers:{"Content-Type":"application/json",...(ssCi?.access_token?{"Authorization":"Bearer "+ssCi.access_token}:{})},
+                          body:JSON.stringify(evt),
+                        });
+                        if(!res.ok){
+                          const d = await res.json().catch(()=>({}));
+                          throw new Error(d.error || ("Server error "+res.status));
+                        }
+                        setSyncMsg(gps.skipped ? "✓ Clocked in (GPS not configured)" : "✓ Clocked in — verified by GPS");
+                        setTimeout(()=>setSyncMsg(""),2500);
+                        // Flush any previously queued events now that we have connectivity
+                        flushClockQueue(getSB).catch(err=>console.warn("[clock queue flush]", err?.message));
+                      }catch(e){
+                        console.warn("[clock_in]", e?.message);
+                        enqueueClockEvent(evt);
+                        setSyncMsg("⚠ Saved locally — will sync when online");
+                        setTimeout(()=>setSyncMsg(""),4500);
+                      }
+                    } finally { setClockBusy(false); }
+                  }} style={{flex:1,padding:"14px",background:clockBusy?"rgba(99,102,241,0.5)":`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:16,color:"#fff",cursor:clockBusy?"wait":"pointer",boxShadow:"0 4px 18px rgba(99,102,241,0.4)"}}>
+                    {clockBusy?"Checking GPS…":"✓ Clock In"}
                   </button>
                 ):(
                   <div style={{display:"flex",gap:10,flex:1}}>
-                    <button onClick={async()=>{
-                      const nowBreak=!onBreak;
-                      if(nowBreak){
-                        const at=new Date(); saveBreakStart(at);
-                      } else {
-                        clearBreak();
-                      }
-                      setOnBreak(b=>!b);
+                    <button disabled={clockBusy} onClick={async()=>{
+                      if(clockBusy) return;
+                      setClockBusy(true);
                       try{
-                        const sb=await getSB();
-                        const {data:{session:ssBr}}=await sb.auth.getSession();
-                        await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssBr?.access_token?{"Authorization":"Bearer "+ssBr.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:nowBreak?"break_start":"break_end"})});
-                        setSyncMsg(nowBreak?"⏸ Break started":" to  Back on shift");setTimeout(()=>setSyncMsg(""),2000);
-                      }catch(e){ setSyncMsg("⚠ Saved locally"); setTimeout(()=>setSyncMsg(""),3000); }
-                    }} style={{flex:1,padding:"13px",background:onBreak?`linear-gradient(135deg,rgba(99,102,241,0.9),rgba(139,92,246,0.9))`:`linear-gradient(135deg,rgba(245,158,11,0.9),rgba(251,146,60,0.8))`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>
-                      {onBreak?" to  Resume Shift":"⏸ Start Break"}
+                        const nowBreak=!onBreak;
+                        if(nowBreak){
+                          const at=new Date(); saveBreakStart(at);
+                        } else {
+                          clearBreak();
+                        }
+                        setOnBreak(b=>!b);
+                        const evt = {
+                          _action:"clock",
+                          userId:empSafe.id,
+                          orgId:empSafe.orgId||null,
+                          locId:empSafe.locId||null,
+                          eventType:nowBreak?"break_start":"break_end",
+                        };
+                        try{
+                          const sb=await getSB();
+                          const {data:{session:ssBr}}=await sb.auth.getSession();
+                          const res = await fetch("/api/employee",{
+                            method:"POST",
+                            headers:{"Content-Type":"application/json",...(ssBr?.access_token?{"Authorization":"Bearer "+ssBr.access_token}:{})},
+                            body:JSON.stringify(evt),
+                          });
+                          if(!res.ok){
+                            const d = await res.json().catch(()=>({}));
+                            throw new Error(d.error || ("Server error "+res.status));
+                          }
+                          setSyncMsg(nowBreak?"⏸ Break started":"→ Back on shift");
+                          setTimeout(()=>setSyncMsg(""),2000);
+                          flushClockQueue(getSB).catch(err=>console.warn("[clock queue flush]", err?.message));
+                        }catch(e){
+                          console.warn("[break]", e?.message);
+                          enqueueClockEvent(evt);
+                          setSyncMsg("⚠ Saved locally — will sync when online");
+                          setTimeout(()=>setSyncMsg(""),3500);
+                        }
+                      } finally { setClockBusy(false); }
+                    }} style={{flex:1,padding:"13px",background:onBreak?`linear-gradient(135deg,rgba(99,102,241,0.9),rgba(139,92,246,0.9))`:`linear-gradient(135deg,rgba(245,158,11,0.9),rgba(251,146,60,0.8))`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:clockBusy?"wait":"pointer",opacity:clockBusy?0.7:1}}>
+                      {onBreak?"→ Resume Shift":"⏸ Start Break"}
                     </button>
-                    <button onClick={async()=>{
+                    <button disabled={clockBusy} onClick={async()=>{
+                      if(clockBusy) return;
                       if(onBreak){ setSyncMsg("⚠ Resume your shift first"); setTimeout(()=>setSyncMsg(""),2500); return; }
-                      // Clear localStorage FIRST
-                      clearClockedIn(); clearBreak();
-                      setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
+                      setClockBusy(true);
                       try{
-                        const sb=await getSB();
-                        const {data:{session:ssCo}}=await sb.auth.getSession();
-                        await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCo?.access_token?{"Authorization":"Bearer "+ssCo.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:"clock_out"})});
-                        setSyncMsg("✓ Clocked out");setTimeout(()=>setSyncMsg(""),3000);
-                      }catch(e){ setSyncMsg("⚠ Saved locally — syncing..."); setTimeout(()=>setSyncMsg(""),4000); }
-                    }} style={{flex:1,padding:"13px",background:"rgba(239,68,68,0.08)",border:"1.5px solid rgba(239,68,68,0.3)",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.red,cursor:"pointer"}}>
+                        // Clear localStorage FIRST
+                        clearClockedIn(); clearBreak();
+                        setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
+                        const evt = {
+                          _action:"clock",
+                          userId:empSafe.id,
+                          orgId:empSafe.orgId||null,
+                          locId:empSafe.locId||null,
+                          eventType:"clock_out",
+                        };
+                        try{
+                          const sb=await getSB();
+                          const {data:{session:ssCo}}=await sb.auth.getSession();
+                          const res = await fetch("/api/employee",{
+                            method:"POST",
+                            headers:{"Content-Type":"application/json",...(ssCo?.access_token?{"Authorization":"Bearer "+ssCo.access_token}:{})},
+                            body:JSON.stringify(evt),
+                          });
+                          if(!res.ok){
+                            const d = await res.json().catch(()=>({}));
+                            throw new Error(d.error || ("Server error "+res.status));
+                          }
+                          setSyncMsg("✓ Clocked out");
+                          setTimeout(()=>setSyncMsg(""),3000);
+                          flushClockQueue(getSB).catch(err=>console.warn("[clock queue flush]", err?.message));
+                        }catch(e){
+                          console.warn("[clock_out]", e?.message);
+                          enqueueClockEvent(evt);
+                          setSyncMsg("⚠ Saved locally — will sync when online");
+                          setTimeout(()=>setSyncMsg(""),4000);
+                        }
+                      } finally { setClockBusy(false); }
+                    }} style={{flex:1,padding:"13px",background:"rgba(239,68,68,0.08)",border:"1.5px solid rgba(239,68,68,0.3)",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.red,cursor:clockBusy?"wait":"pointer",opacity:clockBusy?0.7:1}}>
                       👋 Clock Out
                     </button>
                   </div>
@@ -1909,7 +1775,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
               </div>
             </div>
             {/* Earnings tracker card */}
-            {empPortalSettings.showEarnings!==false&&(
             <div style={{background:E.bg2,border:"1.5px solid "+E.border,borderRadius:16,padding:"18px 20px",marginBottom:14,boxShadow:E.shadow}}>
               <div style={{fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.text,marginBottom:12}}>💰 Estimated Earnings</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
@@ -1938,14 +1803,9 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                 })()}
               </div>
             </div>
-            )}
 
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-              {[
-                ...(empPortalSettings.showSwapShift!==false?[{icon:"🔄",label:"Swap Shift",go:()=>setSwapOpen(true)}]:[]),
-                ...(empPortalSettings.showTimeOff!==false?[{icon:"📆",label:"Time Off",go:()=>setToOpen(true)}]:[]),
-                {icon:"💬",label:"Messages",go:()=>setTab("team")}
-              ].map(a=>(
+              {[{icon:"🔄",label:"Swap Shift",go:()=>setSwapOpen(true)},{icon:"📆",label:"Time Off",go:()=>setToOpen(true)},{icon:"💬",label:"Messages",go:()=>setTab("team")}].map(a=>(
                 <button key={a.label} onClick={a.go} style={{padding:"15px 10px",background:E.bg2,border:"1.5px solid "+E.border,borderRadius:14,cursor:"pointer",textAlign:"center",boxShadow:E.shadow}}>
                   <div style={{fontSize:22,marginBottom:6}}>{a.icon}</div>
                   <div style={{fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.text}}>{a.label}</div>
@@ -1962,14 +1822,7 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
             try{
               const sb2=await getSB();
               const {data:{session:ss}}=await sb2.auth.getSession();
-              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>{
-                const isAllDay=availTimes[day]?.allDay!==false;
-                return {
-                  day_of_week:day, status, recurring:availRecurring,
-                  avail_from:status==="available"&&!isAllDay?(availTimes[day]?.from||9):null,
-                  avail_to:status==="available"&&!isAllDay?(availTimes[day]?.to||23):null,
-                };
-              });
+              const rows=Object.entries(avail).filter(([,s])=>s!=="none").map(([day,status])=>({day_of_week:day,status,recurring:availRecurring}));
               const res=await fetch("/api/availability",{
                 method:"POST",
                 headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
@@ -1984,13 +1837,13 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
           return(
           <div style={{animation:"fadeUp 0.3s ease"}}>
             {/* Sub-tabs */}
-            <div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:2}}>
-              {[["shifts","📅 My Shifts"],["availability","✅ Availability"],["open","🔓 Open Shifts"],["swaps","🔄 Swaps"+(availableSwaps.length>0?" ("+availableSwaps.length+")":"")]].map(([id,label])=>(
-                <button key={id} onClick={()=>setSchedSubTab(id)} style={{padding:"7px 14px",borderRadius:20,border:"none",fontFamily:E.sans,fontWeight:600,fontSize:12,cursor:"pointer",background:schedSubTab===id?E.indigo:E.bg3,color:schedSubTab===id?"#fff":E.textD,whiteSpace:"nowrap",flexShrink:0}}>
+            <div style={{display:"flex",gap:6,marginBottom:16}}>
+              {[["shifts","📅 My Shifts"],["availability","✅ Set Availability"],["open","🔓 Open Shifts"]].map(([id,label])=>(
+                <button key={id} onClick={()=>setSchedSubTab(id)} style={{padding:"7px 14px",borderRadius:20,border:"none",fontFamily:E.sans,fontWeight:600,fontSize:12,cursor:"pointer",background:schedSubTab===id?E.indigo:E.bg3,color:schedSubTab===id?"#fff":E.textD}}>
                   {label}
                 </button>
               ))}
-              <button onClick={()=>setSwapOpen(true)} style={{marginLeft:"auto",padding:"7px 14px",background:E.indigoD,border:"1.5px solid "+E.indigo+"40",borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Post Swap</button>
+              <button onClick={()=>setSwapOpen(true)} style={{marginLeft:"auto",padding:"7px 14px",background:E.indigoD,border:`1.5px solid ${E.indigo}40`,borderRadius:20,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>Swap +</button>
             </div>
 
             {/* My Shifts sub-tab */}
@@ -2019,7 +1872,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                     })()}
                   </div>
                   {s.notes&&<div style={{fontFamily:E.sans,fontSize:12,color:E.indigo,marginTop:4,padding:"4px 8px",background:E.indigoD,borderRadius:6}}>📝 {s.notes}</div>}
-                  {s.lunch_hour&&<div style={{fontFamily:E.sans,fontSize:12,color:"#e07b00",marginTop:4,padding:"4px 8px",background:"rgba(224,123,0,0.08)",borderRadius:6}}>🍴 Lunch at {(()=>{const h=Math.floor(s.lunch_hour);const m=Math.round((s.lunch_hour-h)*60);const hr=h%12||12;const mm=m?":"+String(m).padStart(2,"0"):"";return hr+mm+(h<12?"am":"pm");})()}{" "}({s.lunch_duration_min||30} min)</div>}
                 </div>
                 <EBadge label="✓ Confirmed" color={E.green}/>
               </div>
@@ -2033,45 +1885,22 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                 <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:20,lineHeight:1.6}}>
                   Tap a day to set your availability. Your manager sees this when building the schedule.
                 </div>
-                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:20}}>
                   {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>{
                     const s=avail[day];
                     const isAvail=s==="available"; const isUnavail=s==="unavailable";
-                    const isAllDay=availTimes[day]?.allDay!==false;
-                    const fmtH=h=>h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM";
                     return(
-                      <div key={day} style={{background:isAvail?"rgba(16,185,129,0.06)":isUnavail?"rgba(239,68,68,0.04)":"#fff",border:"1.5px solid "+(isAvail?E.green+"40":isUnavail?"rgba(239,68,68,0.2)":E.border),borderRadius:12,padding:"10px 14px"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:10}}>
-                          <button onClick={()=>cycleAvail(day)} style={{width:56,padding:"8px 4px",borderRadius:8,cursor:"pointer",textAlign:"center",border:"none",background:isAvail?E.green:isUnavail?"#ef4444":"#e5e7eb",color:"#fff",fontFamily:E.sans,fontWeight:700,fontSize:12,flexShrink:0}}>
-                            {day}
-                          </button>
-                          <div style={{fontFamily:E.sans,fontSize:12,fontWeight:600,color:isAvail?E.green:isUnavail?"#ef4444":E.textF,minWidth:70}}>
-                            {isAvail?(isAllDay?"All Day":"Custom Hours"):isUnavail?"Off":"Not set"}
-                          </div>
-                          {isAvail&&(
-                            <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:"auto"}}>
-                              <button onClick={()=>setAvailTimes(p=>({...p,[day]:{...p[day],allDay:!isAllDay}}))}
-                                style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid "+(isAllDay?E.indigo+"40":E.border),background:isAllDay?"rgba(99,102,241,0.08)":"#fff",fontFamily:E.sans,fontWeight:700,fontSize:11,color:isAllDay?E.indigo:E.textD,cursor:"pointer"}}>
-                                {isAllDay?"All Day ✓":"Set Hours"}
-                              </button>
-                            </div>
-                          )}
+                      <button key={day} onClick={()=>cycleAvail(day)} style={{
+                        padding:"12px 4px",borderRadius:12,cursor:"pointer",transition:"all 0.18s",textAlign:"center",
+                        border:"2px solid "+(isAvail?E.green:isUnavail?"#ef4444":E.border),
+                        background:isAvail?"rgba(16,185,129,0.12)":isUnavail?"rgba(239,68,68,0.09)":"#fff",
+                      }}>
+                        <div style={{fontFamily:E.sans,fontWeight:700,fontSize:12,color:isAvail?E.green:isUnavail?"#ef4444":E.textD,marginBottom:4}}>{day}</div>
+                        <div style={{fontSize:16}}>{isAvail?"✅":isUnavail?"🚫":"—"}</div>
+                        <div style={{fontFamily:E.mono,fontSize:8,color:isAvail?E.green:isUnavail?"#ef4444":E.textF,marginTop:3,letterSpacing:0.5}}>
+                          {isAvail?"AVAIL":isUnavail?"OFF":"TAP"}
                         </div>
-                        {isAvail&&!isAllDay&&(
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,paddingTop:10,borderTop:"1px solid "+E.border}}>
-                            <span style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>From</span>
-                            <select value={availTimes[day]?.from||9} onChange={e=>setAvailTimes(p=>({...p,[day]:{...p[day],from:parseInt(e.target.value)}}))}
-                              style={{padding:"6px 10px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.mono||E.sans,fontSize:11,color:E.text,outline:"none",cursor:"pointer",flex:1}}>
-                              {[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22].map(h=><option key={h} value={h}>{fmtH(h)}</option>)}
-                            </select>
-                            <span style={{fontFamily:E.sans,fontSize:11,color:E.textD}}>to</span>
-                            <select value={availTimes[day]?.to||23} onChange={e=>setAvailTimes(p=>({...p,[day]:{...p[day],to:parseInt(e.target.value)}}))}
-                              style={{padding:"6px 10px",background:E.bg3,border:"1px solid "+E.border,borderRadius:8,fontFamily:E.mono||E.sans,fontSize:11,color:E.text,outline:"none",cursor:"pointer",flex:1}}>
-                              {[7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23].filter(h=>h>(availTimes[day]?.from||9)).map(h=><option key={h} value={h}>{fmtH(h)}</option>)}
-                            </select>
-                          </div>
-                        )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -2084,6 +1913,14 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                       <span style={{fontFamily:E.sans,fontSize:11,color}}>{label}</span>
                     </div>
                   ))}
+                </div>
+
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,padding:"12px 14px",background:E.bg3,borderRadius:10}}>
+                  <span style={{fontFamily:E.sans,fontSize:13,color:E.text}}>Repeat every week</span>
+                  <button onClick={()=>setAvailRecurring(r=>!r)} style={{width:44,height:26,borderRadius:13,border:"none",background:availRecurring?E.indigo:E.border,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                    <div style={{position:"absolute",top:3,left:availRecurring?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+                  </button>
+                  <span style={{fontFamily:E.mono,fontSize:10,color:availRecurring?E.indigo:E.textF}}>{availRecurring?"Recurring weekly":"One-time only"}</span>
                 </div>
 
                 {availSaved&&(
@@ -2138,59 +1975,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                       </button>
                     </div>
                   ))
-                )}
-              </div>
-            )}
-
-            {/* Available Swaps sub-tab */}
-            {schedSubTab==="swaps"&&(
-              <div>
-                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:16}}>Shifts your coworkers need covered — claim one and a manager will approve the swap.</div>
-                {availableSwaps.length===0?(
-                  <div style={{textAlign:"center",padding:"40px 20px",background:E.bg3,borderRadius:14}}>
-                    <div style={{fontSize:36,marginBottom:10}}>🔄</div>
-                    <div style={{fontFamily:E.sans,fontWeight:600,fontSize:15,color:E.text,marginBottom:6}}>No shifts available for swap</div>
-                    <div style={{fontFamily:E.sans,fontSize:12,color:E.textD}}>When a coworker posts a shift for swap, it will appear here for you to claim.</div>
-                  </div>
-                ):(
-                  availableSwaps.map(swap=>{
-                    const fH=h=>h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
-                    const dateLabel=swap.shift_date?new Date(swap.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"TBD";
-                    const timeLabel=swap.start_hour!=null&&swap.end_hour!=null?fH(swap.start_hour)+"–"+fH(swap.end_hour):"";
-                    const hours=swap.start_hour!=null&&swap.end_hour!=null?(swap.end_hour-swap.start_hour)+"h":"";
-                    return(
-                      <div key={swap.id} style={{background:"#fff",border:"1.5px solid rgba(99,102,241,0.2)",borderLeft:"4px solid "+E.indigo,borderRadius:"0 14px 14px 0",padding:"16px 18px",marginBottom:10,boxShadow:E.shadow}}>
-                        <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
-                          <div style={{width:42,height:42,borderRadius:"50%",background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:E.mono,fontWeight:700,fontSize:14,color:"#fff",flexShrink:0}}>🔄</div>
-                          <div style={{flex:1}}>
-                            <div style={{fontFamily:E.sans,fontWeight:700,fontSize:15,color:E.text}}>{swap.poster_name||"A coworker"} needs this shift covered</div>
-                            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
-                              <span style={{fontFamily:E.mono,fontSize:10,color:"#fff",background:E.indigo,padding:"3px 10px",borderRadius:12}}>📅 {dateLabel}</span>
-                              {timeLabel&&<span style={{fontFamily:E.mono,fontSize:10,color:E.indigo,background:E.indigoD,border:"1px solid "+E.indigo+"30",padding:"3px 10px",borderRadius:12}}>🕐 {timeLabel}</span>}
-                              {hours&&<span style={{fontFamily:E.mono,fontSize:10,color:E.textF,background:E.bg3,padding:"3px 10px",borderRadius:12}}>{hours}</span>}
-                            </div>
-                            {swap.reason&&<div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:6,fontStyle:"italic"}}>"{swap.reason}"</div>}
-                            <div style={{fontFamily:E.mono,fontSize:9,color:E.textF,marginTop:4}}>{swap.created_at?new Date(swap.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
-                          </div>
-                          <button onClick={async()=>{
-                            try{
-                              const {data:{session:ssCl}}=await (await getSB()).auth.getSession();
-                              const r=await fetch("/api/employee",{method:"POST",
-                                headers:{"Content-Type":"application/json",...(ssCl?.access_token?{"Authorization":"Bearer "+ssCl.access_token}:{})},
-                                body:JSON.stringify({_action:"claim_swap",swapId:swap.id,userId:empSafe.id,userName:empSafe.name})});
-                              const d=await r.json();
-                              if(!r.ok) throw new Error(d.error||"Failed");
-                              setAvailableSwaps(prev=>prev.filter(s=>s.id!==swap.id));
-                              setSyncMsg("✓ Shift claimed! Waiting for manager approval.");
-                              setTimeout(()=>setSyncMsg(""),4000);
-                            }catch(e){setSyncMsg("⚠ "+e.message);setTimeout(()=>setSyncMsg(""),4000);}
-                          }} style={{padding:"10px 18px",background:"linear-gradient(135deg,"+E.indigo+","+E.violet+")",border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(99,102,241,0.3)",whiteSpace:"nowrap"}}>
-                            I'll Take It
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
                 )}
               </div>
             )}
@@ -2350,22 +2134,132 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
           );
         })()}
         {tab==="team"&&(()=>{
-          const threads = empThreads;
+          const threads = empThreads; const setThreads = setEmpThreads;
+          const fmtTs = s => {
+            if(!s) return "";
+            const d = new Date(s);
+            const today = new Date();
+            const isToday = d.toDateString()===today.toDateString();
+            return isToday
+              ? d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})
+              : d.toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+          };
+
+          const sendReply = async(parentId, text, toId) => {
+            if(!text.trim()) return false;
+            try{
+              const {data:{session:ss}}=await (await getSB()).auth.getSession();
+              const r=await fetch("/api/messages",{
+                method:"POST",
+                headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                body:JSON.stringify({
+                  orgId:empSafe.orgId, fromId:empSafe.id,
+                  fromName:empSafe.name, toId,
+                  text, parentId, type:"employee",
+                }),
+              });
+              const d=await r.json();
+              if(!r.ok) throw new Error(d.error);
+              // Add reply to thread locally
+              setEmpThreads(prev=>(prev||[]).map(t=>t.id===parentId
+                ?{...t,replies:[...(t.replies||[]),d.message]}:t));
+              return true;
+            }catch(e){ return false; }
+          };
 
           return(
           <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
+            {/* Header */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
               <div>
                 <div style={{fontFamily:E.sans,fontWeight:800,fontSize:20,color:E.text}}>💬 Messages</div>
                 <div style={{fontFamily:E.sans,fontSize:12,color:E.textD,marginTop:2}}>Direct line to your management team</div>
               </div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                {(threads||[]).some(t=>!t.read&&t.to_id===empSafe.id)&&(
+                  <div style={{background:E.indigo,borderRadius:20,padding:"4px 12px",fontFamily:E.mono,fontSize:10,color:"#fff",fontWeight:700}}>
+                    {(threads||[]).filter(t=>!t.read&&t.to_id===empSafe.id).length} NEW
+                  </div>
+                )}
+                <button onClick={()=>{setComposeOpen(true);setComposeMsg("");setComposeText("");}}
+                  style={{padding:"8px 14px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:"pointer",boxShadow:"0 3px 10px rgba(99,102,241,0.3)"}}>
+                  + Message Manager
+                </button>
+              </div>
             </div>
-            <EmployeeMessageCenter
-              threads={threads}
-              empSafe={{...empSafe, _theme:E}}
-              msgsLoaded={msgsLoaded}
-              reloadMessages={reloadEmpMessages}
-            />
+
+            {/* Compose Modal */}
+            {composeOpen&&(
+              <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setComposeOpen(false)}>
+                <div style={{background:E.bg2,borderRadius:18,padding:"26px",width:"100%",maxWidth:420,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
+                  <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>📨 Message Management</div>
+                  <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Send a message directly to your manager. For time-sensitive issues like running late, contact your supervisor directly by phone.</div>
+                  <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"}}>Your Message *</label>
+                  <textarea value={composeText} onChange={e=>{setComposeText(e.target.value);setComposeMsg("");}}
+                    placeholder="e.g. Need coverage for my shift, have a question about scheduling, requesting a change..."
+                    rows={4}
+                    style={{width:"100%",padding:"10px 12px",background:E.bg3,border:"1.5px solid "+(composeMsg&&composeMsg.startsWith("!")?"#ef4444":E.border),borderRadius:9,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box",marginBottom:12}}/>
+                  {composeMsg&&(
+                    <div style={{fontFamily:E.sans,fontSize:13,padding:"8px 12px",borderRadius:8,marginBottom:12,
+                      color:composeMsg.startsWith("!")?E.red:E.green,
+                      background:composeMsg.startsWith("!")?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
+                      border:"1px solid "+(composeMsg.startsWith("!")?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"),
+                    }}>{composeMsg}</div>
+                  )}
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>setComposeOpen(false)}
+                      style={{flex:1,padding:"11px",background:E.bg3,border:"1px solid "+E.border,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
+                    <button disabled={composeBusy} onClick={async()=>{
+                      if(!composeText.trim()){setComposeMsg("! Please enter a message before sending");return;}
+                      setComposeBusy(true);
+                      try{
+                        const {data:{session:ss}}=await (await getSB()).auth.getSession();
+                        const r=await fetch("/api/messages",{method:"POST",
+                          headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+                          body:JSON.stringify({
+                            orgId:empSafe.orgId, fromId:empSafe.id,
+                            fromName:empSafe.name, toId:"managers",
+                            text:composeText.trim(), type:"employee_to_manager",
+                          })});
+                        const d=await r.json();
+                        if(!r.ok) throw new Error(d.error||"Failed");
+                        setComposeMsg("✓ Message sent! Your manager has been notified.");
+                        setComposeText("");
+                        setTimeout(()=>setComposeOpen(false),2000);
+                      }catch(e){ setComposeMsg("! Could not send: "+(e.message||"Try again")); }
+                      finally{ setComposeBusy(false); }
+                    }} style={{flex:2,padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:composeBusy?"not-allowed":"pointer",opacity:composeBusy?0.7:1,boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>
+                      {composeBusy?"Sending...":"Send to Manager"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Loading */}
+            {!msgsLoaded&&(
+              <div style={{textAlign:"center",padding:"40px",background:"#fff",borderRadius:14,border:"1px solid "+E.border}}>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>Loading messages…</div>
+              </div>
+            )}
+
+            {/* Empty state - with prompt to message manager */}
+            {msgsLoaded&&(threads||[]).length===0&&(
+              <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:16,border:"1px solid "+E.border,boxShadow:E.shadow}}>
+                <div style={{fontSize:48,marginBottom:12}}>💬</div>
+                <div style={{fontFamily:E.sans,fontWeight:700,fontSize:18,color:E.text,marginBottom:6}}>No messages yet</div>
+                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,maxWidth:320,margin:"0 auto 16px"}}>Your manager will send updates here. You can also message them directly anytime.</div>
+                <button onClick={()=>{setComposeOpen(true);setComposeMsg("");setComposeText("");}}
+                  style={{padding:"10px 20px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:10,fontFamily:E.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(99,102,241,0.3)"}}>
+                  Send First Message
+                </button>
+              </div>
+            )}
+
+            {/* Thread list */}
+            {(threads||[]).map(thread=>(
+              <MessageThread key={thread.id} thread={thread} empSafe={empSafe} fmtTs={fmtTs} sendReply={sendReply} E={E}/>
+            ))}
           </div>
           );
         })()}
@@ -2562,17 +2456,28 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
           };
 
           const handleDelete = async(docId) => {
-            if(!confirm("Delete this document? This cannot be undone.")) return;
+            const ok = await empConfirm({
+              title: "Delete this document?",
+              body: "This can't be undone.",
+              confirmLabel: "Delete",
+              cancelLabel: "Keep",
+              danger: true,
+            });
+            if(!ok) return;
             try{
               const {data:{session:ss}}=await (await getSB()).auth.getSession();
-              await fetch(`/api/documents?docId=${docId}`,{
+              const r = await fetch(`/api/documents?docId=${docId}`,{
                 method:"DELETE",
                 headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
               });
+              if(!r.ok){
+                const d = await r.json().catch(()=>({}));
+                throw new Error(d.error || ("Delete failed ("+r.status+")"));
+              }
               setEmpDocs(p=>(p||[]).filter(d=>d.id!==docId));
               setDocMsg("✓ Document deleted");
               setTimeout(()=>setDocMsg(""),3000);
-            }catch(e){ setDocMsg("Delete failed"); }
+            }catch(e){ console.warn("[doc delete]", e?.message); setDocMsg("Delete failed: "+e.message); setTimeout(()=>setDocMsg(""),4000); }
           };
 
           return(
@@ -2750,7 +2655,10 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
 
             {/* What to upload guide when empty */}
             {empDocs===null&&(
-              <div style={{padding:"8px 0"}}><SkeletonLoader type="list" rows={3}/></div>
+              <div style={{textAlign:"center",padding:"40px",background:"#fff",borderRadius:14,border:"1px solid "+E.border}}>
+                <div style={{fontSize:32,marginBottom:8}}>⏳</div>
+                <div style={{fontFamily:E.sans,fontSize:14,color:E.textD}}>Loading documents…</div>
+              </div>
             )}
 
             {empDocs!==null&&filteredDocs.length===0&&(
@@ -2873,6 +2781,9 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
                       <button onClick={()=>handleDownload(doc)} style={{padding:"7px 12px",background:E.indigoD,border:"1px solid "+E.indigo+"30",borderRadius:7,fontFamily:E.sans,fontWeight:600,fontSize:12,color:E.indigo,cursor:"pointer"}}>
                         ⬇ View
                       </button>
+                      <button onClick={()=>handleDelete(doc.id)} style={{padding:"7px 10px",background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:7,fontFamily:E.sans,fontSize:12,color:E.red,cursor:"pointer"}}>
+                        🗑
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -2885,71 +2796,88 @@ function EmpPortal({emp,onLogout,onProfileUpdate,freshLogin}){
       {swapOpen&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}} onClick={()=>setSwapOpen(false)}>
           <div style={{background:E.bg2,borderRadius:18,padding:"26px",width:"100%",maxWidth:420,boxShadow:E.shadowB}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>🔄 Post Shift for Swap</div>
-            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Select a shift to post — your coworkers will see it and can claim it. A manager will approve the final swap.</div>
+            <div style={{fontFamily:E.sans,fontWeight:800,fontSize:18,color:E.text,marginBottom:4}}>🔄 Request Shift Swap</div>
+            <div style={{fontFamily:E.sans,fontSize:13,color:E.textD,marginBottom:18}}>Select the shift you need covered and your manager will review it.</div>
 
             {/* My upcoming shifts quick-pick */}
-            {(empShifts||[]).length>0?(
+            {(empShifts||[]).length>0&&(
               <div style={{marginBottom:14}}>
-                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:8,textTransform:"uppercase"}}>Which shift do you need covered?</label>
-                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
-                  {(empShifts||[]).filter(s=>s.shift_date>=new Date().toISOString().split("T")[0]).map(s=>{
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:8,textTransform:"uppercase"}}>Select a Scheduled Shift</label>
+                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto"}}>
+                  {(empShifts||[]).slice(0,6).map(s=>{
                     const fH=h=>h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
-                    const dateLabel=new Date(s.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
-                    const label=dateLabel+" — "+fH(s.start_hour)+"–"+fH(s.end_hour)+" ("+(s.end_hour-s.start_hour)+"h)";
+                    const label=`${s.day_of_week} ${s.shift_date} - ${fH(s.start_hour)}–${fH(s.end_hour)}`;
                     const isSelected=swapShiftPick===s.id;
                     return(
                       <button key={s.id} onClick={()=>{ setSwapShiftPick(s.id); setSwapDate(s.shift_date); }}
-                        style={{padding:"12px 14px",background:isSelected?"rgba(99,102,241,0.08)":"#fff",border:"1.5px solid "+(isSelected?E.indigo:E.border),borderRadius:10,fontFamily:E.sans,fontSize:13,color:isSelected?E.indigo:E.text,cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}>
-                        <div style={{fontWeight:isSelected?700:500}}>📅 {label}</div>
-                        {isSelected&&<div style={{fontFamily:E.mono,fontSize:9,color:E.indigo,marginTop:3}}>✓ This shift will be posted for your coworkers to claim</div>}
+                        style={{padding:"10px 12px",background:isSelected?E.indigoD:"#fff",border:`1.5px solid ${isSelected?E.indigo:E.border}`,borderRadius:9,fontFamily:E.sans,fontSize:13,color:isSelected?E.indigo:E.text,cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}>
+                        <span style={{fontWeight:isSelected?700:500}}>📅 {label}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
-            ):(
-              <div style={{padding:"20px",background:E.bg3,borderRadius:12,textAlign:"center",marginBottom:14}}>
-                <div style={{fontFamily:E.sans,fontSize:13,color:E.textD}}>No upcoming shifts to swap.</div>
-              </div>
             )}
 
+            {/* Manual date if no shifts or different date needed */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Shift Date</label>
+                <input type="date" value={swapDate||""} onChange={e=>{setSwapDate(e.target.value);setSwapShiftPick("");}}
+                  min={new Date().toISOString().split("T")[0]}
+                  style={{width:"100%",padding:"9px 10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Time Needed Off</label>
+                <select value={swapReason.includes("AM")||swapReason.includes("PM")?swapReason:""} onChange={e=>{ if(e.target.value) setSwapReason(e.target.value); }}
+                  style={{width:"100%",padding:"9px 10px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:12,color:E.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+                  <option value="">— Full shift —</option>
+                  <option value="Entire shift">Entire shift</option>
+                  <option value="Morning (AM)">Morning (AM)</option>
+                  <option value="Afternoon (PM)">Afternoon (PM)</option>
+                  <option value="First half">First half</option>
+                  <option value="Second half">Second half</option>
+                </select>
+              </div>
+            </div>
+
             <div style={{marginBottom:16}}>
-              <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Why do you need this shift covered? *</label>
+              <label style={{fontFamily:E.mono,fontSize:9,color:E.textF,letterSpacing:"1.5px",display:"block",marginBottom:5,textTransform:"uppercase"}}>Reason for Swap *</label>
               <textarea value={swapReason||""} onChange={e=>{setSwapReason(e.target.value);setSwapDone("");}}
-                placeholder="e.g. Doctor appointment, family obligation..."
-                rows={2}
-                style={{width:"100%",padding:"10px 12px",background:E.bg3,border:"1.5px solid "+(swapDone&&swapDone.startsWith("⚠")?"#ef4444":E.border),borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box"}}/>
+                placeholder="e.g. Doctor appointment, family obligation, car trouble..."
+                rows={3}
+                style={{width:"100%",padding:"10px 12px",background:E.bg3,border:`1.5px solid ${swapDone&&swapDone.startsWith("⚠")?"#ef4444":E.border}`,borderRadius:8,fontFamily:E.sans,fontSize:13,color:E.text,outline:"none",resize:"none",boxSizing:"border-box",transition:"border-color 0.2s"}}/>
             </div>
 
             {swapDone&&(
-              <div style={{fontFamily:E.sans,fontSize:13,color:swapDone.startsWith("⚠")?E.red:E.green,marginBottom:10,padding:"9px 12px",background:swapDone.startsWith("⚠")?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",border:"1px solid "+(swapDone.startsWith("⚠")?"rgba(239,68,68,0.25)":"rgba(16,185,129,0.25)"),borderRadius:8}}>{swapDone}</div>
+              <div style={{
+                fontFamily:E.sans,fontSize:13,
+                color:swapDone.startsWith("⚠")?E.red:E.green,
+                marginBottom:10,padding:"9px 12px",
+                background:swapDone.startsWith("⚠")?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
+                border:`1px solid ${swapDone.startsWith("⚠")?"rgba(239,68,68,0.25)":"rgba(16,185,129,0.25)"}`,
+                borderRadius:8,
+              }}>{swapDone}</div>
             )}
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>{setSwapOpen(false);setSwapReason("");setSwapDate("");setSwapShiftPick("");setSwapDone("");}}
-                style={{flex:1,padding:"11px",background:E.bg3,border:"1px solid "+E.border,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
-              <button disabled={!swapShiftPick} onClick={async()=>{
-                if(!swapReason?.trim()){setSwapDone("⚠ Please enter a reason");return;}
-                if(!swapShiftPick){setSwapDone("⚠ Please select a shift");return;}
-                const selectedShift=(empShifts||[]).find(s=>s.id===swapShiftPick);
+                style={{flex:1,padding:"11px",background:E.bg3,border:`1px solid ${E.border}`,borderRadius:9,fontFamily:E.sans,fontWeight:600,color:E.textD,cursor:"pointer"}}>Cancel</button>
+              <button onClick={async()=>{
+                if(!swapReason?.trim()){setSwapDone("⚠ Please enter a reason for the swap request");return;}
+                if(!swapDate){setSwapDone("⚠ Please select the shift date");return;}
                 try{
                   const {data:{session:ssSw}}=await (await getSB()).auth.getSession();
                   const r=await fetch("/api/employee",{method:"POST",
                     headers:{"Content-Type":"application/json",...(ssSw?.access_token?{"Authorization":"Bearer "+ssSw.access_token}:{})},
                     body:JSON.stringify({_action:"swap_request",userId:empSafe.id,orgId:empSafe.orgId||null,
-                      reason:swapReason.trim(),shiftDate:swapDate,shiftId:swapShiftPick||null,
-                      posterName:empSafe.name,
-                      startHour:selectedShift?.start_hour||null,
-                      endHour:selectedShift?.end_hour||null,
-                      dayOfWeek:selectedShift?.day_of_week||null,
-                    })});
+                      reason:swapReason.trim(),shiftDate:swapDate,shiftId:swapShiftPick||null})});
                   const d=await r.json();
                   if(!r.ok) throw new Error(d.error);
-                  setSwapDone("✓ Shift posted! Your coworkers can now see it and claim it.");
+                  setSwapDone("✓ Swap request sent to your manager!");
                   setSwapReason(""); setSwapDate(""); setSwapShiftPick("");
-                  setTimeout(()=>{setSwapOpen(false);setSwapDone("");},2500);
+                  setTimeout(()=>{setSwapOpen(false);setSwapDone("");},2000);
                 }catch(e){setSwapDone("⚠ Could not submit: "+(e.message||"Please try again"));}
-              }} style={{flex:1,padding:"11px",background:swapShiftPick?"linear-gradient(135deg,"+E.indigo+","+E.violet+")":E.bg3,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:swapShiftPick?"#fff":E.textF,cursor:swapShiftPick?"pointer":"not-allowed",boxShadow:swapShiftPick?"0 4px 14px rgba(99,102,241,0.3)":"none"}}>Post for Swap</button>
+              }} style={{flex:1,padding:"11px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:9,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.3)"}}>Submit Request</button>
             </div>
           </div>
         </div>
@@ -3086,7 +3014,7 @@ function LocationGateNone({ activeOrg, ownerProfile, setLiveLocations, toast, se
             }finally{setBusy(false);}
           }}
           style={{width:"100%",padding:"14px",background:busy?"rgba(224,123,0,0.5)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(224,123,0,0.3)"}}>
-          {busy?"Creating location...":"Create Location and Continue  to "}
+          {busy?"Creating location...":"Create Location and Continue →"}
         </button>
       </div>
     </div>
@@ -3095,7 +3023,7 @@ function LocationGateNone({ activeOrg, ownerProfile, setLiveLocations, toast, se
 
 function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setActiveLocation, setAddLocOpen }) {
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(249,248,246,0.95)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(249,248,246,0.95)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,backdropFilter:"blur(8px)"}}>
       <div style={{background:"#fff",borderRadius:20,padding:"32px",width:"100%",maxWidth:520,boxShadow:"0 8px 40px rgba(0,0,0,0.12)",animation:"fadeUp 0.4s ease"}}>
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{fontSize:40,marginBottom:10}}>📍</div>
@@ -3114,7 +3042,7 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
             </button>
           ))}
           <button
-            onClick={()=>{selectLocation(null);}}
+            onClick={()=>{setLocationGate("ready");setActiveLocation(null);}}
             style={{padding:"18px 16px",background:"none",border:"1.5px dashed rgba(26,158,110,0.3)",borderRadius:14,cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6}}
             onMouseEnter={e=>{e.currentTarget.style.background=O.greenD;e.currentTarget.style.borderColor=O.green;}}
             onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.borderColor="rgba(26,158,110,0.3)";}}>
@@ -3133,249 +3061,18 @@ function LocationGatePick({ liveLocations, selectLocation, setLocationGate, setA
 }
 
 // ══════════════════════════════════════════════════
-//  MESSAGE CENTER — proper component for owner messaging
-// ══════════════════════════════════════════════════
-function MessageCenter({ staffMessages, liveEmps, ownerProfile, activeOrg, loadNotifications, toast, setActiveDrawerEmp }) {
-  const [convoId, setConvoId] = React.useState(null);
-  const [replyText, setReplyText] = React.useState("");
-  const [localSent, setLocalSent] = React.useState([]);
-  const scrollRef = React.useRef(null);
-
-  // Build conversations — keyed by EMPLOYEE id
-  const convos = {};
-  const empIds = new Set((liveEmps||[]).map(e=>e.id));
-  const ownerId = ownerProfile?.user_id||ownerProfile?.id||"owner";
-
-  (staffMessages||[]).forEach(m=>{
-    // Determine which employee this message belongs to
-    let empKey;
-    if(empIds.has(m.from_id)){
-      empKey = m.from_id; // employee sent this
-    } else if(m.to_id && empIds.has(m.to_id)){
-      empKey = m.to_id; // owner sent this TO an employee
-    } else if(m.from_id === ownerId && m.to_id){
-      empKey = m.to_id; // owner message — route to recipient
-    } else if(m.type==="employee_to_manager"){
-      empKey = m.from_id; // trust the type
-    } else {
-      empKey = m.to_id || m.from_id || "unknown"; // fallback
-    }
-
-    if(!convos[empKey]){
-      const empMatch = (liveEmps||[]).find(e=>e.id===empKey);
-      // Always prefer liveEmps name, then message from_name, then email prefix, then fallback
-      const name = (empMatch?.name||"").trim() || (empMatch?.first||"").trim() || (empIds.has(m.from_id) ? m.from_name : null) || (empMatch?.email||"").split("@")[0] || "Employee";
-      convos[empKey] = {from_id:empKey, from_name:name, messages:[], latest:m.created_at, unread:0};
-    }
-    convos[empKey].messages.push(m);
-    // Also add nested replies
-    if(m.replies) m.replies.forEach(r=>convos[empKey].messages.push(r));
-    if(!m.read && m.from_id!==ownerId) convos[empKey].unread++;
-    if(m.created_at>convos[empKey].latest) convos[empKey].latest = m.created_at;
-  });
-  // Merge optimistic
-  localSent.forEach(sm=>{
-    if(convos[sm.toFromId]){
-      if(!convos[sm.toFromId].messages.some(x=>x.id===sm.id)) convos[sm.toFromId].messages.push(sm);
-      if(sm.created_at>convos[sm.toFromId].latest) convos[sm.toFromId].latest = sm.created_at;
-    }
-  });
-  const convoList = Object.values(convos).sort((a,b)=>(b.latest||"").localeCompare(a.latest||""));
-  const activeConvo = convoList.find(c=>c.from_id===convoId) || convoList[0] || null;
-
-  // Auto-select
-  React.useEffect(()=>{
-    if(activeConvo && !convoId) setConvoId(activeConvo.from_id);
-  },[activeConvo, convoId]);
-
-  // Auto-scroll
-  React.useEffect(()=>{
-    if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  });
-
-  const allMsgs = activeConvo ? [...activeConvo.messages].filter(m=>(m.body||m.text||m.content||m.message||m.subject||"").trim()).sort((a,b)=>(a.created_at||"").localeCompare(b.created_at||"")) : [];
-  const empFromId = activeConvo?.from_id; // the employee's ID — anything else is the owner
-
-  const handleSend = async() => {
-    if(!replyText.trim()||!activeConvo) return;
-    const text = replyText.trim();
-    const optId = "opt_"+Date.now();
-    setLocalSent(prev=>[...prev, {
-      id:optId, body:text, text, toFromId:activeConvo.from_id,
-      from_id:ownerId, type:"direct", created_at:new Date().toISOString(), read:false,
-    }]);
-    setReplyText("");
-    try{
-      const sb = await getSB();
-      const {data:{session:ss}} = await sb.auth.getSession();
-      const r = await fetch("/api/messages", {
-        method:"POST",
-        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-        body:JSON.stringify({
-          orgId:activeOrg?.id||ownerProfile?.org_id,
-          fromId:ss?.user?.id,
-          fromName:ownerProfile?.first_name?(ownerProfile.first_name+" "+(ownerProfile.last_name||"")):"Manager",
-          toId:activeConvo.from_id, text,
-          parentId:activeConvo.messages[0]?.id, type:"direct",
-        }),
-      });
-      const d = await r.json();
-      if(!r.ok) throw new Error(d.error||"Failed");
-      const orgId = activeOrg?.id||ownerProfile?.org_id;
-      if(orgId) setTimeout(()=>{
-        loadNotifications(orgId, true);
-        setLocalSent(prev=>prev.filter(x=>x.id!==optId));
-      }, 800);
-    }catch(e){ if(toast) toast("Could not send: "+(e.message||"Try again"),"error"); }
-  };
-
-  const hasText = replyText.trim().length > 0;
-
-  return(
-  <div style={{display:"flex",gap:0,background:"#fff",border:"1px solid "+O.border,borderRadius:14,overflow:"hidden",minHeight:500,boxShadow:O.shadow}}>
-    {/* Left: Conversation List */}
-    <div style={{width:260,borderRight:"1px solid "+O.border,display:"flex",flexDirection:"column",flexShrink:0}}>
-      <div style={{padding:"14px 16px",borderBottom:"1px solid "+O.border}}>
-        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>Conversations</div>
-        <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:2}}>{convoList.length} thread{convoList.length!==1?"s":""}</div>
-      </div>
-      <div style={{flex:1,overflowY:"auto"}}>
-        {convoList.length===0&&(
-          <div style={{padding:"40px 16px",textAlign:"center"}}>
-            <div style={{fontSize:36,marginBottom:8}}>📥</div>
-            <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>No messages yet</div>
-            <div style={{fontFamily:O.sans,fontSize:11,color:O.textF,marginTop:4}}>Messages from employees appear here</div>
-          </div>
-        )}
-        {convoList.map(c=>{
-          const active = c.from_id===activeConvo?.from_id;
-          const lastMsg = [...c.messages].sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""))[0];
-          const initials = (c.from_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-          const emp = (liveEmps||[]).find(e=>e.id===c.from_id);
-          return(
-            <div key={c.from_id} onClick={()=>{setConvoId(c.from_id);setReplyText("");}}
-              style={{padding:"12px 16px",cursor:"pointer",background:active?"rgba(99,102,241,0.08)":"#fff",borderLeft:active?"3px solid "+O.indigo:"3px solid transparent",borderBottom:"1px solid "+O.border,transition:"background 0.1s"}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:36,height:36,borderRadius:"50%",background:emp?.color||O.indigo,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{initials}</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}>
-                    <div style={{fontFamily:O.sans,fontWeight:c.unread>0?700:600,fontSize:13,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.from_name}</div>
-                    {c.unread>0&&<div style={{width:8,height:8,borderRadius:"50%",background:O.indigo,flexShrink:0}}/>}
-                  </div>
-                  <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2}}>{lastMsg?.body||lastMsg?.text||lastMsg?.content||lastMsg?.message||lastMsg?.subject||""}</div>
-                  <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:3}}>{lastMsg?.created_at?new Date(lastMsg.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-
-    {/* Right: Thread View */}
-    <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
-      {!activeConvo?(
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:48,marginBottom:12}}>💬</div>
-            <div style={{fontFamily:O.sans,fontWeight:600,fontSize:16,color:O.textD}}>Select a conversation</div>
-          </div>
-        </div>
-      ):(
-        <React.Fragment>
-          {/* Thread header */}
-          <div style={{padding:"12px 18px",borderBottom:"1px solid "+O.border,display:"flex",alignItems:"center",gap:12,flexShrink:0,cursor:"pointer"}}
-            onClick={()=>{
-              const emp = (liveEmps||[]).find(e=>e.id===activeConvo.from_id);
-              if(emp && setActiveDrawerEmp) setActiveDrawerEmp(emp);
-            }}>
-            {(()=>{
-              const emp = (liveEmps||[]).find(e=>e.id===activeConvo.from_id);
-              const initials = (activeConvo.from_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-              return(
-                <React.Fragment>
-                  <div style={{width:40,height:40,borderRadius:"50%",background:emp?.color||O.indigo,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:13,color:"#fff",flexShrink:0}}>{initials}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{activeConvo.from_name}</div>
-                    <div style={{fontFamily:O.mono,fontSize:9,color:O.textF}}>{emp?.role||"Employee"} • {emp?.status==="active"?"Active":"Invited"}</div>
-                  </div>
-                  <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,display:"flex",alignItems:"center",gap:4}}>✏️ Edit</div>
-                </React.Fragment>
-              );
-            })()}
-          </div>
-
-          {/* Messages */}
-          <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:8}}>
-            {allMsgs.map((m,i)=>{
-              const isOwner = m.from_id!==empFromId;
-              const ts = m.created_at?new Date(m.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
-              const dateStr = m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-              const prevDate = i>0&&allMsgs[i-1].created_at?new Date(allMsgs[i-1].created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-              const isLast = isOwner && !allMsgs.slice(i+1).some(x=>x.from_id!==empFromId);
-              const prevIsOwner = i>0 && allMsgs[i-1].from_id!==empFromId;
-              const showName = i===0 || isOwner!==prevIsOwner || dateStr!==prevDate;
-              const ownerName = ownerProfile?.first_name ? ((ownerProfile.first_name||"")+" "+(ownerProfile.last_name||"")).trim() : "Manager";
-              const senderName = isOwner ? (m.from_name||ownerName) : (m.from_name||activeConvo?.from_name||"Employee");
-              const msgText = m.body||m.text||m.content||m.message||m.subject||"";
-              return(
-                <React.Fragment key={m.id||i}>
-                  {dateStr!==prevDate&&(
-                    <div style={{textAlign:"center",padding:"8px 0",fontFamily:O.mono,fontSize:9,color:O.textF,letterSpacing:1}}>{dateStr}</div>
-                  )}
-                  <div style={{display:"flex",justifyContent:isOwner?"flex-end":"flex-start"}}>
-                    <div style={{maxWidth:"70%"}}>
-                      {showName&&(
-                        <div style={{fontFamily:O.sans,fontSize:10,fontWeight:700,color:isOwner?O.indigo:O.amber,marginBottom:3,paddingLeft:isOwner?0:4,paddingRight:isOwner?4:0,textAlign:isOwner?"right":"left"}}>{senderName}</div>
-                      )}
-                      <div style={{padding:"10px 14px",borderRadius:isOwner?"14px 14px 4px 14px":"14px 14px 14px 4px",background:isOwner?"linear-gradient(135deg,"+O.indigo+","+O.purple+")":O.bg3,border:isOwner?"none":"1px solid "+O.border}}>
-                        <div style={{fontFamily:O.sans,fontSize:13,color:isOwner?"#fff":O.text,lineHeight:1.5}}>{msgText}</div>
-                        <div style={{fontFamily:O.mono,fontSize:8,color:isOwner?"rgba(255,255,255,0.6)":O.textF,marginTop:4,textAlign:"right"}}>{ts}</div>
-                      </div>
-                      {isOwner&&isLast&&(
-                        <div style={{fontFamily:O.mono,fontSize:8,color:m.read?O.indigo:O.textF,textAlign:"right",marginTop:3,paddingRight:4}}>
-                          {m.read?"✓✓ Read":"✓ Sent"}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </React.Fragment>
-              );
-            })}
-          </div>
-
-          {/* Reply bar */}
-          <div style={{padding:"12px 18px",borderTop:"1px solid "+O.border,display:"flex",gap:8,flexShrink:0,background:"#fafafa"}}>
-            <input
-              value={replyText}
-              onChange={e=>setReplyText(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleSend(); }}}
-              placeholder={"Message "+((activeConvo.from_name||"").split(" ")[0]||"employee")+"..."}
-              style={{flex:1,padding:"10px 14px",background:"#fff",border:"1px solid "+O.border,borderRadius:20,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none"}}
-            />
-            <button onClick={handleSend} disabled={!hasText}
-              style={{padding:"10px 18px",background:hasText?"#6366f1":"#ddd",border:"none",borderRadius:20,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:hasText?"pointer":"default",flexShrink:0,transition:"background 0.15s"}}>
-              Send
-            </button>
-          </div>
-        </React.Fragment>
-      )}
-    </div>
-  </div>
-  );
-}
-
 //  NOTIFICATIONS DROPDOWN (outside OwnerCmd)
 // ══════════════════════════════════════════════════
 function NotificationsDropdown({
   notifications, setNotifications, setNotifOpen,
-  setTab, setStaffSubTab, setMsgConvoId,
+  setTab, setStaffSubTab,
   setSwapRequests, setTimeOffRequests,
-  orgId, loadNotifications, seenNotifIds, persistSeenNotifs, dismissNotif
+  orgId, loadNotifications
 }) {
   const mobile = useIsMobile();
   const [expanded, setExpanded] = React.useState(null); // id of expanded notif
   const [actionBusy, setActionBusy] = React.useState(false);
+  const [actionErr, setActionErr] = React.useState("");
   const [replyText, setReplyText] = React.useState("");
   const [replyBusy, setReplyBusy] = React.useState(false);
   const [msgResult, setMsgResult] = React.useState("");
@@ -3425,12 +3122,15 @@ function NotificationsDropdown({
       const d = await r.json();
       if(!r.ok) throw new Error(d.error||"Failed");
       // Remove from bell + requests list
-      if(dismissNotif) dismissNotif(n.id);
-      else setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+      setNotifications(prev=>prev.filter(x=>x.id!==n.id));
       if(n.type==="swap"      && setSwapRequests)     setSwapRequests(prev=>(prev||[]).filter(r=>r.id!==n.raw.id));
       if(n.type==="timeoff"   && setTimeOffRequests)  setTimeOffRequests(prev=>(prev||[]).filter(r=>r.id!==n.raw.id));
       setExpanded(null);
-    }catch(e){ alert("Error: "+e.message); }
+    }catch(e){
+      console.warn("[notif action]", e?.message);
+      setActionErr(e?.message || "Failed to process request");
+      setTimeout(()=>setActionErr(""), 4000);
+    }
     setActionBusy(false);
   };
 
@@ -3454,7 +3154,8 @@ function NotificationsDropdown({
       if(!r.ok) throw new Error(d.error||"Failed");
       setMsgResult("✓ Sent!");
       setReplyText("");
-      setTimeout(()=>{ setMsgResult(""); setExpanded(null); if(dismissNotif)dismissNotif(n.id); }, 1200);
+      setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+      setTimeout(()=>{ setMsgResult(""); setExpanded(null); }, 1500);
     }catch(e){ setMsgResult("⚠ "+e.message); }
     setReplyBusy(false);
   };
@@ -3504,7 +3205,7 @@ function NotificationsDropdown({
               onClick={()=>{
                 setExpanded(isOpen?null:n.id);
                 setReplyText(""); setMsgResult("");
-                if(!n.read){ seenNotifIds?.current?.add(n.id); persistSeenNotifs?.(); setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x)); }
+                if(!n.read) setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
               }}
               style={{
                 padding:"11px 14px",
@@ -3522,11 +3223,6 @@ function NotificationsDropdown({
                 <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{detail}</div>
               </div>
               {!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,marginTop:5}}/>}
-              <button onClick={e=>{e.stopPropagation();e.nativeEvent.stopImmediatePropagation();if(dismissNotif)dismissNotif(n.id);if(expanded===n.id)setExpanded(null);}}
-                style={{background:"none",border:"none",fontSize:14,color:O.textF,cursor:"pointer",padding:"0 2px",flexShrink:0,lineHeight:1,opacity:0.5,transition:"opacity 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.opacity="1"}
-                onMouseLeave={e=>e.currentTarget.style.opacity="0.5"}
-                title="Dismiss">×</button>
               <span style={{fontFamily:O.mono,fontSize:10,color:O.textF,flexShrink:0}}>{isOpen?"▲":"▼"}</span>
             </div>
 
@@ -3538,6 +3234,12 @@ function NotificationsDropdown({
                 {reason&&(
                   <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"7px 10px",background:"#fff",borderRadius:8,marginBottom:10,lineHeight:1.5,border:"1px solid "+O.border}}>
                     {reason}
+                  </div>
+                )}
+
+                {actionErr && (
+                  <div style={{fontFamily:O.sans,fontSize:12,color:O.red,padding:"7px 10px",background:"rgba(217,64,64,0.08)",border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,marginBottom:10,fontWeight:600}}>
+                    {actionErr}
                   </div>
                 )}
 
@@ -3595,7 +3297,7 @@ function NotificationsDropdown({
                           style={{padding:"8px 14px",background:replyText.trim()?O.indigo:"#ccc",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:replyText.trim()?"pointer":"default",flexShrink:0}}>
                           {replyBusy?"…":"Send"}
                         </button>
-                        <button onClick={()=>{setNotifOpen(false);setTab("staff");setStaffSubTab("messages");if(n.raw?.from_id)setMsgConvoId(n.raw.from_id);}}
+                        <button onClick={()=>{setNotifOpen(false);setTab("command");}}
                           style={{padding:"8px 10px",background:"none",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer",flexShrink:0}}>
                           Full
                         </button>
@@ -3617,11 +3319,7 @@ function NotificationsDropdown({
             style={{flex:1,padding:"8px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:11,color:O.amber,cursor:"pointer"}}>
             All Requests
           </button>
-          <button onClick={()=>{
-            notifications.forEach(n=>seenNotifIds?.current?.add(n.id));
-            persistSeenNotifs?.();
-            setNotifications(prev=>prev.map(n=>({...n,read:true})));
-          }}
+          <button onClick={()=>setNotifications(prev=>prev.map(n=>({...n,read:true})))}
             style={{padding:"8px 12px",background:"none",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:11,color:O.textD,cursor:"pointer"}}>
             Mark read
           </button>
@@ -3695,8 +3393,6 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
       fd.append("name",ownerDocName.trim());
       fd.append("category",ownerDocCat);
       fd.append("notes",ownerDocNotes||"Uploaded by manager");
-      fd.append("uploadedBy",ownerProfile?.id||ownerProfile?.user_id||"manager");
-      fd.append("uploadedByName",((ownerProfile?.first_name||"")+" "+(ownerProfile?.last_name||"")).trim()||"Manager");
       const r=await fetch("/api/documents",{
         method:"POST",
         headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
@@ -3909,7 +3605,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                   }catch(e){toast("Failed: "+e.message,"error");}
                   finally{setMsgBusy(false);}
                 }} style={{marginTop:8,padding:"8px 18px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:msgBusy?"not-allowed":"pointer"}}>
-                  {msgBusy?"Sending…":"Send  to "}
+                  {msgBusy?"Sending…":"Send →"}
                 </button>
               </div>
             ):(
@@ -3934,11 +3630,6 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
               </div>
               {emp.email&&(
                 <a href={"mailto:"+emp.email} style={{fontFamily:O.mono,fontSize:10,color:O.cyan,textDecoration:"none",display:"block",marginTop:4}}>{emp.email}</a>
-              )}
-              {emp.id&&(
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,marginTop:4,background:"rgba(0,0,0,0.03)",padding:"3px 7px",borderRadius:4,display:"inline-block",cursor:"pointer",userSelect:"all"}} title="Click to select UUID" onClick={()=>{navigator.clipboard?.writeText(emp.id);if(toast)toast("UUID copied!","success")}}>
-                  ID: {emp.id}
-                </div>
               )}
             </div>
           </div>
@@ -4464,14 +4155,14 @@ function ConfettiOverlay({ onDone }) {
 // ══════════════════════════════════════════════════
 //  SHIFT ADD MODAL (outside OwnerCmd)
 // ══════════════════════════════════════════════════
-function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOffset, addShift, getMonday, ownerPrefs }) {
+function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOffset, addShift, getMonday }) {
   const HOURS_LIST = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
-  const fmtH2 = h => ownerPrefs?.use24h?(String(Math.floor(h)).padStart(2,"0")+":"+(h%1?String(Math.round((h%1)*60)).padStart(2,"0"):"00")):(h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM");
+  const fmtH2 = h => h===0?"12:00 AM":h<12?h+":00 AM":h===12?"12:00 PM":(h-12)+":00 PM";
   const modalEmps = liveEmps||[];
 
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget)setSelectedCell(null);}}>
       <div style={{background:"#fff",borderRadius:16,padding:"28px",width:"100%",maxWidth:420,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -4516,44 +4207,6 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
             style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
           />
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-          <div>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Lunch Break At</div>
-            <select
-              value={selectedCell.lunchHour||""}
-              onChange={e=>setSelectedCell(p=>({...p,lunchHour:e.target.value?parseFloat(e.target.value):""}))}
-              style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-              <option value="">No lunch</option>
-              {(()=>{
-                const opts=[];
-                const s=selectedCell.start||9; const e=selectedCell.end||17;
-                for(let h=s;h<e;h++){
-                  for(let m=0;m<60;m+=15){
-                    const val=h+m/60;
-                    if(val>=s&&val<e-0.25){
-                      const hr=ownerPrefs?.use24h?String(h).padStart(2,"0"):(h%12||12); const ampm=ownerPrefs?.use24h?"":h<12?" AM":" PM";
-                      const mm=m===0?"00":String(m);
-                      opts.push(<option key={val} value={val}>{hr}:{mm}{ampm}</option>);
-                    }
-                  }
-                }
-                return opts;
-              })()}
-            </select>
-          </div>
-          <div>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Break Length</div>
-            <select
-              value={selectedCell.lunchDuration||30}
-              onChange={e=>setSelectedCell(p=>({...p,lunchDuration:parseInt(e.target.value)}))}
-              style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-              <option value={15}>15 min</option>
-              <option value={30}>30 min</option>
-              <option value={45}>45 min</option>
-              <option value={60}>1 hour</option>
-            </select>
-          </div>
-        </div>
         <div style={{marginBottom:16}}>
           <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Shift Note (optional)</div>
           <textarea
@@ -4584,9 +4237,7 @@ function ShiftAddModal({ selectedCell, setSelectedCell, liveEmps, currentWeekOff
               start:selectedCell.start||9,
               end:selectedCell.end||17,
               role:selectedCell.roleLabel||"",
-              notes:selectedCell.shiftNote||"",
-              lunchHour:selectedCell.lunchHour||null,
-              lunchDuration:selectedCell.lunchDuration||30,
+              notes:selectedCell.shiftNote||""
             });
             setSelectedCell(null);
           }}
@@ -4607,378 +4258,6 @@ const DEPT_COLORS = [
   "#0f766e","#9333ea","#b45309","#0284c7",
 ];
 
-// ══════════════════════════════════════════════════
-//  PORTAL TOGGLES — fully self-contained
-// ══════════════════════════════════════════════════
-function PortalToggles({ orgId, toast }) {
-  const FEATURES = [
-    {key:"showEarnings", label:"Estimated Earnings", desc:"Show employees their estimated weekly & monthly earnings based on hours worked and pay rate.", icon:"💰"},
-    {key:"showGrowth", label:"My Growth Tab", desc:"Show the growth/tier progression system with performance metrics.", icon:"🌱"},
-    {key:"showAchievements", label:"Achievements Tab", desc:"Show the achievements and badges system.", icon:"🏆"},
-    {key:"showSwapShift", label:"Swap Shift", desc:"Allow employees to request shift swaps.", icon:"🔄"},
-    {key:"showTimeOff", label:"Time Off Requests", desc:"Allow employees to submit time-off requests.", icon:"📆"},
-  ];
-  const [settings, setSettings] = React.useState({showEarnings:true,showGrowth:true,showAchievements:true,showSwapShift:true,showTimeOff:true});
-  const [loaded, setLoaded] = React.useState(false);
-  const [saving, setSaving] = React.useState(null);
-  const [statusMsg, setStatusMsg] = React.useState("");
-
-  React.useEffect(()=>{
-    if(!orgId) { setStatusMsg("⚠ No org ID"); return; }
-    (async()=>{
-      try{
-        const r=await fetch("/api/portal-settings?orgId="+orgId,{cache:"no-store"});
-        if(!r.ok) throw new Error("API returned "+r.status);
-        const ct=r.headers.get("content-type")||"";
-        if(!ct.includes("json")) throw new Error("Non-JSON response from API");
-        const d=await r.json();
-        if(d.portalSettings) setSettings(prev=>({...prev,...d.portalSettings}));
-        if(d.portalSettings?.showEarnings===false) setStatusMsg("✓ Loaded from database");
-        else setStatusMsg("✓ Connected");
-      }catch(e){ setStatusMsg("⚠ Load failed: "+e.message); }
-      setLoaded(true);
-    })();
-  },[orgId]);
-
-  const toggle = async(key) => {
-    const newVal = settings[key]===false ? true : false;
-    const updated = {...settings, [key]:newVal};
-    setSettings(updated);
-    setSaving(key);
-    setStatusMsg("Saving...");
-    try{
-      const r=await fetch("/api/portal-settings",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({orgId, portalSettings:updated}),
-      });
-      const d=await r.json();
-      if(!r.ok){
-        const errMsg = d.error||"Save failed";
-        setStatusMsg("⚠ "+errMsg);
-        if(d.sqlNeeded) setStatusMsg("⚠ Run SQL: ALTER TABLE organizations ADD COLUMN IF NOT EXISTS portal_settings jsonb;");
-        setSettings(prev=>({...prev,[key]:!newVal}));
-      } else {
-        setStatusMsg("✓ Saved! Employees will see changes on refresh.");
-        if(toast) toast("✓ Employee portal updated","success");
-      }
-    }catch(e){
-      setStatusMsg("⚠ Network error: "+e.message);
-      setSettings(prev=>({...prev,[key]:!newVal}));
-    }
-    setSaving(null);
-  };
-
-  return(
-    <div>
-      {!loaded&&!statusMsg&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"8px 0"}}>Loading...</div>}
-      {FEATURES.map(f=>{
-        const isOn = settings[f.key]!==false;
-        const isSaving = saving===f.key;
-        return(
-          <div key={f.key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:isOn?"rgba(16,185,129,0.04)":"transparent",border:"1px solid "+(isOn?"rgba(16,185,129,0.15)":O.border),borderRadius:10,marginBottom:8,opacity:isSaving?0.6:1,transition:"all 0.2s"}}>
-            <span style={{fontSize:20,flexShrink:0}}>{f.icon}</span>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{f.label}</div>
-              <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginTop:1}}>{f.desc}</div>
-            </div>
-            <button disabled={isSaving} onClick={()=>toggle(f.key)} style={{width:44,height:26,borderRadius:13,border:"none",background:isOn?O.green:O.border,cursor:isSaving?"wait":"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-              <div style={{position:"absolute",top:3,left:isOn?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
-            </button>
-          </div>
-        );
-      })}
-      <div style={{fontFamily:O.mono,fontSize:9,color:statusMsg.startsWith("✓")?O.green:statusMsg.startsWith("⚠")?O.red:O.textF,marginTop:8,padding:"6px 8px",background:statusMsg.startsWith("⚠")?"rgba(217,64,64,0.06)":"transparent",borderRadius:6}}>
-        {statusMsg||"Ready"} {orgId&&<span style={{color:O.textF}}>• Org: {orgId.slice(0,8)}…</span>}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════
-//  BLACKOUT CALENDAR
-// ══════════════════════════════════════════════════
-function BlackoutCalendar({ orgId, toast }) {
-  const [blackouts, setBlackouts] = React.useState([]);
-  const [loaded, setLoaded] = React.useState(false);
-  const [viewMonth, setViewMonth] = React.useState(new Date().getMonth());
-  const [viewYear, setViewYear] = React.useState(new Date().getFullYear());
-  const [busy, setBusy] = React.useState(false);
-
-  React.useEffect(()=>{
-    if(!orgId) return;
-    (async()=>{
-      try{
-        const sb = await getSB();
-        const {data} = await sb.from("blackout_dates").select("*").eq("org_id",orgId).order("date");
-        setBlackouts((data||[]).map(d=>d.date));
-      }catch(e){}
-      setLoaded(true);
-    })();
-  },[orgId]);
-
-  const toggleDate = async(dateStr) => {
-    if(!orgId) return;
-    setBusy(true);
-    const isBlacked = blackouts.includes(dateStr);
-    try{
-      const sb = await getSB();
-      if(isBlacked){
-        await sb.from("blackout_dates").delete().eq("org_id",orgId).eq("date",dateStr);
-        setBlackouts(prev=>prev.filter(d=>d!==dateStr));
-      } else {
-        await sb.from("blackout_dates").insert({org_id:orgId, date:dateStr});
-        setBlackouts(prev=>[...prev, dateStr].sort());
-      }
-    }catch(e){ if(toast) toast("Failed to update blackout date","error"); }
-    setBusy(false);
-  };
-
-  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
-  const startDow = (new Date(viewYear, viewMonth, 1).getDay()+6)%7;
-  const cells = [];
-  for(let i=0;i<startDow;i++) cells.push(null);
-  for(let d=1;d<=daysInMonth;d++) cells.push(d);
-  while(cells.length%7!==0) cells.push(null);
-  const today = new Date();
-  const todayStr = today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
-  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-
-  return(
-    <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <button onClick={()=>{if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1);}}
-          style={{background:"none",border:"1px solid "+O.border,borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:O.sans,fontSize:14,color:O.textD}}>◀</button>
-        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{monthNames[viewMonth]} {viewYear}</div>
-        <button onClick={()=>{if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1);}}
-          style={{background:"none",border:"1px solid "+O.border,borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:O.sans,fontSize:14,color:O.textD}}>▶</button>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:6}}>
-        {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>(
-          <div key={d} style={{fontFamily:O.mono,fontSize:9,color:O.textF,textAlign:"center",padding:"4px 0",fontWeight:600}}>{d}</div>
-        ))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
-        {cells.map((day,i)=>{
-          if(!day) return <div key={i}/>;
-          const dateStr = viewYear+"-"+String(viewMonth+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
-          const isBlacked = blackouts.includes(dateStr);
-          const isPast = dateStr < todayStr;
-          const isToday = dateStr === todayStr;
-          return(
-            <button key={i} onClick={()=>!isPast&&!busy&&toggleDate(dateStr)} disabled={isPast||busy}
-              style={{
-                padding:"8px 4px",borderRadius:8,border:"none",cursor:isPast?"default":"pointer",
-                textAlign:"center",fontFamily:O.sans,fontSize:12,fontWeight:isToday?800:500,
-                transition:"all 0.15s",
-                background:isBlacked?"rgba(217,64,64,0.15)":isToday?"rgba(224,123,0,0.1)":"transparent",
-                color:isBlacked?O.red:isPast?O.textF:isToday?O.amber:O.text,
-                outline:isBlacked?"2px solid "+O.red+"40":"none",
-                opacity:isPast?0.4:1,
-              }}>
-              {day}
-              {isBlacked&&<div style={{width:5,height:5,borderRadius:"50%",background:O.red,margin:"2px auto 0"}}/>}
-            </button>
-          );
-        })}
-      </div>
-      {!loaded&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginTop:8}}>Loading...</div>}
-      {loaded&&blackouts.length>0&&(
-        <div style={{marginTop:12,padding:"10px 12px",background:"rgba(217,64,64,0.06)",border:"1px solid rgba(217,64,64,0.15)",borderRadius:8}}>
-          <div style={{fontFamily:O.mono,fontSize:9,color:O.red,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:6}}>Blackout Dates ({blackouts.filter(d=>d>=todayStr).length} upcoming)</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-            {blackouts.filter(d=>d>=todayStr).slice(0,20).map(d=>(
-              <span key={d} style={{fontFamily:O.mono,fontSize:10,padding:"3px 8px",background:"rgba(217,64,64,0.1)",border:"1px solid rgba(217,64,64,0.2)",borderRadius:6,color:O.red}}>
-                {new Date(d+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:8}}>
-        Click future dates to block time-off requests. Employees will see these dates marked as unavailable.
-      </div>
-    </div>
-  );
-}
-
-// ── BILLING CARD ──
-function BillingCard({ orgId: propOrgId, ownerEmail: propEmail, orgName: propOrgName, toast }) {
-  const [billing, setBilling] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [seats, setSeats] = useState(1);
-  const [selectedPlan, setSelectedPlan] = useState("pro");
-  const [checkoutBusy, setCheckoutBusy] = useState(false);
-
-  // Fallback chain for org ID and email
-  const orgId = propOrgId || (typeof window !== "undefined" ? localStorage.getItem("shiftpro_active_orgid") : null) || "";
-  const ownerEmail = propEmail || (typeof window !== "undefined" ? localStorage.getItem("shiftpro_owner_email") : null) || "";
-  const orgName = propOrgName || (typeof window !== "undefined" ? localStorage.getItem("shiftpro_org_name") : null) || "My Business";
-
-  // Cache email for future fallback
-  useEffect(() => {
-    if (propEmail) try { localStorage.setItem("shiftpro_owner_email", propEmail); } catch(e) {}
-  }, [propEmail]);
-
-  useEffect(() => {
-    if (!orgId) { setLoading(false); return; }
-    fetch("/api/stripe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "status", orgId }),
-    })
-      .then(r => r.ok ? r.json() : Promise.reject("API error"))
-      .then(d => { setBilling(d); setLoading(false); })
-      .catch(() => { setBilling(null); setLoading(false); });
-  }, [orgId]);
-
-  const startCheckout = async () => {
-    setCheckoutBusy(true);
-    try {
-      // Get email from auth if not available
-      let email = ownerEmail;
-      if (!email) {
-        try {
-          const { createClient } = await import("@supabase/supabase-js");
-          const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "");
-          const { data: { session } } = await sb.auth.getSession();
-          email = session?.user?.email || "";
-        } catch(e) {}
-      }
-      if (!orgId) { toast("Missing organization ID. Try refreshing the page.", "error"); setCheckoutBusy(false); return; }
-      if (!email) { toast("Missing email. Try refreshing the page.", "error"); setCheckoutBusy(false); return; }
-
-      const r = await fetch("/api/stripe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "checkout", orgId, email, orgName, planId: selectedPlan, seats }),
-      });
-      const d = await r.json();
-      if (d.url) window.location.href = d.url;
-      else { toast(d.error || "Checkout failed", "error"); }
-    } catch (e) { toast("Could not start checkout", "error"); }
-    setCheckoutBusy(false);
-  };
-
-  const openPortal = async () => {
-    try {
-      const r = await fetch("/api/stripe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "portal", orgId, email: ownerEmail, orgName }),
-      });
-      const d = await r.json();
-      if (d.url) window.location.href = d.url;
-      else toast(d.error || "Could not open billing portal", "error");
-    } catch (e) { toast("Could not open billing portal", "error"); }
-  };
-
-  if (loading) return (
-    <div>
-      <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Billing & Subscription</div>
-      <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>Loading billing info...</div>
-    </div>
-  );
-
-  const hasSubscription = billing && billing.status && billing.status !== "none";
-  const isTrialing = billing?.status === "trialing";
-  const isActive = billing?.status === "active";
-  const isPastDue = billing?.status === "past_due";
-  const isCanceled = billing?.status === "canceled";
-
-  return (
-    <div>
-      <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"1.5px",marginBottom:10,textTransform:"uppercase"}}>Billing & Subscription</div>
-
-      {hasSubscription ? (
-        <div>
-          {/* Current plan status */}
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-            <div style={{padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:700,fontFamily:O.sans,
-              background:isActive?"rgba(16,185,129,0.1)":isTrialing?"rgba(99,102,241,0.1)":isPastDue?"rgba(224,123,0,0.1)":"rgba(239,68,68,0.1)",
-              color:isActive?O.green:isTrialing?O.indigo:isPastDue?O.amber:O.red,
-              border:"1px solid "+(isActive?"rgba(16,185,129,0.2)":isTrialing?"rgba(99,102,241,0.2)":isPastDue?"rgba(224,123,0,0.2)":"rgba(239,68,68,0.2)")
-            }}>
-              {isActive?"Active":isTrialing?"Free Trial":isPastDue?"Past Due":isCanceled?"Canceled":billing.status}
-            </div>
-            <div style={{fontFamily:O.sans,fontSize:13,fontWeight:600,color:O.text}}>
-              {(billing.plan||"").charAt(0).toUpperCase()+(billing.plan||"").slice(1)} Plan
-            </div>
-            <div style={{fontFamily:O.sans,fontSize:12,color:O.textD}}>
-              {billing.seats} {billing.seats===1?"seat":"seats"}
-            </div>
-          </div>
-
-          {isTrialing && billing.trialEndsAt && (
-            <div style={{padding:"10px 14px",background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:8,marginBottom:14,fontFamily:O.sans,fontSize:12,color:O.indigo}}>
-              Trial ends {new Date(billing.trialEndsAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}. Add a payment method to continue after trial.
-            </div>
-          )}
-
-          {isPastDue && (
-            <div style={{padding:"10px 14px",background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:8,marginBottom:14,fontFamily:O.sans,fontSize:12,color:O.red}}>
-              Your last payment failed. Please update your payment method to avoid service interruption.
-            </div>
-          )}
-
-          <button onClick={openPortal} style={{padding:"10px 18px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.amber,cursor:"pointer"}}>
-            Manage Billing →
-          </button>
-        </div>
-      ) : (
-        <div>
-          <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:16,lineHeight:1.6}}>
-            Choose a plan to unlock all features. 7-day free trial on all plans.
-          </div>
-
-          {/* Plan selector */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
-            {[
-              {id:"essentials",name:"Essentials",price:"$2.50",desc:"1 location, scheduling + time clock"},
-              {id:"pro",name:"Pro",price:"$4.00",desc:"Unlimited locations, swaps, docs, geofencing"},
-            ].map(p=>(
-              <button key={p.id} onClick={()=>setSelectedPlan(p.id)} style={{
-                padding:"14px",borderRadius:10,border:selectedPlan===p.id?"2px solid "+O.amber:"1.5px solid "+O.border,
-                background:selectedPlan===p.id?O.amberD:"#fff",cursor:"pointer",textAlign:"left",transition:"all 0.15s"
-              }}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                  <span style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text}}>{p.name}</span>
-                  <span style={{fontFamily:O.mono,fontSize:12,fontWeight:700,color:O.amber}}>{p.price}<span style={{fontSize:9,color:O.textD}}>/user/mo</span></span>
-                </div>
-                <div style={{fontFamily:O.sans,fontSize:11,color:O.textD}}>{p.desc}</div>
-              </button>
-            ))}
-          </div>
-
-          {/* Seat count */}
-          <div style={{marginBottom:16}}>
-            <label style={{fontFamily:O.mono,fontSize:8,letterSpacing:"1.5px",color:O.textF,display:"block",marginBottom:6,textTransform:"uppercase"}}>Number of employees</label>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <button onClick={()=>setSeats(s=>Math.max(1,s-1))} style={{width:36,height:36,borderRadius:8,border:"1px solid "+O.border,background:"#fff",fontSize:18,cursor:"pointer",color:O.text}}>−</button>
-              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:24,color:O.text,minWidth:40,textAlign:"center"}}>{seats}</div>
-              <button onClick={()=>setSeats(s=>Math.min(200,s+1))} style={{width:36,height:36,borderRadius:8,border:"1px solid "+O.border,background:"#fff",fontSize:18,cursor:"pointer",color:O.text}}>+</button>
-              <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,marginLeft:8}}>
-                ${(seats * (selectedPlan==="pro"?4:2.5)).toFixed(2)}/month
-              </div>
-            </div>
-          </div>
-
-          {/* Checkout button */}
-          <button onClick={startCheckout} disabled={checkoutBusy} style={{
-            width:"100%",padding:"12px",borderRadius:10,border:"none",
-            background:checkoutBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",
-            color:"#fff",fontFamily:O.sans,fontWeight:700,fontSize:14,cursor:checkoutBusy?"not-allowed":"pointer",
-            boxShadow:"0 4px 16px rgba(224,123,0,0.25)"
-          }}>
-            {checkoutBusy?"Redirecting to Stripe…":"Start 7-Day Free Trial →"}
-          </button>
-          <div style={{textAlign:"center",fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:8}}>7 days free · Cancel anytime · Charges begin after trial</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SettingsTab({
   ownerProfile, activeOrg,
   liveLocations, setLiveLocations, activeLocation, selectLocation, setLocationGate,
@@ -4989,17 +4268,10 @@ function SettingsTab({
   settingsAddingDept, setSettingsAddingDept,
   settingsSaveBusy, setSettingsSaveBusy,
   settingsShowPwChange, setSettingsShowPwChange,
-  settingsEditName, setSettingsEditName,
-  settingsOwnerFirst, setSettingsOwnerFirst,
-  settingsOwnerLast, setSettingsOwnerLast,
-  settingsNameBusy, setSettingsNameBusy,
-  setOwnerProfile,
   settingsPw1, setSettingsPw1,
   settingsPw2, setSettingsPw2,
   settingsPwMsg, setSettingsPwMsg,
   settingsPwBusy, setSettingsPwBusy,
-  portalSettings, savePortalSetting,
-  ownerPrefs, updatePref,
   toast, onLogout,
 }) {
   const mobile = useIsMobile();
@@ -5117,11 +4389,6 @@ function SettingsTab({
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Settings</div>
         <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Business Settings</div>
-      </div>
-
-      {/* ── BILLING (top of settings) ── */}
-      <div style={{background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow,marginBottom:16}}>
-        <BillingCard orgId={activeOrg?.id} ownerEmail={ownerProfile?.email} orgName={settingsProfile?.name} toast={toast} />
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:16}}>
@@ -5396,83 +4663,23 @@ function SettingsTab({
           </div>
         </div>
 
-        {/* ── DISPLAY PREFERENCES ── */}
-        <div style={card}>
-          <div style={sectionTitle}>🎨 Display Preferences</div>
-          <div style={sectionSub}>Customize how ShiftPro looks and displays information.</div>
-          {[
-            {key:"use24h", label:"24-Hour Military Time", desc:ownerPrefs?.use24h?"Currently showing military time (14:00). Turn off for standard time (2:00 PM).":"Currently showing standard time (2:00 PM). Turn on for military time (14:00).", icon:"🕐", isOn:ownerPrefs?.use24h===true},
-            {key:"darkMode", label:"Dark Mode", desc:"Switch to a dark background for easier viewing in low-light environments.", icon:"🌙", isOn:ownerPrefs?.darkMode===true},
-          ].map(f=>(
-            <div key={f.key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:f.isOn?"rgba(99,102,241,0.04)":"transparent",border:"1px solid "+(f.isOn?"rgba(99,102,241,0.15)":O.border),borderRadius:10,marginBottom:8}}>
-              <span style={{fontSize:20,flexShrink:0}}>{f.icon}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text}}>{f.label}</div>
-                <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginTop:1}}>{f.desc}</div>
-              </div>
-              <button onClick={()=>{updatePref(f.key,!f.isOn);if(f.key==="darkMode")toast(!f.isOn?"🌙 Dark mode enabled":"☀️ Light mode enabled","success");}} style={{width:44,height:26,borderRadius:13,border:"none",background:f.isOn?O.indigo:O.border,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-                <div style={{position:"absolute",top:3,left:f.isOn?20:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* ── EMPLOYEE PORTAL CUSTOMIZATION ── */}
-        <div style={card}>
-          <div style={sectionTitle}>🎛️ Employee Portal</div>
-          <div style={sectionSub}>Choose which features your employees can see in their portal.</div>
-          <PortalToggles orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
-        </div>
-
         {/* ── MY ACCOUNT ── */}
         <div style={card}>
           <div style={sectionTitle}>👤 My Account</div>
           <div style={sectionSub}>Manage your login credentials and sign out.</div>
 
-          {/* Owner info display — with inline edit */}
-          <div style={{background:O.bg3,borderRadius:10,padding:"14px 16px",marginBottom:18}}>
-            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:settingsEditName?12:0}}>
-              <div style={{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff",flexShrink:0}}>
-                {(ownerProfile?.first_name||ownerProfile?.email||"?")[0].toUpperCase()}{(ownerProfile?.last_name||"")[0]?.toUpperCase()||""}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{((ownerProfile?.first_name||"")+" "+(ownerProfile?.last_name||"")).trim()||ownerProfile?.email||"Owner"}</div>
-                <div style={{fontFamily:O.mono,fontSize:10,color:O.textF,marginTop:2}}>{ownerProfile?.email||"—"}</div>
-                <div style={{marginTop:4}}>
-                  <OBadge label={ownerProfile?.app_role||"owner"} color={O.amber} sm/>
-                </div>
-              </div>
-              <button onClick={()=>{if(!settingsEditName){setSettingsOwnerFirst(ownerProfile?.first_name||"");setSettingsOwnerLast(ownerProfile?.last_name||"");}setSettingsEditName(p=>!p);}} style={{padding:"5px 10px",background:"none",border:"1px solid "+O.border,borderRadius:6,fontFamily:O.mono,fontSize:9,color:O.textF,cursor:"pointer"}}>{settingsEditName?"Cancel":"✏️ Edit"}</button>
+          {/* Owner info display */}
+          <div style={{background:O.bg3,borderRadius:10,padding:"14px 16px",marginBottom:18,display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#e07b00,#c96800)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:14,color:"#fff",flexShrink:0}}>
+              {(ownerProfile?.first_name||"?")[0].toUpperCase()}{(ownerProfile?.last_name||"?")[0].toUpperCase()}
             </div>
-            {settingsEditName&&(
-              <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-                <div style={{flex:1}}>
-                  <label style={label}>First Name</label>
-                  <input value={settingsOwnerFirst} onChange={e=>setSettingsOwnerFirst(e.target.value)} placeholder="First" style={input}/>
-                </div>
-                <div style={{flex:1}}>
-                  <label style={label}>Last Name</label>
-                  <input value={settingsOwnerLast} onChange={e=>setSettingsOwnerLast(e.target.value)} placeholder="Last" style={input}/>
-                </div>
-                <button disabled={settingsNameBusy} onClick={async()=>{
-                  if(!settingsOwnerFirst.trim()) return;
-                  setSettingsNameBusy(true);
-                  try{
-                    const sb=await getSB();
-                    const {data:{session:ss}}=await sb.auth.getSession();
-                    if(!ss?.user?.id) throw new Error("No session");
-                    const {error}=await sb.from("users").update({first_name:settingsOwnerFirst.trim(),last_name:settingsOwnerLast.trim()}).eq("id",ss.user.id);
-                    if(error) throw error;
-                    setOwnerProfile(p=>({...p,first_name:settingsOwnerFirst.trim(),last_name:settingsOwnerLast.trim()}));
-                    setSettingsEditName(false);
-                    toast("Name updated!","success");
-                  }catch(e){toast("Failed: "+(e.message||"Try again"),"error");}
-                  setSettingsNameBusy(false);
-                }} style={{padding:"9px 16px",background:settingsNameBusy?"#ccc":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:7,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:settingsNameBusy?"not-allowed":"pointer",whiteSpace:"nowrap",marginBottom:1}}>
-                  {settingsNameBusy?"…":"Save"}
-                </button>
+            <div>
+              <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text}}>{ownerProfile?.first_name} {ownerProfile?.last_name}</div>
+              <div style={{fontFamily:O.mono,fontSize:10,color:O.textF,marginTop:2}}>{ownerProfile?.email||"—"}</div>
+              <div style={{marginTop:4}}>
+                <OBadge label={ownerProfile?.app_role||"owner"} color={O.amber} sm/>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Change password */}
@@ -5507,7 +4714,7 @@ function SettingsTab({
               <button
                 onClick={changePassword}
                 style={{width:"100%",padding:"10px",background:settingsPwBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:settingsPwBusy?"not-allowed":"pointer"}}>
-                {settingsPwBusy?"Updating…":"Update Password  to "}
+                {settingsPwBusy?"Updating…":"Update Password →"}
               </button>
             </div>
           )}
@@ -5544,7 +4751,7 @@ function AddLocationModal({
   const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setAddLocOpen(false);setAddLocErr("");}}}>
       <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":440,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -5594,29 +4801,6 @@ function AddLocationModal({
             ))}
           </select>
         </div>
-        <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,marginTop:12,textTransform:"uppercase"}}>📍 Geofencing (optional)</div>
-        <div style={{fontFamily:O.sans,fontSize:11,color:O.textD,marginBottom:10}}>Require employees to be near this location to clock in. Enter coordinates and radius.</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-          <div>
-            <input value={addLocForm.latitude} onChange={e=>setAddLocForm(p=>({...p,latitude:e.target.value}))} placeholder="Latitude (e.g. 44.6365)"
-              style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.mono,fontSize:11,color:O.text,outline:"none",boxSizing:"border-box"}}/>
-          </div>
-          <div>
-            <input value={addLocForm.longitude} onChange={e=>setAddLocForm(p=>({...p,longitude:e.target.value}))} placeholder="Longitude (e.g. -124.0535)"
-              style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.mono,fontSize:11,color:O.text,outline:"none",boxSizing:"border-box"}}/>
-          </div>
-        </div>
-        <div style={{marginBottom:18}}>
-          <select value={addLocForm.geofence_radius_m} onChange={e=>setAddLocForm(p=>({...p,geofence_radius_m:e.target.value}))}
-            style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-            <option value="">No geofence</option>
-            <option value="50">50m (~150 ft) — Tight</option>
-            <option value="100">100m (~330 ft) — Standard</option>
-            <option value="200">200m (~650 ft) — Relaxed</option>
-            <option value="500">500m (~1640 ft) — Wide</option>
-            <option value="1000">1km (~0.6 mi) — Campus</option>
-          </select>
-        </div>
         {addLocErr&&(
           <div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:12,padding:"7px 10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:6}}>{addLocErr}</div>
         )}
@@ -5636,7 +4820,7 @@ function AddLocationModal({
               const res=await fetch("/api/location",{
                 method:"POST",
                 headers:{"Content-Type":"application/json",...(session?.access_token?{"Authorization":"Bearer "+session.access_token}:{})},
-                body:JSON.stringify({orgId,name:addLocForm.name,address:addLocForm.address||"",timezone:addLocForm.timezone,latitude:addLocForm.latitude?parseFloat(addLocForm.latitude):null,longitude:addLocForm.longitude?parseFloat(addLocForm.longitude):null,geofence_radius_m:addLocForm.geofence_radius_m?parseInt(addLocForm.geofence_radius_m):null})
+                body:JSON.stringify({orgId,name:addLocForm.name,address:addLocForm.address||"",timezone:addLocForm.timezone})
               });
               const result=await res.json();
               if(!res.ok) throw new Error(result.error||"Failed to create location");
@@ -5653,7 +4837,7 @@ function AddLocationModal({
               });
               selectLocation(newLoc);
               setAddLocOpen(false);
-              setAddLocForm({name:"",address:"",timezone:"America/Los_Angeles",latitude:"",longitude:"",geofence_radius_m:""});
+              setAddLocForm({name:"",address:"",timezone:"America/Los_Angeles"});
               toast("✓ Location created: "+newLoc.name,"success");
               setTab("staff");
             }catch(err){
@@ -5678,7 +4862,7 @@ function InviteModal({
   const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setShowInvite(false);setInviteDone("");setInviteErr("");}}}>
       <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":460,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -5831,7 +5015,7 @@ function InviteModal({
                 }finally{setInviteBusy(false);}
               }}
               style={{width:"100%",padding:"13px",background:inviteBusy?"rgba(124,58,237,0.4)":"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:inviteBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(124,58,237,0.25)"}}>
-              {inviteBusy?"Sending...":"Send Invite  to "}
+              {inviteBusy?"Sending...":"Send Invite →"}
             </button>
           </div>
         )}
@@ -5850,7 +5034,7 @@ function BroadcastModal({
   const mobile = useIsMobile();
   return (
     <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget){setBroadcastOpen(false);setBroadcastDone("");}}}>
       <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":480,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",animation:"fadeUp 0.3s ease"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -5931,7 +5115,7 @@ function BroadcastModal({
 // ══════════════════════════════════════════════════
 function OwnerCmd({onLogout, ownerInitialProfile}){
   const { toasts, toast, removeToast } = useToast();
-  const { pushSupported, pushPermission, pushSubscribed, requestPermission } = usePushNotifications(ownerInitialProfile?.id, "owner");
+  const { confirm, ConfirmModalNode } = useConfirm();
   const mobile = useIsMobile();
 
   const [showConfetti, setShowConfetti] = React.useState(false);
@@ -5947,39 +5131,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [ownerOrg,setOwnerOrg] = useState(null);
   const [ownerOrgs,setOwnerOrgs] = useState([]);
   const [activeOrg,setActiveOrg] = useState(null);
-  const [portalSettings,setPortalSettings] = useState(()=>{
-    try{ const raw=localStorage.getItem("shiftpro_portal_settings"); return raw?JSON.parse(raw):{showEarnings:true}; }catch(e){ return {showEarnings:true}; }
-  });
-  const [ownerPrefs,setOwnerPrefs] = useState(()=>{
-    try{ const raw=localStorage.getItem("shiftpro_owner_prefs"); return raw?JSON.parse(raw):{use24h:false,darkMode:false}; }catch(e){ return {use24h:false,darkMode:false}; }
-  });
-  const updatePref = (key,val) => {
-    const updated={...ownerPrefs,[key]:val};
-    setOwnerPrefs(updated);
-    try{ localStorage.setItem("shiftpro_owner_prefs",JSON.stringify(updated)); }catch(e){}
-  };
-  const savePortalSetting = async(key,val)=>{
-    const updated={...portalSettings,[key]:val};
-    setPortalSettings(updated);
-    try{ localStorage.setItem("shiftpro_portal_settings",JSON.stringify(updated)); }catch(e){}
-    const orgId=activeOrg?.id||ownerProfile?.org_id;
-    if(!orgId) return;
-    try{
-      const sb=await getSB();
-      const {data:{session:ss}}=await sb.auth.getSession();
-      const r=await fetch("/api/portal-settings",{
-        method:"POST",
-        headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-        body:JSON.stringify({orgId,portalSettings:updated}),
-      });
-      const d=await r.json();
-      if(!r.ok) throw new Error(d.error||"Failed");
-      toast("✓ Employee portal updated","success");
-    }catch(e){
-      console.error("[portal settings save]",e.message);
-      toast("⚠ Could not save to database: "+e.message,"error");
-    }
-  };
   const [liveEmps,setLiveEmps] = useState(null);
   const [liveLocations,setLiveLocations] = useState([]);
   const [activeLocation,setActiveLocation] = useState(null);
@@ -5993,7 +5144,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [addLocOpen,setAddLocOpen] = useState(false);
   const [addLocBusy,setAddLocBusy] = useState(false);
   const [addLocErr,setAddLocErr] = useState("");
-  const [addLocForm,setAddLocForm] = useState({name:"",address:"",timezone:"America/Los_Angeles",latitude:"",longitude:"",geofence_radius_m:""});
+  const [addLocForm,setAddLocForm] = useState({name:"",address:"",timezone:"America/Los_Angeles"});
   const [addOrgOpen,setAddOrgOpen] = useState(false);
   const [confirmDeleteOrgId,setConfirmDeleteOrgId] = useState(null);
   const [addOrgBusy,setAddOrgBusy] = useState(false);
@@ -6014,7 +5165,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [schedPublished,setSchedPublished] = useState(false);
   const [currentWeekOffset,setCurrentWeekOffset] = useState(0);
   const [schedViewMode,setSchedViewMode] = useState("week"); // "week" or "month"
-  const [monthOffset,setMonthOffset] = useState(0);
   const [dragShift,setDragShift] = useState(null); // {shift, sourceDay, sourceEmpId}
 
   // ── Staff state ──
@@ -6046,10 +5196,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [settingsAddingDept,setSettingsAddingDept] = useState(false);
   const [settingsSaveBusy,setSettingsSaveBusy] = useState(false);
   const [settingsShowPwChange,setSettingsShowPwChange] = useState(false);
-  const [settingsEditName,setSettingsEditName] = useState(false);
-  const [settingsOwnerFirst,setSettingsOwnerFirst] = useState(ownerProfile?.first_name||"");
-  const [settingsOwnerLast,setSettingsOwnerLast] = useState(ownerProfile?.last_name||"");
-  const [settingsNameBusy,setSettingsNameBusy] = useState(false);
   const [settingsPw1,setSettingsPw1] = useState("");
   const [settingsPw2,setSettingsPw2] = useState("");
   const [settingsPwMsg,setSettingsPwMsg] = useState("");
@@ -6077,28 +5223,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [notifOpen,setNotifOpen] = useState(false);
   const [notifications,setNotifications] = useState([]);
   const [notifLoaded,setNotifLoaded] = useState(false);
-  const seenNotifIds = React.useRef(()=>{
-    try{ const raw=localStorage.getItem("shiftpro_seen_notifs"); return raw?new Set(JSON.parse(raw)):new Set(); }catch(e){ return new Set(); }
-  });
-  // Initialize on first access
-  if(typeof seenNotifIds.current === "function") seenNotifIds.current = seenNotifIds.current();
-  const persistSeenNotifs = () => {
-    try{ localStorage.setItem("shiftpro_seen_notifs", JSON.stringify([...seenNotifIds.current].slice(-200))); }catch(e){}
-  };
-  const dismissedNotifIds = React.useRef(()=>{
-    try{ const raw=localStorage.getItem("shiftpro_dismissed_notifs"); return raw?new Set(JSON.parse(raw)):new Set(); }catch(e){ return new Set(); }
-  });
-  if(typeof dismissedNotifIds.current === "function") dismissedNotifIds.current = dismissedNotifIds.current();
-  const persistDismissed = () => {
-    try{ localStorage.setItem("shiftpro_dismissed_notifs", JSON.stringify([...dismissedNotifIds.current].slice(-500))); }catch(e){}
-  };
-  const dismissNotif = (id) => {
-    dismissedNotifIds.current.add(id);
-    seenNotifIds.current.add(id);
-    persistDismissed();
-    persistSeenNotifs();
-    setNotifications(prev=>prev.filter(x=>x.id!==id));
-  };
   // ── Poll every 60 seconds for new staff messages and requests ──
   useEffect(()=>{
     if(!ownerProfile?.orgId) return;
@@ -6119,10 +5243,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
   // ── Staff sub-tab ──
   const [staffSubTab,setStaffSubTab] = useState("team");
-  const [msgConvoId,setMsgConvoId] = useState(null); // from_id of selected conversation
-  const [msgReplyText,setMsgReplyText] = useState("");
-  const [msgReplyBusy,setMsgReplyBusy] = useState(false);
-  const [sentMsgs,setSentMsgs] = useState([]); // optimistic owner-sent messages {toFromId, body, created_at, ...}
   const [swapRequests,setSwapRequests] = useState([]);
   const [timeOffRequests,setTimeOffRequests] = useState([]);
   const [requestsLoaded,setRequestsLoaded] = useState(false);
@@ -6163,32 +5283,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       loadShifts(orgId, getMonday(currentWeekOffset), activeLocation?.id||null);
     }
   },[tab, ownerProfile?.org_id, activeOrg?.id, currentWeekOffset, activeLocation?.id]);
-
-  // Auto-poll messages every 30s when on command or staff tab
-  useEffect(()=>{
-    const orgId = ownerProfile?.org_id||activeOrg?.id;
-    if(!orgId || (tab!=="command" && tab!=="staff")) return;
-    const iv = setInterval(()=>loadNotifications(orgId, true), 30000);
-    return ()=>clearInterval(iv);
-  },[tab, ownerProfile?.org_id, activeOrg?.id]);
-
-  // Sync portal settings to DB when settings tab opens
-  useEffect(()=>{
-    if(tab!=="settings") return;
-    const orgId = ownerProfile?.org_id||activeOrg?.id;
-    if(!orgId) return;
-    (async()=>{
-      try{
-        const sb=await getSB();
-        const {data:{session:ss}}=await sb.auth.getSession();
-        await fetch("/api/portal-settings",{
-          method:"POST",
-          headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-          body:JSON.stringify({orgId,portalSettings:portalSettings}),
-        });
-      }catch(e){}
-    })();
-  },[tab]);
 
   // Load payroll when tab switches to roi
   useEffect(()=>{
@@ -6295,7 +5389,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         let orgId = null; // Start null — owner_organizations is the source of truth
 
         // Try owner_organizations FIRST — this is always the correct org
-        const {data:ooRows} = await sb.from("owner_organizations").select("*, organizations(id,name,industry,address,phone,departments,created_at,subscription_status,subscription_plan,subscription_seats,trial_ends_at,stripe_customer_id)").eq("owner_id",session.user.id).order("created_at");
+        const {data:ooRows} = await sb.from("owner_organizations").select("*, organizations(id,name,industry,address,phone,departments)").eq("owner_id",session.user.id).order("created_at");
         let orgs = [];
         if(ooRows&&ooRows.length>0){
           orgs = ooRows.map(r=>r.organizations).filter(Boolean);
@@ -6328,11 +5422,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         if(defaultOrg){
           setActiveOrg(defaultOrg);
           setOwnerOrg(defaultOrg);
-          // Load portal settings from org
-          if(defaultOrg.portal_settings){
-            setPortalSettings(prev=>({...prev,...defaultOrg.portal_settings}));
-            try{ localStorage.setItem("shiftpro_portal_settings",JSON.stringify({...portalSettings,...defaultOrg.portal_settings})); }catch(e){}
-          }
           const profileData = {
             name: localStorage.getItem("shiftpro_org_name_"+defaultOrg.id) || localStorage.getItem("shiftpro_org_name") || defaultOrg.name || "",
             type: defaultOrg.industry||"Restaurant",
@@ -6595,8 +5684,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
       setRequestsLoaded(true);
     }catch(e){ console.error("[notif] outer:", e.message); }
-    // Preserve read state for previously-seen notifications
-    setNotifications(items.filter(n=>!dismissedNotifIds.current.has(n.id)).map(n=>seenNotifIds.current.has(n.id)?{...n,read:true}:n));
+    setNotifications(items);
   };
 
   const loadPayroll = async(orgId, locId, periodDays=14) => {
@@ -6656,7 +5744,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     try{
       const sb=await getSB();
       let q=sb.from("users").select("*").eq("org_id",orgId).in("status",["active","invited"]).in("app_role",["employee","supervisor"]).order("first_name");
-      if(locationId) q=q.or("location_id.eq."+locationId+",location_id.is.null");
+      if(locationId) q=q.eq("location_id",locationId);
       const {data:emps}=await q;
       setLiveEmps(emps&&emps.length>0?emps.map(mapEmp):[]);
     }catch(e){setLiveEmps([]);}
@@ -6665,26 +5753,23 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const selectLocation = (loc) => {
     setActiveLocation(loc);
     if(typeof window!=="undefined"){
-      if(loc){
-        localStorage.setItem("shiftpro_active_loc", loc.id);
-        try{ localStorage.setItem("shiftpro_active_loc_obj", JSON.stringify(loc)); }catch(e){}
-        try{
-          const raw = localStorage.getItem("shiftpro_all_locs");
-          const existing = raw ? JSON.parse(raw) : [];
-          const merged = [...existing.filter(l=>l.id!==loc.id), loc];
-          localStorage.setItem("shiftpro_all_locs", JSON.stringify(merged));
-          const orgId4 = loc.org_id||activeOrg?.id||ownerProfile?.org_id;
-          if(orgId4) localStorage.setItem("shiftpro_cached_locs_"+orgId4, JSON.stringify(merged));
-        }catch(e){}
-      } else {
-        try{ localStorage.removeItem("shiftpro_active_loc"); localStorage.removeItem("shiftpro_active_loc_obj"); }catch(e){}
-      }
+      localStorage.setItem("shiftpro_active_loc", loc.id);
+      try{ localStorage.setItem("shiftpro_active_loc_obj", JSON.stringify(loc)); }catch(e){}
+      // Also keep the full list cache current with this location included
+      try{
+        const raw = localStorage.getItem("shiftpro_all_locs");
+        const existing = raw ? JSON.parse(raw) : [];
+        // Always ensure selected loc is in the list
+        const merged = [...existing.filter(l=>l.id!==loc.id), loc];
+        localStorage.setItem("shiftpro_all_locs", JSON.stringify(merged));
+        const orgId4 = loc.org_id||activeOrg?.id||ownerProfile?.org_id;
+        if(orgId4) localStorage.setItem("shiftpro_cached_locs_"+orgId4, JSON.stringify(merged));
+      }catch(e){}
     }
     setLocationGate("ready");
     setLiveShifts(null);
     setLivePayroll(null);
-    const orgId = activeOrg?.id||ownerProfile?.org_id;
-    if(orgId) loadEmployeesForLocation(orgId, loc?.id||null);
+    loadEmployeesForLocation(activeOrg?.id||ownerProfile?.org_id, loc.id);
   };
 
   const addShift = async(sd) => {
@@ -6702,8 +5787,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         end_hour:sd.end,
         role_label:sd.role||"",
         notes:sd.notes||"",
-        lunch_hour:sd.lunchHour||null,
-        lunch_duration_min:sd.lunchDuration||null,
         status:"scheduled",
         created_by:ownerProfile?.id,
       };
@@ -6736,6 +5819,14 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   };
 
   const removeShift = async(shiftId, weekStart) => {
+    const ok = await confirm({
+      title: "Delete this shift?",
+      body: "This can't be undone. If the schedule is already published, the employee will see it disappear.",
+      confirmLabel: "Delete",
+      cancelLabel: "Keep",
+      danger: true,
+    });
+    if(!ok) return;
     setLiveShifts(prev=>(prev||[]).filter(s=>s.id!==shiftId));
     try{
       const sb2=await getSB();
@@ -6745,8 +5836,13 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({_action:"delete",id:shiftId}),
       });
-      if(!res.ok) throw new Error("Delete failed");
+      if(!res.ok){
+        const d = await res.json().catch(()=>({}));
+        throw new Error(d.error || ("Delete failed ("+res.status+")"));
+      }
+      toast("Shift deleted","success");
     }catch(e){
+      console.warn("[removeShift]", e?.message);
       if(ownerProfile?.org_id||activeOrg?.id) await loadShifts(ownerProfile?.org_id||activeOrg?.id, weekStart, activeLocation?.id||null);
       toast("Failed to remove shift","error");
     }
@@ -6755,6 +5851,23 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const publishSchedule = async(weekStart) => {
     const orgId = ownerProfile?.org_id||activeOrg?.id;
     if(!orgId){ toast("No organization found","error"); return; }
+    // Count affected employees for the confirmation message
+    const weekShifts = (liveShifts||[]).filter(s=>s.week_start===weekStart);
+    const uniqueEmps = new Set(weekShifts.map(s=>s.user_id).filter(Boolean));
+    const empCount = uniqueEmps.size;
+    const shiftCount = weekShifts.length;
+    if(shiftCount===0){ toast("No shifts to publish for this week","error"); return; }
+    const alreadyPublished = schedPublished;
+    const ok = await confirm({
+      title: alreadyPublished ? "Republish schedule?" : "Publish schedule to team?",
+      body: alreadyPublished
+        ? `This will re-notify ${empCount} employee${empCount!==1?"s":""} via push and email. Use sparingly — frequent renotifications train your team to ignore ShiftPro alerts.`
+        : `${shiftCount} shift${shiftCount!==1?"s":""} will be sent to ${empCount} employee${empCount!==1?"s":""} via push and email.`,
+      confirmLabel: alreadyPublished ? "Republish" : "Publish",
+      cancelLabel: "Cancel",
+      danger: false,
+    });
+    if(!ok) return;
     try{
       const sb2=await getSB();
       const {data:{session:ss}}=await sb2.auth.getSession();
@@ -6763,17 +5876,20 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({_action:"publish",orgId,weekStart}),
       });
-      const result=await res.json();
+      const result=await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(result.error||"Publish failed ("+res.status+")");
       // Update local state immediately — mark all this week's shifts as published
       setLiveShifts(prev=>(prev||[]).map(s=>s.week_start===weekStart?{...s,status:"published"}:s));
       setSchedPublished(true);
       setShowConfetti(true);
       toast("Schedule published to all employees ✓","success");
-    }catch(e){ toast("Publish failed: "+e.message,"error"); }
+    }catch(e){ console.warn("[publishSchedule]", e?.message); toast("Publish failed: "+e.message,"error"); }
   };
 
+  const [copyBusy, setCopyBusy] = useState(false);
   const copyLastWeek = async () => {
+    if(copyBusy) return; // Prevent double-click duplicates
+    setCopyBusy(true);
     try{
       const sb2 = await getSB();
       const {data:{session:ss}}=await sb2.auth.getSession();
@@ -6787,6 +5903,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
         cache:"no-store",
       });
+      if(!fetchRes.ok){
+        const d = await fetchRes.json().catch(()=>({}));
+        throw new Error(d.error || ("Load failed ("+fetchRes.status+")"));
+      }
       const fetchData=await fetchRes.json();
       const lastWeekShifts=fetchData.shifts||[];
       if(!lastWeekShifts.length){ toast("No shifts found from last week","error"); return; }
@@ -6815,10 +5935,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({_action:"copyLastWeek",shifts:newShifts}),
       });
-      if(!copyRes.ok){ const d=await copyRes.json(); throw new Error(d.error||"Copy failed"); }
+      if(!copyRes.ok){ const d=await copyRes.json().catch(()=>({})); throw new Error(d.error||"Copy failed"); }
       await loadShifts(orgId, thisMon, null); // reload without location filter to show all
       toast("✓ Copied "+newShifts.length+" shift"+(newShifts.length!==1?"s":"")+" from last week","success");
-    }catch(e){ toast("Copy failed: "+e.message,"error"); }
+    }catch(e){ console.warn("[copyLastWeek]", e?.message); toast("Copy failed: "+e.message,"error"); }
+    finally{ setCopyBusy(false); }
   };
 
   const persistTab = (t) => {
@@ -6850,26 +5971,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     );
   }
 
-  // ── Time format helper ──
-  const fmtHour = (h) => {
-    if(ownerPrefs?.use24h) return String(Math.floor(h)).padStart(2,"0")+":"+(h%1?String(Math.round((h%1)*60)).padStart(2,"0"):"00");
-    const hr = Math.floor(h); const mn = Math.round((h%1)*60);
-    const ampm = hr>=12?"pm":"am"; const h12 = hr===0?12:hr>12?hr-12:hr;
-    return mn>0?h12+":"+String(mn).padStart(2,"0")+ampm:h12+ampm;
-  };
-
-  // Trial gate calculation
-  const _subStatus = activeOrg?.subscription_status || ownerOrg?.subscription_status;
-  const _hasPaidSub = _subStatus === "active" || _subStatus === "trialing";
-  const _orgCreated = activeOrg?.created_at || ownerOrg?.created_at;
-  const _trialDaysLeft = _orgCreated ? Math.max(0, 7 - Math.floor((new Date() - new Date(_orgCreated)) / (1000*60*60*24))) : 7;
-  const trialGateActive = !_hasPaidSub && _trialDaysLeft === 0;
-
   return (
-    <div style={{minHeight:"100vh",background:ownerPrefs?.darkMode?"#1a1a2e":O.bg,fontFamily:O.sans,color:ownerPrefs?.darkMode?"#e2e8f0":O.text,filter:ownerPrefs?.darkMode?"invert(0.88) hue-rotate(180deg)":"none"}}>
-      {ownerPrefs?.darkMode&&<style dangerouslySetInnerHTML={{__html:"img,video,svg,.no-invert{filter:invert(1) hue-rotate(180deg)}"}}/>}
+    <div style={{minHeight:"100vh",background:O.bg,fontFamily:O.sans,color:O.text}}>
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast}/>
+      {ConfirmModalNode}
 
       {showConfetti && <ConfettiOverlay onDone={()=>setShowConfetti(false)}/>}
 
@@ -6898,14 +6004,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
           setNotifOpen={setNotifOpen}
           setTab={setTab}
           setStaffSubTab={setStaffSubTab}
-          setMsgConvoId={setMsgConvoId}
           setSwapRequests={setSwapRequests}
           setTimeOffRequests={setTimeOffRequests}
           orgId={activeOrg?.id || ownerProfile?.org_id || null}
           loadNotifications={loadNotifications}
-          seenNotifIds={seenNotifIds}
-          persistSeenNotifs={persistSeenNotifs}
-          dismissNotif={dismissNotif}
         />
       )}
 
@@ -7014,7 +6116,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               }catch(e){setAddOrgErr(e.message||"Failed to create company.");}
               finally{setAddOrgBusy(false);}
             }} style={{width:"100%",padding:"14px",background:addOrgBusy?"rgba(224,123,0,0.5)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:addOrgBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(224,123,0,0.3)"}}>
-              {addOrgBusy?"Creating...":"Create Company  to "}
+              {addOrgBusy?"Creating...":"Create Company →"}
             </button>
           </div>
         </div>
@@ -7234,14 +6336,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 {locSwitcherOpen&&(
                   <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:8,minWidth:240,zIndex:300,boxShadow:O.shadowB}} onClick={e=>e.stopPropagation()}>
                     <div style={{fontFamily:O.mono,fontSize:7,color:O.textF,letterSpacing:"2px",padding:"4px 8px 8px",textTransform:"uppercase"}}>Locations</div>
-                    <button onClick={()=>{setLocSwitcherOpen(false);if(activeLocation){selectLocation(null);}}}
-                      style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"none",borderRadius:8,cursor:"pointer",textAlign:"left",background:!activeLocation?"rgba(8,145,178,0.07)":"none"}}
-                      onMouseEnter={e=>e.currentTarget.style.background=O.bg3}
-                      onMouseLeave={e=>e.currentTarget.style.background=!activeLocation?"rgba(8,145,178,0.07)":"none"}>
-                      <div style={{width:28,height:28,borderRadius:7,background:"linear-gradient(135deg,#1a9e6e,#15803d)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff",flexShrink:0}}>🌐</div>
-                      <div style={{fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.text}}>All Locations</div>
-                      {!activeLocation&&<span style={{color:O.cyan,fontSize:13,flexShrink:0,marginLeft:"auto"}}>✓</span>}
-                    </button>
                     {liveLocations.map((loc,idx)=>(
                       <button key={loc.id} onClick={async()=>{
                         setLocSwitcherOpen(false);
@@ -7279,21 +6373,12 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         {/* Right side of topbar */}
         <div style={{display:"flex",alignItems:"center",gap:mobile?8:14}}>
           {!mobile&&<div style={{fontFamily:O.mono,fontSize:11,color:O.textD}}>
-            {now.toLocaleTimeString("en-US",{hour12:!ownerPrefs?.use24h,hour:"2-digit",minute:"2-digit"})}
+            {now.toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit"})}
           </div>}
           {/* Bell */}
           <div style={{position:"relative"}}>
             <button
-              onClick={()=>{
-                setNotifOpen(o=>{
-                  if(!o){ // opening — mark all as seen
-                    notifications.forEach(n=>seenNotifIds.current.add(n.id));
-                    persistSeenNotifs();
-                    setNotifications(prev=>prev.map(n=>({...n,read:true})));
-                  }
-                  return !o;
-                });
-              }}
+              onClick={()=>setNotifOpen(o=>!o)}
               style={{width:36,height:36,borderRadius:"50%",background:notifOpen?O.amberD:"none",border:"1px solid "+(notifOpen?O.amberB:O.border),display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,position:"relative",transition:"all 0.15s"}}
               onMouseEnter={e=>{e.currentTarget.style.background=O.amberD;e.currentTarget.style.borderColor=O.amberB;}}
               onMouseLeave={e=>{if(!notifOpen){e.currentTarget.style.background="none";e.currentTarget.style.borderColor=O.border;}}}>
@@ -7322,7 +6407,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
       </div>
 
       {/* ── PILL TABS ── */}
-      <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:mobile?"6px 12px":"8px 20px",display:"flex",gap:4,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
+      <div style={{background:"#fff",borderBottom:"1px solid "+O.border,padding:mobile?"6px 12px":"8px 20px",display:"flex",gap:4,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>persistTab(t.id)}
             style={{fontFamily:O.sans,fontWeight:600,fontSize:13,padding:"7px 16px",border:"none",borderRadius:20,cursor:"pointer",color:tab===t.id?"#fff":O.textD,background:tab===t.id?"#e07b00":"none",transition:"all 0.15s",whiteSpace:"nowrap"}}
@@ -7333,79 +6418,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         ))}
       </div>
 
-      {/* ── TRIAL BANNER & GATE ── */}
-      {(()=>{
-        // Calculate trial status
-        const subStatus = activeOrg?.subscription_status || ownerOrg?.subscription_status;
-        const hasPaid = subStatus === "active" || subStatus === "trialing"; // Stripe trial (with card)
-        if (hasPaid) return null; // Paid or Stripe trial — no banner needed
-
-        const orgCreated = activeOrg?.created_at || ownerOrg?.created_at;
-        if (!orgCreated) return null;
-        const trialStart = new Date(orgCreated);
-        const now2 = new Date();
-        const daysPassed = Math.floor((now2 - trialStart) / (1000 * 60 * 60 * 24));
-        const daysLeft = Math.max(0, 7 - daysPassed);
-        const trialExpired = daysLeft === 0;
-
-        if (trialExpired && tab !== "settings") {
-          // Trial expired — show gate overlay
-          return (
-            <div style={{padding:"60px 24px",textAlign:"center",animation:"fadeUp 0.4s ease"}}>
-              <div style={{maxWidth:480,margin:"0 auto",background:"#fff",border:"1.5px solid "+O.border,borderRadius:20,padding:"48px 32px",boxShadow:O.shadowB}}>
-                <div style={{fontSize:56,marginBottom:16}}>⏰</div>
-                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:24,color:O.text,marginBottom:8}}>Your free trial has ended</div>
-                <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.6,marginBottom:28}}>
-                  You got a taste of ShiftPro — now unlock it for your whole team. Pick a plan in Settings to keep scheduling, tracking hours, and managing your crew.
-                </div>
-                <button onClick={()=>persistTab("settings")} style={{padding:"14px 32px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:"pointer",boxShadow:"0 4px 20px rgba(224,123,0,0.3)"}}>
-                  Choose a Plan →
-                </button>
-                <div style={{marginTop:16}}>
-                  <button onClick={async()=>{try{const sb=await getSB();await sb.auth.signOut();}catch(e){}onLogout();}} style={{background:"none",border:"none",fontFamily:O.sans,fontSize:12,color:O.textD,cursor:"pointer"}}>
-                    Sign out
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        }
-
-        if (!trialExpired) {
-          // Trial active — show countdown banner
-          return (
-            <div style={{margin:mobile?"0 0 12px":"0 20px 12px",padding:"10px 16px",background:daysLeft<=2?"rgba(239,68,68,0.06)":"rgba(99,102,241,0.06)",border:"1px solid "+(daysLeft<=2?"rgba(239,68,68,0.15)":"rgba(99,102,241,0.15)"),borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-              <div style={{fontFamily:O.sans,fontSize:12,color:daysLeft<=2?O.red:O.indigo,fontWeight:600}}>
-                {daysLeft<=2?"⚠":"✨"} Free trial: {daysLeft} day{daysLeft!==1?"s":""} remaining
-              </div>
-              <button onClick={()=>persistTab("settings")} style={{padding:"5px 14px",borderRadius:6,border:"none",background:daysLeft<=2?O.red:"linear-gradient(135deg,#e07b00,#c96800)",color:"#fff",fontFamily:O.sans,fontWeight:700,fontSize:11,cursor:"pointer"}}>
-                Subscribe Now
-              </button>
-            </div>
-          );
-        }
-        return null;
-      })()}
-
       {/* ── TAB CONTENT ── */}
-      {(!trialGateActive || tab==="settings") && (
       <div style={{padding:mobile?"12px":"16px 20px",maxWidth:1200,margin:"0 auto"}}>
 
         {/* ══ COMMAND TAB ══ */}
         {tab==="command"&&(
           <div style={{animation:"fadeUp 0.3s ease"}}>
 
-            {/* Loading skeleton while data arrives */}
-            {liveShifts===null&&liveEmps===null&&(
-              <div>
-                <SkeletonLoader type="timeline"/>
-                <div style={{marginTop:16}}><SkeletonLoader type="cards"/></div>
-                <div style={{marginTop:16}}><SkeletonLoader type="list" rows={3}/></div>
-              </div>
-            )}
-
             {/* ── TODAY'S GAME PLAN ── */}
-            {(liveShifts!==null||liveEmps!==null)&&(()=>{
+            {(()=>{
               const todayName = now.toLocaleDateString("en-US",{weekday:"short"}).slice(0,3);
               const DAYS3 = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
               const todayKey = DAYS3[now.getDay()];
@@ -7431,7 +6452,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 const isUpcoming = sh.start_hour > nowH && sh.start_hour-nowH <= 2;
                 const isLate = nowH > sh.start_hour+0.17 && !isOnShift && sh.start_hour <= nowH;
                 const status = isOnShift?"on":isLate?"late":isUpcoming?"upcoming":"later";
-                const fmtH = h=>ownerPrefs?.use24h?(String(Math.floor(h)).padStart(2,"0")+":"+(h%1?String(Math.round((h%1)*60)).padStart(2,"0"):"00")):(h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p");
+                const fmtH = h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
                 return {emp,sh,status,fmtH};
               }).filter(Boolean);
 
@@ -7453,7 +6474,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     </div>
                     <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
                       <div style={{fontFamily:O.mono,fontSize:14,color:O.text,fontWeight:600}}>
-                        {now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:!ownerPrefs?.use24h})}
+                        {now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:true})}
                       </div>
                       {liveLocations.length>1&&(
                         <button onClick={()=>setLocSwitcherOpen(true)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer"}}>Switch</button>
@@ -7471,18 +6492,11 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div key={h} style={{position:"absolute",left:((h-START_H)/SPAN*100)+"%",top:0,bottom:0,borderLeft:"1px solid rgba(0,0,0,0.07)"}}/>
                         ))}
                         {/* Shift blocks */}
-                        {timelineBlocks.map((b,i)=>{
-                          const lunchH = b.sh.lunch_hour;
-                          const lunchDur = b.sh.lunch_duration_min||30;
-                          const lunchLeft = lunchH ? ((lunchH-b.sh.start_hour)/(b.sh.end_hour-b.sh.start_hour)*100) : 0;
-                          const lunchWidth = lunchH ? ((lunchDur/60)/(b.sh.end_hour-b.sh.start_hour)*100) : 0;
-                          return(
-                          <div key={i} title={b.emp.name+" "+b.sh.start_hour+"–"+b.sh.end_hour+(lunchH?" | Lunch "+lunchH+":00":"")} style={{position:"absolute",left:b.left+"%",width:b.width+"%",top:4,bottom:4,background:b.emp.color||O.amber,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"default"}}>
+                        {timelineBlocks.map((b,i)=>(
+                          <div key={i} title={b.emp.name+" - "+b.sh.start_hour+"–"+b.sh.end_hour} style={{position:"absolute",left:b.left+"%",width:b.width+"%",top:4,bottom:4,background:b.emp.color||O.amber,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:"default"}}>
                             <span style={{fontFamily:O.mono,fontSize:9,color:"#fff",fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",padding:"0 4px"}}>{b.emp.avatar}</span>
-                            {lunchH&&<div style={{position:"absolute",left:lunchLeft+"%",width:Math.max(lunchWidth,3)+"%",top:0,bottom:0,background:"rgba(0,0,0,0.35)",borderRadius:2}} title={"Lunch "+lunchDur+"min"}/>}
                           </div>
-                          );
-                        })}
+                        ))}
                         {/* Now line */}
                         {nowPct>0&&nowPct<100&&(
                           <div style={{position:"absolute",left:nowPct+"%",top:0,bottom:0,width:2,background:O.red,borderRadius:1}}>
@@ -7709,7 +6723,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <button onClick={()=>{ setNotifLoaded(false); if(orgId) loadNotifications(orgId,true); }}
                             style={{fontFamily:O.mono,fontSize:9,color:O.textF,background:"none",border:"none",cursor:"pointer",letterSpacing:1}}>REFRESH</button>
                         </div>
-                        {!staffMsgsLoaded&&<SkeletonLoader type="chat"/>}
+                        {!staffMsgsLoaded&&<div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"8px 0"}}>Loading...</div>}
                         {staffMsgsLoaded&&staffMessages.length===0&&(
                           <div style={{textAlign:"center",padding:"14px 0"}}>
                             <div style={{fontSize:28,marginBottom:6}}>📥</div>
@@ -7729,7 +6743,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                             </div>
                             <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5,marginBottom:6}}>{msg.body||msg.text||""}</div>
                             <button onClick={()=>{
-                              setStaffSubTab("messages"); setMsgConvoId(msg.from_id); setTab("staff");
+                              const staffEmp = (liveEmps||[]).find(e=>e.id===msg.from_id);
+                              if(staffEmp){ setSelectedEmp(staffEmp); setShowEmpDrawer(true); }
                             }} style={{padding:"4px 10px",background:O.indigoD,border:"1px solid "+O.indigo+"30",borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.indigo,cursor:"pointer"}}>
                               Reply to {msg.from_name?.split(" ")[0]||"Staff"}
                             </button>
@@ -7811,8 +6826,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
 
             {/* Sub-tab pills */}
             <div style={{display:"flex",gap:6,marginBottom:18}}>
-              {[["team","👥 Team"],["messages","💬 Messages"+(staffMessages.length>0?" ("+staffMessages.length+")":"")],["requests","📋 Requests"+(swapRequests.length+timeOffRequests.length>0?" ("+( swapRequests.length+timeOffRequests.length)+")":"")]].map(([id,label])=>(
-                <button key={id} onClick={()=>{ setStaffSubTab(id); if(id==="requests"&&activeOrg?.id) loadNotifications(activeOrg.id, true); if(id==="messages"&&activeOrg?.id) loadNotifications(activeOrg.id, true); }}
+              {[["team","👥 Team"],["requests","📋 Requests"+(swapRequests.length+timeOffRequests.length>0?" ("+( swapRequests.length+timeOffRequests.length)+")":"")]].map(([id,label])=>(
+                <button key={id} onClick={()=>{ setStaffSubTab(id); if(id==="requests"&&activeOrg?.id) loadNotifications(activeOrg.id, true); }}
                   style={{padding:"7px 16px",borderRadius:20,border:"none",fontFamily:O.sans,fontWeight:600,fontSize:13,cursor:"pointer",transition:"all 0.15s",background:staffSubTab===id?"#7c3aed":O.bg3,color:staffSubTab===id?"#fff":O.textD}}>
                   {label}
                 </button>
@@ -7885,19 +6900,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               </div>
             )}
 
-            {/* ── MESSAGES sub-tab — Messenger-style ── */}
-            {staffSubTab==="messages"&&(
-              <MessageCenter
-                staffMessages={staffMessages}
-                liveEmps={liveEmps}
-                ownerProfile={ownerProfile}
-                activeOrg={activeOrg}
-                loadNotifications={loadNotifications}
-                toast={toast}
-                setActiveDrawerEmp={setActiveDrawerEmp}
-              />
-            )}
-
             {/* ── REQUESTS sub-tab ── */}
             {staffSubTab==="requests"&&(
               <div>
@@ -7916,29 +6918,16 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     </div>
                   )}
                   {swapRequests.map(req=>{
-                    const empName=req.poster_name||((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
+                    const empName=((req.users?.first_name||"")+" "+(req.users?.last_name||"")).trim()||"Employee";
                     const av=(()=>{const parts=(((req.users?.first_name||'')+' '+(req.users?.last_name||'')).trim()).split(' ').filter(Boolean);return parts.length>=2?(parts[0][0]+parts[1][0]).toUpperCase():parts[0]?parts[0].slice(0,2).toUpperCase():'??';})();
                     const shiftLabel=req.shift_date?new Date(req.shift_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"Upcoming shift";
-                    const fH=h=>h===0?"12am":h<12?h+"am":h===12?"12pm":(h-12)+"pm";
-                    const timeLabel=req.start_hour!=null&&req.end_hour!=null?" "+fH(req.start_hour)+"–"+fH(req.end_hour):"";
-                    const hasClaimer=!!req.claimed_by_name;
-                    const statusColor=hasClaimer?O.green:O.amber;
                     return(
-                      <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+statusColor,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
+                      <div key={req.id} style={{background:"#fff",border:"1px solid "+O.border,borderLeft:"3px solid "+O.amber,borderRadius:"0 12px 12px 0",padding:"14px 16px",marginBottom:8,boxShadow:O.shadow}}>
                         <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
                           <div style={{width:36,height:36,borderRadius:"50%",background:req.users?.avatar_color||"#f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:O.mono,fontWeight:700,fontSize:12,color:"#fff",flexShrink:0}}>{av}</div>
                           <div style={{flex:1}}>
-                            {hasClaimer?(
-                              <div>
-                                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{req.claimed_by_name} wants to take {empName}'s shift</div>
-                                <div style={{fontFamily:O.mono,fontSize:9,color:O.green,marginBottom:4}}>READY TO APPROVE — {shiftLabel}{timeLabel}</div>
-                              </div>
-                            ):(
-                              <div>
-                                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
-                                <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,marginBottom:4}}>WAITING FOR VOLUNTEER — {shiftLabel}{timeLabel}</div>
-                              </div>
-                            )}
+                            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,marginBottom:2}}>{empName}</div>
+                            <div style={{fontFamily:O.mono,fontSize:9,color:O.amber,marginBottom:4}}>SWAP REQUEST - {shiftLabel}</div>
                             {req.reason&&<div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>{req.reason}</div>}
                             <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:3}}>{req.created_at?new Date(req.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):""}</div>
                           </div>
@@ -8039,12 +7028,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 currentWeekOffset={currentWeekOffset}
                 addShift={addShift}
                 getMonday={getMonday}
-                ownerPrefs={ownerPrefs}
               />
             )}
-
-            {/* Schedule loading skeleton */}
-            {liveShifts===null&&<div style={{marginBottom:16}}><SkeletonLoader type="schedule"/></div>}
 
             {/* Labor cost gauge */}
             {liveShifts!==null&&liveShifts.length>0&&(()=>{
@@ -8066,35 +7051,32 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               );
             })()}
 
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
               <div>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.indigo,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase",fontWeight:700}}>Schedule Builder</div>
-                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>{schedViewMode==="week"?"Weekly":"Monthly"} Schedule</div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Schedule Builder</div>
+                <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Weekly Schedule</div>
               </div>
-              {/* View toggle — fixed right side */}
-              <div style={{display:"flex",background:O.bg3,borderRadius:8,border:"1px solid "+O.border,overflow:"hidden",flexShrink:0}}>
-                {["week","month"].map(v=>(
-                  <button key={v} onClick={()=>setSchedViewMode(v)} style={{padding:"8px 20px",background:schedViewMode===v?"#fff":"transparent",border:"none",fontFamily:O.sans,fontWeight:700,fontSize:13,color:schedViewMode===v?O.indigo:O.textF,cursor:"pointer",transition:"all 0.15s",boxShadow:schedViewMode===v?O.shadow:"none"}}>
-                    {v==="week"?"Week":"Month"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Week controls row — only shows in week mode */}
-            {schedViewMode==="week"&&(
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-                <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>◀ Prev</button>
-                <div style={{fontFamily:O.mono,fontSize:11,color:O.text,padding:"0 8px",fontWeight:600}}>
-                  {(()=>{const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);const mon=new Date(y,m-1,d);const sun=new Date(y,m-1,d+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                {/* View toggle */}
+                <div style={{display:"flex",background:O.bg3,borderRadius:8,border:"1px solid "+O.border,overflow:"hidden"}}>
+                  {["week","month"].map(v=>(
+                    <button key={v} onClick={()=>setSchedViewMode(v)} style={{padding:"7px 14px",background:schedViewMode===v?"#fff":"none",border:"none",fontFamily:O.sans,fontWeight:600,fontSize:12,color:schedViewMode===v?O.text:O.textD,cursor:"pointer",borderRight:v==="week"?"1px solid "+O.border:"none"}}>
+                      {v==="week"?"Week":"Month"}
+                    </button>
+                  ))}
                 </div>
-                <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next ▶</button>
-                <div style={{flex:1}}/>
-                {!mobile&&(
+                {schedViewMode==="week"&&<>
+                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>← Prev</button>
+                  <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,padding:"0 8px"}}>
+                    {(()=>{const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);const mon=new Date(y,m-1,d);const sun=new Date(y,m-1,d+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
+                  </div>
+                  <button onClick={()=>{setCurrentWeekOffset(w=>w+1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>Next  to </button>
+                </>}
+                {!mobile&&schedViewMode==="week"&&(
                   <button onClick={()=>{
                     const printW=window.open("","_blank","width=900,height=600");
                     const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-                    const fmtH2=h=>ownerPrefs?.use24h?(String(Math.floor(h)).padStart(2,"0")+":00"):(h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p");
+                    const fmtH2=h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
                     const rows=(liveEmps||[]).map(emp=>{
                       const dayHtml=DAYS_FULL.map(d=>{const shifts=(liveShifts||[]).filter(s=>s.user_id===emp.id&&s.day_of_week===d);return`<td style="border:1px solid #ddd;padding:6px;font-size:11px;vertical-align:top">${shifts.map(s=>`<div>${fmtH2(s.start_hour)}-${fmtH2(s.end_hour)}</div>`).join("")||""}</td>`;}).join("");
                       return`<tr><td style="border:1px solid #ddd;padding:6px;font-weight:600">${emp.name}</td>${dayHtml}</tr>`;
@@ -8103,15 +7085,15 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     printW.document.close();setTimeout(()=>printW.print(),300);
                   }} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:12,cursor:"pointer",color:O.textD}}>🖨️ Print</button>
                 )}
-                {!mobile&&(
+                {!mobile&&schedViewMode==="week"&&(
                   <button onClick={copyLastWeek} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:O.textD,cursor:"pointer"}}>📋 Copy Last Week</button>
                 )}
-                {liveShifts!==null&&liveShifts.length>0&&!schedPublished&&(
+                {liveShifts!==null&&liveShifts.length>0&&!schedPublished&&schedViewMode==="week"&&(
                   <button onClick={()=>publishSchedule(getMonday(currentWeekOffset))} style={{padding:"9px 18px",background:"linear-gradient(135deg,#1a9e6e,#15855c)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(26,158,110,0.3)"}}>📣 Publish</button>
                 )}
-                {schedPublished&&<div style={{padding:"9px 18px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:9,fontFamily:O.mono,fontSize:11,color:O.green,letterSpacing:1}}>✅ PUBLISHED</div>}
+                {schedPublished&&schedViewMode==="week"&&<div style={{padding:"9px 18px",background:O.greenD,border:"1px solid rgba(26,158,110,0.25)",borderRadius:9,fontFamily:O.mono,fontSize:11,color:O.green,letterSpacing:1}}>✅ PUBLISHED</div>}
               </div>
-            )}
+            </div>
 
             {liveEmps!==null&&liveEmps.length===0&&(
               <div style={{textAlign:"center",padding:"80px 20px"}}>
@@ -8133,75 +7115,44 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             {liveEmps!==null&&liveEmps.length>0&&liveShifts!==null&&(()=>{
               const STAFF=liveEmps;
               const DAYS_FULL=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-              const fmtH2=h=>ownerPrefs?.use24h?(String(Math.floor(h)).padStart(2,"0")+":00"):(h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p");
+              const fmtH2=h=>h===0?"12a":h<12?h+"a":h===12?"12p":(h-12)+"p";
 
               // ── MONTH VIEW ──
               if(schedViewMode==="month"){
-                const baseDate=new Date();
-                baseDate.setMonth(baseDate.getMonth()+monthOffset);
-                const year=baseDate.getFullYear();
-                const month=baseDate.getMonth();
-                const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+                const now=new Date();
+                const year=now.getFullYear(); const month=now.getMonth();
                 const firstDay=new Date(year,month,1);
                 const daysInMonth=new Date(year,month+1,0).getDate();
-                const startDow=(firstDay.getDay()+6)%7;
-                const today=new Date();
-                const todayStr=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+                const startDow=(firstDay.getDay()+6)%7; // 0=Mon
                 const cells=[];
                 for(let i=0;i<startDow;i++) cells.push(null);
                 for(let d=1;d<=daysInMonth;d++) cells.push(d);
                 while(cells.length%7!==0) cells.push(null);
-                const STAFF=(liveEmps||[]);
-
                 return(
                   <div>
-                    {/* Month navigation */}
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-                      <button onClick={()=>setMonthOffset(m=>m-1)} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,cursor:"pointer"}}>◀ Prev</button>
-                      <div>
-                        <div style={{fontFamily:O.sans,fontWeight:800,fontSize:18,color:O.text,textAlign:"center"}}>{monthNames[month]} {year}</div>
-                        {monthOffset!==0&&<button onClick={()=>setMonthOffset(0)} style={{display:"block",margin:"4px auto 0",padding:"3px 10px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:6,fontFamily:O.sans,fontSize:10,fontWeight:600,color:O.amber,cursor:"pointer"}}>Today</button>}
-                      </div>
-                      <button onClick={()=>setMonthOffset(m=>m+1)} style={{padding:"8px 14px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:13,color:O.text,cursor:"pointer"}}>Next ▶</button>
-                    </div>
-
-                    {/* Day headers */}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:mobile?1:3,marginBottom:4}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
                       {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>(
-                        <div key={d} style={{fontFamily:O.mono,fontSize:mobile?8:10,color:O.textD,textAlign:"center",padding:mobile?"4px 0":"8px 0",fontWeight:700,letterSpacing:1}}>{mobile?d[0]:d}</div>
+                        <div key={d} style={{fontFamily:O.mono,fontSize:9,color:O.textD,textAlign:"center",padding:"6px 0",fontWeight:600}}>{d}</div>
                       ))}
                     </div>
-
-                    {/* Calendar grid */}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:mobile?1:3}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
                       {cells.map((day,i)=>{
-                        if(!day) return <div key={"e"+i} style={{minHeight:mobile?60:100,background:O.bg3,borderRadius:mobile?4:8,opacity:0.3}}/>;
-                        const dateStr=year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
-                        const dayOfWeek=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(year,month,day).getDay()];
+                        if(!day) return <div key={"e"+i} style={{minHeight:80,background:O.bg3,borderRadius:6,opacity:0.3}}/>;
+                        const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                         const dayShifts=(liveShifts||[]).filter(s=>s.shift_date===dateStr);
-                        const isToday=dateStr===todayStr;
-                        const isPast=dateStr<todayStr;
+                        const isToday=day===now.getDate()&&month===now.getMonth()&&year===now.getFullYear();
                         return(
-                          <div key={day} onClick={()=>{
-                            if(isPast) return;
-                            const defaultEmp=STAFF[0];
-                            if(defaultEmp) setSelectedCell({day:dayOfWeek,empId:defaultEmp.id,emp:defaultEmp,start:9,end:17,roleLabel:"",shiftDate:dateStr});
-                          }} style={{minHeight:mobile?60:100,background:isToday?"rgba(99,102,241,0.04)":"#fff",borderRadius:mobile?4:8,padding:mobile?"3px":"6px",border:isToday?"2px solid "+O.indigo:"1px solid "+O.border,position:"relative",opacity:isPast?0.6:1,cursor:isPast?"default":"pointer",transition:"box-shadow 0.15s"}}
-                          onMouseEnter={e=>{if(!isPast&&!mobile)e.currentTarget.style.boxShadow="0 2px 8px rgba(99,102,241,0.15)";}}
-                          onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";}}>
-                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:mobile?2:4}}>
-                              <div style={{fontFamily:O.mono,fontSize:mobile?9:11,fontWeight:isToday?800:600,color:isToday?"#fff":O.text,background:isToday?O.indigo:"transparent",borderRadius:isToday?12:0,padding:isToday?"1px 5px":"0",lineHeight:"16px"}}>{day}</div>
-                              {!isPast&&dayShifts.length===0&&!mobile&&<div style={{fontFamily:O.sans,fontSize:8,color:O.textF,opacity:0.6}}>+ add</div>}
-                            </div>
-                            {dayShifts.slice(0,mobile?1:3).map(sh=>{
+                          <div key={day} style={{minHeight:80,background:"#fff",borderRadius:6,padding:"4px",border:"1px solid "+(isToday?O.indigo:O.border),position:"relative"}}>
+                            <div style={{fontFamily:O.mono,fontSize:9,fontWeight:isToday?700:400,color:isToday?O.indigo:O.textD,marginBottom:3}}>{day}</div>
+                            {dayShifts.slice(0,3).map(sh=>{
                               const emp=STAFF.find(e=>e.id===sh.user_id);
                               return(
-                                <div key={sh.id} onClick={(e)=>{e.stopPropagation();if(!isPast)setSelectedCell({day:dayOfWeek,empId:sh.user_id,emp:emp||{id:sh.user_id,name:"?"},start:sh.start_hour,end:sh.end_hour,roleLabel:sh.role_label||"",shiftDate:dateStr,editShiftId:sh.id});}} style={{background:(emp?.color||"#6366f1")+"18",border:"1px solid "+(emp?.color||"#6366f1")+"35",borderRadius:3,padding:mobile?"1px 3px":"2px 5px",marginBottom:1,fontSize:mobile?7:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:isPast?"default":"pointer"}}>
-                                  {mobile?(emp?.first?.slice(0,3)||"?"):(emp?.first||emp?.name?.split(" ")[0]||"?")} {mobile?"":fmtH2(sh.start_hour)+"-"+fmtH2(sh.end_hour)}
+                                <div key={sh.id} style={{background:(emp?.color||"#6366f1")+"20",border:"1px solid "+(emp?.color||"#6366f1")+"40",borderRadius:3,padding:"2px 4px",marginBottom:2,fontSize:9,fontFamily:O.mono,color:emp?.color||O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  {emp?.first||"?"} {fmtH2(sh.start_hour)}-{fmtH2(sh.end_hour)}
                                 </div>
                               );
                             })}
-                            {dayShifts.length>(mobile?1:3)&&<div style={{fontFamily:O.mono,fontSize:mobile?6:8,color:O.textF,textAlign:"center"}}>+{dayShifts.length-(mobile?1:3)}</div>}
+                            {dayShifts.length>3&&<div style={{fontFamily:O.mono,fontSize:8,color:O.textF}}>+{dayShifts.length-3} more</div>}
                           </div>
                         );
                       })}
@@ -8333,20 +7284,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 </div>
               );
             })()}
-
-            {/* ── Blackout Calendar (compact) ── */}
-            <div style={{marginTop:20,background:"#fff",border:"1px solid "+O.border,borderRadius:12,padding:"16px 20px",boxShadow:O.shadow}}>
-              <details>
-                <summary style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,cursor:"pointer",listStyle:"none",display:"flex",alignItems:"center",gap:8}}>
-                  <span>🚫 Blackout Calendar</span>
-                  <span style={{fontFamily:O.mono,fontSize:9,color:O.textF,fontWeight:400}}>— Block dates for time-off requests</span>
-                  <span style={{marginLeft:"auto",fontFamily:O.mono,fontSize:10,color:O.textF}}>▼</span>
-                </summary>
-                <div style={{marginTop:12}}>
-                  <BlackoutCalendar orgId={activeOrg?.id||ownerProfile?.org_id} toast={toast}/>
-                </div>
-              </details>
-            </div>
           </div>
         )}
 
@@ -8580,9 +7517,12 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             })()}
 
             {livePayroll===null&&(
-              <div style={{background:"#fff",borderRadius:14,border:"1px solid "+O.border,padding:"24px",boxShadow:O.shadow}}>
-                <SkeletonLoader type="cards"/>
-                <div style={{marginTop:12}}><SkeletonLoader type="list" rows={4}/></div>
+              <div style={{textAlign:"center",padding:"60px 20px",background:"#fff",borderRadius:14,border:"1px solid "+O.border,boxShadow:O.shadow}}>
+                <div style={{fontSize:48,marginBottom:12}}>⏳</div>
+                <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text,marginBottom:6}}>Loading payroll data…</div>
+                <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,lineHeight:1.7,maxWidth:380,margin:"0 auto"}}>
+                  Payroll data will appear here as employees clock in and out. If this takes too long, try refreshing the page.
+                </div>
               </div>
             )}
 
@@ -8711,15 +7651,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             setSettingsSaveBusy={setSettingsSaveBusy}
             settingsShowPwChange={settingsShowPwChange}
             setSettingsShowPwChange={setSettingsShowPwChange}
-            settingsEditName={settingsEditName}
-            setSettingsEditName={setSettingsEditName}
-            settingsOwnerFirst={settingsOwnerFirst}
-            setSettingsOwnerFirst={setSettingsOwnerFirst}
-            settingsOwnerLast={settingsOwnerLast}
-            setSettingsOwnerLast={setSettingsOwnerLast}
-            settingsNameBusy={settingsNameBusy}
-            setSettingsNameBusy={setSettingsNameBusy}
-            setOwnerProfile={setOwnerProfile}
             settingsPw1={settingsPw1}
             setSettingsPw1={setSettingsPw1}
             settingsPw2={settingsPw2}
@@ -8729,10 +7660,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
             settingsPwBusy={settingsPwBusy}
             setSettingsPwBusy={setSettingsPwBusy}
             toast={toast}
-            portalSettings={portalSettings}
-            savePortalSetting={savePortalSetting}
-            ownerPrefs={ownerPrefs}
-            updatePref={updatePref}
             onLogout={onLogout}
           />
         )}
@@ -8882,7 +7809,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         )}
 
       </div>
-      )}
     </div>
   );
 }
@@ -8900,67 +7826,17 @@ export default function App(){
   const [pwBusy,setPwBusy]         = useState(false);
   const [pwDone,setPwDone]         = useState(false);
 
-  const freshLoginRef = React.useRef(false);
-
   const login = (role,emp) => {
-    freshLoginRef.current = true;
     setSession({role,emp});
     // Cache for session restoration on reload
     try{ if(emp?.id) localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
   };
   const logout = async() => {
     try{const sb=await getSB();await sb.auth.signOut();}catch(e){}
+    // Clear active tab so next login always lands on Command
     try{ localStorage.removeItem("shiftpro_active_tab"); }catch(e){}
-    try{ localStorage.removeItem("shiftpro_last_activity"); }catch(e){}
     setSession(null);
   };
-
-  // ── SESSION TIMEOUT — auto-logout after 8 hours of inactivity ──
-  useEffect(()=>{
-    if(!session) return;
-    const TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
-    const ACTIVITY_KEY = "shiftpro_last_activity";
-
-    // Set initial activity timestamp
-    const setActivity = () => {
-      try{ localStorage.setItem(ACTIVITY_KEY, String(Date.now())); }catch(e){}
-    };
-    setActivity();
-
-    // Throttled activity tracker — updates at most every 60 seconds
-    let lastUpdate = Date.now();
-    const onActivity = () => {
-      const now = Date.now();
-      if (now - lastUpdate > 60000) { lastUpdate = now; setActivity(); }
-    };
-
-    // Listen for user activity
-    window.addEventListener("mousemove", onActivity);
-    window.addEventListener("keydown", onActivity);
-    window.addEventListener("touchstart", onActivity);
-    window.addEventListener("click", onActivity);
-    window.addEventListener("scroll", onActivity);
-
-    // Check every 5 minutes if session expired
-    const checker = setInterval(() => {
-      try{
-        const last = parseInt(localStorage.getItem(ACTIVITY_KEY) || "0");
-        if (last > 0 && Date.now() - last > TIMEOUT_MS) {
-          console.log("[session] Auto-logout: 8 hours of inactivity");
-          logout();
-        }
-      }catch(e){}
-    }, 5 * 60 * 1000);
-
-    return () => {
-      window.removeEventListener("mousemove", onActivity);
-      window.removeEventListener("keydown", onActivity);
-      window.removeEventListener("touchstart", onActivity);
-      window.removeEventListener("click", onActivity);
-      window.removeEventListener("scroll", onActivity);
-      clearInterval(checker);
-    };
-  },[session]);
 
   useEffect(()=>{
     const init = async() => {
@@ -9167,7 +8043,7 @@ export default function App(){
                 ))}
                 {pwErr&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"#ef4444",marginBottom:12,padding:"7px 10px",background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>{pwErr}</div>}
                 <button onClick={handleSetPassword} style={{width:"100%",padding:"14px",background:pwBusy?"rgba(245,158,11,0.5)":"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",borderRadius:10,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:15,color:"#030c14",cursor:pwBusy?"not-allowed":"pointer",boxShadow:"0 4px 20px rgba(245,158,11,0.3)"}}>
-                  {pwBusy?"Setting password…":"Set Password & Sign In  to "}
+                  {pwBusy?"Setting password…":"Set Password & Sign In →"}
                 </button>
               </div>
             )}
@@ -9180,17 +8056,15 @@ export default function App(){
   return (
     <>
       <style>{FONTS}{GCSS}</style>
-      <OfflineBanner/>
-      <SessionGuard session={session} onExpired={logout}/>
       {!session && <Login onLogin={login}/>}
       {session?.role==="employee" && <EmpPortal
         key={session.emp?.id}
         emp={session.emp}
-        freshLogin={freshLoginRef.current}
         onLogout={logout}
         onProfileUpdate={updatedFields => {
           setSession(s => {
             const merged = { ...s.emp, ...updatedFields };
+            // Update localStorage so next refresh picks up the changes
             try { localStorage.setItem("shiftpro_cached_emp_" + merged.id, JSON.stringify(merged)); } catch(e) {}
             return { ...s, emp: merged };
           });
