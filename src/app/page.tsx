@@ -74,6 +74,7 @@ const C = {
   indigo:       "#161a33",   // CTA/footer inversion
   indigoDeep:   "#0d1022",
   sage:         "#6b7a58",   // pull-quote rule lines, sparingly
+  sageDark:     "#3f4a38",   // darker sage for mono metadata on parchment
   ink:          "#0a0d1a",   // main ink color for buttons
 
   // Supporting hues (existing — rarely used now)
