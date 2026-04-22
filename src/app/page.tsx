@@ -577,9 +577,6 @@ export function LandingPage() {
                 <span style={{ fontFamily: ff.mono, fontSize: 10, letterSpacing: 2.4, color: C.t2, fontWeight: 600 }}>NOW LIVE · BUILT BY A REAL BUSINESS OWNER</span>
               </div>
 
-              {/* Section marker */}
-              <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 3, marginBottom: 16, fontWeight: 500 }}>§ 001 · THE PITCH</div>
-
               {/* Headline — scale contrast */}
               <h1 style={{ fontFamily: ff.display, fontSize: isMobile ? 58 : "clamp(74px,9.4vw,142px)", lineHeight: 0.86, fontWeight: 500, letterSpacing: "-0.045em", marginBottom: 28, color: C.t1, animation: "fadeUp .9s cubic-bezier(.22,1,.36,1) .1s both" }}>
                 Your team.<br />
@@ -742,7 +739,6 @@ export function LandingPage() {
           {/* Section head */}
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: isMobile ? 40 : 64 }} className={"rv " + (shown("story") ? "vis" : "")}>
             <Squiggle w={60} color={C.sage} strokeW={1.6} />
-            <span style={{ fontFamily: ff.mono, fontSize: 10, color: C.sageDark, letterSpacing: 3, fontWeight: 600, textTransform: "uppercase" }}>§ 002 — A Letter From The Founder</span>
             <Squiggle w={60} color={C.sage} strokeW={1.6} />
           </div>
 
@@ -819,8 +815,7 @@ export function LandingPage() {
           ═══════════════════════════════════════════════════════════ */}
       <section style={{ padding: isMobile ? "72px 20px" : "112px 28px", background: C.ocean100, borderBottom: "1px solid " + C.border }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div data-rv="stats-h" className={"rv " + (shown("stats-h") ? "vis" : "")} style={{ marginBottom: isMobile ? 36 : 56, display: "flex", alignItems: "baseline", gap: 18, flexWrap: "wrap" }}>
-            <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 3, fontWeight: 600, textTransform: "uppercase" }}>§ 003</div>
+          <div data-rv="stats-h" className={"rv " + (shown("stats-h") ? "vis" : "")} style={{ marginBottom: isMobile ? 36 : 56 }}>
             <h2 style={{ fontFamily: ff.display, fontSize: isMobile ? 36 : "clamp(44px,5vw,64px)", fontWeight: 500, color: C.t1, letterSpacing: "-0.03em", lineHeight: 1 }}>
               Fewer hours. <span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber500 }}>Fewer texts.</span>
             </h2>
@@ -851,7 +846,6 @@ export function LandingPage() {
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
           {/* Head */}
           <div data-rv="tour-h" className={"rv " + (shown("tour-h") ? "vis" : "")} style={{ marginBottom: isMobile ? 44 : 72 }}>
-            <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 3, marginBottom: 14, fontWeight: 600, textTransform: "uppercase" }}>§ 004 · The Tour</div>
             <h2 style={{ fontFamily: ff.display, fontSize: isMobile ? 40 : "clamp(52px,6vw,86px)", fontWeight: 500, color: C.t1, letterSpacing: "-0.035em", lineHeight: 0.95, maxWidth: 900 }}>
               Five things you'll stop doing<br /><span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber500 }}>by Tuesday.</span>
             </h2>
@@ -975,7 +969,6 @@ export function LandingPage() {
 
           {/* Head */}
           <div data-rv="pr-h" className={"rv " + (shown("pr-h") ? "vis" : "")} style={{ marginBottom: isMobile ? 40 : 64, textAlign: isMobile ? "left" : "center" }}>
-            <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 3, marginBottom: 14, fontWeight: 600, textTransform: "uppercase" }}>§ 005 · The Bill</div>
             <h2 style={{ fontFamily: ff.display, fontSize: isMobile ? 42 : "clamp(52px,6.2vw,92px)", fontWeight: 500, color: C.t1, letterSpacing: "-0.04em", lineHeight: 0.9, marginBottom: 20 }}>
               Pricing that doesn't<br /><span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber500 }}>punish you for hiring.</span>
             </h2>
@@ -1110,7 +1103,6 @@ export function LandingPage() {
       <section style={{ padding: isMobile ? "88px 20px" : "140px 28px", background: C.parchment, borderTop: "1px solid " + C.parchmentOn, borderBottom: "1px solid " + C.parchmentOn, position: "relative" }} className="grain-overlay">
         <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 2 }}>
           <div data-rv="anti-h" className={"rv " + (shown("anti-h") ? "vis" : "")} style={{ marginBottom: isMobile ? 44 : 68 }}>
-            <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.sageDark, letterSpacing: 3, marginBottom: 14, fontWeight: 600, textTransform: "uppercase" }}>§ 006 · A Disclaimer</div>
             <h2 style={{ fontFamily: ff.display, fontSize: isMobile ? 44 : "clamp(60px,7vw,108px)", fontWeight: 500, color: C.t1, letterSpacing: "-0.045em", lineHeight: 0.88 }}>
               What ShiftPro<br /><span style={{ fontStyle: "italic", fontWeight: 300, color: C.terracotta }}>isn't.</span>
             </h2>
@@ -1154,8 +1146,7 @@ export function LandingPage() {
           ═══════════════════════════════════════════════════════════ */}
       <section id="faq" style={{ padding: isMobile ? "88px 20px" : "140px 28px", background: C.ocean100 }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <div data-rv="faq-h" className={"rv " + (shown("faq-h") ? "vis" : "")} style={{ marginBottom: isMobile ? 44 : 72, display: "flex", alignItems: "baseline", gap: 20, flexWrap: "wrap" }}>
-            <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 3, fontWeight: 600, textTransform: "uppercase" }}>§ 007</div>
+          <div data-rv="faq-h" className={"rv " + (shown("faq-h") ? "vis" : "")} style={{ marginBottom: isMobile ? 44 : 72 }}>
             <h2 style={{ fontFamily: ff.display, fontSize: isMobile ? 44 : "clamp(56px,6.4vw,92px)", fontWeight: 500, color: C.t1, letterSpacing: "-0.04em", lineHeight: 0.9 }}>
               Q&amp;A <span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber500 }}>(no accordions).</span>
             </h2>
