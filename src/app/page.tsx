@@ -445,7 +445,7 @@ export function LandingPage() {
   // live Pacific time
   useEffect(() => {
     const tick = () => {
-      const t = new Date().toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour12: false });
+      const t = new Date().toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour12: true });
       setPtNow(t);
     };
     tick();
@@ -481,7 +481,7 @@ export function LandingPage() {
             <SwirlMark size={34} />
             <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
               <span style={{ fontFamily: ff.display, fontWeight: 700, fontSize: 19, color: C.t1, letterSpacing: "-0.03em" }}>ShiftPro<span style={{ color: C.amber500, fontStyle: "italic", fontWeight: 400 }}>.ai</span></span>
-              <span style={{ fontFamily: ff.mono, fontSize: 8, color: C.t3, letterSpacing: 2.2, marginTop: 3, fontWeight: 500 }}>EST. NEWPORT, OR · 2026</span>
+              <span style={{ fontFamily: ff.mono, fontSize: 8, color: C.t3, letterSpacing: 2.2, marginTop: 3, fontWeight: 500 }}>EST. BEND, OR · 2026</span>
             </div>
             <span className="swirl-tip">◖ AHOY ◗</span>
           </a>
@@ -555,13 +555,6 @@ export function LandingPage() {
         <div aria-hidden style={{ position: "absolute", top: "-10%", right: "-10%", width: 560, height: 560, background: "radial-gradient(circle, rgba(224,123,0,0.1) 0%,transparent 60%)", animation: "drift 22s ease-in-out infinite", filter: "blur(90px)", pointerEvents: "none" }} />
         <div aria-hidden style={{ position: "absolute", bottom: "-15%", left: "-8%", width: 520, height: 520, background: "radial-gradient(circle, rgba(30,127,212,0.09) 0%,transparent 60%)", animation: "drift2 28s ease-in-out infinite", filter: "blur(90px)", pointerEvents: "none" }} />
 
-        {/* Margin metadata (editorial mag feel) */}
-        {!isTablet && (
-          <div style={{ position: "absolute", left: 28, top: 168, fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 2, transform: "rotate(-90deg)", transformOrigin: "left top", whiteSpace: "nowrap" }}>
-            ISSUE 01 · VOL. I — BUILT ON THE OREGON COAST
-          </div>
-        )}
-
         <div style={{ position: "relative", maxWidth: 1320, width: "100%", margin: "0 auto" }}>
 
           {/* Grid: 7/5 split with breaks for hierarchy */}
@@ -613,7 +606,7 @@ export function LandingPage() {
               <div style={{ position: "relative", animation: "fadeUp 1s cubic-bezier(.22,1,.36,1) .3s both", paddingTop: 20 }}>
                 {/* Amber tape label */}
                 <div style={{ position: "absolute", top: -4, left: -18, zIndex: 4, animation: "tapeDrift 3s ease-in-out infinite" }}>
-                  <span className="tape">LIVE · AUSTIN, TX</span>
+                  <span className="tape">LIVE · BEND, OR</span>
                 </div>
 
                 {/* Main dashboard card — LIGHT themed, tilted */}
@@ -692,7 +685,7 @@ export function LandingPage() {
 
                 {/* Small phone notification card — top-right */}
                 <div style={{ position: "absolute", top: 60, right: -36, zIndex: 3, transform: "rotate(4deg)", background: C.ink, borderRadius: 6, padding: "10px 12px", boxShadow: "0 15px 30px rgba(12,18,32,0.3)", minWidth: 180 }}>
-                  <div style={{ fontFamily: ff.mono, fontSize: 8, color: C.amber400, letterSpacing: 1.5, marginBottom: 4 }}>◖ PUSH · 14:23</div>
+                  <div style={{ fontFamily: ff.mono, fontSize: 8, color: C.amber400, letterSpacing: 1.5, marginBottom: 4 }}>◖ PUSH · 2:23 PM</div>
                   <div style={{ fontFamily: ff.body, fontSize: 11.5, color: "#fff", fontWeight: 500, lineHeight: 1.3 }}>
                     Your Fri 5pm–close is<br /><span style={{ color: C.amber400 }}>locked in.</span>
                   </div>
@@ -754,38 +747,49 @@ export function LandingPage() {
           {/* Editorial two-column body with drop cap */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 2fr", gap: isMobile ? 40 : 80, alignItems: "start" }}>
             {/* Left rail — metadata + "photo" space */}
-            <div data-rv="storyRail" className={"rv " + (shown("storyRail") ? "vis" : "")}>
-              <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 2, marginBottom: 14, textTransform: "uppercase", fontWeight: 600 }}>
-                By <span style={{ color: C.terracotta }}>Jordan</span><br />
-                Austin, Texas
-              </div>
-              {/* "Polaroid" — abstract coast representation */}
-              <div style={{ transform: "rotate(-2.5deg)", background: "#fff", padding: "10px 10px 44px", boxShadow: "0 14px 28px rgba(12,18,32,0.15)", maxWidth: 240, position: "relative", margin: isMobile ? "8px 0 20px" : "0" }}>
-                <svg width="100%" height="160" viewBox="0 0 220 160" style={{ display: "block", background: "linear-gradient(180deg, #1a3a55 0%, #2a5577 45%, #4a7a95 60%, #9eb8cc 78%, #1f2b28 82%, #141918 100%)" }}>
-                  {/* Sun */}
-                  <circle cx="160" cy="58" r="14" fill="#f5a623" opacity="0.8" />
-                  <circle cx="160" cy="58" r="22" fill="#f5a623" opacity="0.18" />
-                  {/* Horizon line */}
-                  <line x1="0" y1="92" x2="220" y2="92" stroke="rgba(255,255,255,0.22)" strokeWidth="0.5" />
-                  {/* Waves */}
-                  <path d="M0 110 Q 30 108 60 110 T 120 110 T 180 110 T 220 110" stroke="rgba(255,255,255,0.15)" strokeWidth="0.6" fill="none" />
-                  <path d="M0 120 Q 30 122 60 120 T 120 120 T 180 120 T 220 120" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" fill="none" />
-                  {/* Boat silhouette */}
-                  <path d="M 60 104 L 85 104 L 82 98 L 63 98 Z M 72 98 L 72 86 M 68 86 L 76 86" stroke="#0a0d1a" strokeWidth="1.2" fill="#0a0d1a" />
-                  {/* Headland */}
-                  <path d="M 0 92 L 30 78 L 60 88 L 0 88 Z" fill="#0a0d1a" opacity="0.85" />
-                </svg>
-                <div style={{ position: "absolute", bottom: 10, left: 14, fontFamily: ff.mono, fontSize: 9, color: C.t3, letterSpacing: 1, textTransform: "uppercase" }}>
-                  East 6th St · 04:52 AM
-                </div>
-              </div>
-              <div style={{ fontFamily: ff.mono, fontSize: 9, color: C.t4, letterSpacing: 1.5, marginTop: 12 }}>Photo: deposit run, before open</div>
+            <div data-rv="storyRail" className={"rv " + (shown("storyRail") ? "vis" : "")} style={{ display: "flex", justifyContent: isMobile ? "flex-start" : "center", alignItems: "flex-start", paddingTop: isMobile ? 0 : 20 }}>
+              {/* #1 Seal of Approval */}
+              <svg width="210" height="210" viewBox="0 0 210 210" style={{ transform: "rotate(-6deg)", filter: "drop-shadow(0 8px 24px rgba(12,18,32,0.13))" }}>
+                {/* Outer starburst ring */}
+                {Array.from({ length: 24 }).map((_, i) => {
+                  const a = (i * 360) / 24;
+                  const r1 = 98, r2 = 88;
+                  const ax = 105 + r1 * Math.cos((a * Math.PI) / 180);
+                  const ay = 105 + r1 * Math.sin((a * Math.PI) / 180);
+                  const bx = 105 + r2 * Math.cos(((a + 7.5) * Math.PI) / 180);
+                  const by = 105 + r2 * Math.sin(((a + 7.5) * Math.PI) / 180);
+                  return <line key={i} x1={ax} y1={ay} x2={bx} y2={by} stroke={C.amber500} strokeWidth="2.5" opacity="0.85" />;
+                })}
+                {/* Main circle */}
+                <circle cx="105" cy="105" r="84" fill={C.ink} />
+                <circle cx="105" cy="105" r="78" fill="none" stroke={C.amber500} strokeWidth="1.5" opacity="0.6" />
+                <circle cx="105" cy="105" r="72" fill="none" stroke={C.amber500} strokeWidth="0.8" opacity="0.35" />
+                {/* Top arc text */}
+                <path id="topArc" d="M 105,105 m -62,0 a 62,62 0 1,1 124,0" fill="none" />
+                <text fontSize="9.5" fontFamily="'JetBrains Mono', monospace" fontWeight="700" fill={C.amber400} letterSpacing="3.5">
+                  <textPath href="#topArc" startOffset="8%">RATED  #1  BY  OPERATORS</textPath>
+                </text>
+                {/* Bottom arc text */}
+                <path id="btmArc" d="M 105,105 m 62,0 a 62,62 0 1,1 -124,0" fill="none" />
+                <text fontSize="9" fontFamily="'JetBrains Mono', monospace" fontWeight="600" fill={C.amber400} letterSpacing="2.8">
+                  <textPath href="#btmArc" startOffset="10%">SMALL  ·  MEDIUM  BUSINESS</textPath>
+                </text>
+                {/* Center content */}
+                <text x="105" y="88" textAnchor="middle" fontSize="42" fontFamily="'Fraunces', serif" fontWeight="700" fill="#fff">#1</text>
+                <text x="105" y="108" textAnchor="middle" fontSize="11" fontFamily="'JetBrains Mono', monospace" fontWeight="600" fill={C.amber400} letterSpacing="2">APP FOR</text>
+                <text x="105" y="124" textAnchor="middle" fontSize="11.5" fontFamily="'Fraunces', serif" fontStyle="italic" fontWeight="300" fill="rgba(255,255,255,0.9)">Shift-Based</text>
+                <text x="105" y="140" textAnchor="middle" fontSize="11.5" fontFamily="'Fraunces', serif" fontStyle="italic" fontWeight="300" fill="rgba(255,255,255,0.9)">Operations</text>
+                {/* Stars */}
+                {[-28, -14, 0, 14, 28].map((offset, i) => (
+                  <text key={i} x={105 + offset} y="157" textAnchor="middle" fontSize="9" fill={C.amber500}>★</text>
+                ))}
+              </svg>
             </div>
 
             {/* Right rail — editorial body */}
             <div data-rv="storyBody" className={"rv rv-d2 " + (shown("storyBody") ? "vis" : "")}>
               <div className="dropcap col2" style={{ fontFamily: ff.display, fontSize: 17, lineHeight: 1.6, color: C.t1, fontWeight: 400, letterSpacing: "-0.005em" }}>
-                I run a bar in Austin, Texas. Before that, a coffee shop. For seven years I scheduled shifts on a spreadsheet, in a group text, and — god help me — on a corkboard by the walk-in.
+                I run a bar in Bend, Oregon. Before that, a coffee shop. For seven years I scheduled shifts on a spreadsheet, in a group text, and — god help me — on a corkboard by the walk-in.
                 <br /><br />
                 Every scheduling app I tried was built for someone else. They wanted our payroll data, our retention metrics, our compliance reports. What I wanted was to publish next week's schedule without losing a Saturday morning to it.
                 <br /><br />
@@ -794,17 +798,6 @@ export function LandingPage() {
                 If you run a bar, a coffee shop, a tour company, a gym, a salon — anything where the schedule runs the whole show — it was built for you. Try it for a week. If it saves you a Saturday morning, you'll never go back.
               </div>
 
-              {/* Signature */}
-              <div style={{ marginTop: 40, display: "flex", alignItems: "flex-end", gap: 16 }}>
-                <svg width="170" height="54" viewBox="0 0 170 54" aria-label="Founder signature" style={{ flexShrink: 0 }}>
-                  <path d="M 4 36 C 6 16, 14 10, 18 18 C 20 28, 14 38, 9 34 M 18 18 C 22 28, 28 30, 32 22 C 36 14, 28 10, 26 20 L 30 34 M 32 24 Q 40 14, 46 28 L 48 34 M 46 28 Q 54 20, 58 32 M 56 20 L 60 36 M 60 26 Q 68 18, 74 28 L 76 36 M 76 28 Q 84 20, 90 30 M 90 22 L 94 36"
-                    stroke={C.ink} strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M 12 44 Q 40 42, 80 44 T 140 43" stroke={C.amber500} strokeWidth="1.4" fill="none" strokeLinecap="round" opacity="0.85" />
-                </svg>
-                <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 1.8, textTransform: "uppercase", paddingBottom: 4 }}>
-                  Jordan — <span style={{ color: C.terracotta }}>Austin, TX</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -878,7 +871,7 @@ export function LandingPage() {
                         transition: "all .2s",
                       }}>
                         <div style={{ fontFamily: ff.mono, fontSize: 9, color: on ? C.terracotta : C.t4, letterSpacing: 2, fontWeight: 600, marginBottom: 4 }}>
-                          {String(i + 1).padStart(2, "0")} · {t.meta}
+                          {t.meta}
                         </div>
                         <div style={{ fontFamily: ff.display, fontSize: isMobile ? 15 : 18, fontWeight: 500, color: on ? C.t1 : C.t3, letterSpacing: "-0.015em", lineHeight: 1.2, maxWidth: isMobile ? 150 : 200 }}>
                           {t.verb}<br />
@@ -893,7 +886,6 @@ export function LandingPage() {
                 <div key={tourStep} style={{ animation: "fadeIn .4s ease", background: "#fff", borderRadius: 6, border: "1px solid " + C.border, padding: isMobile ? 24 : 40, boxShadow: "0 30px 70px -30px rgba(12,18,32,0.18)", marginBottom: 24 }}>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1.25fr", gap: isMobile ? 28 : 48, alignItems: "start" }}>
                     <div>
-                      <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.amber600, letterSpacing: 2, marginBottom: 12, fontWeight: 600, textTransform: "uppercase" }}>CHAPTER {["I","II","III","IV","V"][tourStep]}</div>
                       <h3 style={{ fontFamily: ff.display, fontSize: isMobile ? 30 : 42, fontWeight: 500, color: C.t1, letterSpacing: "-0.025em", lineHeight: 1, marginBottom: 20 }}>
                         {active.verb}<br />
                         <span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber500 }}>{active.tail}</span>
@@ -1078,21 +1070,6 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* Free as an aside */}
-          <div data-rv="pr-free" className={"rv " + (shown("pr-free") ? "vis" : "")} style={{ marginTop: 48, padding: "24px 28px", background: "transparent", border: "1px dashed " + C.border, borderRadius: 4, maxWidth: 800, margin: "48px auto 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, letterSpacing: 2, marginBottom: 6, fontWeight: 600, textTransform: "uppercase" }}>P.S.</div>
-              <div style={{ fontFamily: ff.display, fontSize: isMobile ? 20 : 26, fontWeight: 400, color: C.t1, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-                Running one location with five or fewer people? <span style={{ fontStyle: "italic", color: C.terracotta }}>Start free.</span>
-              </div>
-              <div style={{ fontFamily: ff.body, fontSize: 13, color: C.t2, marginTop: 6 }}>
-                Upgrade when you outgrow it. No card required, ever.
-              </div>
-            </div>
-            <a href="/final" className="ink-link" style={{ fontFamily: ff.body, fontWeight: 700, fontSize: 14, color: C.terracotta, whiteSpace: "nowrap" }}>
-              Claim free plan →
-            </a>
-          </div>
         </div>
       </section>
 
@@ -1132,7 +1109,6 @@ export function LandingPage() {
           </div>
 
           <div data-rv="anti-closer" className={"rv " + (shown("anti-closer") ? "vis" : "")} style={{ marginTop: 56, padding: isMobile ? "32px 28px" : "48px 56px", background: C.ink, color: "#fff", borderRadius: 4, position: "relative", overflow: "hidden" }}>
-            <div style={{ fontFamily: ff.mono, fontSize: 10, color: C.amber400, letterSpacing: 3, marginBottom: 14, fontWeight: 600 }}>— HERE'S WHAT IT IS</div>
             <div style={{ fontFamily: ff.display, fontSize: isMobile ? 26 : 40, fontWeight: 400, letterSpacing: "-0.025em", lineHeight: 1.2 }}>
               The best damn shift schedule<br /><span style={{ fontStyle: "italic", fontWeight: 300, color: C.amber400 }}>for a small operator.</span>
             </div>
@@ -1224,7 +1200,7 @@ export function LandingPage() {
               Already have an account? Sign in →
             </button>
             <span className="tn" style={{ fontFamily: ff.mono, fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 1.5 }}>
-              AUSTIN, TX · {ptNow} CT
+              BEND, OR · {ptNow} PT
             </span>
           </div>
         </div>
@@ -1344,10 +1320,10 @@ function TourClockMock({ ptNow }: { ptNow: string }) {
         <div className="tn" style={{ fontFamily: ff.mono, fontSize: 10, color: C.t3, fontWeight: 600, letterSpacing: 0.8 }}>{ptNow} PT</div>
       </div>
       {[
-        { n: "Marcus Rivera",  r: "The Parlor · Bar",           since: "11:02", hrs: "4h 12m", col: C.success },
-        { n: "Leila Santos",   r: "Common Ground · Counter",    since: "06:15", hrs: "9h 00m", col: C.amber500 },
-        { n: "Nia Okafor",     r: "Capital City Tours · Deck",  since: "07:30", hrs: "7h 45m", col: C.sky500 },
-        { n: "Devin Cole",     r: "The Parlor · Host",          since: "14:00", hrs: "1h 14m", col: C.terracotta },
+        { n: "Marcus Rivera",  r: "The Parlor · Bar",           since: "11:02 AM", hrs: "4h 12m", col: C.success },
+        { n: "Leila Santos",   r: "Common Ground · Counter",    since: "6:15 AM",  hrs: "9h 00m", col: C.amber500 },
+        { n: "Nia Okafor",     r: "Capital City Tours · Deck",  since: "7:30 AM",  hrs: "7h 45m", col: C.sky500 },
+        { n: "Devin Cole",     r: "The Parlor · Host",          since: "2:00 PM",  hrs: "1h 14m", col: C.terracotta },
       ].map((p, i) => (
         <div key={p.n} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#fff", border: "1px solid " + C.border, borderRadius: 3, marginBottom: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.col, boxShadow: "0 0 0 3px " + p.col + "25", flexShrink: 0 }} />
@@ -1440,10 +1416,10 @@ function TourChatMock() {
         <div style={{ fontFamily: ff.mono, fontSize: 9, color: C.t3, letterSpacing: 1 }}>4 IN THREAD</div>
       </div>
       {[
-        { who: "Jordan (Mgr)", msg: "Running a bit heavy on covers tonight — Marcus, can you come in 30 min early?", when: "14:02", self: true, col: C.amber500 },
-        { who: "Jake M.",       msg: "Yep, on my way.", when: "14:04", self: false, col: C.sky500 },
-        { who: "Sarah C.",      msg: "I can cover the door until Jake's in if that helps.", when: "14:05", self: false, col: C.terracotta },
-        { who: "Jordan (Mgr)", msg: "Perfect, thanks team 🙏", when: "14:06", self: true, col: C.amber500 },
+        { who: "Jordan (Mgr)", msg: "Running a bit heavy on covers tonight — Marcus, can you come in 30 min early?", when: "2:02 PM", self: true, col: C.amber500 },
+        { who: "Jake M.",       msg: "Yep, on my way.", when: "2:04 PM", self: false, col: C.sky500 },
+        { who: "Sarah C.",      msg: "I can cover the door until Jake's in if that helps.", when: "2:05 PM", self: false, col: C.terracotta },
+        { who: "Jordan (Mgr)", msg: "Perfect, thanks team 🙏", when: "2:06 PM", self: true, col: C.amber500 },
       ].map((m, i) => (
         <div key={i} style={{ display: "flex", flexDirection: m.self ? "row-reverse" : "row", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
           <div style={{ width: 26, height: 26, borderRadius: 3, background: m.col + "22", color: m.col, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
