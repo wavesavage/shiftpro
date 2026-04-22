@@ -4276,6 +4276,7 @@ function SettingsTab({
 }) {
   const mobile = useIsMobile();
   const [confirmDeleteLocId,setConfirmDeleteLocId] = useState(null);
+  const [editLoc, setEditLoc] = useState(null); // location being edited, or null
   const card = {background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow};
   const label = {fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"};
   const input = {width:"100%",padding:"10px 13px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"};
@@ -4385,6 +4386,26 @@ function SettingsTab({
   };
 
   return (
+    <>
+    {editLoc && (
+      <EditLocationModal
+        location={editLoc}
+        onClose={()=>setEditLoc(null)}
+        onSaved={(updatedLoc)=>{
+          setLiveLocations(prev=>(prev||[]).map(l=>l.id===updatedLoc.id?updatedLoc:l));
+          try{
+            const orgId = updatedLoc.org_id;
+            if(orgId){
+              const cached = JSON.parse(localStorage.getItem("shiftpro_cached_locs_"+orgId) || "[]");
+              localStorage.setItem("shiftpro_cached_locs_"+orgId, JSON.stringify(cached.map(l=>l.id===updatedLoc.id?updatedLoc:l)));
+            }
+            const all = JSON.parse(localStorage.getItem("shiftpro_all_locs")||"[]");
+            localStorage.setItem("shiftpro_all_locs", JSON.stringify(all.map(l=>l.id===updatedLoc.id?updatedLoc:l)));
+          }catch(e){ console.warn("[editLoc cache]", e?.message); }
+        }}
+        toast={toast}
+      />
+    )}
     <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Settings</div>
@@ -4589,7 +4610,14 @@ function SettingsTab({
                     </div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc.name}</div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:1}}>{loc.address||"No address set"} {loc.timezone?" - "+loc.timezone:""}</div>
+                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:1,display:"flex",alignItems:"center",gap:6}}>
+                        <span>{loc.address||"No address set"}{loc.timezone?" - "+loc.timezone:""}</span>
+                        {loc.lat != null && loc.lng != null ? (
+                          <span style={{color:"#10b981",fontSize:9,fontWeight:700,letterSpacing:0.5}} title={"GPS: "+Number(loc.lat).toFixed(4)+", "+Number(loc.lng).toFixed(4)}>● GPS</span>
+                        ) : (
+                          <span style={{color:"#f59e0b",fontSize:9,fontWeight:700,letterSpacing:0.5}} title="No GPS coords — geofence disabled">○ NO GPS</span>
+                        )}
+                      </div>
                     </div>
                     {isActive&&(
                       <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:20,padding:"3px 10px",letterSpacing:"0.5px",flexShrink:0}}>● ACTIVE</span>
@@ -4597,6 +4625,11 @@ function SettingsTab({
                     {!isActive&&!isConfirming&&(
                       <button onClick={()=>selectLocation(loc)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer",flexShrink:0}}>
                         Switch
+                      </button>
+                    )}
+                    {!isConfirming&&(
+                      <button onClick={()=>setEditLoc(loc)} style={{padding:"5px 10px",background:"none",border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer",flexShrink:0}} title="Edit location">
+                        ✎ Edit
                       </button>
                     )}
                     {!isConfirming&&(
@@ -4735,6 +4768,7 @@ function SettingsTab({
 
       </div>
     </div>
+    </>
   );
 }
 
@@ -4847,6 +4881,192 @@ function AddLocationModal({
           }}
           style={{width:"100%",padding:"13px",background:addLocBusy?"rgba(8,145,178,0.4)":"linear-gradient(135deg,#0891b2,#0e7490)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:addLocBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(8,145,178,0.25)"}}>
           {addLocBusy?"Creating...":"Create Location and Switch"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  EDIT LOCATION MODAL — update address (auto-geocodes) + geofence radius
+// ═══════════════════════════════════════════════════════════════
+function EditLocationModal({ location, onClose, onSaved, toast }) {
+  const mobile = useIsMobile();
+  const [form, setForm] = useState({
+    name: location?.name || "",
+    address: location?.address || "",
+    timezone: location?.timezone || "America/Los_Angeles",
+    geofence_radius_m: location?.geofence_radius_m || 150,
+    lat: location?.lat ?? "",
+    lng: location?.lng ?? "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [manualCoords, setManualCoords] = useState(false);
+  const [addressChanged, setAddressChanged] = useState(false);
+
+  const originalAddress = location?.address || "";
+  const hasCoords = location?.lat != null && location?.lng != null;
+
+  const save = async () => {
+    if(!form.name.trim()){ setErr("Location name is required."); return; }
+    setBusy(true); setErr("");
+    try{
+      const sb = await getSB();
+      const { data: { session } } = await sb.auth.getSession();
+      const body = {
+        locationId: location.id,
+        name: form.name.trim(),
+        address: form.address.trim(),
+        timezone: form.timezone,
+        geofence_radius_m: parseInt(form.geofence_radius_m) || 150,
+      };
+      // If user manually entered coords, send them; otherwise the server re-geocodes when address changes
+      if(manualCoords){
+        const latNum = parseFloat(form.lat);
+        const lngNum = parseFloat(form.lng);
+        if(isNaN(latNum) || isNaN(lngNum)){
+          setErr("Manual coordinates must be valid numbers.");
+          setBusy(false); return;
+        }
+        if(latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180){
+          setErr("Coordinates out of range (lat: -90 to 90, lng: -180 to 180).");
+          setBusy(false); return;
+        }
+        body.lat = latNum;
+        body.lng = lngNum;
+      }
+      const res = await fetch("/api/location", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(session?.access_token?{"Authorization":"Bearer "+session.access_token}:{}) },
+        body: JSON.stringify(body),
+      });
+      const result = await res.json();
+      if(!res.ok) throw new Error(result.error || "Update failed");
+      if(onSaved) onSaved(result.location);
+      if(toast){
+        toast(result.geocoded ? "Location saved — GPS coordinates detected from address ✓" : "Location saved ✓", "success");
+      }
+      onClose();
+    }catch(e){
+      console.warn("[EditLocation save]", e?.message);
+      setErr(e?.message || "Failed to save location.");
+    }finally{ setBusy(false); }
+  };
+
+  return (
+    <div
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
+      onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
+      <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":480,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.2)",animation:"fadeUp 0.3s ease"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+          <div>
+            <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Edit Location</div>
+            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text}}>{location?.name || "Location"}</div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:O.textF,padding:"4px 10px"}}>×</button>
+        </div>
+
+        <div style={{background:hasCoords?"rgba(16,185,129,0.06)":"rgba(245,158,11,0.08)",border:"1px solid "+(hasCoords?"rgba(16,185,129,0.2)":"rgba(245,158,11,0.25)"),borderRadius:8,padding:"10px 14px",marginBottom:18,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:16}}>{hasCoords?"📍":"⚠️"}</span>
+          <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>
+            {hasCoords
+              ? <>GPS locked at <strong>{Number(location.lat).toFixed(5)}, {Number(location.lng).toFixed(5)}</strong>. Geofence active.</>
+              : <>No GPS coordinates set. Clock-in GPS check is <strong>disabled</strong> for this location.</>
+            }
+          </div>
+        </div>
+
+        {/* Name */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Location Name *</div>
+          <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}
+            style={{width:"100%",padding:"10px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
+            onFocus={e=>e.target.style.borderColor=O.cyan} onBlur={e=>e.target.style.borderColor=O.border}/>
+        </div>
+
+        {/* Address */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Street Address</div>
+          <input value={form.address}
+            onChange={e=>{
+              const v = e.target.value;
+              setForm(p=>({...p,address:v}));
+              setAddressChanged(v.trim() !== originalAddress.trim());
+            }}
+            placeholder="123 Main St, Newport, OR 97365"
+            style={{width:"100%",padding:"10px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
+            onFocus={e=>e.target.style.borderColor=O.cyan} onBlur={e=>e.target.style.borderColor=O.border}/>
+          <div style={{fontFamily:O.sans,fontSize:11,color:addressChanged?O.cyan:O.textF,marginTop:5,lineHeight:1.45}}>
+            {addressChanged
+              ? "✨ Address changed — GPS coordinates will auto-update when you save."
+              : "Paste a full address. GPS coordinates lock in automatically from Google Maps data."}
+          </div>
+        </div>
+
+        {/* Timezone */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Timezone</div>
+          <select value={form.timezone} onChange={e=>setForm(p=>({...p,timezone:e.target.value}))}
+            style={{width:"100%",padding:"10px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+            {[
+              ["America/Los_Angeles","Pacific Time (PT)"],
+              ["America/Denver","Mountain Time (MT)"],
+              ["America/Chicago","Central Time (CT)"],
+              ["America/New_York","Eastern Time (ET)"],
+              ["America/Anchorage","Alaska (AKT)"],
+              ["Pacific/Honolulu","Hawaii (HST)"]
+            ].map(([val,label])=>(
+              <option key={val} value={val}>{label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Geofence radius */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase",display:"flex",justifyContent:"space-between"}}>
+            <span>Geofence Radius</span>
+            <span style={{color:O.cyan}}>{form.geofence_radius_m}m</span>
+          </div>
+          <input type="range" min={50} max={500} step={10} value={form.geofence_radius_m}
+            onChange={e=>setForm(p=>({...p,geofence_radius_m:parseInt(e.target.value)}))}
+            style={{width:"100%",accentColor:O.cyan}}/>
+          <div style={{fontFamily:O.sans,fontSize:11,color:O.textF,marginTop:4,lineHeight:1.45}}>
+            Employees must be within this distance to clock in. 150m is the recommended default.
+          </div>
+        </div>
+
+        {/* Manual coordinates (advanced) */}
+        <div style={{marginBottom:18}}>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontFamily:O.sans,fontSize:12,color:O.textD,cursor:"pointer",marginBottom:manualCoords?10:0}}>
+            <input type="checkbox" checked={manualCoords} onChange={e=>setManualCoords(e.target.checked)} style={{cursor:"pointer"}}/>
+            Set GPS coordinates manually
+          </label>
+          {manualCoords && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Latitude</div>
+                <input value={form.lat} onChange={e=>setForm(p=>({...p,lat:e.target.value}))} placeholder="44.6261"
+                  style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.mono,fontSize:12,color:O.text,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Longitude</div>
+                <input value={form.lng} onChange={e=>setForm(p=>({...p,lng:e.target.value}))} placeholder="-124.0529"
+                  style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.mono,fontSize:12,color:O.text,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {err && (
+          <div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:12,padding:"7px 10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:6}}>{err}</div>
+        )}
+
+        <button
+          onClick={save}
+          disabled={busy}
+          style={{width:"100%",padding:"13px",background:busy?"rgba(8,145,178,0.4)":"linear-gradient(135deg,#0891b2,#0e7490)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(8,145,178,0.25)"}}>
+          {busy ? "Saving..." : "Save Location"}
         </button>
       </div>
     </div>
