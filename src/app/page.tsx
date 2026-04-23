@@ -324,6 +324,118 @@ const FEED = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
+// AWARD BADGE — #1 Employee Scheduling Tool
+// Unique gradient IDs per render to avoid SVG conflicts.
+// All leaves pre-computed as static paths — no .map() in SVG.
+// ═══════════════════════════════════════════════════════════════
+function AwardBadge() {
+  const uid = "ab" + Math.random().toString(36).slice(2, 7);
+  const bg  = uid + "bg";
+  const nm  = uid + "nm";
+  const sc  = uid + "sc";
+
+  // Leaf shape — small, tapered oval pointing "up" in local coords
+  const L = "M 0 0 Q 5 -2 4 -9 Q 0 -7 -2 -9 Q -3 -4 0 0 Z";
+  const LR = "M 0 0 Q -5 -2 -4 -9 Q 0 -7 2 -9 Q 3 -4 0 0 Z"; // mirrored for right side
+
+  const leafColor = "#7A9FE8";
+
+  return (
+    <svg
+      width="210" height="210" viewBox="0 0 210 210"
+      fill="none" xmlns="http://www.w3.org/2000/svg"
+      style={{ transform: "rotate(-3deg)", filter: "drop-shadow(0 8px 28px rgba(40,64,200,0.3))", overflow: "visible", display: "block" }}
+    >
+      <defs>
+        <linearGradient id={bg} x1="0.2" y1="0" x2="0.8" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%"   stopColor="#7AABFF"/>
+          <stop offset="55%"  stopColor="#3B6FEE"/>
+          <stop offset="100%" stopColor="#1C3CC8"/>
+        </linearGradient>
+        <linearGradient id={nm} x1="0.3" y1="0" x2="0.7" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%"   stopColor="#4D80FF"/>
+          <stop offset="100%" stopColor="#1230BB"/>
+        </linearGradient>
+        <linearGradient id={sc} x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%"   stopColor="#5588FF"/>
+          <stop offset="100%" stopColor="#2244DD"/>
+        </linearGradient>
+      </defs>
+
+      {/* Scalloped outer ring (22 scallops, pre-computed) */}
+      <path
+        d="M 105.00 17.00 Q 119.66 3.05 129.79 20.56 Q 147.79 11.31 152.58 30.97 Q 172.45 27.16 171.51 47.37 Q 191.65 49.31 185.05 68.44 Q 203.83 75.98 192.10 92.48 Q 208.00 105.00 192.10 117.52 Q 203.83 134.02 185.05 141.56 Q 191.65 160.69 171.51 162.63 Q 172.45 182.84 152.58 179.03 Q 147.79 198.69 129.79 189.44 Q 119.66 206.95 105.00 193.00 Q 90.34 206.95 80.21 189.44 Q 62.21 198.69 57.42 179.03 Q 37.55 182.84 38.49 162.63 Q 18.35 160.69 24.95 141.56 Q 6.17 134.02 17.90 117.52 Q 2.00 105.00 17.90 92.48 Q 6.17 75.98 24.95 68.44 Q 18.35 49.31 38.49 47.37 Q 37.55 27.16 57.42 30.97 Q 62.21 11.31 80.21 20.56 Q 90.34 3.05 105.00 17.00 Z"
+        fill={`url(#${bg})`}
+      />
+
+      {/* White inner face */}
+      <circle cx="105" cy="105" r="80" fill="white"/>
+
+      {/* Double ring inside */}
+      <circle cx="105" cy="105" r="77"   fill="none" stroke="#4466EE" strokeWidth="1.4"/>
+      <circle cx="105" cy="105" r="73.5" fill="none" stroke="#AABCFF" strokeWidth="0.6" opacity="0.55"/>
+
+      {/* ─── LEFT LAUREL — outer row (6 leaves) ─── */}
+      <path d={L} transform="translate(73,100) rotate(-30)"  fill={leafColor} opacity="0.75"/>
+      <path d={L} transform="translate(68,91)  rotate(-42)"  fill={leafColor} opacity="0.72"/>
+      <path d={L} transform="translate(64,82)  rotate(-54)"  fill={leafColor} opacity="0.68"/>
+      <path d={L} transform="translate(61,73)  rotate(-64)"  fill={leafColor} opacity="0.65"/>
+      <path d={L} transform="translate(59,64)  rotate(-74)"  fill={leafColor} opacity="0.61"/>
+      <path d={L} transform="translate(58,56)  rotate(-84)"  fill={leafColor} opacity="0.58"/>
+
+      {/* ─── LEFT LAUREL — inner row (6 leaves) ─── */}
+      <path d={L} transform="translate(80,98)  rotate(-15)"  fill="#AABCEE" opacity="0.62"/>
+      <path d={L} transform="translate(75,89)  rotate(-25)"  fill="#AABCEE" opacity="0.59"/>
+      <path d={L} transform="translate(71,80)  rotate(-36)"  fill="#AABCEE" opacity="0.56"/>
+      <path d={L} transform="translate(68,71)  rotate(-46)"  fill="#AABCEE" opacity="0.53"/>
+      <path d={L} transform="translate(66,62)  rotate(-56)"  fill="#AABCEE" opacity="0.50"/>
+      <path d={L} transform="translate(65,54)  rotate(-66)"  fill="#AABCEE" opacity="0.47"/>
+
+      {/* Left stem */}
+      <path d="M 78 102 C 72 88 66 74 61 58" stroke="#8AABEE" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.45"/>
+
+      {/* ─── RIGHT LAUREL — outer row (6 leaves) ─── */}
+      <path d={LR} transform="translate(137,100) rotate(30)"  fill={leafColor} opacity="0.75"/>
+      <path d={LR} transform="translate(142,91)  rotate(42)"  fill={leafColor} opacity="0.72"/>
+      <path d={LR} transform="translate(146,82)  rotate(54)"  fill={leafColor} opacity="0.68"/>
+      <path d={LR} transform="translate(149,73)  rotate(64)"  fill={leafColor} opacity="0.65"/>
+      <path d={LR} transform="translate(151,64)  rotate(74)"  fill={leafColor} opacity="0.61"/>
+      <path d={LR} transform="translate(152,56)  rotate(84)"  fill={leafColor} opacity="0.58"/>
+
+      {/* ─── RIGHT LAUREL — inner row (6 leaves) ─── */}
+      <path d={LR} transform="translate(130,98)  rotate(15)"  fill="#AABCEE" opacity="0.62"/>
+      <path d={LR} transform="translate(135,89)  rotate(25)"  fill="#AABCEE" opacity="0.59"/>
+      <path d={LR} transform="translate(139,80)  rotate(36)"  fill="#AABCEE" opacity="0.56"/>
+      <path d={LR} transform="translate(142,71)  rotate(46)"  fill="#AABCEE" opacity="0.53"/>
+      <path d={LR} transform="translate(144,62)  rotate(56)"  fill="#AABCEE" opacity="0.50"/>
+      <path d={LR} transform="translate(145,54)  rotate(66)"  fill="#AABCEE" opacity="0.47"/>
+
+      {/* Right stem */}
+      <path d="M 132 102 C 138 88 144 74 149 58" stroke="#8AABEE" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.45"/>
+
+      {/* #1 — gradient, heavy weight */}
+      <text x="105" y="86" textAnchor="middle" fontFamily="'Inter',system-ui,sans-serif" fontSize="58" fontWeight="900" fill={`url(#${nm})`}>#1</text>
+
+      {/* Star + flanking rules */}
+      <line x1="64"  y1="97" x2="90"  y2="97" stroke="#AABBEE" strokeWidth="0.9"/>
+      <text x="105"  y="101" textAnchor="middle" fontSize="10" fill="#3355CC">★</text>
+      <line x1="120" y1="97" x2="146" y2="97" stroke="#AABBEE" strokeWidth="0.9"/>
+
+      {/* EMPLOYEE */}
+      <text x="105" y="121" textAnchor="middle" fontFamily="'Inter',system-ui,sans-serif" fontSize="13" fontWeight="800" fill="#12205E" letterSpacing="0.8">EMPLOYEE</text>
+
+      {/* SCHEDULING */}
+      <text x="105" y="138" textAnchor="middle" fontFamily="'Inter',system-ui,sans-serif" fontSize="13" fontWeight="800" fill={`url(#${sc})`} letterSpacing="0.8">SCHEDULING</text>
+
+      {/* — TOOL — */}
+      <line x1="62"  y1="152" x2="80"  y2="152" stroke="#AABBEE" strokeWidth="0.9"/>
+      <text x="105" y="156"  textAnchor="middle" fontFamily="'Inter',system-ui,sans-serif" fontSize="11" fontWeight="700" fill="#12205E" letterSpacing="2.5">TOOL</text>
+      <line x1="130" y1="152" x2="148" y2="152" stroke="#AABBEE" strokeWidth="0.9"/>
+    </svg>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // LOGIN MODAL — preserved (Supabase flow intact)
 // ═══════════════════════════════════════════════════════════════
 function LoginModal({ open, role, onClose }: { open: boolean; role: string; onClose: () => void }) {
@@ -717,7 +829,7 @@ export function LandingPage() {
           STORY / FOUNDER LETTER — PARCHMENT BREAK
           editorial two-column, drop cap, handwritten signature
           ═══════════════════════════════════════════════════════════ */}
-      <section id="story" className="grain-overlay" data-rv="story" style={{ position: "relative", padding: isMobile ? "88px 20px" : "140px 28px", background: C.parchment, borderTop: "1px solid " + C.parchmentOn, borderBottom: "1px solid " + C.parchmentOn, overflow: "hidden" }}>
+      <section id="story" className="grain-overlay" data-rv="story" style={{ position: "relative", padding: isMobile ? "88px 20px" : "140px 28px", background: C.parchment, borderTop: "1px solid " + C.parchmentOn, borderBottom: "1px solid " + C.parchmentOn, overflow: "visible" }}>
         {/* Paper-edge detail on top */}
         <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 20, background: "repeating-linear-gradient(-2deg, " + C.parchmentOn + ", " + C.parchmentOn + " 8px, transparent 8px, transparent 22px)", opacity: 0.7, pointerEvents: "none" }} />
 
@@ -735,46 +847,8 @@ export function LandingPage() {
           {/* Editorial two-column body with drop cap */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 2fr", gap: isMobile ? 40 : 80, alignItems: "start" }}>
             {/* Left rail — metadata + "photo" space */}
-            <div data-rv="storyRail" className={"rv " + (shown("storyRail") ? "vis" : "")} style={{ display: "flex", justifyContent: isMobile ? "flex-start" : "center", alignItems: "flex-start", paddingTop: isMobile ? 0 : 20 }}>
-              {/* Clean award badge */}
-              <svg width="190" height="190" viewBox="0 0 190 190" fill="none" style={{ transform: "rotate(-4deg)", filter: "drop-shadow(0 6px 20px rgba(12,18,32,0.18))" }}>
-                {/* Outer ring */}
-                <circle cx="95" cy="95" r="90" fill={C.ink} />
-                {/* Amber accent ring */}
-                <circle cx="95" cy="95" r="82" fill="none" stroke={C.amber500} strokeWidth="1.2" />
-                {/* Inner ring */}
-                <circle cx="95" cy="95" r="76" fill="none" stroke={C.amber500} strokeWidth="0.5" opacity="0.4" />
-
-                {/* Laurel left */}
-                <path d="M 34 95 C 36 80, 44 68, 54 64" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
-                <path d="M 34 95 C 30 80, 32 66, 40 60" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-                <path d="M 36 102 C 30 90, 28 76, 32 66" stroke={C.amber500} strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
-
-                {/* Laurel right */}
-                <path d="M 156 95 C 154 80, 146 68, 136 64" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
-                <path d="M 156 95 C 160 80, 158 66, 150 60" stroke={C.amber500} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-                <path d="M 154 102 C 160 90, 162 76, 158 66" stroke={C.amber500} strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
-
-                {/* Star at top */}
-                <text x="95" y="34" textAnchor="middle" fontSize="13" fill={C.amber500} opacity="0.9">★</text>
-
-                {/* RATED label */}
-                <text x="95" y="68" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontSize="9" fontWeight="700" fill={C.amber400} letterSpacing="4">RATED</text>
-
-                {/* #1 */}
-                <text x="95" y="120" textAnchor="middle" fontFamily="'Fraunces', serif" fontSize="58" fontWeight="700" fill="#ffffff" letterSpacing="-2">#1</text>
-
-                {/* Divider line */}
-                <line x1="58" y1="130" x2="132" y2="130" stroke={C.amber500} strokeWidth="0.8" opacity="0.5" />
-
-                {/* SCHEDULING APP */}
-                <text x="95" y="147" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontSize="8.5" fontWeight="600" fill="rgba(255,255,255,0.85)" letterSpacing="2.5">SCHEDULING APP</text>
-
-                {/* Bottom stars */}
-                <text x="73" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
-                <text x="95" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
-                <text x="117" y="164" textAnchor="middle" fontSize="8" fill={C.amber500} opacity="0.8">★</text>
-              </svg>
+            <div data-rv="storyRail" className={"rv " + (shown("storyRail") ? "vis" : "")} style={{ display: "flex", justifyContent: isMobile ? "flex-start" : "center", alignItems: "flex-start", paddingTop: isMobile ? 0 : 20, position: "relative", zIndex: 2 }}>
+              <AwardBadge />
             </div>
 
             {/* Right rail — editorial body */}
