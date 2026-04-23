@@ -220,11 +220,28 @@ export default function Vault1Page() {
   function handleImageUpload(e) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
-    if (file.size > 5*1024*1024) { toast('Max 5MB', 'error'); return; }
+    if (file.size > 10*1024*1024) { toast('Max 10MB', 'error'); return; }
     if (!file.type.startsWith('image/')) { toast('Images only', 'error'); return; }
     var reader = new FileReader();
     reader.onload = function(ev) {
-      setEditingEntry(function(p) { return Object.assign({}, p, { images: (p.images||[]).concat([{ id: generateId(), name: file.name, type: file.type, size: file.size, data: ev.target.result, addedAt: Date.now() }]) }); });
+      var img = new Image();
+      img.onload = function() {
+        var maxW = 800; var maxH = 800;
+        var w = img.width; var h = img.height;
+        if (w > maxW || h > maxH) {
+          var ratio = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * ratio); h = Math.round(h * ratio);
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        var compressed = canvas.toDataURL('image/jpeg', 0.7);
+        var compressedSize = Math.round(compressed.length * 0.75);
+        setEditingEntry(function(p) { return Object.assign({}, p, { images: (p.images||[]).concat([{ id: generateId(), name: file.name, type: 'image/jpeg', size: compressedSize, data: compressed, addedAt: Date.now() }]) }); });
+        toast('Image compressed & attached');
+      };
+      img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
