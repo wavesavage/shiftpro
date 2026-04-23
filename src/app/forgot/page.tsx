@@ -1,5 +1,6 @@
-// patched"use client";
+"use client";
 import React, { useState } from "react";
+import { SiteNav } from "@/components/SiteNav";
 
 const C = {
   ocean100: "#e8f1f7", ocean200: "#d8e6ef", ocean300: "#bed2e0",
