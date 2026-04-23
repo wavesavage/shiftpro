@@ -25,7 +25,7 @@ async function encryptStr(key, plaintext) {
   var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(plaintext));
   var buf = new Uint8Array(iv.length + ct.byteLength);
   buf.set(iv); buf.set(new Uint8Array(ct), iv.length);
-  return btoa(String.fromCharCode.apply(null, buf));
+  var str = ""; for (var i = 0; i < buf.length; i++) { str += String.fromCharCode(buf[i]); } return btoa(str);
 }
 async function decryptStr(key, ciphertext) {
   var buf = Uint8Array.from(atob(ciphertext), function(c) { return c.charCodeAt(0); });
