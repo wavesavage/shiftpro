@@ -6,8 +6,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
    CRYPTO ENGINE
    ═══════════════════════════════════════════════════════ */
 var KDF_ITERATIONS = 600000;
-var VAULT_ID = 'vault_one';
-var INITIAL_PW_HASH = 'c4fb8e717a4b40c1c6ecd802bc5ba021301ea5d838a3e5a659d2eaf34fbacc79';
+var VAULT_ID = 'vault_two';
+var INITIAL_PW_HASH = 'e1c9bddb2d8d320a82227d7ecc054476c6a958a17782faee756d916eee7ebb56';
 
 async function sha256(text) {
   var enc = new TextEncoder();
@@ -64,7 +64,7 @@ var CSS = "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@40
 var projectIcons = ['🌐','💻','🚀','⚡','🛒','📱','🎮','🏢','🔧','🎯','📊','🤖','☁️','🔥','💎','🎨','📡','🏗️','🧪','🦾'];
 var projectColors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7','#ec4899','#06b6d4','#f97316','#8b5cf6','#2dd4bf'];
 
-export default function Vault1Page() {
+export default function Vault2Page() {
   var _p = useState('lock'); var phase = _p[0]; var setPhase = _p[1];
   var _pw = useState(''); var pw = _pw[0]; var setPw = _pw[1];
   var _shake = useState(false); var shaking = _shake[0]; var setShaking = _shake[1];
