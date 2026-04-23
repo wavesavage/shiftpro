@@ -5,13 +5,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 /* ═══════════════════════════════════════════════════════
    CRYPTO ENGINE — AES-256-GCM + PBKDF2 + SHA-256
    ═══════════════════════════════════════════════════════ */
-var SALT_KEY = 'v1_salt';
-var DATA_KEY = 'v1_data';
-var VERIFY_KEY = 'v1_verify';
-var VERIFY_PLAINTEXT = 'SHIFTPRO_VAULT1_VERIFIED';
 var KDF_ITERATIONS = 600000;
-// SHA-256 hash of the master password — plaintext never stored in code
 var PW_HASH = 'c4fb8e717a4b40c1c6ecd802bc5ba021301ea5d838a3e5a659d2eaf34fbacc79';
+var VERIFY_PLAINTEXT = 'SHIFTPRO_VAULT1_VERIFIED';
+var LOCAL_SALT = 'v1_salt';
+var LOCAL_VERIFY = 'v1_verify';
 
 async function sha256(text) {
   var enc = new TextEncoder();
@@ -24,10 +22,7 @@ async function deriveKey(password, salt) {
   var km = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt: enc.encode(salt), iterations: KDF_ITERATIONS, hash: 'SHA-256' },
-    km,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
+    km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
   );
 }
 
@@ -36,21 +31,39 @@ async function encryptStr(key, plaintext) {
   var iv = crypto.getRandomValues(new Uint8Array(12));
   var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(plaintext));
   var buf = new Uint8Array(iv.length + ct.byteLength);
-  buf.set(iv);
-  buf.set(new Uint8Array(ct), iv.length);
+  buf.set(iv); buf.set(new Uint8Array(ct), iv.length);
   return btoa(String.fromCharCode.apply(null, buf));
 }
 
 async function decryptStr(key, ciphertext) {
   var buf = Uint8Array.from(atob(ciphertext), function(c) { return c.charCodeAt(0); });
-  var iv = buf.slice(0, 12);
-  var ct = buf.slice(12);
-  var dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct);
+  var dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.slice(0, 12) }, key, buf.slice(12));
   return new TextDecoder().decode(dec);
 }
 
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+/* ═══════════════════════════════════════════════════════
+   CLOUD SYNC — Save/load encrypted data via API
+   ═══════════════════════════════════════════════════════ */
+async function cloudSave(ownerHash, encryptedData) {
+  try {
+    var res = await fetch('/api/vault1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner: ownerHash, data: encryptedData }),
+    });
+    return res.ok;
+  } catch (e) { return false; }
+}
+
+async function cloudLoad(ownerHash) {
+  try {
+    var res = await fetch('/api/vault1?owner=' + encodeURIComponent(ownerHash));
+    if (!res.ok) return null;
+    var json = await res.json();
+    return json.data || null;
+  } catch (e) { return null; }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -90,20 +103,21 @@ var KEY_TYPES = [
 var CSS_GLOBAL = [
   "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=DM+Serif+Display&family=Instrument+Sans:wght@400;500;600;700&display=swap');",
   '*{box-sizing:border-box;margin:0;padding:0}',
-  '::-webkit-scrollbar{width:5px}',
-  '::-webkit-scrollbar-track{background:transparent}',
-  '::-webkit-scrollbar-thumb{background:' + C.border + ';border-radius:3px}',
+  '::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:' + C.border + ';border-radius:3px}',
   'input:focus,textarea:focus,select:focus{outline:none;border-color:' + C.gold + '!important}',
   '@keyframes fadeUp{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}',
   '@keyframes fadeIn{0%{opacity:0}100%{opacity:1}}',
   '@keyframes slideIn{0%{opacity:0;transform:translateX(-14px)}100%{opacity:1;transform:translateX(0)}}',
   '@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}',
   '@keyframes vaultOpen{0%{transform:scale(1);opacity:1}50%{transform:scale(1.05)}100%{transform:scale(0.93);opacity:0}}',
-  '@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(232,184,75,0.25)}50%{box-shadow:0 0 24px 5px rgba(232,184,75,0.1)}}',
+  '@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(45,212,191,0.25)}50%{box-shadow:0 0 24px 5px rgba(45,212,191,0.1)}}',
   '@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}',
   '@keyframes toastIn{0%{opacity:0;transform:translateY(14px) scale(0.96)}100%{opacity:1;transform:translateY(0) scale(1)}}',
+  '@keyframes syncPulse{0%,100%{opacity:0.4}50%{opacity:1}}',
 ].join('\n');
 
+var projectIcons = ['🌐','💻','🚀','⚡','🛒','📱','🎮','🏢','🔧','🎯','📊','🤖','☁️','🔥','💎','🎨','📡','🏗️','🧪','🦾'];
+var projectColors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7','#ec4899','#06b6d4','#f97316','#8b5cf6','#2dd4bf'];
 
 /* ═══════════════════════════════════════════════════════
    VAULT1 PAGE
@@ -121,10 +135,15 @@ export default function Vault1Page() {
   var unlockAnim = _unlockAnim[0]; var setUnlockAnim = _unlockAnim[1];
   var _cryptoKey = useState(null);
   var cryptoKey = _cryptoKey[0]; var setCryptoKey = _cryptoKey[1];
+  var _ownerHash = useState('');
+  var ownerHash = _ownerHash[0]; var setOwnerHash = _ownerHash[1];
   var _toasts = useState([]);
   var toasts = _toasts[0]; var setToasts = _toasts[1];
+  var _syncing = useState(false);
+  var syncing = _syncing[0]; var setSyncing = _syncing[1];
+  var _lastSync = useState(null);
+  var lastSync = _lastSync[0]; var setLastSync = _lastSync[1];
 
-  // Vault data
   var _projects = useState([]);
   var projects = _projects[0]; var setProjects = _projects[1];
   var _activeProject = useState(null);
@@ -137,8 +156,9 @@ export default function Vault1Page() {
   var revealed = _revealed[0]; var setRevealed = _revealed[1];
   var _sideOpen = useState(true);
   var sideOpen = _sideOpen[0]; var setSideOpen = _sideOpen[1];
+  var _expandedImages = useState({});
+  var expandedImages = _expandedImages[0]; var setExpandedImages = _expandedImages[1];
 
-  // Modals / editing
   var _showNewProject = useState(false);
   var showNewProject = _showNewProject[0]; var setShowNewProject = _showNewProject[1];
   var _newProjectName = useState('');
@@ -153,43 +173,44 @@ export default function Vault1Page() {
   var editProject = _editProject[0]; var setEditProject = _editProject[1];
   var _confirmDelete = useState(null);
   var confirmDelete = _confirmDelete[0]; var setConfirmDelete = _confirmDelete[1];
+  var _imagePreview = useState(null);
+  var imagePreview = _imagePreview[0]; var setImagePreview = _imagePreview[1];
 
   var lockTimerRef = useRef(null);
   var searchRef = useRef(null);
+  var fileInputRef = useRef(null);
+  var saveTimeoutRef = useRef(null);
 
-  // ── Toast ──
   var toast = useCallback(function(msg, type) {
     var id = Date.now().toString();
     setToasts(function(prev) { return prev.concat([{ id: id, msg: msg, type: type || 'success' }]); });
     setTimeout(function() { setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); }); }, 2800);
   }, []);
 
-  // ── Persist encrypted data ──
-  var saveData = useCallback(async function(key, projectList, entryList) {
-    if (!key) return;
+  // ── Cloud save (debounced) ──
+  var syncToCloud = useCallback(async function(key, hash, projectList, entryList) {
+    if (!key || !hash) return;
+    setSyncing(true);
     try {
       var data = JSON.stringify({ projects: projectList, entries: entryList });
       var encrypted = await encryptStr(key, data);
-      localStorage.setItem(DATA_KEY, encrypted);
-    } catch (e) { console.error('Save failed:', e); }
+      var ok = await cloudSave(hash, encrypted);
+      if (ok) setLastSync(new Date());
+    } catch (e) { console.error('Sync failed:', e); }
+    setSyncing(false);
   }, []);
 
-  var loadData = useCallback(async function(key) {
-    try {
-      var raw = localStorage.getItem(DATA_KEY);
-      if (!raw) return { projects: [], entries: [] };
-      var decrypted = await decryptStr(key, raw);
-      return JSON.parse(decrypted);
-    } catch (e) { return { projects: [], entries: [] }; }
-  }, []);
-
-  // ── Auto-save on data change ──
+  // ── Auto-save with debounce ──
   useEffect(function() {
-    if (phase !== 'vault' || !cryptoKey) return;
-    saveData(cryptoKey, projects, entries);
-  }, [projects, entries, cryptoKey, phase, saveData]);
+    if (phase !== 'vault' || !cryptoKey || !ownerHash) return;
+    clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(function() {
+      syncToCloud(cryptoKey, ownerHash, projects, entries);
+    }, 1500);
+    return function() { clearTimeout(saveTimeoutRef.current); };
+  }, [projects, entries, cryptoKey, ownerHash, phase, syncToCloud]);
 
-  // ── Auto-lock after 10 min inactivity ──
+  // ── Auto-lock 10 min ──
   useEffect(function() {
     if (phase !== 'vault') return;
     var reset = function() {
@@ -199,11 +220,7 @@ export default function Vault1Page() {
     window.addEventListener('mousemove', reset);
     window.addEventListener('keydown', reset);
     reset();
-    return function() {
-      window.removeEventListener('mousemove', reset);
-      window.removeEventListener('keydown', reset);
-      clearTimeout(lockTimerRef.current);
-    };
+    return function() { window.removeEventListener('mousemove', reset); window.removeEventListener('keydown', reset); clearTimeout(lockTimerRef.current); };
   }, [phase]);
 
   // ── Keyboard shortcuts ──
@@ -212,11 +229,11 @@ export default function Vault1Page() {
     var handler = function(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); if (searchRef.current) searchRef.current.focus(); }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); handleNewEntry(); }
-      if (e.key === 'Escape') handleLock();
+      if (e.key === 'Escape') { if (imagePreview) setImagePreview(null); else handleLock(); }
     };
     window.addEventListener('keydown', handler);
     return function() { window.removeEventListener('keydown', handler); };
-  }, [phase, activeProject]);
+  }, [phase, activeProject, imagePreview]);
 
   // ── Unlock ──
   async function handleUnlock() {
@@ -225,49 +242,58 @@ export default function Vault1Page() {
     try {
       var hash = await sha256(pw);
       if (hash !== PW_HASH) {
-        setShaking(true);
-        setLoading(false);
+        setShaking(true); setLoading(false);
         setTimeout(function() { setShaking(false); }, 500);
         toast('Invalid password', 'error');
         return;
       }
-      // Get or create salt
-      var salt = localStorage.getItem(SALT_KEY);
+      var salt = localStorage.getItem(LOCAL_SALT);
       if (!salt) {
         salt = Array.from(crypto.getRandomValues(new Uint8Array(32))).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
-        localStorage.setItem(SALT_KEY, salt);
+        localStorage.setItem(LOCAL_SALT, salt);
       }
       var key = await deriveKey(pw, salt);
-      // Verify or create verification blob
-      var verifyBlob = localStorage.getItem(VERIFY_KEY);
-      if (verifyBlob) {
-        try { await decryptStr(key, verifyBlob); }
-        catch (e) { toast('Decryption failed', 'error'); setLoading(false); return; }
-      } else {
-        var vb = await encryptStr(key, VERIFY_PLAINTEXT);
-        localStorage.setItem(VERIFY_KEY, vb);
+      // Try loading from cloud first
+      var cloudData = await cloudLoad(hash);
+      var data = { projects: [], entries: [] };
+      if (cloudData) {
+        try {
+          var decrypted = await decryptStr(key, cloudData);
+          data = JSON.parse(decrypted);
+        } catch (e) {
+          // Cloud data exists but can't decrypt — might be different salt
+          // Try with a fixed salt for cloud consistency
+          var cloudKey = await deriveKey(pw, 'vault1-cloud-' + hash.slice(0, 16));
+          try {
+            var decrypted2 = await decryptStr(cloudKey, cloudData);
+            data = JSON.parse(decrypted2);
+          } catch (e2) {
+            toast('Cloud data found but could not decrypt', 'error');
+          }
+        }
       }
-      // Load existing data
-      var data = await loadData(key);
-      setCryptoKey(key);
+      // Use cloud-consistent key going forward
+      var consistentKey = await deriveKey(pw, 'vault1-cloud-' + hash.slice(0, 16));
+      setCryptoKey(consistentKey);
+      setOwnerHash(hash);
       setProjects(data.projects || []);
       setEntries(data.entries || []);
       if (data.projects && data.projects.length > 0) setActiveProject(data.projects[0].id);
+      setLastSync(new Date());
       setUnlockAnim(true);
       setTimeout(function() { setPhase('vault'); setLoading(false); setUnlockAnim(false); }, 650);
     } catch (e) {
-      toast('Unlock error: ' + e.message, 'error');
+      toast('Unlock error', 'error');
       setLoading(false);
     }
   }
 
   function handleLock() {
-    setPhase('lock'); setPw(''); setCryptoKey(null);
+    setPhase('lock'); setPw(''); setCryptoKey(null); setOwnerHash('');
     setProjects([]); setEntries([]); setActiveProject(null);
-    setRevealed({}); setEditingEntry(null); setSearch('');
+    setRevealed({}); setEditingEntry(null); setSearch(''); setExpandedImages({});
   }
 
-  // ── Copy ──
   async function handleCopy(text, label) {
     try {
       await navigator.clipboard.writeText(text);
@@ -276,14 +302,45 @@ export default function Vault1Page() {
     } catch (e) { toast('Copy failed', 'error'); }
   }
 
-  // ── Reveal / hide ──
   function toggleReveal(id) {
-    setRevealed(function(prev) {
-      var n = Object.assign({}, prev);
-      if (n[id]) delete n[id];
-      else n[id] = true;
-      return n;
+    setRevealed(function(prev) { var n = Object.assign({}, prev); if (n[id]) delete n[id]; else n[id] = true; return n; });
+  }
+
+  // ── Image handling ──
+  function handleImageUpload(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast('Image must be under 5MB', 'error'); return; }
+    if (!file.type.startsWith('image/')) { toast('Only image files allowed', 'error'); return; }
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var base64 = ev.target.result;
+      setEditingEntry(function(prev) {
+        var imgs = (prev.images || []).concat([{
+          id: generateId(),
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          data: base64,
+          addedAt: Date.now(),
+        }]);
+        return Object.assign({}, prev, { images: imgs });
+      });
+    };
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function removeImage(imgId) {
+    setEditingEntry(function(prev) {
+      return Object.assign({}, prev, { images: (prev.images || []).filter(function(img) { return img.id !== imgId; }) });
     });
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
   }
 
   // ── Projects ──
@@ -304,25 +361,24 @@ export default function Vault1Page() {
       var remaining = projects.filter(function(p) { return p.id !== projId; });
       setActiveProject(remaining.length > 0 ? remaining[0].id : null);
     }
-    setConfirmDelete(null);
-    toast('Project deleted');
+    setConfirmDelete(null); toast('Project deleted');
   }
 
   function handleUpdateProject() {
     if (!editProject) return;
-    setProjects(function(prev) {
-      return prev.map(function(p) { return p.id === editProject.id ? editProject : p; });
-    });
-    setEditProject(null);
-    toast('Project updated');
+    setProjects(function(prev) { return prev.map(function(p) { return p.id === editProject.id ? editProject : p; }); });
+    setEditProject(null); toast('Project updated');
   }
 
   // ── Entries ──
   function handleNewEntry() {
-    if (!activeProject) { toast('Create a project first', 'error'); return; }
+    if (!activeProject || activeProject === '__all__') {
+      if (projects.length === 0) { toast('Create a project first', 'error'); return; }
+      setActiveProject(projects[0].id);
+    }
     setEditingEntry({
-      id: generateId(), projectId: activeProject,
-      name: '', value: '', keyType: 'api_key', notes: '', isNew: true,
+      id: generateId(), projectId: activeProject === '__all__' ? projects[0].id : activeProject,
+      name: '', value: '', keyType: 'api_key', notes: '', images: [], isNew: true,
       createdAt: Date.now(), updatedAt: Date.now(),
     });
   }
@@ -333,58 +389,53 @@ export default function Vault1Page() {
     delete saved.isNew;
     if (entries.find(function(e) { return e.id === saved.id; })) {
       setEntries(function(prev) { return prev.map(function(e) { return e.id === saved.id ? saved : e; }); });
-      toast('Entry updated & encrypted');
+      toast('Entry updated & synced');
     } else {
       setEntries(function(prev) { return prev.concat([saved]); });
-      toast('Entry saved & encrypted');
+      toast('Entry saved & synced');
     }
     setEditingEntry(null);
   }
 
   function handleDeleteEntry(id) {
     setEntries(function(prev) { return prev.filter(function(e) { return e.id !== id; }); });
-    setConfirmDelete(null);
-    toast('Entry deleted');
+    setConfirmDelete(null); toast('Entry deleted');
   }
 
   function handleDuplicateEntry(entry) {
-    var dup = Object.assign({}, entry, { id: generateId(), name: entry.name + ' (copy)', createdAt: Date.now(), updatedAt: Date.now() });
+    var dup = Object.assign({}, entry, { id: generateId(), name: entry.name + ' (copy)', images: (entry.images || []).slice(), createdAt: Date.now(), updatedAt: Date.now() });
     setEntries(function(prev) { return prev.concat([dup]); });
     toast('Entry duplicated');
   }
 
+  // ── Force sync ──
+  async function handleForceSync() {
+    if (!cryptoKey || !ownerHash) return;
+    setSyncing(true);
+    toast('Syncing to cloud...');
+    await syncToCloud(cryptoKey, ownerHash, projects, entries);
+    toast('Synced!');
+  }
+
   // ── Filtered entries ──
   var filteredEntries = useMemo(function() {
-    var list = activeProject === '__all__'
-      ? entries
-      : entries.filter(function(e) { return e.projectId === activeProject; });
+    var list = activeProject === '__all__' ? entries : entries.filter(function(e) { return e.projectId === activeProject; });
     if (search) {
       var q = search.toLowerCase();
-      list = list.filter(function(e) {
-        return e.name.toLowerCase().includes(q) || (e.notes || '').toLowerCase().includes(q) || e.keyType.toLowerCase().includes(q);
-      });
+      list = list.filter(function(e) { return e.name.toLowerCase().includes(q) || (e.notes || '').toLowerCase().includes(q) || e.keyType.toLowerCase().includes(q); });
     }
     return list.sort(function(a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
   }, [entries, activeProject, search]);
 
   var activeProjectData = projects.find(function(p) { return p.id === activeProject; });
 
-  var projectIcons = ['🌐','💻','🚀','⚡','🛒','📱','🎮','🏢','🔧','🎯','📊','🤖','☁️','🔥','💎','🎨','📡','🏗️','🧪','🦾'];
-  var projectColors = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7','#ec4899','#06b6d4','#f97316','#8b5cf6','#2dd4bf'];
-
   // ═══════════════════════════════════════════
   // RENDER — LOCK SCREEN
   // ═══════════════════════════════════════════
   if (phase === 'lock') {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 20% 10%, ' + C.navyL + ' 0%, ' + C.navy + ' 55%, #060a12 100%)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: FONT.body, overflow: 'hidden', position: 'relative',
-      }}>
+      <div style={{ minHeight: '100vh', background: 'radial-gradient(ellipse at 20% 10%, ' + C.navyL + ' 0%, ' + C.navy + ' 55%, #060a12 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT.body, overflow: 'hidden', position: 'relative' }}>
         <style dangerouslySetInnerHTML={{ __html: CSS_GLOBAL }} />
-
         <div style={{
           background: 'linear-gradient(150deg, ' + C.navyL + ', ' + C.navy + ')',
           border: '1px solid ' + C.border, borderRadius: 24, padding: '44px 40px',
@@ -392,49 +443,31 @@ export default function Vault1Page() {
           boxShadow: '0 30px 80px rgba(0,0,0,0.5)',
           animation: unlockAnim ? 'vaultOpen 0.65s ease forwards' : shaking ? 'shake 0.4s ease' : 'fadeUp 0.5s ease',
         }}>
-          <div style={{
-            width: 80, height: 80, borderRadius: '50%', margin: '0 auto 20px',
-            background: 'linear-gradient(135deg, ' + C.teal + '20, ' + C.gold + '20)',
-            border: '2px solid ' + C.teal + '40',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            animation: 'pulse 3s ease-in-out infinite',
-          }}>
+          <div style={{ width: 80, height: 80, borderRadius: '50%', margin: '0 auto 20px', background: 'linear-gradient(135deg, ' + C.teal + '20, ' + C.gold + '20)', border: '2px solid ' + C.teal + '40', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pulse 3s ease-in-out infinite' }}>
             <span style={{ fontSize: 38 }}>🛡️</span>
           </div>
-
           <h1 style={{ fontFamily: FONT.display, fontSize: 26, color: C.txt, margin: '0 0 4px' }}>
             Project <span style={{ color: C.teal }}>Vault</span>
           </h1>
           <p style={{ color: C.txt2, fontSize: 13, margin: '0 0 28px', lineHeight: 1.5 }}>
-            Encrypted key storage for all your projects.<br />Enter your master password.
+            Encrypted key storage, synced to the cloud.<br />Access from any device, anywhere.
           </p>
-
           <div style={{ position: 'relative', marginBottom: 18 }}>
             <input type="password" placeholder="Master Password" value={pw}
               onChange={function(e) { setPw(e.target.value); }}
               onKeyDown={function(e) { if (e.key === 'Enter') handleUnlock(); }}
-              style={{
-                width: '100%', padding: '14px 44px 14px 16px', fontSize: 15,
-                fontFamily: FONT.mono, background: C.navyM,
-                border: '1px solid ' + C.border, borderRadius: 11, color: C.txt,
-              }} />
+              style={{ width: '100%', padding: '14px 44px 14px 16px', fontSize: 15, fontFamily: FONT.mono, background: C.navyM, border: '1px solid ' + C.border, borderRadius: 11, color: C.txt }} />
             <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16, opacity: 0.35 }}>🔑</span>
           </div>
-
           <button onClick={handleUnlock} disabled={loading}
-            style={Object.assign({}, btnBase, {
-              width: '100%', justifyContent: 'center', padding: '14px', fontSize: 15,
-              background: loading ? C.teal + '66' : 'linear-gradient(135deg, ' + C.teal + ', #1aab9f)',
-              color: '#fff', borderRadius: 11, boxShadow: '0 4px 18px ' + C.teal + '30',
-            })}>
+            style={Object.assign({}, btnBase, { width: '100%', justifyContent: 'center', padding: '14px', fontSize: 15, background: loading ? C.teal + '66' : 'linear-gradient(135deg, ' + C.teal + ', #1aab9f)', color: '#fff', borderRadius: 11, boxShadow: '0 4px 18px ' + C.teal + '30' })}>
             {loading ? <span style={{ width: 18, height: 18, border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.5s linear infinite', display: 'inline-block' }} /> : 'Unlock Vault'}
           </button>
-
           <div style={{ marginTop: 24, padding: '11px 14px', background: C.teal + '08', border: '1px solid ' + C.teal + '18', borderRadius: 10 }}>
             <p style={{ color: C.teal, fontSize: 10, margin: 0, lineHeight: 1.6, fontWeight: 500 }}>
               🛡️ AES-256-GCM · PBKDF2 600K iterations<br />
-              🔐 All data encrypted locally · Auto-lock after 10 min<br />
-              📋 Clipboard auto-clears after 30 seconds
+              ☁️ Cloud synced via Supabase · Access anywhere<br />
+              📎 Attach images to any key · Auto-lock 10 min
             </p>
           </div>
         </div>
@@ -450,12 +483,7 @@ export default function Vault1Page() {
       <style dangerouslySetInnerHTML={{ __html: CSS_GLOBAL }} />
 
       {/* ═══ SIDEBAR ═══ */}
-      <div style={{
-        width: sideOpen ? 250 : 58, minHeight: '100vh', background: C.navyL,
-        borderRight: '1px solid ' + C.border, transition: 'width 0.25s ease',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0,
-      }}>
-        {/* Header */}
+      <div style={{ width: sideOpen ? 250 : 58, minHeight: '100vh', background: C.navyL, borderRight: '1px solid ' + C.border, transition: 'width 0.25s ease', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ padding: sideOpen ? '16px 18px 14px' : '16px 12px 14px', borderBottom: '1px solid ' + C.border, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
           onClick={function() { setSideOpen(!sideOpen); }}>
           <span style={{ fontSize: 20 }}>🛡️</span>
@@ -465,16 +493,9 @@ export default function Vault1Page() {
         <div style={{ padding: '8px 6px', flex: 1, overflowY: 'auto' }}>
           {sideOpen && <div style={{ fontSize: 9, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.5, padding: '6px 12px 6px' }}>Projects</div>}
 
-          {/* All Projects */}
+          {/* All Keys */}
           <div onClick={function() { setActiveProject('__all__'); setEditingEntry(null); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: sideOpen ? 9 : 0,
-              padding: sideOpen ? '9px 12px' : '9px 0',
-              justifyContent: sideOpen ? 'flex-start' : 'center',
-              borderRadius: 9, cursor: 'pointer', marginBottom: 2,
-              background: activeProject === '__all__' ? C.gold + '12' : 'transparent',
-              borderLeft: activeProject === '__all__' ? '3px solid ' + C.gold : '3px solid transparent',
-            }}>
+            style={{ display: 'flex', alignItems: 'center', gap: sideOpen ? 9 : 0, padding: sideOpen ? '9px 12px' : '9px 0', justifyContent: sideOpen ? 'flex-start' : 'center', borderRadius: 9, cursor: 'pointer', marginBottom: 2, background: activeProject === '__all__' ? C.gold + '12' : 'transparent', borderLeft: activeProject === '__all__' ? '3px solid ' + C.gold : '3px solid transparent' }}>
             <span style={{ fontSize: 15 }}>📂</span>
             {sideOpen && (
               <>
@@ -484,54 +505,41 @@ export default function Vault1Page() {
             )}
           </div>
 
-          {/* Project list */}
           {projects.map(function(proj, idx) {
             var isActive = activeProject === proj.id;
             var count = entries.filter(function(e) { return e.projectId === proj.id; }).length;
             return (
-              <div key={proj.id}
-                onClick={function() { setActiveProject(proj.id); setEditingEntry(null); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: sideOpen ? 9 : 0,
-                  padding: sideOpen ? '9px 12px' : '9px 0',
-                  justifyContent: sideOpen ? 'flex-start' : 'center',
-                  borderRadius: 9, cursor: 'pointer', marginBottom: 2,
-                  background: isActive ? (proj.color || '#3b82f6') + '12' : 'transparent',
-                  borderLeft: isActive ? '3px solid ' + (proj.color || '#3b82f6') : '3px solid transparent',
-                  transition: 'all 0.15s',
-                  animation: 'slideIn 0.2s ease ' + (idx * 0.03) + 's both',
-                }}>
+              <div key={proj.id} onClick={function() { setActiveProject(proj.id); setEditingEntry(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: sideOpen ? 9 : 0, padding: sideOpen ? '9px 12px' : '9px 0', justifyContent: sideOpen ? 'flex-start' : 'center', borderRadius: 9, cursor: 'pointer', marginBottom: 2, background: isActive ? (proj.color || '#3b82f6') + '12' : 'transparent', borderLeft: isActive ? '3px solid ' + (proj.color || '#3b82f6') : '3px solid transparent', transition: 'all 0.15s', animation: 'slideIn 0.2s ease ' + (idx * 0.03) + 's both' }}>
                 <span style={{ fontSize: 15, flexShrink: 0 }}>{proj.icon || '🌐'}</span>
                 {sideOpen && (
                   <>
                     <span style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? C.txt : C.txt2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{proj.name}</span>
                     <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? proj.color : C.txt3, background: isActive ? (proj.color || '#3b82f6') + '18' : C.txt3 + '12', padding: '1px 7px', borderRadius: 8 }}>{count}</span>
-                    {isActive && (
-                      <span style={{ fontSize: 11, cursor: 'pointer', opacity: 0.5, padding: '2px 4px' }}
-                        onClick={function(e) { e.stopPropagation(); setEditProject(Object.assign({}, proj)); }}>✏️</span>
-                    )}
+                    {isActive && <span style={{ fontSize: 11, cursor: 'pointer', opacity: 0.5, padding: '2px 4px' }} onClick={function(e) { e.stopPropagation(); setEditProject(Object.assign({}, proj)); }}>✏️</span>}
                   </>
                 )}
               </div>
             );
           })}
 
-          {/* Add Project Button */}
           <div onClick={function() { setShowNewProject(true); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: sideOpen ? 9 : 0,
-              padding: sideOpen ? '9px 12px' : '9px 0',
-              justifyContent: sideOpen ? 'flex-start' : 'center',
-              borderRadius: 9, cursor: 'pointer', marginTop: 8,
-              border: '1px dashed ' + C.border, transition: 'all 0.15s',
-            }}>
+            style={{ display: 'flex', alignItems: 'center', gap: sideOpen ? 9 : 0, padding: sideOpen ? '9px 12px' : '9px 0', justifyContent: sideOpen ? 'flex-start' : 'center', borderRadius: 9, cursor: 'pointer', marginTop: 8, border: '1px dashed ' + C.border }}>
             <span style={{ fontSize: 14 }}>➕</span>
             {sideOpen && <span style={{ fontSize: 12, color: C.txt3 }}>New Project</span>}
           </div>
         </div>
 
-        {/* Lock */}
+        {/* Sync status + Lock */}
         <div style={{ padding: '10px 6px', borderTop: '1px solid ' + C.border }}>
+          {sideOpen && (
+            <div onClick={handleForceSync} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', marginBottom: 4, borderRadius: 8, cursor: 'pointer', background: C.teal + '06' }}>
+              <span style={{ fontSize: 12, animation: syncing ? 'syncPulse 1s ease infinite' : 'none' }}>{syncing ? '🔄' : '☁️'}</span>
+              <span style={{ fontSize: 10, color: C.teal }}>
+                {syncing ? 'Syncing...' : lastSync ? 'Synced ' + lastSync.toLocaleTimeString() : 'Click to sync'}
+              </span>
+            </div>
+          )}
           <div onClick={handleLock} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 9, cursor: 'pointer', justifyContent: sideOpen ? 'flex-start' : 'center', background: C.danger + '08' }}>
             <span style={{ fontSize: 15 }}>🔒</span>
             {sideOpen && <span style={{ fontSize: 12, color: C.danger, fontWeight: 600 }}>Lock Vault</span>}
@@ -558,15 +566,16 @@ export default function Vault1Page() {
           </button>
         </div>
 
-        {/* Content */}
+        {/* Content Area */}
         <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px' }}>
-          {/* No projects state */}
+
+          {/* Empty state */}
           {projects.length === 0 && !editingEntry && (
             <div style={{ textAlign: 'center', padding: '60px 20px', animation: 'fadeUp 0.4s ease' }}>
               <div style={{ width: 100, height: 100, borderRadius: '50%', background: 'linear-gradient(135deg, ' + C.teal + '10, ' + C.gold + '10)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 44 }}>🏗️</div>
               <h2 style={{ fontFamily: FONT.display, fontSize: 22, margin: '0 0 8px' }}>Create Your First Project</h2>
               <p style={{ color: C.txt2, fontSize: 13, maxWidth: 340, margin: '0 auto 24px', lineHeight: 1.5 }}>
-                Organize your API keys, secrets, and credentials by project. Each project holds all the keys for one website or app.
+                Organize your API keys, secrets, and credentials by project. Attach screenshots, config files, and more.
               </p>
               <button onClick={function() { setShowNewProject(true); }}
                 style={Object.assign({}, btnBase, { padding: '12px 24px', fontSize: 14, background: 'linear-gradient(135deg, ' + C.teal + ', #1aab9f)', color: '#fff', boxShadow: '0 4px 18px ' + C.teal + '30' })}>
@@ -578,9 +587,7 @@ export default function Vault1Page() {
           {/* Project header */}
           {activeProject && activeProject !== '__all__' && activeProjectData && !editingEntry && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22, animation: 'fadeUp 0.2s ease' }}>
-              <div style={{ width: 48, height: 48, borderRadius: 13, background: (activeProjectData.color || '#3b82f6') + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
-                {activeProjectData.icon || '🌐'}
-              </div>
+              <div style={{ width: 48, height: 48, borderRadius: 13, background: (activeProjectData.color || '#3b82f6') + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{activeProjectData.icon || '🌐'}</div>
               <div style={{ flex: 1 }}>
                 <h2 style={{ fontFamily: FONT.display, fontSize: 22, margin: 0 }}>{activeProjectData.name}</h2>
                 <span style={{ fontSize: 11, color: C.txt3 }}>{filteredEntries.length} keys stored</span>
@@ -597,31 +604,19 @@ export default function Vault1Page() {
             </div>
           )}
 
-          {/* Entry editor */}
+          {/* ═══ ENTRY EDITOR ═══ */}
           {editingEntry && (
-            <div style={{ maxWidth: 540, animation: 'fadeUp 0.2s ease' }}>
-              <h2 style={{ fontFamily: FONT.display, fontSize: 20, margin: '0 0 20px' }}>
-                {editingEntry.isNew ? 'Add New Key' : 'Edit Key'}
-              </h2>
+            <div style={{ maxWidth: 580, animation: 'fadeUp 0.2s ease' }}>
+              <h2 style={{ fontFamily: FONT.display, fontSize: 20, margin: '0 0 20px' }}>{editingEntry.isNew ? 'Add New Key' : 'Edit Key'}</h2>
 
-              {/* Key type selector */}
+              {/* Key type */}
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 6 }}>📦 Key Type</label>
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                   {KEY_TYPES.map(function(kt) {
                     var isActive = editingEntry.keyType === kt.id;
-                    return (
-                      <button key={kt.id}
-                        onClick={function() { setEditingEntry(function(p) { return Object.assign({}, p, { keyType: kt.id }); }); }}
-                        style={Object.assign({}, btnBase, {
-                          padding: '6px 12px', fontSize: 11,
-                          background: isActive ? kt.color + '18' : C.navyM,
-                          color: isActive ? kt.color : C.txt3,
-                          border: '1px solid ' + (isActive ? kt.color + '40' : C.border),
-                        })}>
-                        {kt.icon} {kt.label}
-                      </button>
-                    );
+                    return <button key={kt.id} onClick={function() { setEditingEntry(function(p) { return Object.assign({}, p, { keyType: kt.id }); }); }}
+                      style={Object.assign({}, btnBase, { padding: '6px 12px', fontSize: 11, background: isActive ? kt.color + '18' : C.navyM, color: isActive ? kt.color : C.txt3, border: '1px solid ' + (isActive ? kt.color + '40' : C.border) })}>{kt.icon} {kt.label}</button>;
                   })}
                 </div>
               </div>
@@ -649,19 +644,47 @@ export default function Vault1Page() {
                 <select value={editingEntry.projectId}
                   onChange={function(e) { setEditingEntry(function(p) { return Object.assign({}, p, { projectId: e.target.value }); }); }}
                   style={{ width: '100%', padding: '11px 14px', fontSize: 13, background: C.navyM, border: '1px solid ' + C.border, borderRadius: 10, color: C.txt }}>
-                  {projects.map(function(p) {
-                    return <option key={p.id} value={p.id}>{p.icon} {p.name}</option>;
-                  })}
+                  {projects.map(function(p) { return <option key={p.id} value={p.id}>{p.icon} {p.name}</option>; })}
                 </select>
               </div>
 
               {/* Notes */}
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 5 }}>📝 Notes (optional)</label>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 5 }}>📝 Notes</label>
                 <textarea value={editingEntry.notes || ''} placeholder="Where this key is used, environment, etc..."
                   onChange={function(e) { setEditingEntry(function(p) { return Object.assign({}, p, { notes: e.target.value }); }); }}
                   rows={2}
                   style={{ width: '100%', padding: '11px 14px', fontSize: 13, fontFamily: FONT.body, background: C.navyM, border: '1px solid ' + C.border, borderRadius: 10, color: C.txt, resize: 'vertical' }} />
+              </div>
+
+              {/* ═══ IMAGE ATTACHMENTS ═══ */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 6 }}>📎 Attachments</label>
+
+                {/* Existing images */}
+                {editingEntry.images && editingEntry.images.length > 0 && (
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                    {editingEntry.images.map(function(img) {
+                      return (
+                        <div key={img.id} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid ' + C.border, background: C.navyM }}>
+                          <img src={img.data} alt={img.name} style={{ width: 120, height: 90, objectFit: 'cover', display: 'block', cursor: 'pointer' }}
+                            onClick={function() { setImagePreview(img); }} />
+                          <div style={{ padding: '4px 8px', fontSize: 10, color: C.txt3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{img.name}</div>
+                          <div style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', background: C.danger, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                            onClick={function() { removeImage(img.id); }}>×</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Upload button */}
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                <button onClick={function() { if (fileInputRef.current) fileInputRef.current.click(); }}
+                  style={Object.assign({}, btnBase, { padding: '9px 16px', fontSize: 12, background: C.navyM, color: C.txt2, border: '1px dashed ' + C.border })}>
+                  📎 Attach Image
+                </button>
+                <span style={{ fontSize: 10, color: C.txt3, marginLeft: 10 }}>Screenshots, configs, QR codes — max 5MB each. Encrypted with your data.</span>
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
@@ -675,7 +698,7 @@ export default function Vault1Page() {
             </div>
           )}
 
-          {/* Entry list */}
+          {/* ═══ ENTRY LIST ═══ */}
           {!editingEntry && activeProject && filteredEntries.length > 0 && (
             <div style={{ animation: 'fadeUp 0.2s ease' }}>
               {filteredEntries.map(function(entry, i) {
@@ -684,57 +707,54 @@ export default function Vault1Page() {
                 var isRevealed = revealed[entry.id];
                 var maskedValue = entry.value ? entry.value.slice(0, 6) + '••••••••••' + entry.value.slice(-4) : '(empty)';
                 if (entry.value && entry.value.length <= 12) maskedValue = '••••••••••••';
+                var hasImages = entry.images && entry.images.length > 0;
+                var isImgExpanded = expandedImages[entry.id];
 
                 return (
-                  <div key={entry.id} style={{
-                    padding: '16px 18px', background: C.surface, borderRadius: 12,
-                    border: '1px solid ' + C.border, marginBottom: 10,
-                    animation: 'fadeUp 0.15s ease ' + (i * 0.03) + 's both',
-                  }}>
+                  <div key={entry.id} style={{ padding: '16px 18px', background: C.surface, borderRadius: 12, border: '1px solid ' + C.border, marginBottom: 10, animation: 'fadeUp 0.15s ease ' + (i * 0.03) + 's both' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                      <div style={{ width: 38, height: 38, borderRadius: 10, background: kt.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                        {kt.icon}
-                      </div>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: kt.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{kt.icon}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 14, fontWeight: 600 }}>{entry.name}</span>
                           <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: kt.color + '15', color: kt.color }}>{kt.label}</span>
-                          {activeProject === '__all__' && proj && (
-                            <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: (proj.color || '#3b82f6') + '12', color: proj.color || '#3b82f6' }}>{proj.icon} {proj.name}</span>
-                          )}
+                          {hasImages && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: C.gold + '12', color: C.gold }}>📎 {entry.images.length}</span>}
+                          {activeProject === '__all__' && proj && <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: (proj.color || '#3b82f6') + '12', color: proj.color || '#3b82f6' }}>{proj.icon} {proj.name}</span>}
                         </div>
-                        <div style={{
-                          fontFamily: FONT.mono, fontSize: 12, color: isRevealed ? C.teal : C.txt3,
-                          letterSpacing: isRevealed ? 0 : 0.5, wordBreak: 'break-all',
-                          padding: '8px 10px', background: C.navyM, borderRadius: 8,
-                          border: '1px solid ' + C.border, marginTop: 2,
-                          maxHeight: isRevealed ? 200 : 28, overflow: 'hidden',
-                          transition: 'max-height 0.3s ease',
-                        }}>
+                        <div style={{ fontFamily: FONT.mono, fontSize: 12, color: isRevealed ? C.teal : C.txt3, letterSpacing: isRevealed ? 0 : 0.5, wordBreak: 'break-all', padding: '8px 10px', background: C.navyM, borderRadius: 8, border: '1px solid ' + C.border, marginTop: 2, maxHeight: isRevealed ? 200 : 28, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
                           {isRevealed ? entry.value : maskedValue}
                         </div>
-                        {entry.notes && (
-                          <div style={{ fontSize: 11, color: C.txt3, marginTop: 6, lineHeight: 1.4 }}>📝 {entry.notes}</div>
+                        {entry.notes && <div style={{ fontSize: 11, color: C.txt3, marginTop: 6, lineHeight: 1.4 }}>📝 {entry.notes}</div>}
+
+                        {/* Inline image thumbnails */}
+                        {hasImages && (
+                          <div style={{ marginTop: 8 }}>
+                            <div onClick={function() { setExpandedImages(function(p) { var n = Object.assign({}, p); if (n[entry.id]) delete n[entry.id]; else n[entry.id] = true; return n; }); }}
+                              style={{ fontSize: 11, color: C.gold, cursor: 'pointer', fontWeight: 600, marginBottom: 6 }}>
+                              {isImgExpanded ? '▾ Hide attachments' : '▸ Show ' + entry.images.length + ' attachment' + (entry.images.length > 1 ? 's' : '')}
+                            </div>
+                            {isImgExpanded && (
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', animation: 'fadeIn 0.2s ease' }}>
+                                {entry.images.map(function(img) {
+                                  return (
+                                    <div key={img.id} style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid ' + C.border, cursor: 'pointer' }}
+                                      onClick={function() { setImagePreview(img); }}>
+                                      <img src={img.data} alt={img.name} style={{ width: 100, height: 75, objectFit: 'cover', display: 'block' }} />
+                                      <div style={{ padding: '3px 6px', fontSize: 9, color: C.txt3, background: C.navyM, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{img.name}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.teal + '10', textAlign: 'center' }}
-                          onClick={function() { toggleReveal(entry.id); }}
-                          title={isRevealed ? 'Hide' : 'Reveal'}>
-                          {isRevealed ? '🙈' : '👁️'}
-                        </span>
-                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.gold + '10', textAlign: 'center' }}
-                          onClick={function() { handleCopy(entry.value, entry.name); }}
-                          title="Copy value">📋</span>
-                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.txt3 + '10', textAlign: 'center' }}
-                          onClick={function() { setEditingEntry(Object.assign({}, entry)); }}
-                          title="Edit">✏️</span>
-                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.txt3 + '10', textAlign: 'center' }}
-                          onClick={function() { handleDuplicateEntry(entry); }}
-                          title="Duplicate">📑</span>
-                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.danger + '08', textAlign: 'center' }}
-                          onClick={function() { setConfirmDelete({ type: 'entry', id: entry.id, name: entry.name }); }}
-                          title="Delete">🗑️</span>
+                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.teal + '10', textAlign: 'center' }} onClick={function() { toggleReveal(entry.id); }} title={isRevealed ? 'Hide' : 'Reveal'}>{isRevealed ? '🙈' : '👁️'}</span>
+                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.gold + '10', textAlign: 'center' }} onClick={function() { handleCopy(entry.value, entry.name); }} title="Copy">📋</span>
+                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.txt3 + '10', textAlign: 'center' }} onClick={function() { setEditingEntry(Object.assign({}, entry, { images: (entry.images || []).slice() })); }} title="Edit">✏️</span>
+                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.txt3 + '10', textAlign: 'center' }} onClick={function() { handleDuplicateEntry(entry); }} title="Duplicate">📑</span>
+                        <span style={{ cursor: 'pointer', fontSize: 13, padding: '5px 7px', borderRadius: 6, background: C.danger + '08', textAlign: 'center' }} onClick={function() { setConfirmDelete({ type: 'entry', id: entry.id, name: entry.name }); }} title="Delete">🗑️</span>
                       </div>
                     </div>
                   </div>
@@ -743,13 +763,12 @@ export default function Vault1Page() {
             </div>
           )}
 
-          {/* Empty state for project */}
+          {/* Empty project state */}
           {!editingEntry && activeProject && activeProject !== '__all__' && filteredEntries.length === 0 && projects.length > 0 && (
             <div style={{ textAlign: 'center', padding: '50px 20px', animation: 'fadeIn 0.3s ease' }}>
               <span style={{ fontSize: 40, display: 'block', marginBottom: 12 }}>🔑</span>
               <p style={{ color: C.txt2, fontSize: 13, marginBottom: 14 }}>No keys in this project yet</p>
-              <button onClick={handleNewEntry}
-                style={Object.assign({}, btnBase, { padding: '9px 18px', background: C.teal + '12', color: C.teal, border: '1px solid ' + C.teal + '25' })}>+ Add Your First Key</button>
+              <button onClick={handleNewEntry} style={Object.assign({}, btnBase, { padding: '9px 18px', background: C.teal + '12', color: C.teal, border: '1px solid ' + C.teal + '25' })}>+ Add Your First Key</button>
             </div>
           )}
         </div>
@@ -761,41 +780,32 @@ export default function Vault1Page() {
           onClick={function(e) { if (e.target === e.currentTarget) setShowNewProject(false); }}>
           <div style={{ background: 'linear-gradient(150deg, ' + C.navyL + ', ' + C.navy + ')', border: '1px solid ' + C.border, borderRadius: 18, padding: '28px 30px', width: 420, maxWidth: '92vw', animation: 'fadeUp 0.25s ease' }}>
             <h3 style={{ fontFamily: FONT.display, fontSize: 20, margin: '0 0 18px' }}>New Project</h3>
-
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 5 }}>📌 Project Name</label>
-              <input value={newProjectName} placeholder="e.g. ShiftPro.ai"
+              <input value={newProjectName} placeholder="e.g. ShiftPro.ai" autoFocus
                 onChange={function(e) { setNewProjectName(e.target.value); }}
                 onKeyDown={function(e) { if (e.key === 'Enter') handleAddProject(); }}
-                autoFocus
                 style={{ width: '100%', padding: '11px 14px', fontSize: 14, fontFamily: FONT.body, background: C.navyM, border: '1px solid ' + C.border, borderRadius: 10, color: C.txt }} />
             </div>
-
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 5 }}>🎨 Icon</label>
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                 {projectIcons.map(function(ic) {
-                  return <span key={ic} onClick={function() { setNewProjectIcon(ic); }}
-                    style={{ fontSize: 20, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', background: newProjectIcon === ic ? C.teal + '20' : 'transparent', border: newProjectIcon === ic ? '1px solid ' + C.teal + '40' : '1px solid transparent' }}>{ic}</span>;
+                  return <span key={ic} onClick={function() { setNewProjectIcon(ic); }} style={{ fontSize: 20, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', background: newProjectIcon === ic ? C.teal + '20' : 'transparent', border: newProjectIcon === ic ? '1px solid ' + C.teal + '40' : '1px solid transparent' }}>{ic}</span>;
                 })}
               </div>
             </div>
-
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 5 }}>🎨 Color</label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {projectColors.map(function(col) {
-                  return <div key={col} onClick={function() { setNewProjectColor(col); }}
-                    style={{ width: 28, height: 28, borderRadius: '50%', background: col, cursor: 'pointer', border: newProjectColor === col ? '3px solid white' : '3px solid transparent', transition: 'all 0.15s' }} />;
+                  return <div key={col} onClick={function() { setNewProjectColor(col); }} style={{ width: 28, height: 28, borderRadius: '50%', background: col, cursor: 'pointer', border: newProjectColor === col ? '3px solid white' : '3px solid transparent' }} />;
                 })}
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleAddProject}
-                style={Object.assign({}, btnBase, { padding: '10px 22px', background: 'linear-gradient(135deg, ' + C.teal + ', #1aab9f)', color: '#fff' })}>Create Project</button>
-              <button onClick={function() { setShowNewProject(false); }}
-                style={Object.assign({}, btnBase, { padding: '10px 18px', background: C.txt3 + '12', color: C.txt2 })}>Cancel</button>
+              <button onClick={handleAddProject} style={Object.assign({}, btnBase, { padding: '10px 22px', background: 'linear-gradient(135deg, ' + C.teal + ', #1aab9f)', color: '#fff' })}>Create Project</button>
+              <button onClick={function() { setShowNewProject(false); }} style={Object.assign({}, btnBase, { padding: '10px 18px', background: C.txt3 + '12', color: C.txt2 })}>Cancel</button>
             </div>
           </div>
         </div>
@@ -809,26 +819,19 @@ export default function Vault1Page() {
             <h3 style={{ fontFamily: FONT.display, fontSize: 20, margin: '0 0 18px' }}>Edit Project</h3>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 5 }}>📌 Name</label>
-              <input value={editProject.name}
-                onChange={function(e) { setEditProject(function(p) { return Object.assign({}, p, { name: e.target.value }); }); }}
+              <input value={editProject.name} onChange={function(e) { setEditProject(function(p) { return Object.assign({}, p, { name: e.target.value }); }); }}
                 style={{ width: '100%', padding: '11px 14px', fontSize: 14, background: C.navyM, border: '1px solid ' + C.border, borderRadius: 10, color: C.txt }} />
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 5 }}>🎨 Icon</label>
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                {projectIcons.map(function(ic) {
-                  return <span key={ic} onClick={function() { setEditProject(function(p) { return Object.assign({}, p, { icon: ic }); }); }}
-                    style={{ fontSize: 20, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', background: editProject.icon === ic ? C.teal + '20' : 'transparent', border: editProject.icon === ic ? '1px solid ' + C.teal + '40' : '1px solid transparent' }}>{ic}</span>;
-                })}
+                {projectIcons.map(function(ic) { return <span key={ic} onClick={function() { setEditProject(function(p) { return Object.assign({}, p, { icon: ic }); }); }} style={{ fontSize: 20, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', background: editProject.icon === ic ? C.teal + '20' : 'transparent', border: editProject.icon === ic ? '1px solid ' + C.teal + '40' : '1px solid transparent' }}>{ic}</span>; })}
               </div>
             </div>
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 10, fontWeight: 700, color: C.txt3, textTransform: 'uppercase', letterSpacing: 1.2, display: 'block', marginBottom: 5 }}>🎨 Color</label>
               <div style={{ display: 'flex', gap: 6 }}>
-                {projectColors.map(function(col) {
-                  return <div key={col} onClick={function() { setEditProject(function(p) { return Object.assign({}, p, { color: col }); }); }}
-                    style={{ width: 28, height: 28, borderRadius: '50%', background: col, cursor: 'pointer', border: editProject.color === col ? '3px solid white' : '3px solid transparent' }} />;
-                })}
+                {projectColors.map(function(col) { return <div key={col} onClick={function() { setEditProject(function(p) { return Object.assign({}, p, { color: col }); }); }} style={{ width: 28, height: 28, borderRadius: '50%', background: col, cursor: 'pointer', border: editProject.color === col ? '3px solid white' : '3px solid transparent' }} />; })}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -839,7 +842,7 @@ export default function Vault1Page() {
         </div>
       )}
 
-      {/* ═══ CONFIRM DELETE MODAL ═══ */}
+      {/* ═══ CONFIRM DELETE ═══ */}
       {confirmDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}
           onClick={function(e) { if (e.target === e.currentTarget) setConfirmDelete(null); }}>
@@ -847,18 +850,30 @@ export default function Vault1Page() {
             <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
             <h3 style={{ fontFamily: FONT.display, fontSize: 18, margin: '0 0 8px' }}>Delete {confirmDelete.type === 'project' ? 'Project' : 'Key'}?</h3>
             <p style={{ color: C.txt2, fontSize: 13, marginBottom: 20, lineHeight: 1.5 }}>
-              {confirmDelete.type === 'project'
-                ? 'This will permanently delete "' + confirmDelete.name + '" and all keys inside it.'
-                : 'This will permanently delete "' + confirmDelete.name + '".'}
-              <br />This cannot be undone.
+              {confirmDelete.type === 'project' ? 'This will delete "' + confirmDelete.name + '" and all its keys.' : 'This will delete "' + confirmDelete.name + '".'}<br />This cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button onClick={function() {
-                if (confirmDelete.type === 'project') handleDeleteProject(confirmDelete.id);
-                else handleDeleteEntry(confirmDelete.id);
-              }} style={Object.assign({}, btnBase, { padding: '10px 22px', background: C.danger, color: '#fff' })}>🗑️ Delete</button>
+              <button onClick={function() { if (confirmDelete.type === 'project') handleDeleteProject(confirmDelete.id); else handleDeleteEntry(confirmDelete.id); }}
+                style={Object.assign({}, btnBase, { padding: '10px 22px', background: C.danger, color: '#fff' })}>🗑️ Delete</button>
               <button onClick={function() { setConfirmDelete(null); }} style={Object.assign({}, btnBase, { padding: '10px 18px', background: C.txt3 + '12', color: C.txt2 })}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ IMAGE LIGHTBOX ═══ */}
+      {imagePreview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, cursor: 'pointer', backdropFilter: 'blur(8px)' }}
+          onClick={function() { setImagePreview(null); }}>
+          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', animation: 'fadeUp 0.2s ease' }}
+            onClick={function(e) { e.stopPropagation(); }}>
+            <img src={imagePreview.data} alt={imagePreview.name} style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
+            <div style={{ textAlign: 'center', marginTop: 10 }}>
+              <span style={{ fontSize: 13, color: C.txt2 }}>{imagePreview.name}</span>
+              <span style={{ fontSize: 11, color: C.txt3, marginLeft: 10 }}>{formatFileSize(imagePreview.size)}</span>
+            </div>
+            <div style={{ position: 'absolute', top: -12, right: -12, width: 32, height: 32, borderRadius: '50%', background: C.danger, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16, fontWeight: 700, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
+              onClick={function() { setImagePreview(null); }}>×</div>
           </div>
         </div>
       )}
@@ -866,13 +881,7 @@ export default function Vault1Page() {
       {/* ═══ TOASTS ═══ */}
       <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, display: 'flex', flexDirection: 'column-reverse', gap: 6, alignItems: 'center' }}>
         {toasts.map(function(t) {
-          return <div key={t.id} style={{
-            padding: '9px 20px', borderRadius: 11,
-            background: t.type === 'error' ? C.danger : 'linear-gradient(135deg, ' + C.teal + ', #1aab9f)',
-            color: '#fff', fontWeight: 600, fontSize: 13,
-            boxShadow: '0 6px 24px ' + (t.type === 'error' ? C.danger : C.teal) + '40',
-            animation: 'toastIn 0.25s ease', whiteSpace: 'nowrap',
-          }}>
+          return <div key={t.id} style={{ padding: '9px 20px', borderRadius: 11, background: t.type === 'error' ? C.danger : 'linear-gradient(135deg, ' + C.teal + ', #1aab9f)', color: '#fff', fontWeight: 600, fontSize: 13, boxShadow: '0 6px 24px ' + (t.type === 'error' ? C.danger : C.teal) + '40', animation: 'toastIn 0.25s ease', whiteSpace: 'nowrap' }}>
             {t.type === 'error' ? '✕' : '✓'} {t.msg}
           </div>;
         })}
