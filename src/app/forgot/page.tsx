@@ -1,4 +1,4 @@
-"use client";
+// patched"use client";
 import React, { useState } from "react";
 
 const C = {
@@ -47,13 +47,7 @@ export default function ForgotPage() {
       <style>{GCSS}</style>
 
       {/* Nav */}
-      <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 32px", maxWidth: 1300, margin: "0 auto" }}>
-        <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: C.t1 }}>
-          <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="8" fill={C.ink}/><path d="M18 8c-1.5 4-4 6.5-8 8 4 1.5 6.5 4 8 8 1.5-4 4-6.5 8-8-4-1.5-6.5-4-8-8z" fill={C.amber500} opacity="0.9"/><circle cx="18" cy="18" r="2.5" fill="#fff"/></svg>
-          <span style={{ fontFamily: ff.display, fontSize: 22, fontWeight: 500, letterSpacing: "-0.02em" }}>ShiftPro<span style={{ color: C.amber500, fontStyle: "italic" }}>.ai</span></span>
-        </a>
-        <a href="/" style={{ fontFamily: ff.mono, fontSize: 11, letterSpacing: 2, color: C.t3, textDecoration: "none", textTransform: "uppercase" }}>← Back to home</a>
-      </nav>
+      <SiteNav backLabel="← Back to home" />
 
       <div style={{ maxWidth: 480, margin: "60px auto 100px", padding: "0 20px", animation: "fadeUp 0.5s cubic-bezier(.22,1,.36,1)" }}>
         {!done ? (
