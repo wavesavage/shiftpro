@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400, ...NO_CACHE });
     }
 
-    const { data, error } = await svcClient
+    const { data, error } = await svcClient()
       .from("vault1_store")
       .select("encrypted_data, updated_at")
       .eq("owner_hash", ownerHash)
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400, ...NO_CACHE });
     }
 
-    const { error } = await svcClient
+    const { error } = await svcClient()
       .from("vault1_store")
       .upsert(
         { owner_hash: ownerHash, encrypted_data: encryptedData, updated_at: new Date().toISOString() },
