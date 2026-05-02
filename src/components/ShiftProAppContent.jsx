@@ -39,7 +39,6 @@ body { background: #f9f8f6; }
 @keyframes shimmer { 0% { background-position:-400px 0 } 100% { background-position:400px 0 } }
 @keyframes slideInRight { from { transform:translateX(120%); opacity:0 } to { transform:translateX(0); opacity:1 } }
 @keyframes slideOutRight { from { transform:translateX(0); opacity:1 } to { transform:translateX(120%); opacity:0 } }
-@keyframes confirmPop { from { opacity:0; transform:scale(0.96) translateY(8px) } to { opacity:1; transform:none } }
 .skeleton { background: linear-gradient(90deg,#e8e6e1 25%,#f0ede8 50%,#e8e6e1 75%); background-size: 400px 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
 `;
 
@@ -82,179 +81,6 @@ function useToast() {
   };
   const removeToast = (id) => setToasts(p=>p.filter(t=>t.id!==id));
   return { toasts, toast, removeToast };
-}
-
-// ── CONFIRM MODAL — replaces browser confirm() with polished UI ──
-// Usage:
-//   const { confirm, ConfirmModalNode } = useConfirm();
-//   const ok = await confirm({ title: "Delete shift?", body: "This cannot be undone.", danger: true });
-//   if (ok) { /* proceed */ }
-// Render {ConfirmModalNode} somewhere near the root.
-function useConfirm() {
-  const [state, setState] = useState(null); // { title, body, confirmLabel, cancelLabel, danger, resolve }
-
-  const confirm = (opts = {}) => {
-    return new Promise(resolve => {
-      setState({
-        title: opts.title || "Are you sure?",
-        body: opts.body || "",
-        confirmLabel: opts.confirmLabel || "Confirm",
-        cancelLabel: opts.cancelLabel || "Cancel",
-        danger: !!opts.danger,
-        resolve,
-      });
-    });
-  };
-
-  const close = (value) => {
-    if (state?.resolve) state.resolve(value);
-    setState(null);
-  };
-
-  useEffect(() => {
-    if (!state) return;
-    const handler = (e) => {
-      if (e.key === "Escape") close(false);
-      if (e.key === "Enter") close(true);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [state]);
-
-  const ConfirmModalNode = state ? (
-    <div
-      onClick={() => close(false)}
-      style={{position:"fixed",inset:0,background:"rgba(15,12,41,0.58)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000,padding:20,animation:"fadeIn 0.18s ease"}}>
-      <div
-        onClick={e=>e.stopPropagation()}
-        role="dialog" aria-modal="true"
-        style={{background:"#fff",borderRadius:16,padding:"28px 26px",maxWidth:420,width:"100%",boxShadow:"0 24px 80px rgba(0,0,0,0.35)",animation:"confirmPop 0.2s cubic-bezier(.22,1,.36,1)"}}>
-        <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
-          <div style={{width:40,height:40,borderRadius:12,background:state.danger?"rgba(239,68,68,0.12)":"rgba(245,158,11,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>
-            {state.danger ? "⚠" : "?"}
-          </div>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:17,color:"#1a1a2e",marginBottom:6,letterSpacing:"-0.01em"}}>{state.title}</div>
-            {state.body && (
-              <div style={{fontFamily:"'Nunito',sans-serif",fontSize:13.5,color:"#4b5563",lineHeight:1.55}}>{state.body}</div>
-            )}
-          </div>
-        </div>
-        <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
-          <button
-            onClick={() => close(false)}
-            style={{padding:"11px 20px",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:9,fontFamily:"'Nunito',sans-serif",fontWeight:600,fontSize:13.5,color:"#374151",cursor:"pointer",minWidth:88}}>
-            {state.cancelLabel}
-          </button>
-          <button
-            onClick={() => close(true)}
-            autoFocus
-            style={{padding:"11px 20px",background:state.danger?"linear-gradient(135deg,#ef4444,#dc2626)":"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",borderRadius:9,fontFamily:"'Nunito',sans-serif",fontWeight:700,fontSize:13.5,color:"#fff",cursor:"pointer",minWidth:88,boxShadow:state.danger?"0 4px 14px rgba(239,68,68,0.3)":"0 4px 14px rgba(245,158,11,0.3)"}}>
-            {state.confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
-
-  return { confirm, ConfirmModalNode };
-}
-
-// ── GPS GEOFENCE HELPER ──
-// Returns {ok: bool, lat, lng, accuracy, error} — called before clock-in.
-// If location has no lat/lng configured, allows the clock-in with a warning flag.
-async function checkGeofence(locationLat, locationLng, radiusM = 150) {
-  if (!navigator.geolocation) {
-    return { ok: true, skipped: true, reason: "GPS unavailable on this device" };
-  }
-  if (locationLat == null || locationLng == null) {
-    // Location not configured for geofencing — allow but flag
-    return { ok: true, skipped: true, reason: "Location geofence not configured" };
-  }
-
-  return new Promise((resolve) => {
-    const timeoutId = setTimeout(() => {
-      resolve({ ok: false, error: "GPS timed out. Try again." });
-    }, 10000);
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        clearTimeout(timeoutId);
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const accuracy = pos.coords.accuracy;
-        // Haversine distance in meters
-        const R = 6371000;
-        const toRad = (d) => d * Math.PI / 180;
-        const dLat = toRad(locationLat - lat);
-        const dLng = toRad(locationLng - lng);
-        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat))*Math.cos(toRad(locationLat))*Math.sin(dLng/2)**2;
-        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const within = dist <= (radiusM + accuracy); // allow GPS accuracy margin
-        resolve({
-          ok: within,
-          lat, lng, accuracy,
-          distance: Math.round(dist),
-          error: within ? null : `You're ~${Math.round(dist)}m away. Must be within ${radiusM}m to clock in.`
-        });
-      },
-      (err) => {
-        clearTimeout(timeoutId);
-        if (err.code === 1) resolve({ ok: false, error: "Location permission denied. Enable GPS to clock in." });
-        else if (err.code === 2) resolve({ ok: false, error: "GPS unavailable. Check your signal." });
-        else resolve({ ok: false, error: "GPS error: " + (err.message || "unknown") });
-      },
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 30000 }
-    );
-  });
-}
-
-// ── CLOCK EVENT RETRY QUEUE ──
-// When POSTing a clock event fails, save to this queue and flush on any subsequent
-// successful network call or on next app load. Keeps timekeeping durable across
-// flaky networks.
-const CLOCK_QUEUE_KEY = "shiftpro_clock_queue_v1";
-function loadClockQueue() {
-  try { return JSON.parse(localStorage.getItem(CLOCK_QUEUE_KEY) || "[]"); } catch(e){ return []; }
-}
-function saveClockQueue(q) {
-  try { localStorage.setItem(CLOCK_QUEUE_KEY, JSON.stringify(q)); } catch(e){ console.warn("[clock queue save]", e?.message); }
-}
-function enqueueClockEvent(evt) {
-  const q = loadClockQueue();
-  q.push({ ...evt, queued_at: Date.now(), attempts: 0 });
-  saveClockQueue(q);
-}
-async function flushClockQueue(getSBFn) {
-  const q = loadClockQueue();
-  if (q.length === 0) return { flushed: 0, remaining: 0 };
-  const sb = await getSBFn();
-  const { data: { session } } = await sb.auth.getSession();
-  const token = session?.access_token;
-  if (!token) return { flushed: 0, remaining: q.length }; // can't flush without auth
-  const stillPending = [];
-  let flushed = 0;
-  for (const evt of q) {
-    try {
-      const res = await fetch("/api/employee", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-        body: JSON.stringify(evt),
-      });
-      if (res.ok) { flushed++; continue; }
-      // If server rejected with 4xx, drop it (bad request, won't succeed on retry)
-      if (res.status >= 400 && res.status < 500) { flushed++; console.warn("[clock queue] drop bad event", evt, res.status); continue; }
-      // 5xx — keep for retry
-      stillPending.push({ ...evt, attempts: (evt.attempts || 0) + 1 });
-    } catch (e) {
-      stillPending.push({ ...evt, attempts: (evt.attempts || 0) + 1 });
-    }
-  }
-  // Drop events older than 7 days or attempted > 20 times
-  const sevenDays = 7 * 24 * 60 * 60 * 1000;
-  const filtered = stillPending.filter(e => (Date.now() - e.queued_at) < sevenDays && e.attempts < 20);
-  saveClockQueue(filtered);
-  return { flushed, remaining: filtered.length };
 }
 
 // ── SKELETON LOADER ──────────────────────────────────
@@ -513,6 +339,122 @@ function getInitials(emp){
   return "??";
 }
 
+// ════════════════════════════════════════════════════════════════════
+// PAYROLL HELPER — calcWeeklyPayroll
+// ════════════════════════════════════════════════════════════════════
+// Computes hours, regular pay, OT pay correctly per workweek.
+// Per FLSA + Oregon law (ORS 653.261): overtime is 1.5x for hours worked
+// over 40 in any single 7-day workweek, NOT over 40 in the whole pay period.
+//
+// Pairs clock_in / clock_out events chronologically. If a clock-in has no
+// matching clock-out (forgotten clock-out, app crash, etc.), it is flagged
+// as an "open shift" and reported separately — NOT silently dropped.
+//
+// Args:
+//   events       Array of clock_event rows ({event_type, occurred_at})
+//   hourlyRate   Number — employee hourly rate
+//   weekStartDay String — "Mon" | "Sun" | "Sat" etc. (3-letter day code)
+//   otThreshold  Number — hours per workweek before OT kicks in (default 40)
+//
+// Returns: {
+//   hrs, regHrs, otHrs, regPay, otPay, totalPay,
+//   weeks: [{weekStart, hrs, regHrs, otHrs}],
+//   openShifts: [{clockedInAt, hoursAgo}]   -- forgotten clock-outs
+// }
+const DAY_CODE_TO_INDEX = {Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6};
+
+function getWeekStartDate(d, weekStartDay){
+  // Returns a Date set to 00:00 of the weekStartDay of the workweek containing d
+  const startIdx = DAY_CODE_TO_INDEX[weekStartDay] ?? 1; // default Monday
+  const day = d.getDay();
+  const diff = (day - startIdx + 7) % 7;  // days since most recent weekStart
+  const ws = new Date(d);
+  ws.setDate(ws.getDate() - diff);
+  ws.setHours(0,0,0,0);
+  return ws;
+}
+
+function calcWeeklyPayroll(events, hourlyRate, weekStartDay = "Mon", otThreshold = 40){
+  const rate = parseFloat(hourlyRate) || 0;
+  const threshold = parseFloat(otThreshold) || 40;
+  const sorted = [...(events||[])].sort((a,b)=>new Date(a.occurred_at)-new Date(b.occurred_at));
+
+  // Per-week minutes accumulator. Key = ISO date string of week start.
+  const weekMinutes = {}; // {"2026-04-28": 2400, ...}
+  const openShifts = [];
+
+  let openClockIn = null;
+
+  for(const ev of sorted){
+    const t = new Date(ev.occurred_at);
+    if(ev.event_type === "clock_in"){
+      // If there's already an open clock-in, the previous one was abandoned —
+      // flag it as an open shift before overwriting.
+      if(openClockIn){
+        openShifts.push({
+          clockedInAt: openClockIn,
+          abandonedAt: t,
+          reason: "Started a new clock-in without clocking out",
+        });
+      }
+      openClockIn = t;
+    }else if(ev.event_type === "clock_out" && openClockIn){
+      // Allocate this shift's minutes to the workweek(s) it falls in.
+      // Most shifts are intra-week, but a midnight-crossing shift on a Sun→Mon
+      // boundary may need to be split. Handle that.
+      let cursor = new Date(openClockIn);
+      const end = t;
+      while(cursor < end){
+        const wkStart = getWeekStartDate(cursor, weekStartDay);
+        const nextWkStart = new Date(wkStart);
+        nextWkStart.setDate(nextWkStart.getDate() + 7);
+        const segEnd = end < nextWkStart ? end : nextWkStart;
+        const mins = (segEnd - cursor) / 60000;
+        const key = wkStart.toISOString().slice(0,10);
+        weekMinutes[key] = (weekMinutes[key] || 0) + mins;
+        cursor = segEnd;
+      }
+      openClockIn = null;
+    }
+    // clock_out without a matching clock_in is silently ignored (would be a data error)
+  }
+
+  // If there's still an open clock-in at the end, it's a forgotten clock-out
+  if(openClockIn){
+    const hoursAgo = (Date.now() - openClockIn.getTime()) / 3600000;
+    openShifts.push({
+      clockedInAt: openClockIn,
+      hoursAgo: Math.round(hoursAgo * 10) / 10,
+      reason: "Clocked in but never clocked out",
+    });
+  }
+
+  // Per-week regular vs OT split
+  let totalHrs = 0, totalReg = 0, totalOt = 0;
+  const weeks = [];
+  Object.keys(weekMinutes).sort().forEach(weekStart => {
+    const wkHrs = weekMinutes[weekStart] / 60;
+    const wkReg = Math.min(wkHrs, threshold);
+    const wkOt  = Math.max(wkHrs - threshold, 0);
+    totalHrs += wkHrs; totalReg += wkReg; totalOt += wkOt;
+    weeks.push({weekStart, hrs: wkHrs, regHrs: wkReg, otHrs: wkOt});
+  });
+
+  const regPay = totalReg * rate;
+  const otPay  = totalOt  * rate * 1.5;
+
+  return {
+    hrs: totalHrs,
+    regHrs: totalReg,
+    otHrs: totalOt,
+    regPay,
+    otPay,
+    totalPay: regPay + otPay,
+    weeks,
+    openShifts,
+  };
+}
+
 function EBadge({label,color}){
   return (
     <span style={{fontFamily:"'Nunito',sans-serif",fontSize:11,color,background:color+"18",border:`1px solid ${color}28`,padding:"2px 10px",borderRadius:20,fontWeight:600,whiteSpace:"nowrap"}}>
@@ -595,41 +537,27 @@ function Login({onLogin}){
       const sb = await getSB();
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
-      // Fetch profile with retry — fail closed if we can't load it
       let profile = null;
-      let lastErr = null;
-      for(let attempt=0; attempt<3; attempt++){
-        if(attempt>0) await new Promise(r=>setTimeout(r,500));
-        try{
-          const {data:p, error: pErr} = await sb.from("users").select("*").eq("id",data.user.id).single();
-          if(pErr){ lastErr = pErr; continue; }
-          if(p){ profile = p; break; }
-        }catch(e){ lastErr = e; console.warn("[owner login profile fetch]", e?.message); }
-      }
-      if(!profile){
-        // Sign out so we don't leave a dangling session
-        try{ await sb.auth.signOut(); }catch(e){}
-        throw new Error("Couldn't load your account. Please try again or contact support.");
-      }
+      try{ const {data:p}=await sb.from("users").select("*").eq("id",data.user.id).single(); profile=p; }catch(e){}
       const emp = {
         id: data.user.id,
-        name: (profile.first_name+" "+profile.last_name).trim() || data.user.email.split("@")[0],
-        first: profile.first_name||data.user.email.split("@")[0],
-        role: profile.role||"Manager",
-        dept: profile.department||"",
-        rate: parseFloat(profile.hourly_rate)||0,
-        avatar: profile.avatar_initials||data.user.email[0].toUpperCase(),
-        color: profile.avatar_color||"#f59e0b",
+        name: profile?(profile.first_name+" "+profile.last_name):data.user.email.split("@")[0],
+        first: profile?.first_name||data.user.email.split("@")[0],
+        role: profile?.role||"Manager",
+        dept: profile?.department||"",
+        rate: parseFloat(profile?.hourly_rate)||0,
+        avatar: profile?.avatar_initials||data.user.email[0].toUpperCase(),
+        color: profile?.avatar_color||"#f59e0b",
         email: data.user.email,
-        status:"active", hired:profile.hire_date||"",
+        status:"active", hired:profile?.hire_date||"",
         wkHrs:0, moHrs:0, ot:0, cam:100, prod:100, rel:100,
         flags:0, streak:0, shifts:0, risk:"Low", ghost:0,
-        orgId: profile.org_id||null,
-        locId: profile.location_id||null,
-        appRole: profile.app_role||"owner",
+        orgId: profile?.org_id||null,
+        locId: profile?.location_id||null,
+        appRole: profile?.app_role||"owner",
       };
-      // Cache with stable auth-user id key (consistent with employee login)
-      try{ localStorage.setItem("shiftpro_cached_emp_"+data.user.id, JSON.stringify(emp)); }catch(e){ console.warn("[owner login cache]", e?.message); }
+      // Cache immediately so refresh works even if profile query fails next time
+      try{ localStorage.setItem("shiftpro_cached_emp_"+data.user.id, JSON.stringify(emp)); }catch(e){}
       onLogin("owner", emp);
     }catch(e){
       setErr(e.message||"Sign in failed. Check your email and password.");
@@ -644,47 +572,40 @@ function Login({onLogin}){
       const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
 
-      // Wait briefly for session to fully propagate, then try profile fetch.
-      // NOTE: We intentionally do NOT fall back to localStorage cache if the DB
-      // returns nothing — that would let deactivated users log in from old cached
-      // sessions. Fail closed instead.
+      // Wait briefly for session to fully propagate, then try profile fetch
       let profile = null;
-      let lastErr = null;
       for(let attempt=0; attempt<3; attempt++){
         if(attempt>0) await new Promise(r=>setTimeout(r,600));
-        try{
-          const {data:p, error: pErr} = await sb.from("users").select("*").eq("id",data.user.id).single();
-          if(pErr){ lastErr = pErr; continue; }
-          if(p){ profile = p; break; }
-        }catch(e){ lastErr = e; console.warn("[emp login profile fetch]", e?.message); }
+        const {data:p} = await sb.from("users").select("*").eq("id",data.user.id).single();
+        if(p){ profile=p; break; }
       }
 
+      // Fall back to localStorage cache if Supabase still returns nothing
       if(!profile){
-        // Sign out so we don't leave a dangling session
-        try{ await sb.auth.signOut(); }catch(e){ console.warn("[emp login signout]", e?.message); }
-        throw new Error("Profile not found. Please contact your manager or try again later.");
+        try{
+          const cached=localStorage.getItem("shiftpro_cached_emp_"+data.user.id);
+          if(cached){ profile=JSON.parse(cached); profile._fromCache=true; }
+        }catch(e){}
       }
 
-      // Block deactivated users
-      if(profile.status === "inactive" || profile.active === false){
-        try{ await sb.auth.signOut(); }catch(e){}
-        throw new Error("Your account is inactive. Contact your manager.");
-      }
+      if(!profile) throw new Error("Profile not found. Contact your manager.");
 
-      // Ensure employee is marked active on every successful login
-      try{
-        const {data:{session:ss}}=await sb.auth.getSession();
-        await fetch("/api/user",{
-          method:"PATCH",
-          headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
-          body:JSON.stringify({userId:data.user.id,updates:{status:"active"}}),
-        });
-      }catch(e){ console.warn("[emp login status update]", e?.message); }
+      // Ensure employee is marked active on every login
+      if(!profile._fromCache){
+        try{
+          const {data:{session:ss}}=await sb.auth.getSession();
+          await fetch("/api/user",{
+            method:"PATCH",
+            headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
+            body:JSON.stringify({userId:data.user.id,updates:{status:"active"}}),
+          });
+        }catch(e){}
+      }
 
       const empRole = profile.app_role==="owner"||profile.app_role==="manager"?"owner":"employee";
       const emp = {
         id:profile.id||data.user.id,
-        name:((profile.first_name||"")+" "+(profile.last_name||"")).trim(),
+        name:(profile.first_name||"")+" "+(profile.last_name||""),
         first:profile.first_name||data.user.email.split("@")[0],
         nick:profile.preferred_name||"",
         role:profile.role&&profile.role!=="Employee"?profile.role:"",
@@ -701,8 +622,8 @@ function Login({onLogin}){
         locId:profile.location_id||null,
         appRole:profile.app_role||"employee",
       };
-      // Cache with stable auth-user id key (consistent with owner login)
-      try{ localStorage.setItem("shiftpro_cached_emp_"+data.user.id, JSON.stringify(emp)); }catch(e){ console.warn("[emp login cache]", e?.message); }
+      // Cache with user-specific key
+      try{ localStorage.setItem("shiftpro_cached_emp_"+emp.id, JSON.stringify(emp)); }catch(e){}
       onLogin(empRole, emp);
     }catch(e){
       setErr(e.message||"Sign in failed. Check your email and password.");
@@ -755,16 +676,16 @@ function Login({onLogin}){
                 <div>
                   <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:16,color:"#fff",marginBottom:5}}>I'm an Employee</div>
                   <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(16,185,129,0.65)",letterSpacing:"1.5px"}}>MY SCHEDULE & TIME CLOCK</div>
-                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}>↓ INVITED STAFF CLICK HERE</div>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"rgba(16,185,129,0.4)",letterSpacing:"1px",marginTop:4}}> from  INVITED STAFF CLICK HERE</div>
                 </div>
               </button>
             </div>
             <div style={{textAlign:"center",marginTop:20}}>
               <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(255,255,255,0.2)",letterSpacing:1}}>New business?{" "}</span>
-              <a href="/final" style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(245,158,11,0.5)",letterSpacing:1,textDecoration:"none"}}
+              <a href="/signup" style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"rgba(245,158,11,0.5)",letterSpacing:1,textDecoration:"none"}}
                 onMouseEnter={e=>e.target.style.color="rgba(245,158,11,0.9)"}
                 onMouseLeave={e=>e.target.style.color="rgba(245,158,11,0.5)"}>
-                Create your account →
+                Create your account  to 
               </a>
             </div>
           </div>
@@ -772,7 +693,7 @@ function Login({onLogin}){
 
         {mode==="owner"&&(
           <div style={{background:"rgba(9,14,26,0.96)",border:"1px solid "+amberB,borderRadius:16,padding:"28px",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");setShowReset(false);setResetSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.3)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:18}}>← BACK</button>
+            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");setShowReset(false);setResetSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.3)",fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:1,cursor:"pointer",marginBottom:18}}> back  BACK</button>
             {!showReset?(
               <div>
                 <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:22,color:"#fff",marginBottom:3}}>Owner / Manager</div>
@@ -786,7 +707,7 @@ function Login({onLogin}){
                 ))}
                 {err&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:red,marginBottom:12,padding:"8px 10px",background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>{err}</div>}
                 <button onClick={doOwnerLogin} style={{width:"100%",padding:"14px",background:busy?"rgba(245,158,11,0.5)":"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",borderRadius:10,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:15,color:"#030c14",cursor:busy?"not-allowed":"pointer",boxShadow:"0 4px 20px rgba(245,158,11,0.3)",marginBottom:12}}>
-                  {busy?"Signing in…":"Enter Command Center →"}
+                  {busy?"Signing in…":"Enter Command Center  to "}
                 </button>
                 <div style={{textAlign:"center"}}>
                   <button onClick={()=>{setShowReset(true);setErr("");}} style={{background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(245,158,11,0.5)",cursor:"pointer",textDecoration:"underline"}}>Forgot password?</button>
@@ -804,9 +725,9 @@ function Login({onLogin}){
                     </div>
                     {err&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:red,marginBottom:12}}>{err}</div>}
                     <button onClick={doReset} style={{width:"100%",padding:"13px",background:"rgba(245,158,11,0.15)",border:"1px solid "+amberB,borderRadius:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:14,color:amber,cursor:"pointer",marginBottom:10}}>
-                      {busy?"Sending…":"Send Reset Link →"}
+                      {busy?"Sending…":"Send Reset Link  to "}
                     </button>
-                    <button onClick={()=>{setShowReset(false);setErr("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(255,255,255,0.3)",cursor:"pointer"}}> ← Back to sign in</button>
+                    <button onClick={()=>{setShowReset(false);setErr("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(255,255,255,0.3)",cursor:"pointer"}}> back  Back to sign in</button>
                   </div>
                 ):(
                   <div>
@@ -823,7 +744,7 @@ function Login({onLogin}){
 
         {mode==="employee"&&(
           <div style={{background:"rgba(255,255,255,0.98)",borderRadius:16,padding:"28px",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}}>
-            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");}} style={{background:"none",border:"none",color:"#9ca3af",fontFamily:"'Nunito',sans-serif",fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}>← Back</button>
+            <button onClick={()=>{setMode(null);setErr("");setEmail("");setPass("");}} style={{background:"none",border:"none",color:"#9ca3af",fontFamily:"'Nunito',sans-serif",fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}> back  Back</button>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
               <div style={{width:44,height:44,borderRadius:12,flexShrink:0,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:22}}>👋</span></div>
               <div>
@@ -840,9 +761,8 @@ function Login({onLogin}){
               </div>
             ))}
             {err&&<div style={{fontFamily:"'Nunito',sans-serif",fontSize:12,color:"#ef4444",marginBottom:12,padding:"8px 10px",background:"rgba(239,68,68,0.05)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:6}}>{err}</div>}
-            {resetSent&&<div style={{fontFamily:"'Nunito',sans-serif",fontSize:12,color:"#059669",marginBottom:12,padding:"8px 10px",background:"rgba(16,185,129,0.06)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:6}}>✓ Reset email sent — check your inbox!</div>}
             <button onClick={doEmpLogin} style={{width:"100%",padding:"14px",background:busy?"#a5b4fc":"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:10,fontFamily:"'Nunito',sans-serif",fontWeight:700,fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 8px 28px rgba(99,102,241,0.18)",marginBottom:12}}>
-              {busy?"Signing in…":"Go to My Work Hub →"}
+              {busy?"Signing in…":"Go to My Work Hub  to "}
             </button>
             <div style={{textAlign:"center",marginBottom:8}}>
               <button onClick={async()=>{
@@ -851,8 +771,8 @@ function Login({onLogin}){
                 try{
                   const sb2=await getSB();
                   await sb2.auth.resetPasswordForEmail(email,{redirectTo:"https://shiftpro.ai/"});
-                  setResetSent(true);
-                }catch(e){ console.warn("[emp forgot password]", e?.message); setErr("Could not send reset email. Try again."); }
+                  setErr("✓ Reset email sent — check your inbox!");
+                }catch(e){setErr("Could not send reset email.");}
                 finally{setBusy(false);}
               }} style={{background:"none",border:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"rgba(99,102,241,0.5)",cursor:"pointer",textDecoration:"underline"}}>
                 Forgot password?
@@ -993,7 +913,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
             </div>
             {err&&<div style={{color:"#ef4444",fontFamily:E.sans,fontSize:12,marginBottom:8}}>{err}</div>}
             <button onClick={next} style={primaryBtn}>Continue  to </button>
-            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}>← Back</button>
+            <button onClick={()=>{setErr("");setStep(1);}} style={backBtn}> back  Back</button>
           </div>
         )}
 
@@ -1011,10 +931,10 @@ function EmpOnboarding({ empSafe, onComplete }) {
               ))}
             </div>
             <div style={{padding:"12px 14px",background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:10,marginBottom:20,fontFamily:E.sans,fontSize:12,color:"#6b7280"}}>
-              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span> → <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span> → No preference
+              Tap a day to cycle: <span style={{color:"#10b981",fontWeight:600}}>Available</span>  to  <span style={{color:"#ef4444",fontWeight:600}}>Unavailable</span>  to  No preference
             </div>
             <button onClick={()=>{setErr("");setStep(4);}} style={primaryBtn}>Save & Continue  to </button>
-            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}>← Back</button>
+            <button onClick={()=>{setErr("");setStep(2);}} style={backBtn}> back  Back</button>
           </div>
         )}
 
@@ -1050,7 +970,7 @@ function EmpOnboarding({ empSafe, onComplete }) {
               </div>
             </div>
             <button onClick={finish} disabled={busy} style={{...primaryBtn,opacity:busy?0.7:1,cursor:busy?"not-allowed":"pointer"}}>
-              {busy?"Setting up your account…":"Enter My Work Hub →"}
+              {busy?"Setting up your account…":"Enter My Work Hub  to "}
             </button>
           </div>
         )}
@@ -1187,8 +1107,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
     rel:parseInt(emp?.rel)||100, prod:parseInt(emp?.prod)||80, cam:parseInt(emp?.cam)||85,
     ghost:parseFloat(emp?.ghost)||0,
   };
-  const { toasts: empToasts, toast: empToast, removeToast: empRemoveToast } = useToast();
-  const { confirm: empConfirm, ConfirmModalNode: empConfirmNode } = useConfirm();
   const [tab,setTab] = useState(()=>{
     try{ return localStorage.getItem("shiftpro_emp_tab_"+(emp?.id||""))||"home"; }catch(e){ return "home"; }
   });
@@ -1228,8 +1146,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
     return 0;
   });
   const [syncMsg,setSyncMsg] = useState("");
-  const [clockBusy,setClockBusy] = useState(false);
-  const [clockLoc,setClockLoc] = useState(null); // {lat, lng, geofence_radius_m} — loaded from locations table
   const [now,setNow] = useState(new Date());
   const [empShifts,setEmpShifts] = useState(null);
   const [swapOpen,setSwapOpen] = useState(false);
@@ -1368,29 +1284,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
   });
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
-
-  // Load the employee's location (for GPS geofence) + flush any queued clock events on mount
-  useEffect(()=>{
-    let cancelled = false;
-    (async()=>{
-      // Flush queued clock events (this is a no-op if queue is empty)
-      try{
-        const result = await flushClockQueue(getSB);
-        if(!cancelled && result.flushed > 0) console.log("[clock queue] flushed", result.flushed, "event(s)");
-      }catch(e){ console.warn("[clock queue init]", e?.message); }
-      // Load location GPS info if we have a locId
-      if(!empSafe.locId) return;
-      try{
-        const sb = await getSB();
-        const {data:loc} = await sb.from("locations")
-          .select("lat, lng, geofence_radius_m")
-          .eq("id", empSafe.locId)
-          .single();
-        if(!cancelled && loc) setClockLoc(loc);
-      }catch(e){ console.warn("[load clockLoc]", e?.message); }
-    })();
-    return ()=>{ cancelled = true; };
-  }, [empSafe.locId]);
 
   useEffect(()=>{
     if(!clocked){setSecs(0);setBreakSecs(0);setOnBreak(false);return;}
@@ -1563,8 +1456,6 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
 
   return (
     <div style={{minHeight:"100vh",background:E.bg,fontFamily:E.sans,color:E.text}}>
-      <ToastContainer toasts={empToasts} removeToast={empRemoveToast}/>
-      {empConfirmNode}
       <div style={{background:E.bg2,borderBottom:`1px solid ${E.border}`,padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:E.shadow}}>
         <NavLogoLight/>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -1632,142 +1523,51 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
               {syncMsg&&<div style={{fontFamily:E.mono,fontSize:10,color:syncMsg.startsWith("✓")?E.green:E.yellow,textAlign:"center",marginBottom:8}}>{syncMsg}</div>}
               <div style={{display:"flex",gap:10}}>
                 {!clocked?(
-                  <button disabled={clockBusy} onClick={async()=>{
-                    if(clockBusy) return;
-                    setClockBusy(true);
+                  <button onClick={async()=>{
+                    const now=new Date();
+                    // Save to localStorage IMMEDIATELY — survives page refresh
+                    saveClockedIn(now);
+                    setClocked(true); setClockedAt(now);
                     try{
-                      // 1. GPS check — location data is loaded from liveLocation if available
-                      const locInfo = clockLoc || {};
-                      const gps = await checkGeofence(locInfo.lat, locInfo.lng, locInfo.geofence_radius_m || 150);
-                      if(!gps.ok){
-                        setSyncMsg("⚠ " + (gps.error || "Location check failed"));
-                        setTimeout(()=>setSyncMsg(""),4000);
-                        return;
-                      }
-                      // 2. Save to localStorage IMMEDIATELY — survives page refresh + crashes
-                      const now=new Date();
-                      saveClockedIn(now);
-                      setClocked(true); setClockedAt(now);
-                      // 3. Build event + try to send; on any failure, queue it for retry
-                      const evt = {
-                        _action:"clock",
-                        userId:empSafe.id,
-                        orgId:empSafe.orgId||null,
-                        locId:empSafe.locId||null,
-                        eventType:"clock_in",
-                        gpsLat: gps.lat ?? null,
-                        gpsLng: gps.lng ?? null,
-                        gpsAccuracy: gps.accuracy ?? null,
-                      };
-                      try{
-                        const sb=await getSB();
-                        const {data:{session:ssCi}}=await sb.auth.getSession();
-                        const res = await fetch("/api/employee",{
-                          method:"POST",
-                          headers:{"Content-Type":"application/json",...(ssCi?.access_token?{"Authorization":"Bearer "+ssCi.access_token}:{})},
-                          body:JSON.stringify(evt),
-                        });
-                        if(!res.ok){
-                          const d = await res.json().catch(()=>({}));
-                          throw new Error(d.error || ("Server error "+res.status));
-                        }
-                        setSyncMsg(gps.skipped ? "✓ Clocked in (GPS not configured)" : "✓ Clocked in — verified by GPS");
-                        setTimeout(()=>setSyncMsg(""),2500);
-                        // Flush any previously queued events now that we have connectivity
-                        flushClockQueue(getSB).catch(err=>console.warn("[clock queue flush]", err?.message));
-                      }catch(e){
-                        console.warn("[clock_in]", e?.message);
-                        enqueueClockEvent(evt);
-                        setSyncMsg("⚠ Saved locally — will sync when online");
-                        setTimeout(()=>setSyncMsg(""),4500);
-                      }
-                    } finally { setClockBusy(false); }
-                  }} style={{flex:1,padding:"14px",background:clockBusy?"rgba(99,102,241,0.5)":`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:16,color:"#fff",cursor:clockBusy?"wait":"pointer",boxShadow:"0 4px 18px rgba(99,102,241,0.4)"}}>
-                    {clockBusy?"Checking GPS…":"✓ Clock In"}
+                      const sb=await getSB();
+                      const {data:{session:ssCi}}=await sb.auth.getSession();
+                      await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCi?.access_token?{"Authorization":"Bearer "+ssCi.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:"clock_in"})});
+                      setSyncMsg("✓ Clocked in — timer running");setTimeout(()=>setSyncMsg(""),2500);
+                    }catch(e){ setSyncMsg("⚠ Saved locally — syncing..."); setTimeout(()=>setSyncMsg(""),4000); }
+                  }} style={{flex:1,padding:"14px",background:`linear-gradient(135deg,${E.indigo},${E.violet})`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:16,color:"#fff",cursor:"pointer",boxShadow:"0 4px 18px rgba(99,102,241,0.4)"}}>
+                    ✓ Clock In
                   </button>
                 ):(
                   <div style={{display:"flex",gap:10,flex:1}}>
-                    <button disabled={clockBusy} onClick={async()=>{
-                      if(clockBusy) return;
-                      setClockBusy(true);
+                    <button onClick={async()=>{
+                      const nowBreak=!onBreak;
+                      if(nowBreak){
+                        const at=new Date(); saveBreakStart(at);
+                      } else {
+                        clearBreak();
+                      }
+                      setOnBreak(b=>!b);
                       try{
-                        const nowBreak=!onBreak;
-                        if(nowBreak){
-                          const at=new Date(); saveBreakStart(at);
-                        } else {
-                          clearBreak();
-                        }
-                        setOnBreak(b=>!b);
-                        const evt = {
-                          _action:"clock",
-                          userId:empSafe.id,
-                          orgId:empSafe.orgId||null,
-                          locId:empSafe.locId||null,
-                          eventType:nowBreak?"break_start":"break_end",
-                        };
-                        try{
-                          const sb=await getSB();
-                          const {data:{session:ssBr}}=await sb.auth.getSession();
-                          const res = await fetch("/api/employee",{
-                            method:"POST",
-                            headers:{"Content-Type":"application/json",...(ssBr?.access_token?{"Authorization":"Bearer "+ssBr.access_token}:{})},
-                            body:JSON.stringify(evt),
-                          });
-                          if(!res.ok){
-                            const d = await res.json().catch(()=>({}));
-                            throw new Error(d.error || ("Server error "+res.status));
-                          }
-                          setSyncMsg(nowBreak?"⏸ Break started":"→ Back on shift");
-                          setTimeout(()=>setSyncMsg(""),2000);
-                          flushClockQueue(getSB).catch(err=>console.warn("[clock queue flush]", err?.message));
-                        }catch(e){
-                          console.warn("[break]", e?.message);
-                          enqueueClockEvent(evt);
-                          setSyncMsg("⚠ Saved locally — will sync when online");
-                          setTimeout(()=>setSyncMsg(""),3500);
-                        }
-                      } finally { setClockBusy(false); }
-                    }} style={{flex:1,padding:"13px",background:onBreak?`linear-gradient(135deg,rgba(99,102,241,0.9),rgba(139,92,246,0.9))`:`linear-gradient(135deg,rgba(245,158,11,0.9),rgba(251,146,60,0.8))`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:clockBusy?"wait":"pointer",opacity:clockBusy?0.7:1}}>
-                      {onBreak?"→ Resume Shift":"⏸ Start Break"}
+                        const sb=await getSB();
+                        const {data:{session:ssBr}}=await sb.auth.getSession();
+                        await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssBr?.access_token?{"Authorization":"Bearer "+ssBr.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:nowBreak?"break_start":"break_end"})});
+                        setSyncMsg(nowBreak?"⏸ Break started":" to  Back on shift");setTimeout(()=>setSyncMsg(""),2000);
+                      }catch(e){ setSyncMsg("⚠ Saved locally"); setTimeout(()=>setSyncMsg(""),3000); }
+                    }} style={{flex:1,padding:"13px",background:onBreak?`linear-gradient(135deg,rgba(99,102,241,0.9),rgba(139,92,246,0.9))`:`linear-gradient(135deg,rgba(245,158,11,0.9),rgba(251,146,60,0.8))`,border:"none",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>
+                      {onBreak?" to  Resume Shift":"⏸ Start Break"}
                     </button>
-                    <button disabled={clockBusy} onClick={async()=>{
-                      if(clockBusy) return;
+                    <button onClick={async()=>{
                       if(onBreak){ setSyncMsg("⚠ Resume your shift first"); setTimeout(()=>setSyncMsg(""),2500); return; }
-                      setClockBusy(true);
+                      // Clear localStorage FIRST
+                      clearClockedIn(); clearBreak();
+                      setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
                       try{
-                        // Clear localStorage FIRST
-                        clearClockedIn(); clearBreak();
-                        setClocked(false);setOnBreak(false);setSecs(0);setBreakSecs(0);setClockedAt(null);
-                        const evt = {
-                          _action:"clock",
-                          userId:empSafe.id,
-                          orgId:empSafe.orgId||null,
-                          locId:empSafe.locId||null,
-                          eventType:"clock_out",
-                        };
-                        try{
-                          const sb=await getSB();
-                          const {data:{session:ssCo}}=await sb.auth.getSession();
-                          const res = await fetch("/api/employee",{
-                            method:"POST",
-                            headers:{"Content-Type":"application/json",...(ssCo?.access_token?{"Authorization":"Bearer "+ssCo.access_token}:{})},
-                            body:JSON.stringify(evt),
-                          });
-                          if(!res.ok){
-                            const d = await res.json().catch(()=>({}));
-                            throw new Error(d.error || ("Server error "+res.status));
-                          }
-                          setSyncMsg("✓ Clocked out");
-                          setTimeout(()=>setSyncMsg(""),3000);
-                          flushClockQueue(getSB).catch(err=>console.warn("[clock queue flush]", err?.message));
-                        }catch(e){
-                          console.warn("[clock_out]", e?.message);
-                          enqueueClockEvent(evt);
-                          setSyncMsg("⚠ Saved locally — will sync when online");
-                          setTimeout(()=>setSyncMsg(""),4000);
-                        }
-                      } finally { setClockBusy(false); }
-                    }} style={{flex:1,padding:"13px",background:"rgba(239,68,68,0.08)",border:"1.5px solid rgba(239,68,68,0.3)",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.red,cursor:clockBusy?"wait":"pointer",opacity:clockBusy?0.7:1}}>
+                        const sb=await getSB();
+                        const {data:{session:ssCo}}=await sb.auth.getSession();
+                        await fetch("/api/employee",{method:"POST",headers:{"Content-Type":"application/json",...(ssCo?.access_token?{"Authorization":"Bearer "+ssCo.access_token}:{})},body:JSON.stringify({_action:"clock",userId:empSafe.id,orgId:empSafe.orgId||null,locId:empSafe.locId||null,eventType:"clock_out"})});
+                        setSyncMsg("✓ Clocked out");setTimeout(()=>setSyncMsg(""),3000);
+                      }catch(e){ setSyncMsg("⚠ Saved locally — syncing..."); setTimeout(()=>setSyncMsg(""),4000); }
+                    }} style={{flex:1,padding:"13px",background:"rgba(239,68,68,0.08)",border:"1.5px solid rgba(239,68,68,0.3)",borderRadius:14,fontFamily:E.sans,fontWeight:700,fontSize:14,color:E.red,cursor:"pointer"}}>
                       👋 Clock Out
                     </button>
                   </div>
@@ -2456,28 +2256,17 @@ function EmpPortal({emp,onLogout,onProfileUpdate}){
           };
 
           const handleDelete = async(docId) => {
-            const ok = await empConfirm({
-              title: "Delete this document?",
-              body: "This can't be undone.",
-              confirmLabel: "Delete",
-              cancelLabel: "Keep",
-              danger: true,
-            });
-            if(!ok) return;
+            if(!confirm("Delete this document? This cannot be undone.")) return;
             try{
               const {data:{session:ss}}=await (await getSB()).auth.getSession();
-              const r = await fetch(`/api/documents?docId=${docId}`,{
+              await fetch(`/api/documents?docId=${docId}`,{
                 method:"DELETE",
                 headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{}
               });
-              if(!r.ok){
-                const d = await r.json().catch(()=>({}));
-                throw new Error(d.error || ("Delete failed ("+r.status+")"));
-              }
               setEmpDocs(p=>(p||[]).filter(d=>d.id!==docId));
               setDocMsg("✓ Document deleted");
               setTimeout(()=>setDocMsg(""),3000);
-            }catch(e){ console.warn("[doc delete]", e?.message); setDocMsg("Delete failed: "+e.message); setTimeout(()=>setDocMsg(""),4000); }
+            }catch(e){ setDocMsg("Delete failed"); }
           };
 
           return(
@@ -3014,7 +2803,7 @@ function LocationGateNone({ activeOrg, ownerProfile, setLiveLocations, toast, se
             }finally{setBusy(false);}
           }}
           style={{width:"100%",padding:"14px",background:busy?"rgba(224,123,0,0.5)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(224,123,0,0.3)"}}>
-          {busy?"Creating location...":"Create Location and Continue →"}
+          {busy?"Creating location...":"Create Location and Continue  to "}
         </button>
       </div>
     </div>
@@ -3072,7 +2861,6 @@ function NotificationsDropdown({
   const mobile = useIsMobile();
   const [expanded, setExpanded] = React.useState(null); // id of expanded notif
   const [actionBusy, setActionBusy] = React.useState(false);
-  const [actionErr, setActionErr] = React.useState("");
   const [replyText, setReplyText] = React.useState("");
   const [replyBusy, setReplyBusy] = React.useState(false);
   const [msgResult, setMsgResult] = React.useState("");
@@ -3126,11 +2914,7 @@ function NotificationsDropdown({
       if(n.type==="swap"      && setSwapRequests)     setSwapRequests(prev=>(prev||[]).filter(r=>r.id!==n.raw.id));
       if(n.type==="timeoff"   && setTimeOffRequests)  setTimeOffRequests(prev=>(prev||[]).filter(r=>r.id!==n.raw.id));
       setExpanded(null);
-    }catch(e){
-      console.warn("[notif action]", e?.message);
-      setActionErr(e?.message || "Failed to process request");
-      setTimeout(()=>setActionErr(""), 4000);
-    }
+    }catch(e){ alert("Error: "+e.message); }
     setActionBusy(false);
   };
 
@@ -3234,12 +3018,6 @@ function NotificationsDropdown({
                 {reason&&(
                   <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,padding:"7px 10px",background:"#fff",borderRadius:8,marginBottom:10,lineHeight:1.5,border:"1px solid "+O.border}}>
                     {reason}
-                  </div>
-                )}
-
-                {actionErr && (
-                  <div style={{fontFamily:O.sans,fontSize:12,color:O.red,padding:"7px 10px",background:"rgba(217,64,64,0.08)",border:"1px solid rgba(217,64,64,0.2)",borderRadius:8,marginBottom:10,fontWeight:600}}>
-                    {actionErr}
                   </div>
                 )}
 
@@ -3605,7 +3383,7 @@ function EmployeeDrawer({ emp, onClose, activeOrg, ownerProfile, setLiveEmps, ma
                   }catch(e){toast("Failed: "+e.message,"error");}
                   finally{setMsgBusy(false);}
                 }} style={{marginTop:8,padding:"8px 18px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:12,color:"#fff",cursor:msgBusy?"not-allowed":"pointer"}}>
-                  {msgBusy?"Sending…":"Send →"}
+                  {msgBusy?"Sending…":"Send  to "}
                 </button>
               </div>
             ):(
@@ -4276,7 +4054,6 @@ function SettingsTab({
 }) {
   const mobile = useIsMobile();
   const [confirmDeleteLocId,setConfirmDeleteLocId] = useState(null);
-  const [editLoc, setEditLoc] = useState(null); // location being edited, or null
   const card = {background:"#fff",border:"1px solid "+O.border,borderRadius:14,padding:"22px 24px",boxShadow:O.shadow};
   const label = {fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",display:"block",marginBottom:6,textTransform:"uppercase"};
   const input = {width:"100%",padding:"10px 13px",background:O.bg3,border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"};
@@ -4386,26 +4163,6 @@ function SettingsTab({
   };
 
   return (
-    <>
-    {editLoc && (
-      <EditLocationModal
-        location={editLoc}
-        onClose={()=>setEditLoc(null)}
-        onSaved={(updatedLoc)=>{
-          setLiveLocations(prev=>(prev||[]).map(l=>l.id===updatedLoc.id?updatedLoc:l));
-          try{
-            const orgId = updatedLoc.org_id;
-            if(orgId){
-              const cached = JSON.parse(localStorage.getItem("shiftpro_cached_locs_"+orgId) || "[]");
-              localStorage.setItem("shiftpro_cached_locs_"+orgId, JSON.stringify(cached.map(l=>l.id===updatedLoc.id?updatedLoc:l)));
-            }
-            const all = JSON.parse(localStorage.getItem("shiftpro_all_locs")||"[]");
-            localStorage.setItem("shiftpro_all_locs", JSON.stringify(all.map(l=>l.id===updatedLoc.id?updatedLoc:l)));
-          }catch(e){ console.warn("[editLoc cache]", e?.message); }
-        }}
-        toast={toast}
-      />
-    )}
     <div style={{animation:"fadeUp 0.3s ease",paddingBottom:40}}>
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:O.mono,fontSize:8,color:O.amber,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Settings</div>
@@ -4592,7 +4349,7 @@ function SettingsTab({
         <div style={{...card, gridColumn: mobile?"auto":"1 / -1"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
             <div style={sectionTitle}>📍 Locations</div>
-            <button onClick={()=>{ if(checkLocationLimit()) setAddLocOpen(true); }} style={{padding:"7px 14px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>
+            <button onClick={()=>setAddLocOpen(true)} style={{padding:"7px 14px",background:"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>
               + Add Location
             </button>
           </div>
@@ -4610,14 +4367,7 @@ function SettingsTab({
                     </div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontFamily:O.sans,fontWeight:700,fontSize:14,color:O.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loc.name}</div>
-                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:1,display:"flex",alignItems:"center",gap:6}}>
-                        <span>{loc.address||"No address set"}{loc.timezone?" - "+loc.timezone:""}</span>
-                        {loc.lat != null && loc.lng != null ? (
-                          <span style={{color:"#10b981",fontSize:9,fontWeight:700,letterSpacing:0.5}} title={"GPS: "+Number(loc.lat).toFixed(4)+", "+Number(loc.lng).toFixed(4)}>● GPS</span>
-                        ) : (
-                          <span style={{color:"#f59e0b",fontSize:9,fontWeight:700,letterSpacing:0.5}} title="No GPS coords — geofence disabled">○ NO GPS</span>
-                        )}
-                      </div>
+                      <div style={{fontFamily:O.mono,fontSize:9,color:O.textF,marginTop:1}}>{loc.address||"No address set"} {loc.timezone?" - "+loc.timezone:""}</div>
                     </div>
                     {isActive&&(
                       <span style={{fontFamily:O.mono,fontSize:8,color:O.amber,background:O.amberD,border:"1px solid "+O.amberB,borderRadius:20,padding:"3px 10px",letterSpacing:"0.5px",flexShrink:0}}>● ACTIVE</span>
@@ -4625,11 +4375,6 @@ function SettingsTab({
                     {!isActive&&!isConfirming&&(
                       <button onClick={()=>selectLocation(loc)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer",flexShrink:0}}>
                         Switch
-                      </button>
-                    )}
-                    {!isConfirming&&(
-                      <button onClick={()=>setEditLoc(loc)} style={{padding:"5px 10px",background:"none",border:"1px solid "+O.border,borderRadius:6,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer",flexShrink:0}} title="Edit location">
-                        ✎ Edit
                       </button>
                     )}
                     {!isConfirming&&(
@@ -4747,7 +4492,7 @@ function SettingsTab({
               <button
                 onClick={changePassword}
                 style={{width:"100%",padding:"10px",background:settingsPwBusy?"rgba(224,123,0,0.4)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:settingsPwBusy?"not-allowed":"pointer"}}>
-                {settingsPwBusy?"Updating…":"Update Password →"}
+                {settingsPwBusy?"Updating…":"Update Password  to "}
               </button>
             </div>
           )}
@@ -4768,7 +4513,6 @@ function SettingsTab({
 
       </div>
     </div>
-    </>
   );
 }
 
@@ -4881,192 +4625,6 @@ function AddLocationModal({
           }}
           style={{width:"100%",padding:"13px",background:addLocBusy?"rgba(8,145,178,0.4)":"linear-gradient(135deg,#0891b2,#0e7490)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:addLocBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(8,145,178,0.25)"}}>
           {addLocBusy?"Creating...":"Create Location and Switch"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  EDIT LOCATION MODAL — update address (auto-geocodes) + geofence radius
-// ═══════════════════════════════════════════════════════════════
-function EditLocationModal({ location, onClose, onSaved, toast }) {
-  const mobile = useIsMobile();
-  const [form, setForm] = useState({
-    name: location?.name || "",
-    address: location?.address || "",
-    timezone: location?.timezone || "America/Los_Angeles",
-    geofence_radius_m: location?.geofence_radius_m || 150,
-    lat: location?.lat ?? "",
-    lng: location?.lng ?? "",
-  });
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [manualCoords, setManualCoords] = useState(false);
-  const [addressChanged, setAddressChanged] = useState(false);
-
-  const originalAddress = location?.address || "";
-  const hasCoords = location?.lat != null && location?.lng != null;
-
-  const save = async () => {
-    if(!form.name.trim()){ setErr("Location name is required."); return; }
-    setBusy(true); setErr("");
-    try{
-      const sb = await getSB();
-      const { data: { session } } = await sb.auth.getSession();
-      const body = {
-        locationId: location.id,
-        name: form.name.trim(),
-        address: form.address.trim(),
-        timezone: form.timezone,
-        geofence_radius_m: parseInt(form.geofence_radius_m) || 150,
-      };
-      // If user manually entered coords, send them; otherwise the server re-geocodes when address changes
-      if(manualCoords){
-        const latNum = parseFloat(form.lat);
-        const lngNum = parseFloat(form.lng);
-        if(isNaN(latNum) || isNaN(lngNum)){
-          setErr("Manual coordinates must be valid numbers.");
-          setBusy(false); return;
-        }
-        if(latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180){
-          setErr("Coordinates out of range (lat: -90 to 90, lng: -180 to 180).");
-          setBusy(false); return;
-        }
-        body.lat = latNum;
-        body.lng = lngNum;
-      }
-      const res = await fetch("/api/location", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...(session?.access_token?{"Authorization":"Bearer "+session.access_token}:{}) },
-        body: JSON.stringify(body),
-      });
-      const result = await res.json();
-      if(!res.ok) throw new Error(result.error || "Update failed");
-      if(onSaved) onSaved(result.location);
-      if(toast){
-        toast(result.geocoded ? "Location saved — GPS coordinates detected from address ✓" : "Location saved ✓", "success");
-      }
-      onClose();
-    }catch(e){
-      console.warn("[EditLocation save]", e?.message);
-      setErr(e?.message || "Failed to save location.");
-    }finally{ setBusy(false); }
-  };
-
-  return (
-    <div
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:600,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:20,backdropFilter:"blur(6px)"}}
-      onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
-      <div style={{background:"#fff",borderRadius:mobile?"20px 20px 0 0":"16px",padding:"28px",width:"100%",maxWidth:mobile?"100%":480,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.2)",animation:"fadeUp 0.3s ease"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-          <div>
-            <div style={{fontFamily:O.mono,fontSize:8,color:O.cyan,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Edit Location</div>
-            <div style={{fontFamily:O.sans,fontWeight:700,fontSize:18,color:O.text}}>{location?.name || "Location"}</div>
-          </div>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:O.textF,padding:"4px 10px"}}>×</button>
-        </div>
-
-        <div style={{background:hasCoords?"rgba(16,185,129,0.06)":"rgba(245,158,11,0.08)",border:"1px solid "+(hasCoords?"rgba(16,185,129,0.2)":"rgba(245,158,11,0.25)"),borderRadius:8,padding:"10px 14px",marginBottom:18,display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:16}}>{hasCoords?"📍":"⚠️"}</span>
-          <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.5}}>
-            {hasCoords
-              ? <>GPS locked at <strong>{Number(location.lat).toFixed(5)}, {Number(location.lng).toFixed(5)}</strong>. Geofence active.</>
-              : <>No GPS coordinates set. Clock-in GPS check is <strong>disabled</strong> for this location.</>
-            }
-          </div>
-        </div>
-
-        {/* Name */}
-        <div style={{marginBottom:12}}>
-          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Location Name *</div>
-          <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}
-            style={{width:"100%",padding:"10px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
-            onFocus={e=>e.target.style.borderColor=O.cyan} onBlur={e=>e.target.style.borderColor=O.border}/>
-        </div>
-
-        {/* Address */}
-        <div style={{marginBottom:12}}>
-          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Street Address</div>
-          <input value={form.address}
-            onChange={e=>{
-              const v = e.target.value;
-              setForm(p=>({...p,address:v}));
-              setAddressChanged(v.trim() !== originalAddress.trim());
-            }}
-            placeholder="123 Main St, Newport, OR 97365"
-            style={{width:"100%",padding:"10px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:13,color:O.text,outline:"none",boxSizing:"border-box"}}
-            onFocus={e=>e.target.style.borderColor=O.cyan} onBlur={e=>e.target.style.borderColor=O.border}/>
-          <div style={{fontFamily:O.sans,fontSize:11,color:addressChanged?O.cyan:O.textF,marginTop:5,lineHeight:1.45}}>
-            {addressChanged
-              ? "✨ Address changed — GPS coordinates will auto-update when you save."
-              : "Paste a full address. GPS coordinates lock in automatically from Google Maps data."}
-          </div>
-        </div>
-
-        {/* Timezone */}
-        <div style={{marginBottom:12}}>
-          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Timezone</div>
-          <select value={form.timezone} onChange={e=>setForm(p=>({...p,timezone:e.target.value}))}
-            style={{width:"100%",padding:"10px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:12,color:O.text,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
-            {[
-              ["America/Los_Angeles","Pacific Time (PT)"],
-              ["America/Denver","Mountain Time (MT)"],
-              ["America/Chicago","Central Time (CT)"],
-              ["America/New_York","Eastern Time (ET)"],
-              ["America/Anchorage","Alaska (AKT)"],
-              ["Pacific/Honolulu","Hawaii (HST)"]
-            ].map(([val,label])=>(
-              <option key={val} value={val}>{label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Geofence radius */}
-        <div style={{marginBottom:12}}>
-          <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase",display:"flex",justifyContent:"space-between"}}>
-            <span>Geofence Radius</span>
-            <span style={{color:O.cyan}}>{form.geofence_radius_m}m</span>
-          </div>
-          <input type="range" min={50} max={500} step={10} value={form.geofence_radius_m}
-            onChange={e=>setForm(p=>({...p,geofence_radius_m:parseInt(e.target.value)}))}
-            style={{width:"100%",accentColor:O.cyan}}/>
-          <div style={{fontFamily:O.sans,fontSize:11,color:O.textF,marginTop:4,lineHeight:1.45}}>
-            Employees must be within this distance to clock in. 150m is the recommended default.
-          </div>
-        </div>
-
-        {/* Manual coordinates (advanced) */}
-        <div style={{marginBottom:18}}>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontFamily:O.sans,fontSize:12,color:O.textD,cursor:"pointer",marginBottom:manualCoords?10:0}}>
-            <input type="checkbox" checked={manualCoords} onChange={e=>setManualCoords(e.target.checked)} style={{cursor:"pointer"}}/>
-            Set GPS coordinates manually
-          </label>
-          {manualCoords && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Latitude</div>
-                <input value={form.lat} onChange={e=>setForm(p=>({...p,lat:e.target.value}))} placeholder="44.6261"
-                  style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.mono,fontSize:12,color:O.text,outline:"none",boxSizing:"border-box"}}/>
-              </div>
-              <div>
-                <div style={{fontFamily:O.mono,fontSize:8,color:O.textF,letterSpacing:"1.5px",marginBottom:5,textTransform:"uppercase"}}>Longitude</div>
-                <input value={form.lng} onChange={e=>setForm(p=>({...p,lng:e.target.value}))} placeholder="-124.0529"
-                  style={{width:"100%",padding:"9px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.mono,fontSize:12,color:O.text,outline:"none",boxSizing:"border-box"}}/>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {err && (
-          <div style={{fontFamily:O.sans,fontSize:12,color:O.red,marginBottom:12,padding:"7px 10px",background:O.redD,border:"1px solid rgba(217,64,64,0.2)",borderRadius:6}}>{err}</div>
-        )}
-
-        <button
-          onClick={save}
-          disabled={busy}
-          style={{width:"100%",padding:"13px",background:busy?"rgba(8,145,178,0.4)":"linear-gradient(135deg,#0891b2,#0e7490)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:busy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(8,145,178,0.25)"}}>
-          {busy ? "Saving..." : "Save Location"}
         </button>
       </div>
     </div>
@@ -5235,7 +4793,7 @@ function InviteModal({
                 }finally{setInviteBusy(false);}
               }}
               style={{width:"100%",padding:"13px",background:inviteBusy?"rgba(124,58,237,0.4)":"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:inviteBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(124,58,237,0.25)"}}>
-              {inviteBusy?"Sending...":"Send Invite →"}
+              {inviteBusy?"Sending...":"Send Invite  to "}
             </button>
           </div>
         )}
@@ -5331,326 +4889,10 @@ function BroadcastModal({
 }
 
 // ══════════════════════════════════════════════════
-//  SUBSCRIPTION BANNER — sits at top of OwnerCmd
-//  Shows trial countdown, plan info, or upgrade prompt
-// ══════════════════════════════════════════════════
-function SubscriptionBanner({ subStatus, onUpgrade, onManageBilling, locationsCount }) {
-  if(!subStatus) return null; // still loading
-
-  const planLabels = {
-    starter: "Starter",
-    pro: "Pro",
-    essentials: "Starter", // legacy alias
-    enterprise: "Enterprise",
-  };
-
-  // Calculate trial days remaining
-  const trialDaysLeft = subStatus.trialEndsAt
-    ? Math.max(0, Math.ceil((new Date(subStatus.trialEndsAt) - Date.now()) / 86400000))
-    : null;
-
-  // ── State 1: TRIALING — show countdown with upgrade CTA ──
-  if(subStatus.status === "trialing" && trialDaysLeft !== null){
-    const urgent = trialDaysLeft <= 2;
-    return (
-      <div style={{
-        background: urgent
-          ? "linear-gradient(135deg, rgba(245,158,11,0.12), rgba(239,68,68,0.08))"
-          : "linear-gradient(135deg, rgba(20,184,166,0.08), rgba(14,165,233,0.06))",
-        border: "1px solid " + (urgent ? "rgba(245,158,11,0.35)" : "rgba(20,184,166,0.25)"),
-        borderRadius: 12,
-        padding: "12px 18px",
-        margin: "12px 16px 0",
-        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap"
-      }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontFamily: O.sans, fontWeight: 700, fontSize: 13.5, color: urgent ? "#c2410c" : "#0f766e", marginBottom: 2 }}>
-            {urgent ? "⏰ " : "✨ "}
-            {trialDaysLeft === 0 ? "Trial ends today" : trialDaysLeft === 1 ? "1 day left in your trial" : `${trialDaysLeft} days left in your free trial`}
-          </div>
-          <div style={{ fontFamily: O.sans, fontSize: 12, color: O.textD, lineHeight: 1.4 }}>
-            {subStatus.plan
-              ? `Currently on ${planLabels[subStatus.plan] || subStatus.plan}. Trial ends ${new Date(subStatus.trialEndsAt).toLocaleDateString("en-US", { month:"short", day:"numeric" })}.`
-              : "After trial, billing starts automatically. Cancel anytime."}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onUpgrade} style={{
-            padding: "9px 18px",
-            background: "linear-gradient(135deg, #e07b00, #c96800)",
-            border: "none", borderRadius: 9,
-            fontFamily: O.sans, fontWeight: 700, fontSize: 12.5, color: "#fff",
-            cursor: "pointer",
-            boxShadow: "0 4px 14px rgba(224,123,0,0.3)"
-          }}>
-            See Plans
-          </button>
-          <button onClick={onManageBilling} style={{
-            padding: "9px 14px",
-            background: "transparent", border: "1px solid " + O.border, borderRadius: 9,
-            fontFamily: O.sans, fontWeight: 600, fontSize: 12.5, color: O.textD,
-            cursor: "pointer"
-          }}>
-            Manage
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── State 2: ACTIVE — show plan badge with manage button ──
-  if(subStatus.status === "active"){
-    const planName = planLabels[subStatus.plan] || "Active";
-    return (
-      <div style={{
-        background: "rgba(16,185,129,0.06)",
-        border: "1px solid rgba(16,185,129,0.2)",
-        borderRadius: 12,
-        padding: "10px 18px",
-        margin: "12px 16px 0",
-        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap"
-      }}>
-        <div style={{ flex: 1, minWidth: 200, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{
-            padding: "3px 10px",
-            background: "linear-gradient(135deg, #10b981, #059669)",
-            borderRadius: 20,
-            fontFamily: O.mono, fontSize: 9, fontWeight: 700, color: "#fff",
-            letterSpacing: 1.5, textTransform: "uppercase"
-          }}>
-            ● {planName}
-          </span>
-          <span style={{ fontFamily: O.sans, fontSize: 12.5, color: O.textD }}>
-            {subStatus.seats || locationsCount || 1} location{(subStatus.seats || locationsCount || 1) !== 1 ? "s" : ""} · billed monthly
-          </span>
-        </div>
-        <button onClick={onManageBilling} style={{
-          padding: "8px 14px",
-          background: "transparent", border: "1px solid " + O.border, borderRadius: 9,
-          fontFamily: O.sans, fontWeight: 600, fontSize: 12, color: O.textD,
-          cursor: "pointer"
-        }}>
-          Manage Billing
-        </button>
-      </div>
-    );
-  }
-
-  // ── State 3: PAST_DUE — payment failed, urgent action needed ──
-  if(subStatus.status === "past_due"){
-    return (
-      <div style={{
-        background: "linear-gradient(135deg, rgba(239,68,68,0.1), rgba(220,38,38,0.06))",
-        border: "1px solid rgba(239,68,68,0.35)",
-        borderRadius: 12,
-        padding: "12px 18px",
-        margin: "12px 16px 0",
-        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap"
-      }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontFamily: O.sans, fontWeight: 700, fontSize: 13.5, color: "#dc2626", marginBottom: 2 }}>
-            ⚠ Payment failed
-          </div>
-          <div style={{ fontFamily: O.sans, fontSize: 12, color: O.textD, lineHeight: 1.4 }}>
-            Update your card to keep using ShiftPro. Your team's data is safe.
-          </div>
-        </div>
-        <button onClick={onManageBilling} style={{
-          padding: "10px 18px",
-          background: "linear-gradient(135deg, #ef4444, #dc2626)",
-          border: "none", borderRadius: 9,
-          fontFamily: O.sans, fontWeight: 700, fontSize: 12.5, color: "#fff",
-          cursor: "pointer",
-          boxShadow: "0 4px 14px rgba(239,68,68,0.3)"
-        }}>
-          Update Payment
-        </button>
-      </div>
-    );
-  }
-
-  // ── State 4: CANCELED or NONE — show upgrade prompt (Free tier) ──
-  if(subStatus.status === "canceled" || subStatus.status === "none" || !subStatus.status){
-    return (
-      <div style={{
-        background: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(99,102,241,0.06))",
-        border: "1px solid rgba(245,158,11,0.25)",
-        borderRadius: 12,
-        padding: "12px 18px",
-        margin: "12px 16px 0",
-        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap"
-      }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontFamily: O.sans, fontWeight: 700, fontSize: 13.5, color: O.text, marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{
-              padding: "2px 8px",
-              background: O.bg3,
-              border: "1px solid " + O.border,
-              borderRadius: 14,
-              fontFamily: O.mono, fontSize: 8, fontWeight: 700, color: O.textD,
-              letterSpacing: 1.2, textTransform: "uppercase"
-            }}>FREE</span>
-            <span>Limited to 5 employees · 1 location</span>
-          </div>
-          <div style={{ fontFamily: O.sans, fontSize: 12, color: O.textD, lineHeight: 1.4 }}>
-            Upgrade to unlock unlimited employees, GPS geofence, shift swap approvals, and more.
-          </div>
-        </div>
-        <button onClick={onUpgrade} style={{
-          padding: "10px 18px",
-          background: "linear-gradient(135deg, #e07b00, #c96800)",
-          border: "none", borderRadius: 9,
-          fontFamily: O.sans, fontWeight: 700, fontSize: 12.5, color: "#fff",
-          cursor: "pointer",
-          boxShadow: "0 4px 14px rgba(224,123,0,0.3)"
-        }}>
-          Upgrade Now
-        </button>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-// ══════════════════════════════════════════════════
-//  UPGRADE MODAL — pricing tier picker that opens Stripe Checkout
-// ══════════════════════════════════════════════════
-function UpgradeModal({ open, onClose, onSelectPlan, busy, locationsCount }) {
-  const mobile = useIsMobile();
-  if(!open) return null;
-
-  const tiers = [
-    {
-      id: "starter",
-      name: "Starter",
-      desc: "Single-location small business",
-      price: 19,
-      color: "#14b8a6",
-      features: [
-        "Unlimited employees",
-        "GPS geofence on clock-in",
-        "Shift swap approval workflow",
-        "Time-off requests",
-        "Push + email notifications",
-        "Document storage",
-        "1-year history",
-      ],
-      pop: false,
-    },
-    {
-      id: "pro",
-      name: "Pro",
-      desc: "Growing multi-location",
-      price: 49,
-      color: "#e07b00",
-      features: [
-        "Everything in Starter",
-        "Unlimited locations",
-        "Multi-location swap permissions",
-        "Payroll exports (CSV, ADP, Gusto)",
-        "Department + role permissions",
-        "Hiring portal",
-        "Auto-publish recurring schedules",
-        "Labor cost forecasting",
-        "Priority support",
-      ],
-      pop: true,
-    },
-  ];
-
-  const totalLocations = Math.max(1, locationsCount || 1);
-
-  return (
-    <div onClick={(e)=>{ if(e.target===e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(15,12,41,0.62)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", display:"flex", alignItems:mobile?"flex-end":"center", justifyContent:"center", zIndex:10000, padding: mobile?0:24, animation:"fadeIn 0.18s ease" }}>
-      <div onClick={(e)=>e.stopPropagation()} role="dialog" aria-modal="true"
-        style={{ background:"#fff", borderRadius: mobile?"22px 22px 0 0":18, padding: mobile?"28px 22px":"36px 32px", maxWidth: 760, width:"100%", maxHeight: "92vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.35)", animation:"confirmPop 0.22s cubic-bezier(.22,1,.36,1)" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24 }}>
-          <div>
-            <div style={{ fontFamily:O.mono, fontSize:9, color:"#e07b00", letterSpacing:2, fontWeight:700, marginBottom:6, textTransform:"uppercase" }}>Upgrade</div>
-            <div style={{ fontFamily:O.sans, fontWeight:800, fontSize:22, color:O.text, letterSpacing:"-0.01em", marginBottom:6 }}>Choose your plan</div>
-            <div style={{ fontFamily:O.sans, fontSize:13, color:O.textD, lineHeight:1.5 }}>
-              You have <strong style={{color:O.text}}>{totalLocations} location{totalLocations!==1?"s":""}</strong>. Pricing is per location, with unlimited employees on every paid plan.
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background:"none", border:"none", fontSize:24, cursor:"pointer", color:O.textF, padding:"4px 10px", lineHeight:1 }}>×</button>
-        </div>
-
-        <div style={{ display:"grid", gridTemplateColumns: mobile?"1fr":"1fr 1fr", gap:16, marginBottom:20 }}>
-          {tiers.map(t => {
-            const monthly = t.price * totalLocations;
-            return (
-              <div key={t.id} style={{
-                padding: 24,
-                background: t.pop ? "linear-gradient(170deg, #fff, rgba(224,123,0,0.04))" : "#fff",
-                border: "1.5px solid " + (t.pop ? "rgba(224,123,0,0.32)" : O.border),
-                borderRadius: 14,
-                position:"relative",
-                boxShadow: t.pop ? "0 12px 32px rgba(224,123,0,0.12)" : "none",
-              }}>
-                {t.pop && (
-                  <div style={{
-                    position:"absolute", top:-11, left:"50%", transform:"translateX(-50%)",
-                    padding:"4px 12px", background:"linear-gradient(135deg, #e07b00, #c96800)",
-                    borderRadius:20, fontFamily:O.mono, fontSize:8, fontWeight:700, color:"#fff",
-                    letterSpacing:1.6, textTransform:"uppercase"
-                  }}>Most Popular</div>
-                )}
-                <div style={{ fontFamily:O.sans, fontWeight:800, fontSize:18, color:t.color, marginBottom:4, letterSpacing:"-0.01em" }}>{t.name}</div>
-                <div style={{ fontFamily:O.sans, fontSize:12, color:O.textD, marginBottom:18 }}>{t.desc}</div>
-
-                <div style={{ display:"flex", alignItems:"baseline", gap:5, marginBottom:6 }}>
-                  <span style={{ fontFamily:O.sans, fontWeight:900, fontSize:36, color:O.text, letterSpacing:"-0.03em", fontVariantNumeric:"tabular-nums", lineHeight:1 }}>${t.price}</span>
-                  <span style={{ fontFamily:O.mono, fontSize:11, color:O.textD }}>/mo · per location</span>
-                </div>
-                {totalLocations > 1 && (
-                  <div style={{ fontFamily:O.mono, fontSize:10, color:O.textF, marginBottom:18 }}>
-                    {totalLocations} locations × ${t.price} = <strong style={{color:O.text}}>${monthly}/mo</strong>
-                  </div>
-                )}
-                {totalLocations === 1 && <div style={{ marginBottom:18 }}/>}
-
-                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20, minHeight:180 }}>
-                  {t.features.map((f,fi) => (
-                    <div key={fi} style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-                      <span style={{ color:t.color, flexShrink:0, marginTop:1, fontWeight:700, fontSize:12 }}>✓</span>
-                      <span style={{ fontFamily:O.sans, fontSize:12.5, color: f.startsWith("Everything in") ? O.textD : O.text, lineHeight:1.4, fontStyle: f.startsWith("Everything in") ? "italic" : "normal", fontWeight: f.startsWith("Everything in") ? 600 : 400 }}>{f}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <button disabled={busy} onClick={()=>onSelectPlan(t.id)} style={{
-                  width:"100%", padding:"12px",
-                  background: busy ? "rgba(0,0,0,0.1)" : (t.pop ? "linear-gradient(135deg, #e07b00, #c96800)" : "#fff"),
-                  border: t.pop ? "none" : "1.5px solid "+O.border,
-                  borderRadius:10,
-                  fontFamily:O.sans, fontWeight:700, fontSize:13.5,
-                  color: busy ? O.textF : (t.pop ? "#fff" : O.text),
-                  cursor: busy ? "wait" : "pointer",
-                  boxShadow: t.pop && !busy ? "0 4px 14px rgba(224,123,0,0.3)" : "none"
-                }}>
-                  {busy ? "Loading…" : "Start 7-Day Trial"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ padding:"12px 16px", background:O.bg3, borderRadius:10, fontFamily:O.sans, fontSize:11.5, color:O.textD, lineHeight:1.5, textAlign:"center" }}>
-          7-day free trial · No charge until trial ends · Cancel anytime in two clicks · Need 5+ locations? <a href="mailto:hello@shiftpro.ai?subject=Enterprise%20inquiry" style={{ color:"#e07b00", fontWeight:600 }}>Contact us about Enterprise</a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════
 //  OWNER COMMAND — WARM THEME v2
 // ══════════════════════════════════════════════════
 function OwnerCmd({onLogout, ownerInitialProfile}){
   const { toasts, toast, removeToast } = useToast();
-  const { confirm, ConfirmModalNode } = useConfirm();
   const mobile = useIsMobile();
 
   const [showConfetti, setShowConfetti] = React.useState(false);
@@ -5671,13 +4913,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [activeLocation,setActiveLocation] = useState(null);
   const [liveShifts,setLiveShifts] = useState(null);
   const [livePayroll,setLivePayroll] = useState(null);
-
-  // ── Subscription state ──
-  // Loaded via /api/stripe?action=status on owner mount.
-  // Possible statuses: trialing | active | past_due | canceled | none
-  const [subStatus,setSubStatus] = useState(null); // null=loading, then object: { status, plan, seats, trialEndsAt }
-  const [showUpgrade,setShowUpgrade] = useState(false);
-  const [upgradeBusy,setUpgradeBusy] = useState(false);
 
   // ── Location gate state ──
   const [locationGate,setLocationGate] = useState(null); // null=loading, "none"=no locs, "pick"=pick, "ready"=ready
@@ -5792,119 +5027,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const [staffMsgsLoaded,setStaffMsgsLoaded] = useState(false);
 
   useEffect(()=>{ const t=setInterval(()=>setNow(new Date()),10000); return()=>clearInterval(t); },[]);
-
-  // ── Subscription status fetch ──
-  // Pings /api/stripe?action=status whenever activeOrg changes.
-  // If unsuccessful, sets a "none" status so the banner shows the upgrade CTA.
-  useEffect(()=>{
-    const orgId = activeOrg?.id || ownerProfile?.org_id;
-    if(!orgId) return;
-    let cancelled = false;
-    (async()=>{
-      try{
-        const sb = await getSB();
-        const { data: { session } } = await sb.auth.getSession();
-        const res = await fetch("/api/stripe", {
-          method:"POST",
-          headers:{ "Content-Type":"application/json", ...(session?.access_token?{ "Authorization":"Bearer "+session.access_token }:{}) },
-          body: JSON.stringify({ action: "status", orgId }),
-        });
-        if(!res.ok){
-          if(!cancelled) setSubStatus({ status:"none", plan:null, seats:0, trialEndsAt:null });
-          return;
-        }
-        const data = await res.json();
-        if(!cancelled) setSubStatus(data);
-      }catch(e){
-        console.warn("[sub status]", e?.message);
-        if(!cancelled) setSubStatus({ status:"none", plan:null, seats:0, trialEndsAt:null });
-      }
-    })();
-    return ()=>{ cancelled = true; };
-  }, [activeOrg?.id, ownerProfile?.org_id]);
-
-  // Open Stripe Checkout for a given plan
-  const handleUpgrade = async(planId) => {
-    const orgId = activeOrg?.id || ownerProfile?.org_id;
-    if(!orgId){ toast("No company found","error"); return; }
-    setUpgradeBusy(true);
-    try{
-      const sb = await getSB();
-      const { data: { session } } = await sb.auth.getSession();
-      const res = await fetch("/api/stripe", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json", ...(session?.access_token?{ "Authorization":"Bearer "+session.access_token }:{}) },
-        body: JSON.stringify({
-          action: "checkout",
-          orgId,
-          email: ownerProfile?.email || "",
-          orgName: activeOrg?.name || ownerOrg?.name || "",
-          planId,
-          seats: liveLocations?.length || 1,
-        }),
-      });
-      const data = await res.json();
-      if(!res.ok || !data.url) throw new Error(data.error || "Checkout failed");
-      window.location.href = data.url;
-    }catch(e){
-      console.warn("[upgrade]", e?.message);
-      toast("Upgrade failed: "+e.message,"error");
-    }finally{ setUpgradeBusy(false); }
-  };
-
-  // Open Stripe billing portal (manage subscription, update card, cancel)
-  const handleManageBilling = async() => {
-    const orgId = activeOrg?.id || ownerProfile?.org_id;
-    if(!orgId){ toast("No company found","error"); return; }
-    try{
-      const sb = await getSB();
-      const { data: { session } } = await sb.auth.getSession();
-      const res = await fetch("/api/stripe", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json", ...(session?.access_token?{ "Authorization":"Bearer "+session.access_token }:{}) },
-        body: JSON.stringify({
-          action: "portal",
-          orgId,
-          email: ownerProfile?.email || "",
-          orgName: activeOrg?.name || ownerOrg?.name || "",
-        }),
-      });
-      const data = await res.json();
-      if(!res.ok || !data.url) throw new Error(data.error || "Portal failed");
-      window.location.href = data.url;
-    }catch(e){
-      console.warn("[manage billing]", e?.message);
-      toast("Couldn't open billing portal: "+e.message,"error");
-    }
-  };
-
-  // ── Seat-limit enforcement ──
-  // On Free tier (status: none/canceled) cap at 5 employees.
-  // Returns true if the action is allowed, false if blocked (and shows upgrade prompt).
-  const checkSeatLimit = () => {
-    const isFree = !subStatus || subStatus.status === "none" || subStatus.status === "canceled";
-    if(!isFree) return true; // Paid plans have unlimited employees
-    const empCount = (liveEmps || []).filter(e => e.status !== "inactive").length;
-    if(empCount >= 5){
-      toast("Free plan is limited to 5 employees. Upgrade to add more.","error");
-      setShowUpgrade(true);
-      return false;
-    }
-    return true;
-  };
-
-  // Free tier also limits to 1 location
-  const checkLocationLimit = () => {
-    const isFree = !subStatus || subStatus.status === "none" || subStatus.status === "canceled";
-    if(!isFree) return true;
-    const locCount = (liveLocations || []).length;
-    if(locCount >= 1){
-      toast("Free plan is limited to 1 location. Upgrade for unlimited locations.","error");
-      setShowUpgrade(true);
-      return false;
-    }
-    return true;
-  };
 
   // Safety fallback: if data still null after 8s, resolve to empty (prevents infinite skeletons)
   useEffect(()=>{
@@ -6474,14 +5596,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   };
 
   const removeShift = async(shiftId, weekStart) => {
-    const ok = await confirm({
-      title: "Delete this shift?",
-      body: "This can't be undone. If the schedule is already published, the employee will see it disappear.",
-      confirmLabel: "Delete",
-      cancelLabel: "Keep",
-      danger: true,
-    });
-    if(!ok) return;
     setLiveShifts(prev=>(prev||[]).filter(s=>s.id!==shiftId));
     try{
       const sb2=await getSB();
@@ -6491,13 +5605,8 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({_action:"delete",id:shiftId}),
       });
-      if(!res.ok){
-        const d = await res.json().catch(()=>({}));
-        throw new Error(d.error || ("Delete failed ("+res.status+")"));
-      }
-      toast("Shift deleted","success");
+      if(!res.ok) throw new Error("Delete failed");
     }catch(e){
-      console.warn("[removeShift]", e?.message);
       if(ownerProfile?.org_id||activeOrg?.id) await loadShifts(ownerProfile?.org_id||activeOrg?.id, weekStart, activeLocation?.id||null);
       toast("Failed to remove shift","error");
     }
@@ -6506,23 +5615,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
   const publishSchedule = async(weekStart) => {
     const orgId = ownerProfile?.org_id||activeOrg?.id;
     if(!orgId){ toast("No organization found","error"); return; }
-    // Count affected employees for the confirmation message
-    const weekShifts = (liveShifts||[]).filter(s=>s.week_start===weekStart);
-    const uniqueEmps = new Set(weekShifts.map(s=>s.user_id).filter(Boolean));
-    const empCount = uniqueEmps.size;
-    const shiftCount = weekShifts.length;
-    if(shiftCount===0){ toast("No shifts to publish for this week","error"); return; }
-    const alreadyPublished = schedPublished;
-    const ok = await confirm({
-      title: alreadyPublished ? "Republish schedule?" : "Publish schedule to team?",
-      body: alreadyPublished
-        ? `This will re-notify ${empCount} employee${empCount!==1?"s":""} via push and email. Use sparingly — frequent renotifications train your team to ignore ShiftPro alerts.`
-        : `${shiftCount} shift${shiftCount!==1?"s":""} will be sent to ${empCount} employee${empCount!==1?"s":""} via push and email.`,
-      confirmLabel: alreadyPublished ? "Republish" : "Publish",
-      cancelLabel: "Cancel",
-      danger: false,
-    });
-    if(!ok) return;
     try{
       const sb2=await getSB();
       const {data:{session:ss}}=await sb2.auth.getSession();
@@ -6531,20 +5623,17 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({_action:"publish",orgId,weekStart}),
       });
-      const result=await res.json().catch(()=>({}));
+      const result=await res.json();
       if(!res.ok) throw new Error(result.error||"Publish failed ("+res.status+")");
       // Update local state immediately — mark all this week's shifts as published
       setLiveShifts(prev=>(prev||[]).map(s=>s.week_start===weekStart?{...s,status:"published"}:s));
       setSchedPublished(true);
       setShowConfetti(true);
       toast("Schedule published to all employees ✓","success");
-    }catch(e){ console.warn("[publishSchedule]", e?.message); toast("Publish failed: "+e.message,"error"); }
+    }catch(e){ toast("Publish failed: "+e.message,"error"); }
   };
 
-  const [copyBusy, setCopyBusy] = useState(false);
   const copyLastWeek = async () => {
-    if(copyBusy) return; // Prevent double-click duplicates
-    setCopyBusy(true);
     try{
       const sb2 = await getSB();
       const {data:{session:ss}}=await sb2.auth.getSession();
@@ -6558,10 +5647,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{},
         cache:"no-store",
       });
-      if(!fetchRes.ok){
-        const d = await fetchRes.json().catch(()=>({}));
-        throw new Error(d.error || ("Load failed ("+fetchRes.status+")"));
-      }
       const fetchData=await fetchRes.json();
       const lastWeekShifts=fetchData.shifts||[];
       if(!lastWeekShifts.length){ toast("No shifts found from last week","error"); return; }
@@ -6590,11 +5675,10 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
         headers:{"Content-Type":"application/json",...(ss?.access_token?{"Authorization":"Bearer "+ss.access_token}:{})},
         body:JSON.stringify({_action:"copyLastWeek",shifts:newShifts}),
       });
-      if(!copyRes.ok){ const d=await copyRes.json().catch(()=>({})); throw new Error(d.error||"Copy failed"); }
+      if(!copyRes.ok){ const d=await copyRes.json(); throw new Error(d.error||"Copy failed"); }
       await loadShifts(orgId, thisMon, null); // reload without location filter to show all
       toast("✓ Copied "+newShifts.length+" shift"+(newShifts.length!==1?"s":"")+" from last week","success");
-    }catch(e){ console.warn("[copyLastWeek]", e?.message); toast("Copy failed: "+e.message,"error"); }
-    finally{ setCopyBusy(false); }
+    }catch(e){ toast("Copy failed: "+e.message,"error"); }
   };
 
   const persistTab = (t) => {
@@ -6630,24 +5714,6 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
     <div style={{minHeight:"100vh",background:O.bg,fontFamily:O.sans,color:O.text}}>
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast}/>
-      {ConfirmModalNode}
-
-      {/* Subscription banner — only shows when subStatus is loaded */}
-      <SubscriptionBanner
-        subStatus={subStatus}
-        onUpgrade={()=>setShowUpgrade(true)}
-        onManageBilling={handleManageBilling}
-        locationsCount={liveLocations?.length || 0}
-      />
-
-      {/* Upgrade modal */}
-      <UpgradeModal
-        open={showUpgrade}
-        onClose={()=>setShowUpgrade(false)}
-        onSelectPlan={handleUpgrade}
-        busy={upgradeBusy}
-        locationsCount={liveLocations?.length || 0}
-      />
 
       {showConfetti && <ConfettiOverlay onDone={()=>setShowConfetti(false)}/>}
 
@@ -6788,7 +5854,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
               }catch(e){setAddOrgErr(e.message||"Failed to create company.");}
               finally{setAddOrgBusy(false);}
             }} style={{width:"100%",padding:"14px",background:addOrgBusy?"rgba(224,123,0,0.5)":"linear-gradient(135deg,#e07b00,#c96800)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:15,color:"#fff",cursor:addOrgBusy?"not-allowed":"pointer",boxShadow:"0 4px 16px rgba(224,123,0,0.3)"}}>
-              {addOrgBusy?"Creating...":"Create Company →"}
+              {addOrgBusy?"Creating...":"Create Company  to "}
             </button>
           </div>
         </div>
@@ -7151,7 +6217,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       {liveLocations.length>1&&(
                         <button onClick={()=>setLocSwitcherOpen(true)} style={{padding:"5px 12px",background:O.bg3,border:"1px solid "+O.border,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.textD,cursor:"pointer"}}>Switch</button>
                       )}
-                      <button onClick={()=>{ if(checkLocationLimit()) setAddLocOpen(true); }} style={{padding:"5px 12px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.amber,cursor:"pointer"}}>+ Add Location</button>
+                      <button onClick={()=>setAddLocOpen(true)} style={{padding:"5px 12px",background:O.amberD,border:"1px solid "+O.amberB,borderRadius:7,fontFamily:O.sans,fontSize:11,fontWeight:600,color:O.amber,cursor:"pointer"}}>+ Add Location</button>
                     </div>
                   </div>
 
@@ -7368,7 +6434,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{display:"flex",flexDirection:"column",gap:8}}>
                           {[
                             {icon:"📅",label:"Build Schedule",color:O.amber,fn:()=>setTab("schedule")},
-                            {icon:"👥",label:"Invite Employee",color:O.purple,fn:()=>{ if(checkSeatLimit()) setShowInvite(true); }},
+                            {icon:"👥",label:"Invite Employee",color:O.purple,fn:()=>setShowInvite(true)},
                             {icon:"💵",label:"View Payroll",color:O.green,fn:()=>setTab("roi")},
                             {icon:"📣",label:"Message Team",color:O.red,fn:()=>setBroadcastOpen(true)},
                           ].map(a=>(
@@ -7434,7 +6500,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                           <div style={{textAlign:"center",padding:"20px 0"}}>
                             <div style={{fontSize:32,marginBottom:8}}>👥</div>
                             <div style={{fontFamily:O.sans,fontSize:13,color:O.textD,marginBottom:10}}>No employees yet</div>
-                            <button onClick={()=>{ if(checkSeatLimit()) setShowInvite(true); }} style={{padding:"7px 16px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>Invite First Employee</button>
+                            <button onClick={()=>setShowInvite(true)} style={{padding:"7px 16px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:8,fontFamily:O.sans,fontWeight:600,fontSize:12,color:"#fff",cursor:"pointer"}}>Invite First Employee</button>
                           </div>
                         ):(
                           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -7465,7 +6531,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                         <div style={{fontFamily:O.sans,fontWeight:700,fontSize:15,color:O.text,marginBottom:4}}>Start by inviting your first employee</div>
                         <div style={{fontFamily:O.sans,fontSize:13,color:O.textD}}>They'll get an email to set their password and access their Work Hub on mobile or desktop.</div>
                       </div>
-                      <button onClick={()=>{ if(checkSeatLimit()) setShowInvite(true); }} style={{padding:"10px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>Invite Employee →</button>
+                      <button onClick={()=>setShowInvite(true)} style={{padding:"10px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:9,fontFamily:O.sans,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",flexShrink:0,boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>Invite Employee  to </button>
                     </div>
                   )}
                   {LIVE.length>0&&(liveShifts||[]).length===0&&(
@@ -7493,7 +6559,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 <div style={{fontFamily:O.mono,fontSize:8,color:O.purple,letterSpacing:"2px",marginBottom:4,textTransform:"uppercase"}}>Staff Management</div>
                 <div style={{fontFamily:O.sans,fontWeight:800,fontSize:22,color:O.text}}>Your Team {liveEmps&&liveEmps.length>0&&<span style={{fontFamily:O.mono,fontSize:12,color:O.textD,fontWeight:400,marginLeft:8}}>{liveEmps.length} members</span>}</div>
               </div>
-              <button onClick={()=>{ if(checkSeatLimit()) setShowInvite(true); }} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>+ Invite Employee</button>
+              <button onClick={()=>setShowInvite(true)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.3)"}}>+ Invite Employee</button>
             </div>
 
             {/* Sub-tab pills */}
@@ -7523,7 +6589,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                     <div style={{fontSize:56,marginBottom:16}}>👥</div>
                     <div style={{fontFamily:O.sans,fontWeight:700,fontSize:20,color:O.text,marginBottom:8}}>No employees yet</div>
                     <div style={{fontFamily:O.sans,fontSize:14,color:O.textD,lineHeight:1.7,maxWidth:360,margin:"0 auto 24px"}}>Click Invite Employee to add your first team member. They'll get an email to set their password and access their Work Hub.</div>
-                    <button onClick={()=>{ if(checkSeatLimit()) setShowInvite(true); }} style={{padding:"13px 28px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.25)"}}>Invite Your First Employee</button>
+                    <button onClick={()=>setShowInvite(true)} style={{padding:"13px 28px",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",border:"none",borderRadius:10,fontFamily:O.sans,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",boxShadow:"0 4px 14px rgba(124,58,237,0.25)"}}>Invite Your First Employee</button>
                     <button onClick={async()=>{
                       const orgId=activeOrg?.id||ownerProfile?.org_id;
                       if(!orgId) return;
@@ -7738,7 +6804,7 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                   ))}
                 </div>
                 {schedViewMode==="week"&&<>
-                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}>← Prev</button>
+                  <button onClick={()=>{setCurrentWeekOffset(w=>w-1);setLiveShifts(null);setSchedPublished(false);}} style={{padding:"8px 12px",background:"#fff",border:"1px solid "+O.border,borderRadius:8,fontFamily:O.sans,fontSize:13,cursor:"pointer",color:O.textD}}> back  Prev</button>
                   <div style={{fontFamily:O.mono,fontSize:10,color:O.textD,padding:"0 8px"}}>
                     {(()=>{const [y,m,d]=getMonday(currentWeekOffset).split("-").map(Number);const mon=new Date(y,m-1,d);const sun=new Date(y,m-1,d+6);return mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+sun.toLocaleDateString("en-US",{month:"short",day:"numeric"});})()}
                   </div>
@@ -8063,16 +7129,29 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                       }
                       byUser[ev.user_id].events.push(ev);
                     });
-                    const rows=["Name,Role,Hours,Regular Pay,OT Hours,OT Pay,Total Pay"];
+                    const wkStart = settingsPay?.weekStart || "Mon";
+                    const otThr = parseFloat(settingsPay?.otThreshold) || 40;
+                    // QuickBooks Online-friendly columns
+                    const rows=["Name,Role,Hourly Rate,Total Hours,Regular Hours,OT Hours,Regular Pay,OT Pay,Total Pay,Issues"];
                     Object.values(byUser).forEach(({events,user})=>{
-                      let totalMins=0,cin=null;
-                      [...events].sort((a,b)=>new Date(a.occurred_at)-new Date(b.occurred_at)).forEach(ev=>{
-                        if(ev.event_type==="clock_in") cin=new Date(ev.occurred_at);
-                        if(ev.event_type==="clock_out"&&cin){totalMins+=(new Date(ev.occurred_at)-cin)/60000;cin=null;}
-                      });
-                      const hrs=totalMins/60;const rate=parseFloat(user?.hourly_rate)||15;
-                      const regHrs=Math.min(hrs,40);const otHrs=Math.max(hrs-40,0);
-                      rows.push([(user?.first_name||"")+" "+(user?.last_name||""),user?.role||"",hrs.toFixed(2),(regHrs*rate).toFixed(2),otHrs.toFixed(2),(otHrs*rate*1.5).toFixed(2),(regHrs*rate+otHrs*rate*1.5).toFixed(2)].join(","));
+                      const rate = parseFloat(user?.hourly_rate)||15;
+                      // FIX (Bug #1): Per-workweek OT calculation per FLSA + ORS 653.261
+                      const calc = calcWeeklyPayroll(events, rate, wkStart, otThr);
+                      const issue = calc.openShifts.length > 0
+                        ? `${calc.openShifts.length} forgotten clock-out(s) — review`
+                        : "";
+                      rows.push([
+                        (user?.first_name||"")+" "+(user?.last_name||""),
+                        user?.role||"",
+                        rate.toFixed(2),
+                        calc.hrs.toFixed(2),
+                        calc.regHrs.toFixed(2),
+                        calc.otHrs.toFixed(2),
+                        calc.regPay.toFixed(2),
+                        calc.otPay.toFixed(2),
+                        calc.totalPay.toFixed(2),
+                        issue,
+                      ].map(v=>String(v).includes(",")?`"${v}"`:v).join(","));
                     });
                     const blob=new Blob([rows.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="payroll-export.csv";a.click();URL.revokeObjectURL(url);
                     toast("Payroll exported ✓", "success");
@@ -8233,24 +7312,61 @@ function OwnerCmd({onLogout, ownerInitialProfile}){
                 }
                 byUser[ev.user_id].events.push(ev);
               });
+              const wkStart = settingsPay?.weekStart || "Mon";
+              const otThr = parseFloat(settingsPay?.otThreshold) || 40;
               const payRows=Object.entries(byUser).map(([uid,{events,user}])=>{
-                let totalMins=0,cin=null;
-                [...events].sort((a,b)=>new Date(a.occurred_at)-new Date(b.occurred_at)).forEach(ev=>{
-                  if(ev.event_type==="clock_in") cin=new Date(ev.occurred_at);
-                  if(ev.event_type==="clock_out"&&cin){totalMins+=(new Date(ev.occurred_at)-cin)/60000;cin=null;}
-                });
-                const hrs=Math.round(totalMins/60*100)/100;const rate=parseFloat(user?.hourly_rate)||15;
-                const regHrs=Math.min(hrs,40);const otHrs=Math.max(hrs-40,0);
-                const totalPay=regHrs*rate+otHrs*rate*1.5;
-                return {uid,name:(user?.first_name||"")+" "+(user?.last_name||""),avatar:((user?.first_name&&user?.last_name)?((user.first_name[0]+user.last_name[0]).toUpperCase()):(user?.first_name||"").slice(0,2).toUpperCase()||"??"),color:(user?.avatar_color)||"#6366f1",role:user?.role||"",rate,hrs,regHrs,otHrs,totalPay};
-              }).filter(r=>r.hrs>0).sort((a,b)=>b.totalPay-a.totalPay);
+                const rate=parseFloat(user?.hourly_rate)||15;
+                // FIX (Bug #1): Per-workweek OT per FLSA + ORS 653.261
+                const calc = calcWeeklyPayroll(events, rate, wkStart, otThr);
+                const hrs = Math.round(calc.hrs * 100) / 100;
+                const regHrs = Math.round(calc.regHrs * 100) / 100;
+                const otHrs = Math.round(calc.otHrs * 100) / 100;
+                return {
+                  uid,
+                  name:(user?.first_name||"")+" "+(user?.last_name||""),
+                  avatar:((user?.first_name&&user?.last_name)?((user.first_name[0]+user.last_name[0]).toUpperCase()):(user?.first_name||"").slice(0,2).toUpperCase()||"??"),
+                  color:(user?.avatar_color)||"#6366f1",
+                  role:user?.role||"",
+                  rate, hrs, regHrs, otHrs,
+                  totalPay: calc.totalPay,
+                  weeks: calc.weeks,
+                  openShifts: calc.openShifts,
+                };
+              }).filter(r=>r.hrs>0||r.openShifts.length>0).sort((a,b)=>b.totalPay-a.totalPay);
 
               const totalLabor=payRows.reduce((s,r)=>s+r.totalPay,0);
               const totalHrs=payRows.reduce((s,r)=>s+r.hrs,0);
               const maxHrs=Math.max(...payRows.map(r=>r.hrs),1);
+              // Collect employees with forgotten clock-outs for warning banner
+              const employeesWithIssues = payRows.filter(r=>r.openShifts.length>0);
 
               return (
                 <div>
+                  {/* WARNING: Forgotten clock-outs (Bug #4 surfaced in UI) */}
+                  {employeesWithIssues.length>0 && (
+                    <div style={{background:"#fff8e6",border:"1px solid "+O.amberB,borderRadius:12,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"flex-start",gap:12}}>
+                      <span style={{fontSize:20,flexShrink:0,marginTop:1}}>⚠️</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:O.sans,fontWeight:700,fontSize:13.5,color:O.text,marginBottom:4}}>
+                          {employeesWithIssues.length} employee{employeesWithIssues.length===1?"":"s"} {employeesWithIssues.length===1?"has":"have"} forgotten clock-out{employeesWithIssues.reduce((s,r)=>s+r.openShifts.length,0)===1?"":"s"} — review before exporting
+                        </div>
+                        <div style={{fontFamily:O.sans,fontSize:12,color:O.textD,lineHeight:1.55}}>
+                          The hours below <strong>do not include</strong> these unfinished shifts. Add a clock-out manually or these hours won't be paid.
+                        </div>
+                        <ul style={{margin:"8px 0 0",paddingLeft:18,fontFamily:O.mono,fontSize:11,color:O.textD,lineHeight:1.7}}>
+                          {employeesWithIssues.map(r=>(
+                            <li key={r.uid}>
+                              <strong style={{color:O.text}}>{r.name}</strong> — {r.openShifts.map(s=>{
+                                if(s.hoursAgo!==undefined) return `clocked in ${s.hoursAgo}h ago, no clock-out`;
+                                return `started new shift without clocking out at ${new Date(s.clockedInAt).toLocaleString()}`;
+                              }).join("; ")}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
                     <StatCard label="Total Hours" value={totalHrs.toFixed(1)+"h"} color={O.amber} icon="⏱"/>
                     <StatCard label="Employees" value={payRows.length} color={O.purple} icon="👥"/>
@@ -8715,7 +7831,7 @@ export default function App(){
                 ))}
                 {pwErr&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"#ef4444",marginBottom:12,padding:"7px 10px",background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:6}}>{pwErr}</div>}
                 <button onClick={handleSetPassword} style={{width:"100%",padding:"14px",background:pwBusy?"rgba(245,158,11,0.5)":"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",borderRadius:10,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:15,color:"#030c14",cursor:pwBusy?"not-allowed":"pointer",boxShadow:"0 4px 20px rgba(245,158,11,0.3)"}}>
-                  {pwBusy?"Setting password…":"Set Password & Sign In →"}
+                  {pwBusy?"Setting password…":"Set Password & Sign In  to "}
                 </button>
               </div>
             )}
