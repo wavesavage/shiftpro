@@ -272,6 +272,15 @@ export default function SomaApp(){
   const sessParticles=useRef([]);
   const sessS=useRef({time:0,startedAt:0,fadeIn:0,affirmIdx:0,affirmOp:0,affirmT:0,currentAffirm:"",phaseIdx:-1});
 
+  // Ambient audio state
+  const[rainOn,setRainOn]=useState(false);
+  const[thunderOn,setThunderOn]=useState(false);
+  const[showMixer,setShowMixer]=useState(false);
+  const[volumes,setVolumes]=useState({brain:70,rain:50,thunder:40});
+  const rainNodes=useRef(null);
+  const thunderNodes=useRef(null);
+  const thunderInterval=useRef(null);
+
   useEffect(()=>{
     if(screen==="splash"){const t=setTimeout(()=>{setScreen("home");let s=0;const iv=setInterval(()=>{s++;setLoadAnim(s);if(s>=6)clearInterval(iv);},200);},2200);return()=>clearTimeout(t);}
   },[screen]);
@@ -313,6 +322,161 @@ export default function SomaApp(){
     if(screen==="home"&&!activeSession&&!sessionComplete){initMini();bloomRaf.current=requestAnimationFrame(renderMini);}
     return()=>{if(bloomRaf.current)cancelAnimationFrame(bloomRaf.current);};
   },[screen,activeSession,sessionComplete,initMini,renderMini]);
+
+  // ─── AMBIENT AUDIO ENGINE ───
+  const getAudioCtx=useCallback(()=>{
+    if(sessAudio.current&&sessAudio.current.ctx&&sessAudio.current.alive)return sessAudio.current.ctx;
+    return null;
+  },[]);
+  const getCompressor=useCallback(()=>{
+    if(sessAudio.current&&sessAudio.current.comp)return sessAudio.current.comp;
+    return null;
+  },[]);
+
+  const startRain=useCallback(()=>{
+    const ctx=getAudioCtx();const comp=getCompressor();if(!ctx||!comp)return;
+    if(rainNodes.current)return;
+    const now=ctx.currentTime;
+    // Rain = layered filtered noise with slow amplitude modulation
+    const bufLen=ctx.sampleRate*4;
+    const buf=ctx.createBuffer(2,bufLen,ctx.sampleRate);
+    for(let ch=0;ch<2;ch++){
+      const d=buf.getChannelData(ch);
+      let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+      for(let i=0;i<bufLen;i++){
+        const w=Math.random()*2-1;
+        b0=.99886*b0+w*.0555179;b1=.99332*b1+w*.0750759;
+        b2=.969*b2+w*.153852;b3=.8665*b3+w*.3104856;
+        b4=.55*b4+w*.5329522;b5=-.7616*b5-w*.016898;
+        d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.04+(Math.random()*2-1)*.008;
+        b6=w*.115926;
+      }
+    }
+    const src=ctx.createBufferSource();src.buffer=buf;src.loop=true;
+    // Rain character: bandpass to isolate rain frequencies
+    const lp=ctx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=2500;lp.Q.value=0.3;
+    const hp=ctx.createBiquadFilter();hp.type="highpass";hp.frequency.value=200;hp.Q.value=0.3;
+    // Slow amplitude modulation for wave-like rain intensity
+    const lfo=ctx.createOscillator();const lfoG=ctx.createGain();
+    lfo.type="sine";lfo.frequency.value=0.08;lfoG.gain.value=0.015;
+    const mainG=ctx.createGain();
+    mainG.gain.setValueAtTime(0,now);
+    mainG.gain.linearRampToValueAtTime(volumes.rain/100*0.12,now+2);
+    src.connect(hp);hp.connect(lp);lp.connect(mainG);
+    lfo.connect(lfoG);lfoG.connect(mainG.gain);
+    mainG.connect(comp);
+    src.start(now);lfo.start(now);
+    rainNodes.current={src,lp,hp,lfo,lfoG,gain:mainG};
+  },[getAudioCtx,getCompressor,volumes.rain]);
+
+  const stopRain=useCallback(()=>{
+    if(!rainNodes.current)return;
+    const ctx=getAudioCtx();
+    if(ctx){
+      const now=ctx.currentTime;
+      try{
+        rainNodes.current.gain.gain.cancelScheduledValues(now);
+        rainNodes.current.gain.gain.setValueAtTime(rainNodes.current.gain.gain.value,now);
+        rainNodes.current.gain.gain.linearRampToValueAtTime(0,now+1.5);
+        rainNodes.current.src.stop(now+1.7);
+        rainNodes.current.lfo.stop(now+1.7);
+      }catch(e){}
+    }else{
+      try{rainNodes.current.src.stop();rainNodes.current.lfo.stop();}catch(e){}
+    }
+    rainNodes.current=null;
+  },[getAudioCtx]);
+
+  const triggerThunderClap=useCallback(()=>{
+    const ctx=getAudioCtx();const comp=getCompressor();if(!ctx||!comp)return;
+    const now=ctx.currentTime;
+    const vol=volumes.thunder/100*0.15;
+    // Thunder = low frequency rumble with noise burst
+    const osc=ctx.createOscillator();const oscG=ctx.createGain();
+    osc.type="sine";
+    osc.frequency.setValueAtTime(60+Math.random()*20,now);
+    osc.frequency.exponentialRampToValueAtTime(25,now+3);
+    oscG.gain.setValueAtTime(0,now);
+    oscG.gain.linearRampToValueAtTime(vol,now+0.1+Math.random()*0.3);
+    oscG.gain.exponentialRampToValueAtTime(0.001,now+2.5+Math.random()*2);
+    // Sub-rumble layer
+    const sub=ctx.createOscillator();const subG=ctx.createGain();
+    sub.type="sine";sub.frequency.value=30+Math.random()*10;
+    subG.gain.setValueAtTime(0,now);
+    subG.gain.linearRampToValueAtTime(vol*0.6,now+0.2);
+    subG.gain.exponentialRampToValueAtTime(0.001,now+3.5);
+    // Crack noise burst
+    const crackLen=ctx.sampleRate*0.3;
+    const crackBuf=ctx.createBuffer(1,crackLen,ctx.sampleRate);
+    const cd=crackBuf.getChannelData(0);
+    for(let i=0;i<crackLen;i++){cd[i]=(Math.random()*2-1)*Math.exp(-i/crackLen*8);}
+    const crackSrc=ctx.createBufferSource();crackSrc.buffer=crackBuf;
+    const crackG=ctx.createGain();
+    crackG.gain.setValueAtTime(vol*0.4,now);
+    crackG.gain.exponentialRampToValueAtTime(0.001,now+0.5);
+    const crackF=ctx.createBiquadFilter();crackF.type="bandpass";crackF.frequency.value=800;crackF.Q.value=0.5;
+
+    osc.connect(oscG);oscG.connect(comp);
+    sub.connect(subG);subG.connect(comp);
+    crackSrc.connect(crackF);crackF.connect(crackG);crackG.connect(comp);
+    osc.start(now);sub.start(now);crackSrc.start(now);
+    osc.stop(now+5);sub.stop(now+5);
+  },[getAudioCtx,getCompressor,volumes.thunder]);
+
+  const startThunder=useCallback(()=>{
+    triggerThunderClap();
+    // Schedule random thunder every 8-20 seconds
+    const scheduleNext=()=>{
+      const delay=8000+Math.random()*12000;
+      thunderInterval.current=setTimeout(()=>{
+        triggerThunderClap();
+        scheduleNext();
+      },delay);
+    };
+    scheduleNext();
+  },[triggerThunderClap]);
+
+  const stopThunder=useCallback(()=>{
+    if(thunderInterval.current){clearTimeout(thunderInterval.current);thunderInterval.current=null;}
+  },[]);
+
+  const updateVolume=useCallback((key,val)=>{
+    setVolumes(v=>({...v,[key]:val}));
+    if(key==="brain"&&sessAudio.current&&sessAudio.current.master&&sessAudio.current.ctx&&sessAudio.current.alive){
+      const now=sessAudio.current.ctx.currentTime;
+      sessAudio.current.master.gain.cancelScheduledValues(now);
+      sessAudio.current.master.gain.setValueAtTime(sessAudio.current.master.gain.value,now);
+      sessAudio.current.master.gain.linearRampToValueAtTime(val/100*0.3,now+0.3);
+    }
+    if(key==="rain"&&rainNodes.current){
+      const ctx=getAudioCtx();if(ctx){
+        const now=ctx.currentTime;
+        rainNodes.current.gain.gain.cancelScheduledValues(now);
+        rainNodes.current.gain.gain.setValueAtTime(rainNodes.current.gain.gain.value,now);
+        rainNodes.current.gain.gain.linearRampToValueAtTime(val/100*0.12,now+0.3);
+      }
+    }
+    // Thunder volume applies to next clap — no live adjustment needed
+  },[getAudioCtx]);
+
+  // Cleanup ambient on session end
+  useEffect(()=>{
+    if(!activeSession){
+      if(rainNodes.current)stopRain();
+      stopThunder();
+      setRainOn(false);setThunderOn(false);setShowMixer(false);
+    }
+  },[activeSession,stopRain,stopThunder]);
+
+  const toggleRain=useCallback(()=>{
+    if(rainOn){stopRain();setRainOn(false);}
+    else{startRain();setRainOn(true);}
+  },[rainOn,startRain,stopRain]);
+
+  const toggleThunder=useCallback(()=>{
+    if(thunderOn){stopThunder();setThunderOn(false);}
+    else{startThunder();setThunderOn(true);}
+  },[thunderOn,startThunder,stopThunder]);
 
   const launchSession=useCallback((type,key)=>{
     setActiveSession({type,key,startTime:Date.now()});
@@ -449,11 +613,68 @@ export default function SomaApp(){
   );
 
   if(activeSession){
+    const _ch=CHANNELS.find(c=>c.key===activeSession.key);
+    const _seq=SEQUENCES.find(s=>s.key===activeSession.key);
+    const accentColor=_ch?.accent||_seq?.accent||C.bloom;
+    const acRgb=typeof accentColor==="string"&&accentColor.startsWith("#")?hexRgb(accentColor):[100,180,200];
     return(
-      <div style={{position:"fixed",inset:0,background:C.void,touchAction:"none",cursor:"none"}}>
+      <div style={{position:"fixed",inset:0,background:C.void,touchAction:"none"}}>
         <canvas ref={sessCanvasRef} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
         <div onClick={endSession} style={{position:"absolute",top:0,left:0,width:50,height:56,cursor:"pointer",zIndex:10}}/>
-        <style>{`*{margin:0;padding:0;box-sizing:border-box}`}</style>
+
+        {/* ─── AMBIENT CONTROLS ─── */}
+        <div style={{position:"absolute",bottom:80,right:20,zIndex:20,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10}}>
+          {showMixer&&(
+            <div style={{background:"rgba(10,10,26,0.85)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderRadius:24,padding:"20px 18px",border:"1px solid rgba(255,255,255,0.05)",width:200,animation:"su .3s cubic-bezier(.4,0,.2,1)",boxShadow:"0 8px 40px rgba(0,0,0,0.4)"}}>
+              <div style={{marginBottom:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontFamily:"'DM Sans'",fontWeight:300,fontSize:11,color:C.text2}}>brainwaves</span>
+                  <span style={{fontFamily:"'JetBrains Mono'",fontWeight:300,fontSize:9,color:C.text3}}>{volumes.brain}%</span>
+                </div>
+                <input type="range" min="0" max="100" value={volumes.brain} onChange={e=>updateVolume("brain",Number(e.target.value))} style={{width:"100%",height:4,appearance:"none",WebkitAppearance:"none",background:"rgba(255,255,255,0.08)",borderRadius:2,outline:"none",cursor:"pointer"}}/>
+              </div>
+              <div style={{marginBottom:16,opacity:rainOn?1:0.35,transition:"opacity .3s ease"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontFamily:"'DM Sans'",fontWeight:300,fontSize:11,color:C.text2}}>rain</span>
+                  <span style={{fontFamily:"'JetBrains Mono'",fontWeight:300,fontSize:9,color:C.text3}}>{rainOn?volumes.rain+"%":"off"}</span>
+                </div>
+                <input type="range" min="0" max="100" value={volumes.rain} onChange={e=>updateVolume("rain",Number(e.target.value))} disabled={!rainOn} style={{width:"100%",height:4,appearance:"none",WebkitAppearance:"none",background:"rgba(255,255,255,0.08)",borderRadius:2,outline:"none",cursor:rainOn?"pointer":"default"}}/>
+              </div>
+              <div style={{opacity:thunderOn?1:0.35,transition:"opacity .3s ease"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontFamily:"'DM Sans'",fontWeight:300,fontSize:11,color:C.text2}}>thunder</span>
+                  <span style={{fontFamily:"'JetBrains Mono'",fontWeight:300,fontSize:9,color:C.text3}}>{thunderOn?volumes.thunder+"%":"off"}</span>
+                </div>
+                <input type="range" min="0" max="100" value={volumes.thunder} onChange={e=>updateVolume("thunder",Number(e.target.value))} disabled={!thunderOn} style={{width:"100%",height:4,appearance:"none",WebkitAppearance:"none",background:"rgba(255,255,255,0.08)",borderRadius:2,outline:"none",cursor:thunderOn?"pointer":"default"}}/>
+              </div>
+            </div>
+          )}
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            <div onClick={()=>setShowMixer(v=>!v)} style={{width:36,height:36,borderRadius:"50%",cursor:"pointer",background:showMixer?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,"+(showMixer?"0.12":"0.05")+")",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .3s ease"}}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="8" width="2" height="5" rx="1" fill={"rgba("+acRgb[0]+","+acRgb[1]+","+acRgb[2]+","+(showMixer?"0.8":"0.35")+")"}/>
+                <rect x="7" y="4" width="2" height="9" rx="1" fill={"rgba("+acRgb[0]+","+acRgb[1]+","+acRgb[2]+","+(showMixer?"0.8":"0.35")+")"}/>
+                <rect x="12" y="6" width="2" height="7" rx="1" fill={"rgba("+acRgb[0]+","+acRgb[1]+","+acRgb[2]+","+(showMixer?"0.8":"0.35")+")"}/>
+              </svg>
+            </div>
+            <div onClick={toggleRain} style={{width:40,height:40,borderRadius:"50%",cursor:"pointer",background:rainOn?"rgba(56,163,204,0.12)":"rgba(255,255,255,0.03)",border:"1px solid "+(rainOn?"rgba(56,163,204,0.3)":"rgba(255,255,255,0.05)"),display:"flex",alignItems:"center",justifyContent:"center",transition:"all .3s ease",boxShadow:rainOn?"0 0 16px rgba(56,163,204,0.15)":"none"}}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M9 3C9 3 5 8.5 5 11.5C5 13.7 6.8 15 9 15C11.2 15 13 13.7 13 11.5C13 8.5 9 3 9 3Z" fill={rainOn?"rgba(56,163,204,0.7)":"rgba(150,148,175,0.2)"} stroke={rainOn?"rgba(56,163,204,0.9)":"rgba(150,148,175,0.3)"} strokeWidth="0.8"/>
+              </svg>
+            </div>
+            <div onClick={toggleThunder} style={{width:40,height:40,borderRadius:"50%",cursor:"pointer",background:thunderOn?"rgba(255,179,71,0.12)":"rgba(255,255,255,0.03)",border:"1px solid "+(thunderOn?"rgba(255,179,71,0.3)":"rgba(255,255,255,0.05)"),display:"flex",alignItems:"center",justifyContent:"center",transition:"all .3s ease",boxShadow:thunderOn?"0 0 16px rgba(255,179,71,0.15)":"none"}}>
+              <svg width="16" height="18" viewBox="0 0 16 18" fill="none">
+                <path d="M10 1L4 10H8L6 17L14 7H9L10 1Z" fill={thunderOn?"rgba(255,179,71,0.7)":"rgba(150,148,175,0.2)"} stroke={thunderOn?"rgba(255,179,71,0.9)":"rgba(150,148,175,0.3)"} strokeWidth="0.8" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <style>{`*{margin:0;padding:0;box-sizing:border-box}
+          @keyframes su{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+          input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:white;cursor:pointer;border:none;box-shadow:0 0 6px rgba(255,255,255,0.2)}
+          input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:white;cursor:pointer;border:none}
+        `}</style>
       </div>
     );
   }
