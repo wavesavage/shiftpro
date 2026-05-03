@@ -119,11 +119,9 @@ class SessionAudio {
   init(){
     try{
       this.ctx=new(window.AudioContext||window.webkitAudioContext)();
-      // Compressor prevents clipping when multiple oscillators sum above 1.0
       this.comp=this.ctx.createDynamicsCompressor();
       this.comp.threshold.value=-18;this.comp.knee.value=12;
       this.comp.ratio.value=8;this.comp.attack.value=0.005;this.comp.release.value=0.15;
-      // Limiter as final safety net
       const limiter=this.ctx.createDynamicsCompressor();
       limiter.threshold.value=-3;limiter.knee.value=0;
       limiter.ratio.value=20;limiter.attack.value=0.001;limiter.release.value=0.05;
@@ -134,11 +132,55 @@ class SessionAudio {
       this.alive=true;
     }catch(e){console.log("Audio init failed");}
   }
+  // Generate a seamlessly loopable pink noise buffer with crossfaded seam
+  _makePinkBuf(seconds,channels){
+    if(!this.ctx)return null;
+    const sr=this.ctx.sampleRate;
+    const len=Math.floor(sr*seconds);
+    const fadeLen=Math.floor(sr*0.5); // 500ms crossfade at loop seam
+    const buf=this.ctx.createBuffer(channels,len,sr);
+    for(let ch=0;ch<channels;ch++){
+      const d=buf.getChannelData(ch);
+      // Generate pink noise with Voss-McCartney algorithm (no IIR state = no loop discontinuity)
+      // Use multiple random sources at different update rates
+      const rows=16;
+      const rowState=new Float32Array(rows);
+      let runningSum=0;
+      const max=rows+1; // normalization factor
+      let index=0;
+      for(let i=0;i<len;i++){
+        // Determine which rows to update using bit counting
+        const changed=index^(index+1);
+        index++;
+        for(let r=0;r<rows;r++){
+          if(changed&(1<<r)){
+            runningSum-=rowState[r];
+            rowState[r]=(Math.random()*2-1);
+            runningSum+=rowState[r];
+          }
+        }
+        const white=Math.random()*2-1;
+        d[i]=(runningSum+white)/max*0.08;
+        // Per-channel variation
+        if(ch>0)d[i]+=(Math.random()*2-1)*0.003;
+      }
+      // Crossfade the seam: blend end into start so loop is seamless
+      for(let i=0;i<fadeLen;i++){
+        const t=i/fadeLen; // 0 to 1
+        const fadeOut=Math.cos(t*Math.PI*0.5); // 1 to 0 (quarter cosine)
+        const fadeIn=Math.sin(t*Math.PI*0.5);  // 0 to 1 (quarter cosine)
+        const endIdx=len-fadeLen+i;
+        // Blend: start sample = mix of original start and end
+        d[i]=d[i]*fadeIn+d[endIdx]*fadeOut;
+        // Fade out the end
+        d[endIdx]*=fadeOut;
+      }
+    }
+    return buf;
+  }
   setBinaural(pairs,vol){
     this._fadeAndStopNodes();if(!this.ctx||!this.alive)return;
     const now=this.ctx.currentTime;
-    // Scale vol down — each pair adds 2 oscillators, so total energy = pairs*2*vol
-    // Keep individual oscillator vol low, let compressor handle headroom
     const safeVol=Math.min(vol,0.06);
     pairs.forEach(p=>{
       const lO=this.ctx.createOscillator(),rO=this.ctx.createOscillator();
@@ -146,35 +188,22 @@ class SessionAudio {
       const lG=this.ctx.createGain(),rG=this.ctx.createGain();
       lO.type="sine";rO.type="sine";lO.frequency.value=p.l;rO.frequency.value=p.r;
       lP.pan.value=-1;rP.pan.value=1;
-      // Start gains at 0, ramp up smoothly to prevent initial pop
       lG.gain.setValueAtTime(0,now);rG.gain.setValueAtTime(0,now);
-      lG.gain.linearRampToValueAtTime(safeVol,now+0.5);
-      rG.gain.linearRampToValueAtTime(safeVol,now+0.5);
+      lG.gain.linearRampToValueAtTime(safeVol,now+0.8);
+      rG.gain.linearRampToValueAtTime(safeVol,now+0.8);
       lO.connect(lG);lG.connect(lP);lP.connect(this.comp);
       rO.connect(rG);rG.connect(rP);rP.connect(this.comp);
       lO.start(now);rO.start(now);
       this.nodes.push({lO,rO,lG,rG,vol:safeVol});
     });
-    // Pink noise — generate at lower amplitude to prevent clipping
-    const bL=this.ctx.sampleRate*3;
-    const buf=this.ctx.createBuffer(1,bL,this.ctx.sampleRate);
-    const d=buf.getChannelData(0);
-    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-    for(let i=0;i<bL;i++){
-      const w=Math.random()*2-1;
-      b0=.99886*b0+w*.0555179;b1=.99332*b1+w*.0750759;
-      b2=.969*b2+w*.153852;b3=.8665*b3+w*.3104856;
-      b4=.55*b4+w*.5329522;b5=-.7616*b5-w*.016898;
-      // Reduced amplitude from .11 to .06 to prevent peaks
-      d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.06;
-      b6=w*.115926;
-    }
+    // Seamlessly loopable pink noise — 10 seconds, crossfaded seam
+    const buf=this._makePinkBuf(10,1);
+    if(!buf)return;
     const src=this.ctx.createBufferSource();src.buffer=buf;src.loop=true;
-    const f=this.ctx.createBiquadFilter();f.type="lowpass";f.frequency.value=400;f.Q.value=0.5;
+    const f=this.ctx.createBiquadFilter();f.type="lowpass";f.frequency.value=350;f.Q.value=0.3;
     const nG=this.ctx.createGain();
-    // Ramp noise in smoothly too
     nG.gain.setValueAtTime(0,now);
-    nG.gain.linearRampToValueAtTime(safeVol*0.25,now+1.0);
+    nG.gain.linearRampToValueAtTime(safeVol*0.2,now+1.5);
     src.connect(f);f.connect(nG);nG.connect(this.comp);
     src.start(now);
     this.noise={src,gain:nG};
@@ -182,7 +211,6 @@ class SessionAudio {
   updateFreq(hz){
     if(!this.ctx||!this.alive||this.nodes.length===0)return;
     const n=this.nodes[0],now=this.ctx.currentTime;
-    // Cancel any prior ramp before setting new one
     n.rO.frequency.cancelScheduledValues(now);
     n.rO.frequency.setValueAtTime(n.rO.frequency.value,now);
     n.rO.frequency.linearRampToValueAtTime(n.lO.frequency.value+hz,now+4);
@@ -192,7 +220,6 @@ class SessionAudio {
     const now=this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(now);
     this.master.gain.setValueAtTime(0,now);
-    // Target 0.3 instead of 0.7 — compressor handles the rest
     this.master.gain.linearRampToValueAtTime(0.3,now+dur);
   }
   fadeOut(dur){
@@ -203,37 +230,34 @@ class SessionAudio {
     this.master.gain.linearRampToValueAtTime(0,now+dur);
   }
   _fadeAndStopNodes(){
-    // Fade out existing nodes before stopping to prevent clicks
     if(!this.ctx)return;
     const now=this.ctx.currentTime;
     const oldNodes=[...this.nodes];
     const oldNoise=this.noise;
     this.nodes=[];this.noise=null;
-    // Ramp all gains to 0 over 100ms, then stop
     oldNodes.forEach(n=>{
       try{
         n.lG.gain.cancelScheduledValues(now);n.rG.gain.cancelScheduledValues(now);
         n.lG.gain.setValueAtTime(n.lG.gain.value,now);
         n.rG.gain.setValueAtTime(n.rG.gain.value,now);
-        n.lG.gain.linearRampToValueAtTime(0,now+0.1);
-        n.rG.gain.linearRampToValueAtTime(0,now+0.1);
-        n.lO.stop(now+0.15);n.rO.stop(now+0.15);
+        n.lG.gain.linearRampToValueAtTime(0,now+0.15);
+        n.rG.gain.linearRampToValueAtTime(0,now+0.15);
+        n.lO.stop(now+0.2);n.rO.stop(now+0.2);
       }catch(e){}
     });
     if(oldNoise){
       try{
         oldNoise.gain.gain.cancelScheduledValues(now);
         oldNoise.gain.gain.setValueAtTime(oldNoise.gain.gain.value,now);
-        oldNoise.gain.gain.linearRampToValueAtTime(0,now+0.1);
-        oldNoise.src.stop(now+0.15);
+        oldNoise.gain.gain.linearRampToValueAtTime(0,now+0.15);
+        oldNoise.src.stop(now+0.2);
       }catch(e){}
     }
   }
   destroy(){
     this.alive=false;
     this._fadeAndStopNodes();
-    // Give the fade-out 200ms to complete before closing context
-    setTimeout(()=>{try{if(this.ctx&&this.ctx.state!=="closed")this.ctx.close();}catch(e){}},250);
+    setTimeout(()=>{try{if(this.ctx&&this.ctx.state!=="closed")this.ctx.close();}catch(e){}},300);
   }
 }
 
@@ -337,36 +361,58 @@ export default function SomaApp(){
     const ctx=getAudioCtx();const comp=getCompressor();if(!ctx||!comp)return;
     if(rainNodes.current)return;
     const now=ctx.currentTime;
-    // Rain = layered filtered noise with slow amplitude modulation
-    const bufLen=ctx.sampleRate*4;
-    const buf=ctx.createBuffer(2,bufLen,ctx.sampleRate);
+    // Rain = seamlessly looped pink noise, 12 seconds, crossfaded seam
+    const sr=ctx.sampleRate;
+    const len=Math.floor(sr*12);
+    const fadeLen=Math.floor(sr*0.8);
+    const buf=ctx.createBuffer(2,len,sr);
     for(let ch=0;ch<2;ch++){
       const d=buf.getChannelData(ch);
-      let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-      for(let i=0;i<bufLen;i++){
-        const w=Math.random()*2-1;
-        b0=.99886*b0+w*.0555179;b1=.99332*b1+w*.0750759;
-        b2=.969*b2+w*.153852;b3=.8665*b3+w*.3104856;
-        b4=.55*b4+w*.5329522;b5=-.7616*b5-w*.016898;
-        d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.04+(Math.random()*2-1)*.008;
-        b6=w*.115926;
+      // Voss-McCartney pink noise — no IIR state = no loop discontinuity
+      const rows=16;const rowState=new Float32Array(rows);
+      let runningSum=0;let index=0;const max=rows+1;
+      for(let i=0;i<len;i++){
+        const changed=index^(index+1);index++;
+        for(let r=0;r<rows;r++){
+          if(changed&(1<<r)){runningSum-=rowState[r];rowState[r]=(Math.random()*2-1);runningSum+=rowState[r];}
+        }
+        d[i]=(runningSum+Math.random()*2-1)/max*0.07;
+        if(ch>0)d[i]+=(Math.random()*2-1)*0.004;
+      }
+      // Crossfade loop seam
+      for(let i=0;i<fadeLen;i++){
+        const t=i/fadeLen;
+        const fadeOut=Math.cos(t*Math.PI*0.5);
+        const fadeIn=Math.sin(t*Math.PI*0.5);
+        const endIdx=len-fadeLen+i;
+        d[i]=d[i]*fadeIn+d[endIdx]*fadeOut;
+        d[endIdx]*=fadeOut;
       }
     }
     const src=ctx.createBufferSource();src.buffer=buf;src.loop=true;
-    // Rain character: bandpass to isolate rain frequencies
-    const lp=ctx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=2500;lp.Q.value=0.3;
-    const hp=ctx.createBiquadFilter();hp.type="highpass";hp.frequency.value=200;hp.Q.value=0.3;
-    // Slow amplitude modulation for wave-like rain intensity
-    const lfo=ctx.createOscillator();const lfoG=ctx.createGain();
-    lfo.type="sine";lfo.frequency.value=0.08;lfoG.gain.value=0.015;
+    const lp=ctx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=2200;lp.Q.value=0.3;
+    const hp=ctx.createBiquadFilter();hp.type="highpass";hp.frequency.value=180;hp.Q.value=0.3;
+    // Use scheduled gain automation instead of LFO to avoid negative gain values
     const mainG=ctx.createGain();
+    const targetVol=volumes.rain/100*0.1;
     mainG.gain.setValueAtTime(0,now);
-    mainG.gain.linearRampToValueAtTime(volumes.rain/100*0.12,now+2);
+    mainG.gain.linearRampToValueAtTime(targetVol,now+2.5);
+    // Schedule gentle volume swells (rain intensity) — always positive
+    const scheduleSwells=()=>{
+      const t=ctx.currentTime;
+      for(let i=0;i<20;i++){
+        const startT=t+i*6;
+        const peak=targetVol*(0.85+Math.random()*0.3);
+        const valley=targetVol*(0.5+Math.random()*0.3);
+        mainG.gain.linearRampToValueAtTime(peak,startT+2);
+        mainG.gain.linearRampToValueAtTime(valley,startT+5);
+      }
+    };
+    scheduleSwells();
     src.connect(hp);hp.connect(lp);lp.connect(mainG);
-    lfo.connect(lfoG);lfoG.connect(mainG.gain);
     mainG.connect(comp);
-    src.start(now);lfo.start(now);
-    rainNodes.current={src,lp,hp,lfo,lfoG,gain:mainG};
+    src.start(now);
+    rainNodes.current={src,lp,hp,gain:mainG,targetVol};
   },[getAudioCtx,getCompressor,volumes.rain]);
 
   const stopRain=useCallback(()=>{
@@ -377,12 +423,11 @@ export default function SomaApp(){
       try{
         rainNodes.current.gain.gain.cancelScheduledValues(now);
         rainNodes.current.gain.gain.setValueAtTime(rainNodes.current.gain.gain.value,now);
-        rainNodes.current.gain.gain.linearRampToValueAtTime(0,now+1.5);
-        rainNodes.current.src.stop(now+1.7);
-        rainNodes.current.lfo.stop(now+1.7);
+        rainNodes.current.gain.gain.linearRampToValueAtTime(0,now+2);
+        rainNodes.current.src.stop(now+2.2);
       }catch(e){}
     }else{
-      try{rainNodes.current.src.stop();rainNodes.current.lfo.stop();}catch(e){}
+      try{rainNodes.current.src.stop();}catch(e){}
     }
     rainNodes.current=null;
   },[getAudioCtx]);
@@ -390,32 +435,40 @@ export default function SomaApp(){
   const triggerThunderClap=useCallback(()=>{
     const ctx=getAudioCtx();const comp=getCompressor();if(!ctx||!comp)return;
     const now=ctx.currentTime;
-    const vol=volumes.thunder/100*0.15;
-    // Thunder = low frequency rumble with noise burst
+    const vol=volumes.thunder/100*0.12;
+    // Rumble oscillator — low frequency sweep
     const osc=ctx.createOscillator();const oscG=ctx.createGain();
     osc.type="sine";
-    osc.frequency.setValueAtTime(60+Math.random()*20,now);
-    osc.frequency.exponentialRampToValueAtTime(25,now+3);
+    osc.frequency.setValueAtTime(55+Math.random()*20,now);
+    osc.frequency.exponentialRampToValueAtTime(22,now+3.5);
     oscG.gain.setValueAtTime(0,now);
-    oscG.gain.linearRampToValueAtTime(vol,now+0.1+Math.random()*0.3);
-    oscG.gain.exponentialRampToValueAtTime(0.001,now+2.5+Math.random()*2);
-    // Sub-rumble layer
+    // Smooth attack to prevent click
+    oscG.gain.linearRampToValueAtTime(vol,now+0.15+Math.random()*0.2);
+    oscG.gain.setValueAtTime(vol,now+0.5);
+    oscG.gain.exponentialRampToValueAtTime(0.0001,now+3+Math.random()*1.5);
+    // Sub-rumble
     const sub=ctx.createOscillator();const subG=ctx.createGain();
-    sub.type="sine";sub.frequency.value=30+Math.random()*10;
+    sub.type="sine";sub.frequency.value=28+Math.random()*8;
     subG.gain.setValueAtTime(0,now);
-    subG.gain.linearRampToValueAtTime(vol*0.6,now+0.2);
-    subG.gain.exponentialRampToValueAtTime(0.001,now+3.5);
-    // Crack noise burst
-    const crackLen=ctx.sampleRate*0.3;
+    subG.gain.linearRampToValueAtTime(vol*0.5,now+0.25);
+    subG.gain.setValueAtTime(vol*0.5,now+0.5);
+    subG.gain.exponentialRampToValueAtTime(0.0001,now+4);
+    // Crack noise — use envelope that starts and ends at zero
+    const crackLen=Math.floor(ctx.sampleRate*0.4);
     const crackBuf=ctx.createBuffer(1,crackLen,ctx.sampleRate);
     const cd=crackBuf.getChannelData(0);
-    for(let i=0;i<crackLen;i++){cd[i]=(Math.random()*2-1)*Math.exp(-i/crackLen*8);}
+    for(let i=0;i<crackLen;i++){
+      // Windowed noise: fade in over 20 samples, exponential decay after
+      const fadeIn=Math.min(1,i/20);
+      const decay=Math.exp(-i/crackLen*10);
+      cd[i]=(Math.random()*2-1)*fadeIn*decay*0.5;
+    }
     const crackSrc=ctx.createBufferSource();crackSrc.buffer=crackBuf;
     const crackG=ctx.createGain();
-    crackG.gain.setValueAtTime(vol*0.4,now);
-    crackG.gain.exponentialRampToValueAtTime(0.001,now+0.5);
-    const crackF=ctx.createBiquadFilter();crackF.type="bandpass";crackF.frequency.value=800;crackF.Q.value=0.5;
-
+    crackG.gain.setValueAtTime(0,now);
+    crackG.gain.linearRampToValueAtTime(vol*0.3,now+0.01);
+    crackG.gain.exponentialRampToValueAtTime(0.0001,now+0.6);
+    const crackF=ctx.createBiquadFilter();crackF.type="bandpass";crackF.frequency.value=700;crackF.Q.value=0.4;
     osc.connect(oscG);oscG.connect(comp);
     sub.connect(subG);subG.connect(comp);
     crackSrc.connect(crackF);crackF.connect(crackG);crackG.connect(comp);
@@ -451,9 +504,11 @@ export default function SomaApp(){
     if(key==="rain"&&rainNodes.current){
       const ctx=getAudioCtx();if(ctx){
         const now=ctx.currentTime;
+        const newVol=val/100*0.1;
         rainNodes.current.gain.gain.cancelScheduledValues(now);
         rainNodes.current.gain.gain.setValueAtTime(rainNodes.current.gain.gain.value,now);
-        rainNodes.current.gain.gain.linearRampToValueAtTime(val/100*0.12,now+0.3);
+        rainNodes.current.gain.gain.linearRampToValueAtTime(newVol,now+0.5);
+        rainNodes.current.targetVol=newVol;
       }
     }
     // Thunder volume applies to next clap — no live adjustment needed
